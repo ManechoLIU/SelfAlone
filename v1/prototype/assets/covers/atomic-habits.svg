@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="title desc">
+  <title id="title">原子习惯</title><desc id="desc">象牙白纸张与细密点阵圆环封面</desc>
+  <defs><filter id="grain"><feTurbulence baseFrequency=".75" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 0.22 0 0 0 0 0.24 0 0 0 0 0.21 0 0 0 .055 0"/></filter></defs>
+  <rect width="360" height="540" rx="8" fill="oklch(0.965 0.012 92)"/>
+  <rect width="360" height="540" rx="8" filter="url(#grain)" opacity=".45"/>
+  <text x="180" y="74" text-anchor="middle" fill="oklch(0.25 0.035 174)" font-family="Iowan Old Style,Noto Serif CJK SC,Songti SC,serif" font-size="38" font-weight="700" letter-spacing="3">原子习惯</text>
+  <text x="180" y="104" text-anchor="middle" fill="oklch(0.46 0.025 174)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12" letter-spacing="2">细微改变带来显著成效</text>
+  <g transform="translate(180 282)" fill="none" stroke="oklch(0.42 0.055 167)" stroke-width="1.4">
+    <circle r="92" stroke-dasharray="1 7" stroke-linecap="round"/><circle r="80" stroke-dasharray="1 6" stroke-linecap="round"/><circle r="68" stroke-dasharray="1 5" stroke-linecap="round"/><circle r="56" stroke-dasharray="1 4" stroke-linecap="round"/>
+  </g>
+  <text x="180" y="270" text-anchor="middle" fill="oklch(0.39 0.048 170)" font-family="Iowan Old Style,Georgia,serif" font-size="22">Atomic</text><text x="180" y="296" text-anchor="middle" fill="oklch(0.39 0.048 170)" font-family="Iowan Old Style,Georgia,serif" font-size="22">Habits</text>
+  <path d="M60 425h240" stroke="oklch(0.79 0.018 92)"/>
+  <text x="180" y="468" text-anchor="middle" fill="oklch(0.31 0.03 174)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="16">詹姆斯·克利尔</text><text x="180" y="491" text-anchor="middle" fill="oklch(0.53 0.02 174)" font-family="Iowan Old Style,Georgia,serif" font-size="12">James Clear</text>
+</svg>

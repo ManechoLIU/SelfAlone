@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="title desc">
+  <title id="title">也许你该找个人聊聊</title><desc id="desc">玉绿色咨询室里的奶油色扶手椅</desc>
+  <defs><linearGradient id="room" x2="0" y2="1"><stop stop-color="oklch(0.62 0.075 169)"/><stop offset="1" stop-color="oklch(0.46 0.07 171)"/></linearGradient></defs>
+  <rect width="360" height="540" rx="8" fill="url(#room)"/>
+  <text x="38" y="64" fill="oklch(0.985 0.01 110)" font-family="Iowan Old Style,Noto Serif CJK SC,Songti SC,serif" font-size="29" font-weight="700" letter-spacing="1">也许你该</text><text x="38" y="103" fill="oklch(0.985 0.01 110)" font-family="Iowan Old Style,Noto Serif CJK SC,Songti SC,serif" font-size="29" font-weight="700" letter-spacing="1">找个人聊聊</text>
+  <text x="40" y="143" fill="oklch(0.9 0.025 155)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12" letter-spacing="1.5">心理治疗师的咨询手记</text>
+  <rect y="420" width="360" height="120" fill="oklch(0.39 0.055 171 / .42)"/>
+  <g transform="translate(152 249)"><path d="M38 39c0-27 19-42 48-42h28c31 0 49 17 49 46v114H38z" fill="oklch(0.87 0.035 83)"/><path d="M25 99c0-18 14-31 32-31h85c21 0 35 13 35 32v77H25z" fill="oklch(0.91 0.03 82)"/><path d="M44 170l-11 62M158 170l12 62" stroke="oklch(0.34 0.05 65)" stroke-width="9" stroke-linecap="round"/><path d="M65 35c26 13 54 13 78 0" fill="none" stroke="oklch(0.78 0.035 80)" stroke-width="4"/></g>
+  <g transform="translate(42 344)"><ellipse cx="43" cy="19" rx="43" ry="10" fill="oklch(0.29 0.045 166)"/><path d="M14 24l-8 77M72 24l9 77" stroke="oklch(0.29 0.045 166)" stroke-width="7"/><rect x="30" y="-30" width="27" height="45" rx="5" fill="oklch(0.9 0.035 90)"/><path d="M34-30c8-13 15-13 19 0" fill="none" stroke="oklch(0.32 0.055 165)" stroke-width="3"/></g>
+  <text x="180" y="493" text-anchor="middle" fill="oklch(0.96 0.015 115)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="14">洛莉·戈特利布</text>
+</svg>

@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "prototype/laoji-account-email.html",
+  "entry": "prototype/laoji-account-email.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-08-12T04:38:41.264Z",
+  "updatedAt": "2026-08-12T04:38:41.264Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>对话 · 老己</title>
+  <script src="assets/laoji-navigation.js?v=20260814-unified-shell-r3"></script>
+  <link rel="stylesheet" href="assets/laoji.css?v=20260814-unified-shell-r3">
+  <script defer src="assets/laoji-state.js?v=20260814-unified-shell-r3"></script>
+  <script defer src="assets/laoji.js?v=20260814-unified-shell-r3"></script>
+  <style>
+    .chat-layout-no-context { grid-template-columns: 220px minmax(0, 1fr); }
+    @media (max-width: 1199px) {
+      .chat-layout-no-context { grid-template-columns: 190px minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body class="chat-page mobile-conversation-page ppt-conversation-page" data-ppt-conversation-id="ppt-conversation-atomic-habits" data-od-id="chat-page">
+  <div class="app-shell" data-od-id="chat-shell">
+    <aside class="side-nav" data-od-id="chat-side-nav">
+      <a class="brand-lockup" href="./laoji-settings.html" aria-label="打开个人设置" data-od-id="profile-avatar-entry"><img class="user-avatar" src="assets/laoji-default-avatar.png" alt="老己用户的头像" data-user-avatar><span class="brand-name-wrap"><span class="brand-name">老己</span></span></a>
+      <nav id="ppt-primary-nav" class="nav-list" aria-label="主导航" data-od-id="chat-ppt-primary-nav"><a class="nav-link" href="./laoji-chat.html" aria-current="page" data-od-id="desktop-nav-chat"><span class="nav-dot"></span><span class="nav-text">对话</span></a><a class="nav-link" href="./laoji-library.html" data-od-id="desktop-nav-library"><span class="nav-dot"></span><span class="nav-text">读书</span></a><a class="nav-link" href="./laoji-settings.html" data-od-id="desktop-nav-settings"><span class="nav-dot"></span><span class="nav-text">设置</span></a></nav>
+      <div class="side-foot">会话草稿自动保存</div>
+    </aside>
+
+    <main class="chat-layout chat-layout-no-context ppt-continuous-shell" data-ppt-chat-shell data-ppt-desktop-shell data-session-mode="collapsed" data-mobile-view="chat" data-od-id="chat-workspace">
+      <aside id="ppt-session-panel" class="chat-sessions" data-ppt-session-panel aria-label="PPT 会话列表" data-od-id="chat-session-panel">
+        <div class="ppt-session-panel-head"><div><p class="eyebrow">当前模块</p><h2>对话</h2></div><button class="icon-btn ppt-session-close" type="button" data-ppt-session-close aria-label="收起会话列表" title="收起会话列表" data-od-id="chat-session-close"></button></div>
+        <button class="btn btn-primary chat-new" type="button" data-chat-new data-od-id="new-chat-button">新建对话</button>
+        <div class="chat-session-list"><button class="chat-session is-active" type="button" aria-current="page" data-chat-session data-title="最近读书整理" data-context="普通对话" data-od-id="chat-session-recent"><strong>最近读书整理</strong><span>当前 · 普通对话</span></button><button class="chat-session" type="button" data-chat-session data-title="习惯系统分享" data-context="原子习惯 · PPT 专属会话" data-od-id="chat-session-habit"><strong>习惯系统分享</strong><span>大纲待确认</span></button><button class="chat-session" type="button" data-chat-session data-title="深度工作笔记" data-context="深度工作" data-od-id="chat-session-deep-work"><strong>深度工作笔记</strong><span>昨天</span></button></div>
+      </aside>
+
+      <section class="chat-main" data-ppt-chat-pane aria-label="对话内容" data-od-id="chat-conversation">
+        <header class="topbar mobile-conversation-header" data-mobile-conversation-header data-od-id="chat-header">
+          <div class="topbar-title"><h1 data-od-id="chat-heading">最近读书整理</h1><p class="topbar-sub" data-chat-context-label>普通对话</p></div>
+          <a class="ai-status" href="laoji-ai-setup.html" data-od-id="ai-status-link">AI 未配置 · 去配置</a>
+          <div class="top-actions"><button class="btn btn-quiet ppt-session-toggle" type="button" data-ppt-session-toggle aria-expanded="false" aria-controls="ppt-session-panel" aria-label="展开会话列表" title="展开会话列表" data-od-id="chat-ppt-session-toggle"></button><button class="btn mobile-only mobile-keep" type="button" aria-label="打开最近会话" data-dialog-open="chat-context-dialog" data-od-id="mobile-session-menu"><span aria-hidden="true"></span>会话</button></div>
+        </header>
+        <div class="chat-feed" data-chat-feed data-ppt-conversation-timeline aria-live="polite" data-od-id="chat-ppt-conversation-timeline">
+          <div class="chat-thread" data-chat-thread>
+            <div class="thread-date" aria-label="今天">今天</div>
+            <div class="message-row user" data-od-id="chat-message-ppt-request"><span class="message-mark">你</span><div class="message-bubble"><p>我想基于《原子习惯》做一份读书分享 PPT，帮我整理框架和关键内容。</p></div></div>
+            <div class="message-row assistant" data-od-id="chat-message-book-picker">
+              <span class="message-mark"><img src="assets/laoji-default-avatar.png" alt="老己"></span>
+              <div class="message-bubble">
+                <p>可以。我会先锁定书籍版本，再把分享范围、大纲与成品留在同一个专属会话里。</p>
+                <div class="ppt-book-picker" data-book-picker aria-label="选择用于制作 PPT 的书籍">
+                  <button class="ppt-book-choice" type="button" aria-pressed="true" data-book-choice data-book-title="原子习惯" data-book-author="詹姆斯·克利尔" data-book-cover="assets/covers/atomic-habits-image2.png" data-book-href="laoji-wechat-book.html" data-od-id="ppt-book-atomic-habits"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/atomic-habits-image2.png" alt=""><span class="cover-copy"><strong>原子习惯</strong><small>詹姆斯·克利尔</small></span></span></button>
+                  <button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="深度工作" data-book-author="卡尔·纽波特" data-book-cover="assets/covers/deep-work-image2.png" data-book-href="laoji-epub-reader.html" data-od-id="ppt-book-deep-work"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/deep-work-image2.png" alt=""><span class="cover-copy"><strong>深度工作</strong><small>卡尔·纽波特</small></span></span></button>
+                  <button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="思考，快与慢" data-book-author="丹尼尔·卡尼曼" data-book-cover="assets/covers/thinking-fast-and-slow-image2.png" data-book-href="laoji-pdf-reader.html" data-od-id="ppt-book-thinking"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/thinking-fast-and-slow-image2.png" alt=""><span class="cover-copy"><strong>思考，快与慢</strong><small>丹尼尔·卡尼曼</small></span></span></button>
+                  <button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="被讨厌的勇气" data-book-author="岸见一郎 · 古贺史健" data-book-cover="assets/covers/courage-to-be-disliked-image2.png" data-book-href="laoji-wechat-book.html" data-od-id="ppt-book-courage"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-light"><img src="assets/covers/courage-to-be-disliked-image2.png" alt=""><span class="cover-copy"><strong>被讨厌的勇气</strong><small>岸见一郎 · 古贺史健</small></span></span></button>
+                </div>
+                <button class="mobile-book-selector" type="button" data-mobile-book-picker-open data-od-id="mobile-ppt-book-selector"><img src="assets/covers/atomic-habits-image2.png" alt=""><span><strong data-mobile-book-title>原子习惯</strong><br><span data-mobile-book-author>詹姆斯·克利尔</span></span></button>
+                <p class="muted" data-book-choice-status aria-live="polite">已选择《原子习惯》</p>
+                <div class="card-actions"><button class="btn btn-primary" type="button" data-confirm-book data-od-id="confirm-ppt-book">用这本书继续</button></div>
+              </div>
+            </div>
+            <div data-ppt-stage-host aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="chat-composer-wrap" data-od-id="chat-composer-region"><form class="chat-composer mobile-chat-composer" data-chat-form><textarea class="textarea chat-input" rows="1" aria-label="输入消息" placeholder="继续告诉老己你的分享要求…" data-chat-input></textarea><button class="btn btn-primary conversation-send-icon" type="submit" aria-label="发送" data-chat-send data-od-id="chat-send"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg><span>发送</span></button></form><p class="composer-note">内容会自动保存在当前会话</p></div>
+      </section>
+
+      <aside class="chat-scope-workbench ppt-artifact-canvas ppt-workbench-panel" data-ppt-scope-workbench data-ppt-workbench-panel hidden aria-labelledby="chat-ppt-scope-title" data-od-id="chat-ppt-workbench-panel">
+        <header class="scope-workbench-head">
+          <button class="btn btn-ghost artifact-mobile-back" type="button" data-ppt-view="chat" aria-label="返回当前对话">返回</button>
+          <div><p class="eyebrow">原子习惯 · 读书 PPT</p><h2 id="chat-ppt-scope-title">确认 PPT 范围</h2></div>
+          <span class="save-status">草稿已保存</span><button class="btn btn-ghost ppt-workbench-toggle" type="button" data-ppt-workbench-toggle aria-expanded="true" aria-label="收起作品工作台" data-od-id="chat-ppt-workbench-toggle">收起工作台</button>
+        </header>
+        <div class="scope-workbench-body">
+          <div class="scope-book-identity"><img src="assets/covers/atomic-habits-image2.png" alt="" data-scope-book-cover><div><strong data-scope-book-title>原子习惯</strong><span data-scope-book-author>詹姆斯·克利尔</span></div></div>
+          <form class="scope-confirm-form" data-material-form data-scope-confirm-form data-outline-direct-navigation action="laoji-ppt-outline.html?conversation=ppt-conversation-atomic-habits">
+            <fieldset class="scope-confirm-group"><legend>内容范围</legend><div class="scope-choice-grid" data-ppt-choice-group data-draft-field="scope"><button class="scope-choice is-selected" type="button" aria-pressed="true" data-choice-value="whole-book"><strong>整本书</strong><span>提炼全书核心内容</span></button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="chapters"><strong>指定章节</strong><span>聚焦部分章节</span></button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="laoji-notes"><strong>已有老己笔记</strong><span>围绕你的笔记展开</span></button></div></fieldset>
+            <label class="scope-inline-toggle"><input type="checkbox" data-friend-opinion><span><strong>加入书友观点</strong><small>引用时保留作者与来源</small></span></label>
+            <fieldset class="scope-confirm-group"><legend>用途</legend><div class="scope-choice-grid scope-choice-grid-compact" data-ppt-choice-group data-draft-field="purpose"><button class="scope-choice is-selected" type="button" aria-pressed="true" data-choice-value="读书分享">读书分享</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="知识讲解">知识讲解</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="内部培训">内部培训</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="个人复盘">个人复盘</button></div></fieldset>
+            <fieldset class="scope-confirm-group"><legend>分享对象</legend><div class="scope-choice-grid scope-choice-grid-compact" data-ppt-choice-group data-draft-field="audience"><button class="scope-choice is-selected" type="button" aria-pressed="true" data-choice-value="同事">同事</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="读书会">读书会</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="学生">学生</button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="其他">其他</button></div></fieldset>
+            <fieldset class="scope-confirm-group"><legend>页数</legend><div class="scope-choice-grid scope-choice-grid-compact" data-ppt-choice-group data-draft-field="pageCount"><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="5"><strong>精简</strong><span>约 5 页</span></button><button class="scope-choice is-selected" type="button" aria-pressed="true" data-choice-value="8"><strong>标准</strong><span>约 8 页</span></button><button class="scope-choice" type="button" aria-pressed="false" data-choice-value="12"><strong>详细</strong><span>约 12 页</span></button></div></fieldset>
+            <p class="scope-form-hint">补充要求可继续在左侧对话中发送。</p>
+            <button class="btn btn-primary scope-confirm-submit" type="submit" data-generate-outline aria-label="确认范围并生成大纲" data-od-id="chat-generate-outline">生成大纲</button>
+          </form>
+        </div>
+      </aside>
+    </main>
+    <nav class="bottom-nav" aria-label="手机主导航" data-od-id="chat-mobile-nav"><a class="bottom-link" href="./laoji-chat.html" aria-current="page" data-od-id="mobile-nav-chat">对话</a><a class="bottom-link" href="./laoji-library.html" data-od-id="mobile-nav-library">读书</a><a class="bottom-link" href="./laoji-settings.html" data-od-id="mobile-nav-settings">设置</a></nav>
+  </div>
+
+  <dialog id="chat-context-dialog" aria-labelledby="chat-context-title"><div class="dialog-head"><h2 id="chat-context-title" tabindex="-1">最近会话</h2><button class="btn btn-ghost icon-btn" data-dialog-close aria-label="关闭">×</button></div><div class="dialog-body"><div class="chat-session-list"><a class="context-item" href="laoji-ppt-materials.html?conversation=ppt-conversation-atomic-habits"><strong>习惯系统分享</strong><span>当前 · 确认 PPT 范围</span></a><a class="context-item" href="laoji-ppt-outline.html?conversation=ppt-conversation-atomic-habits"><strong>习惯系统分享</strong><span>大纲待确认</span></a><a class="context-item" href="laoji-ppt-preview.html?conversation=ppt-conversation-atomic-habits"><strong>行动系统</strong><span>已完成</span></a></div></div></dialog>
+  <dialog id="mobile-book-picker-dialog" class="mobile-book-sheet" aria-labelledby="mobile-book-picker-title"><div class="dialog-head"><h2 id="mobile-book-picker-title" tabindex="-1">选择书籍</h2><button class="btn btn-ghost icon-btn" type="button" data-dialog-close aria-label="关闭">×</button></div><div class="dialog-body"><div class="ppt-book-picker" data-mobile-book-picker aria-label="选择用于制作 PPT 的书籍"><button class="ppt-book-choice" type="button" aria-pressed="true" data-book-choice data-book-title="原子习惯" data-book-author="詹姆斯·克利尔" data-book-cover="assets/covers/atomic-habits-image2.png" data-book-href="laoji-wechat-book.html"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/atomic-habits-image2.png" alt=""><span class="cover-copy"><strong>原子习惯</strong><small>詹姆斯·克利尔</small></span></span></button><button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="深度工作" data-book-author="卡尔·纽波特" data-book-cover="assets/covers/deep-work-image2.png" data-book-href="laoji-epub-reader.html"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/deep-work-image2.png" alt=""><span class="cover-copy"><strong>深度工作</strong><small>卡尔·纽波特</small></span></span></button><button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="思考，快与慢" data-book-author="丹尼尔·卡尼曼" data-book-cover="assets/covers/thinking-fast-and-slow-image2.png" data-book-href="laoji-pdf-reader.html"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-dark"><img src="assets/covers/thinking-fast-and-slow-image2.png" alt=""><span class="cover-copy"><strong>思考，快与慢</strong><small>丹尼尔·卡尼曼</small></span></span></button><button class="ppt-book-choice" type="button" aria-pressed="false" data-book-choice data-book-title="被讨厌的勇气" data-book-author="岸见一郎 · 古贺史健" data-book-cover="assets/covers/courage-to-be-disliked-image2.png" data-book-href="laoji-wechat-book.html"><span class="ppt-book-check" aria-hidden="true">✓</span><span class="book-cover cover-art cover-art-light"><img src="assets/covers/courage-to-be-disliked-image2.png" alt=""><span class="cover-copy"><strong>被讨厌的勇气</strong><small>岸见一郎 · 古贺史健</small></span></span></button></div></div></dialog>
+</body>
+</html>

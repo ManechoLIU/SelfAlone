@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>思考，快与慢 · 老己</title><script src="assets/laoji-navigation.js?v=20260814-unified-shell-r3"></script><link rel="stylesheet" href="assets/laoji.css?v=20260814-unified-shell-r3"><script defer src="assets/laoji-state.js?v=20260814-unified-shell-r3"></script><script defer src="assets/laoji.js?v=20260814-unified-shell-r3"></script>
+  <style>
+    [data-pdf-focus-stage]:fullscreen,
+    [data-pdf-focus-stage].pdf-focus-fallback {
+      width: 100vw;
+      height: 100dvh;
+      display: grid;
+      grid-template-columns: 200px minmax(0, 1fr);
+      overflow: hidden;
+      padding: 0;
+      background: oklch(0.92 0.008 170);
+    }
+    [data-pdf-focus-stage]:fullscreen .reader-panel.left,
+    [data-pdf-focus-stage].pdf-focus-fallback .reader-panel.left {
+      display: block;
+      min-height: 0;
+      overflow-y: auto;
+    }
+    [data-pdf-focus-stage]:fullscreen .reader-panel.right,
+    [data-pdf-focus-stage].pdf-focus-fallback .reader-panel.right { display: none; }
+    [data-pdf-focus-stage]:fullscreen .pdf-stage,
+    [data-pdf-focus-stage].pdf-focus-fallback .pdf-stage {
+      min-height: 0;
+      overflow-y: auto;
+    }
+    [data-pdf-focus-stage]:fullscreen .pdf-toolbar,
+    [data-pdf-focus-stage].pdf-focus-fallback .pdf-toolbar { top: 0; }
+    [data-pdf-focus-stage]::backdrop { background: oklch(0.92 0.008 170); }
+    [data-pdf-focus-stage].pdf-focus-fallback { position: fixed; inset: 0; z-index: 120; }
+    body:has([data-pdf-focus-stage].pdf-focus-fallback) { overflow: hidden; }
+    [data-pdf-focus-chrome],
+    [data-pdf-focus-toc-backdrop] { display: none; }
+    .local-reader-toolbar {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      padding: 7px 10px;
+      border: 1px solid oklch(0.84 0.012 170 / 0.9);
+      border-radius: 14px;
+      background: oklch(0.988 0.003 170 / 0.97);
+      box-shadow: 0 14px 38px oklch(0.28 0.025 175 / 0.14), 0 2px 8px oklch(0.28 0.025 175 / 0.06);
+      backdrop-filter: blur(18px);
+    }
+    .local-reader-tool-group {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 4px;
+    }
+    .local-reader-separator { flex: 0 0 1px; width: 1px; height: 24px; margin: 0 7px; background: oklch(0.82 0.012 170 / 0.9); }
+    .local-reader-icon-btn,
+    .local-reader-action {
+      min-width: 40px;
+      height: 40px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 0 10px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+    }
+    .local-reader-icon-btn { padding: 0; }
+    .local-reader-toc-action { padding-inline: 10px 12px; }
+    .local-reader-toc-label { white-space: nowrap; font-size: 14px; }
+    .local-reader-icon-btn svg,
+    .local-reader-action svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .local-reader-icon-btn:hover,
+    .local-reader-action:hover { background: var(--jade-pale); color: var(--jade-dark); }
+    .local-reader-icon-btn:active,
+    .local-reader-action:active { transform: scale(0.96); }
+    .local-reader-icon-btn:focus-visible,
+    .local-reader-action:focus-visible { outline: 2px solid var(--jade); outline-offset: 2px; }
+    .local-reader-value {
+      min-width: 52px;
+      padding: 0 6px;
+      color: var(--muted-strong);
+      font-family: var(--data);
+      font-size: 13px;
+      line-height: 36px;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .local-reader-action { background: transparent; }
+    .local-reader-focus-icon { color: var(--jade-dark); }
+    .local-reader-note-fab {
+      position: fixed;
+      z-index: 69;
+      right: 26px;
+      bottom: 104px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid oklch(0.84 0.012 170 / 0.95);
+      border-radius: 12px;
+      background: oklch(0.988 0.003 170 / 0.97);
+      color: var(--jade-dark);
+      box-shadow: 0 10px 28px oklch(0.28 0.025 175 / 0.12);
+      cursor: pointer;
+    }
+    .local-reader-note-fab svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .local-reader-note-fab:hover { background: var(--jade-pale); color: var(--jade-dark); }
+    .local-reader-note-fab:focus-visible { outline: 2px solid var(--jade); outline-offset: 3px; }
+    .local-reader-workspace {
+      display: grid;
+      grid-template-columns: 200px minmax(0, 1fr);
+      min-height: calc(100dvh - var(--topbar) - 52px);
+      transition: grid-template-columns 180ms ease;
+    }
+    .local-reader-content { min-width: 0; }
+    .pdf-page { font-size: calc(17px * var(--local-reader-scale, 1)); }
+    .local-reader-content > [data-local-reader-toolbar] {
+      position: fixed;
+      top: auto;
+      z-index: 70;
+      left: calc(var(--sidebar) + 200px + (100vw - var(--sidebar) - 200px) / 2);
+      bottom: 24px;
+      width: max-content;
+      max-width: calc(100vw - var(--sidebar) - 32px);
+      margin: 0;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transform: translate(-50%, 10px);
+      transition: opacity 160ms ease, transform 200ms ease, visibility 160ms ease;
+    }
+    .local-reader-workspace.local-reader-controls-visible:not(:fullscreen):not(.local-reader-focus-fallback):not(.pdf-focus-fallback) .local-reader-content > [data-local-reader-toolbar] {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      transform: translate(-50%, 0);
+    }
+    .local-reader-workspace > [data-local-reader-focus-chrome],
+    .local-reader-workspace > [data-local-reader-focus-toc-backdrop] { display: none; }
+    @media (max-width: 1199px) {
+      .local-reader-workspace { grid-template-columns: 180px minmax(0, 1fr); }
+      .local-reader-content > [data-local-reader-toolbar] { left: calc(var(--sidebar) + 180px + (100vw - var(--sidebar) - 180px) / 2); }
+      .local-reader-workspace > .reader-panel.left { padding-inline: 18px; }
+      .local-reader-workspace > .reader-panel.left h2 { font-size: 14px; }
+      .local-reader-workspace > .reader-panel.left .toc-link { font-size: 13px; }
+      .local-reader-workspace > .reader-panel.left .toc-link::before { content: none; display: none; }
+    }
+    @media (max-width: 767px) {
+      .local-reader-workspace { display: block; min-height: auto; }
+    }
+    @media (max-width: 760px) {
+      .local-reader-toolbar { padding: 5px 4px; border-radius: 13px; }
+      .local-reader-content > [data-local-reader-toolbar] {
+        left: 50%;
+        right: auto;
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+        width: calc(100% - 24px);
+        max-width: 430px;
+        margin: 0;
+        transform: translate(-50%, 10px);
+      }
+      .local-reader-workspace.local-reader-controls-visible:not(:fullscreen):not(.local-reader-focus-fallback):not(.pdf-focus-fallback) .local-reader-content > [data-local-reader-toolbar] {
+        transform: translate(-50%, 0);
+      }
+      .local-reader-icon-btn,
+      .local-reader-action { min-width: 44px; height: 44px; }
+      .local-reader-toc-action { min-width: 62px; padding-inline: 6px; gap: 5px; }
+      .local-reader-tool-group { padding: 0; }
+      .local-reader-value { min-width: 40px; padding-inline: 2px; line-height: 44px; }
+      .local-reader-separator { height: 22px; margin-inline: 3px; }
+      .local-reader-note-fab { right: 16px; bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
+      .local-reader-action-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      [data-pdf-focus-stage]:fullscreen .local-reader-note-fab,
+      [data-pdf-focus-stage].pdf-focus-fallback .local-reader-note-fab { display: none; }
+      [data-pdf-focus-stage]:fullscreen,
+      [data-pdf-focus-stage].pdf-focus-fallback {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      [data-pdf-focus-stage]:fullscreen { position: relative; }
+      [data-pdf-focus-stage].pdf-focus-fallback { position: fixed; }
+      [data-pdf-focus-stage]:fullscreen .reader-panel.left,
+      [data-pdf-focus-stage].pdf-focus-fallback .reader-panel.left {
+        position: absolute;
+        z-index: 4;
+        inset: auto 12px calc(76px + env(safe-area-inset-bottom, 0px));
+        display: block;
+        max-height: min(58dvh, 460px);
+        padding: 18px;
+        overflow-y: auto;
+        border: 1px solid oklch(0.82 0.014 170 / 0.9);
+        border-radius: 20px;
+        background: oklch(0.975 0.006 170 / 0.98);
+        box-shadow: 0 18px 50px oklch(0.28 0.025 175 / 0.22);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(18px) scale(0.98);
+        transform-origin: bottom center;
+        transition: opacity 160ms ease, transform 200ms ease, visibility 160ms ease;
+      }
+      [data-pdf-focus-stage][data-pdf-focus-toc-open]:fullscreen .reader-panel.left,
+      [data-pdf-focus-stage][data-pdf-focus-toc-open].pdf-focus-fallback .reader-panel.left {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0) scale(1);
+      }
+      [data-pdf-focus-stage]:fullscreen .pdf-stage,
+      [data-pdf-focus-stage].pdf-focus-fallback .pdf-stage {
+        grid-column: 1;
+        padding: 0 10px 24px;
+        overscroll-behavior: contain;
+      }
+      [data-pdf-focus-stage]:fullscreen .pdf-toolbar,
+      [data-pdf-focus-stage].pdf-focus-fallback .pdf-toolbar { display: none; }
+      [data-pdf-focus-stage]:fullscreen [data-pdf-focus-chrome],
+      [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-chrome] {
+        position: absolute;
+        z-index: 5;
+        left: 12px;
+        right: 12px;
+        display: flex;
+        align-items: center;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-8px);
+        transition: opacity 160ms ease, transform 200ms ease, visibility 160ms ease;
+      }
+      [data-pdf-focus-stage]:fullscreen [data-pdf-focus-chrome="top"],
+      [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-chrome="top"] {
+        top: calc(10px + env(safe-area-inset-top, 0px));
+        justify-content: flex-end;
+      }
+      [data-pdf-focus-stage]:fullscreen [data-pdf-focus-chrome="bottom"],
+      [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-chrome="bottom"] {
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        justify-content: space-between;
+        gap: 4px;
+        padding: 8px;
+        border: 1px solid oklch(0.82 0.014 170 / 0.88);
+        border-radius: 16px;
+        background: oklch(0.975 0.006 170 / 0.94);
+        box-shadow: 0 12px 38px oklch(0.28 0.025 175 / 0.18);
+        backdrop-filter: blur(18px);
+        transform: translateY(10px);
+      }
+      [data-pdf-focus-stage]:fullscreen [data-pdf-focus-chrome="top"] .local-reader-icon-btn,
+      [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-chrome="top"] .local-reader-icon-btn {
+        border-color: oklch(0.82 0.014 170 / 0.88);
+        background: oklch(0.975 0.006 170 / 0.94);
+        box-shadow: 0 8px 28px oklch(0.28 0.025 175 / 0.14);
+        backdrop-filter: blur(18px);
+      }
+      [data-pdf-focus-stage].pdf-focus-controls-visible:fullscreen [data-pdf-focus-chrome],
+      [data-pdf-focus-stage].pdf-focus-fallback.pdf-focus-controls-visible [data-pdf-focus-chrome] {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+      [data-pdf-focus-stage]:fullscreen [data-pdf-focus-toc-backdrop],
+      [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-toc-backdrop] {
+        position: absolute;
+        z-index: 3;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        border: 0;
+        background: oklch(0.2 0.02 175 / 0.22);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 160ms ease, visibility 160ms ease;
+      }
+      [data-pdf-focus-stage][data-pdf-focus-toc-open]:fullscreen [data-pdf-focus-toc-backdrop],
+      [data-pdf-focus-stage][data-pdf-focus-toc-open].pdf-focus-fallback [data-pdf-focus-toc-backdrop] {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        [data-pdf-focus-stage]:fullscreen [data-pdf-focus-chrome],
+        [data-pdf-focus-stage].pdf-focus-fallback [data-pdf-focus-chrome],
+        [data-pdf-focus-stage]:fullscreen .reader-panel.left,
+        [data-pdf-focus-stage].pdf-focus-fallback .reader-panel.left { transition: none; }
+      }
+    }
+    .local-reader-workspace[data-local-reader-context-open] {
+      grid-template-columns: 200px minmax(0, 1fr) 300px;
+    }
+    .highlight[data-local-reader-highlight] {
+      cursor: pointer;
+      border-radius: 3px;
+      outline-offset: 3px;
+    }
+    .highlight[data-local-reader-highlight]:hover { background: oklch(0.75 0.075 174 / .44); }
+    .highlight[data-local-reader-highlight]:focus-visible { outline: 2px solid var(--jade); }
+    .local-reader-context-backdrop { display: none; }
+    .local-reader-context-panel {
+      grid-column: 3;
+      min-width: 0;
+      padding: 0;
+      overflow: visible;
+      border-left: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .local-reader-context-panel[hidden] { display: none; }
+    .local-reader-context-inner {
+      position: sticky;
+      top: 0;
+      max-height: calc(100dvh - var(--topbar) - 52px);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 22px 18px;
+      overflow-y: auto;
+    }
+    .local-reader-context-head,
+    .local-reader-context-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .local-reader-context-head h2,
+    .local-reader-context-section-head h3 { margin: 0; color: var(--ink); font-size: 15px; }
+    .local-reader-context-close { width: 36px; min-width: 36px; height: 36px; }
+    .local-reader-context-quote { margin: 0; font: 400 15px/1.75 var(--reading); }
+    .local-reader-context-count { color: var(--muted-strong); font: 12px/1 var(--data); }
+    .local-reader-context-note-list { display: grid; gap: 0; }
+    .local-reader-context-note {
+      position: relative;
+      padding: 14px 0;
+      border-top: 1px solid var(--border-soft);
+    }
+    .local-reader-context-note time { color: var(--muted-strong); font: 12px/1.4 var(--data); }
+    .local-reader-context-note p { margin: 7px 0 0; line-height: 1.7; }
+    .local-reader-context-note .source-action-popover { top: 4px; }
+    .local-reader-context-add { width: 100%; margin-top: auto; }
+    [data-local-reader-focus-stage][data-local-reader-context-open]:fullscreen > .local-reader-context-panel,
+    [data-local-reader-focus-stage][data-local-reader-context-open].local-reader-focus-fallback > .local-reader-context-panel,
+    [data-local-reader-focus-stage][data-local-reader-context-open].pdf-focus-fallback > .local-reader-context-panel {
+      position: absolute;
+      z-index: 8;
+      top: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: block;
+      width: min(320px, calc(100vw - 32px));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 20px 54px oklch(0.28 0.025 175 / 0.2);
+    }
+    [data-local-reader-focus-stage][data-local-reader-context-open]:fullscreen,
+    [data-local-reader-focus-stage][data-local-reader-context-open].local-reader-focus-fallback,
+    [data-local-reader-focus-stage][data-local-reader-context-open].pdf-focus-fallback {
+      grid-template-columns: 200px minmax(0, 1fr);
+    }
+    @media (max-width: 1199px) {
+      .local-reader-workspace[data-local-reader-context-open] { grid-template-columns: 72px minmax(0, 1fr); }
+      .local-reader-workspace[data-local-reader-context-open] > .local-reader-context-backdrop {
+        position: fixed;
+        z-index: 78;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: oklch(0.2 0.02 175 / 0.46);
+      }
+      .local-reader-workspace[data-local-reader-context-open] > .local-reader-context-panel {
+        position: fixed;
+        z-index: 79;
+        top: calc(var(--topbar) + 16px);
+        right: 16px;
+        bottom: 16px;
+        display: block;
+        width: min(340px, calc(100vw - 104px));
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        box-shadow: 0 20px 54px oklch(0.28 0.025 175 / 0.2);
+      }
+      body:has(.local-reader-workspace[data-local-reader-context-open]) { overflow: hidden; }
+    }
+    @media (max-width: 767px) {
+      [data-local-reader-focus-stage][data-local-reader-context-open]:fullscreen,
+      [data-local-reader-focus-stage][data-local-reader-context-open].local-reader-focus-fallback,
+      [data-local-reader-focus-stage][data-local-reader-context-open].pdf-focus-fallback {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .local-reader-workspace[data-local-reader-context-open] > .local-reader-context-panel {
+        top: auto;
+        left: 12px;
+        right: 12px;
+        bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+        width: auto;
+        max-height: min(68dvh, 560px);
+      }
+      [data-pdf-focus-stage][data-local-reader-context-open]:fullscreen > .local-reader-context-panel,
+      [data-pdf-focus-stage][data-local-reader-context-open].pdf-focus-fallback > .local-reader-context-panel {
+        top: auto;
+        left: 12px;
+        right: 12px;
+        bottom: 0;
+        width: auto;
+        max-height: min(68dvh, 560px);
+        border-radius: 20px 20px 0 0;
+      }
+      .local-reader-context-inner { max-height: min(68dvh, 560px); padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .local-reader-icon-btn,
+      .local-reader-action,
+      .local-reader-content > [data-local-reader-toolbar],
+      .local-reader-workspace { transition: none; }
+    }
+  </style>
+</head>
+<body data-book-id="local-thinking">
+  <div class="app-shell" data-od-id="pdf-reader-shell" data-local-book-key="thinking-fast-and-slow" data-local-progress-start="24" data-local-progress-end="32">
+    <aside class="side-nav"><a class="brand-lockup" href="laoji-settings.html" aria-label="打开个人设置" data-od-id="profile-avatar-entry"><img class="user-avatar" src="assets/laoji-default-avatar.png" alt="老己用户的头像" data-user-avatar><span class="brand-name-wrap"><span class="brand-name">老己</span></span></a><nav class="nav-list" aria-label="主导航"><a class="nav-link" href="laoji-chat.html"><span class="nav-dot"></span><span class="nav-text">对话</span></a><a class="nav-link" href="laoji-library.html" aria-current="page"><span class="nav-dot"></span><span class="nav-text">读书</span></a><a class="nav-link" href="laoji-settings.html"><span class="nav-dot"></span><span class="nav-text">设置</span></a></nav><div class="side-foot"><span data-local-reading-status>阅读位置已保存</span><br><span class="data" data-local-reading-progress>28%</span></div></aside>
+    <header class="topbar" data-od-id="pdf-header"><div class="topbar-title"><p class="eyebrow"><a href="laoji-library.html">‹ 返回书架</a></p><h1 data-od-id="pdf-heading">思考，快与慢</h1></div><a class="ai-status desktop-only" href="laoji-ai-setup.html">AI 未配置</a><div class="top-actions"><a class="btn btn-primary desktop-only" href="laoji-ppt-materials.html">制作 PPT</a></div></header>
+
+    <section class="main" data-local-book-summary data-od-id="pdf-book-summary" aria-labelledby="pdf-book-summary-title">
+      <div class="content-limit">
+        <div class="book-hero">
+          <div class="book-cover" aria-label="《思考，快与慢》封面"><strong class="cover-title">思考，快与慢</strong><span class="cover-author">丹尼尔·卡尼曼</span></div>
+          <div><h1 id="pdf-book-summary-title">思考，快与慢</h1><p class="muted">丹尼尔·卡尼曼</p><div class="meta-line"><span>阅读进度 <strong class="data" data-local-reading-progress>28%</strong></span><span>第 12 页 · 注意与努力</span><span data-local-reading-status>阅读位置已保存</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <nav class="book-mode-tabs" aria-label="书籍内容" data-od-id="pdf-book-tabs"><button class="book-mode-link" type="button" data-book-view="reading" aria-current="page">阅读</button><button class="book-mode-link" type="button" data-book-view="notes">老己笔记</button><button class="book-mode-link" type="button" data-book-view="ppt">读书 PPT</button></nav>
+
+    <main class="pdf-workspace local-reader-workspace book-view-panel" data-local-reader-workspace data-pdf-focus-stage data-local-reader-focus-stage data-book-view-panel="reading" data-od-id="pdf-workspace">
+      <aside class="reader-panel left" data-od-id="pdf-thumbnails"><h2>目录</h2><nav class="toc-list"><a class="toc-link" href="#" data-short="01">第一部分 · 两个系统</a><a class="toc-link active" href="#page-12" data-short="02">第二章 · 注意与努力</a><a class="toc-link" href="#page-13" data-short="03">第三章 · 懒惰的控制者</a><a class="toc-link" href="#" data-short="04">第四章 · 联想机器</a></nav></aside>
+      <button class="pdf-focus-toc-backdrop" type="button" data-pdf-focus-toc-backdrop aria-label="关闭目录"></button>
+      <div class="pdf-focus-chrome" data-pdf-focus-chrome="top" data-local-reader-focus-chrome="top" aria-hidden="true"><button class="local-reader-icon-btn" type="button" data-pdf-focus-exit aria-label="退出专注"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <nav class="pdf-focus-chrome local-reader-toolbar" data-pdf-focus-chrome="bottom" data-local-reader-focus-chrome="bottom" aria-label="专注阅读控制" aria-hidden="true"><button class="local-reader-icon-btn" type="button" data-pdf-focus-toc-toggle aria-expanded="false" aria-label="目录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><div class="local-reader-tool-group" role="group" aria-label="显示大小"><button class="local-reader-icon-btn" type="button" data-local-reader-size-control="decrease" aria-label="缩小"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button><span class="local-reader-value" data-local-reader-size-value aria-label="当前显示级别">标准</span><button class="local-reader-icon-btn" type="button" data-local-reader-size-control="increase" aria-label="放大"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button></div><span class="local-reader-value" aria-label="当前阅读进度">28%</span></nav>
+      <section class="pdf-stage local-reader-content" data-od-id="pdf-stage">
+        <div class="pdf-toolbar local-reader-toolbar" data-local-reader-toolbar data-pdf-switcher data-od-id="pdf-reader-controls" aria-hidden="true"><button class="local-reader-action local-reader-toc-action" type="button" data-local-reader-toc-action data-dialog-open="pdf-pages-dialog" aria-label="目录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="local-reader-toc-label">目录</span></button><span class="local-reader-separator" aria-hidden="true"></span><div class="local-reader-tool-group" role="group" aria-label="显示大小"><button class="local-reader-icon-btn" type="button" data-local-reader-size-control="decrease" aria-label="缩小"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg></button><span class="local-reader-value" data-local-reader-size-value aria-label="当前显示级别">标准</span><button class="local-reader-icon-btn" type="button" data-local-reader-size-control="increase" aria-label="放大"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6v12M6 12h12"/></svg></button></div><span class="local-reader-separator" aria-hidden="true"></span><span class="local-reader-value" aria-label="当前阅读进度">28%</span><span class="local-reader-separator" aria-hidden="true"></span><button class="local-reader-action" type="button" data-pdf-focus-toggle data-local-reader-focus-toggle aria-pressed="false" aria-label="进入专注阅读"><svg class="local-reader-focus-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 4.5C13.8 4.7 8.2 6.7 5.8 11.2c-1.4 2.7-.8 5.8 1.6 7.4 2.4 1.6 5.5.7 7-1.6 2.2-3.4 2.1-7.7 5.1-12.5Z"/><path d="M5 20c2.7-4.5 6.1-7.7 10.3-10.1"/></svg><span class="local-reader-action-label" data-pdf-focus-label>专注阅读</span></button></div>
+        <button class="local-reader-note-fab" type="button" data-local-reader-note-action data-dialog-open="pdf-note-dialog" data-od-id="pdf-note-shortcut" aria-label="写笔记" title="写笔记"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4M12 20h8"/></svg></button>
+
+        <div class="pdf-state" data-pdf-state="normal">
+          <article class="pdf-page" id="page-12"><p class="pdf-page-number">12</p><h2 class="reading">两个系统</h2><p>系统一的运行是自动且快速的，几乎不费脑力，也没有感觉。系统二将注意力转移到需要费脑力的大脑活动上来，例如复杂的计算。</p><p><mark class="highlight" role="button" tabindex="0" aria-controls="pdf-highlight-context" aria-expanded="false" data-local-reader-highlight data-local-reader-highlight-quote="我们无法关闭系统一，它会持续为眼前发生的事情生成解释。只有当系统二主动介入时，我们才会重新检查最初的判断。" data-local-reader-highlight-notes='[{"time":"今天 09:18","text":"重要判断前先写下第一反应，再用反例检查它。"},{"time":"昨天","text":"先区分自动反应和需要投入注意力的判断。"}]'>我们无法关闭系统一，它会持续为眼前发生的事情生成解释。只有当系统二主动介入时，我们才会重新检查最初的判断。</mark></p><p>这一区分不是对人的分类，而是对两种思维方式的描述。理解它们，是识别判断偏差的第一步。</p></article>
+          <article class="pdf-page" id="page-13"><p class="pdf-page-number">13</p><p><mark class="highlight" role="button" tabindex="0" aria-controls="pdf-highlight-context" aria-expanded="false" data-local-reader-highlight data-local-reader-highlight-quote="当注意力被占用时，我们更容易接受系统一提供的答案。" data-local-reader-highlight-notes='[{"time":"今天 09:26","text":"做重要决定前暂停一分钟，再检查第一个答案。"}]'>跨页选区在这里继续：当注意力被占用时，我们更容易接受系统一提供的答案。</mark></p><p>因此，在重要判断前刻意放慢速度，并不是为了否定直觉，而是为了给重新检查留下空间。</p></article>
+          <div class="selection-toolbar" role="toolbar" aria-label="跨页选区操作" data-od-id="pdf-selection-toolbar" data-selection-popover hidden><button class="source-action" type="button" data-toast="原文已复制">复制</button><button class="source-action" type="button" data-toast="跨页划线已保存">划线</button><button class="source-action" type="button" data-dialog-open="pdf-note-dialog">写笔记</button></div>
+        </div>
+
+        <div class="pdf-state" data-pdf-state="scan" hidden><div class="empty-state"><div class="empty-inner"><div class="notice warning"><span class="notice-dot"></span><p><strong>可阅读，但暂不支持精准划线</strong><br><span class="muted">当前内容无法识别文字。你仍可翻页阅读，但暂时不能选取文字、划线或精确引用。</span></p></div><div class="empty-actions"><a class="btn btn-primary" href="laoji-pdf-reader.html">继续查看页面</a><a class="btn" href="laoji-library.html">返回书架</a></div></div></div></div>
+        <div class="pdf-state" data-pdf-state="error" hidden><div class="empty-state"><div class="empty-inner"><div class="notice error"><span class="notice-dot"></span><p><strong>第 12 页暂时无法显示</strong><br><span class="muted">书名和页码已保留。可以重试加载，不会丢失当前阅读位置。</span></p></div><div class="empty-actions"><button class="btn btn-primary" data-toast="正在重试加载第 12 页">重试加载</button><a class="btn" href="laoji-library.html">返回书架</a></div></div></div></div>
+      </section>
+      <button class="local-reader-context-backdrop" type="button" data-local-reader-context-backdrop aria-label="关闭划线想法" hidden></button>
+      <aside class="reader-panel right local-reader-context-panel" id="pdf-highlight-context" data-local-reader-context-panel data-od-id="pdf-notes-panel" aria-labelledby="pdf-highlight-context-title" hidden>
+        <div class="local-reader-context-inner">
+          <div class="local-reader-context-head"><h2 id="pdf-highlight-context-title">划线</h2><button class="btn btn-ghost icon-btn local-reader-context-close" type="button" data-local-reader-context-close aria-label="关闭">×</button></div>
+          <blockquote class="quote local-reader-context-quote" data-local-reader-context-quote></blockquote>
+          <div class="local-reader-context-section-head"><h3>我的想法</h3><span class="local-reader-context-count" data-local-reader-context-count></span></div>
+          <div class="local-reader-context-note-list" data-local-reader-context-note-list></div>
+          <button class="btn local-reader-context-add" type="button" data-local-reader-context-add data-dialog-open="pdf-note-dialog">添加想法</button>
+        </div>
+      </aside>
+    </main>
+    <main class="main book-view-panel" style="padding-top:16px" data-book-view-panel="notes" data-book-notes-panel hidden data-od-id="pdf-book-notes" aria-label="老己笔记列表">
+      <div class="content-limit book-detail-notes" style="gap:12px;padding-top:0">
+        <div class="section-head" style="justify-content:flex-end;margin-bottom:0"><button class="btn" type="button" data-dialog-open="pdf-note-dialog">新建笔记</button></div>
+        <div class="content-list" data-local-note-list>
+          <article class="card source-card source-activatable" tabindex="0" data-local-note-card data-od-id="pdf-note-page-twelve">
+            <div class="source-head"><span>第 12–13 页</span><time datetime="2026-08-09T09:18">今天 09:18</time></div>
+            <blockquote class="quote">当注意力被占用时，我们更容易接受系统一提供的答案。</blockquote>
+            <div class="supplement"><div class="supplement-label">我的想法</div><p data-note-copy-text>重要判断前先写下第一反应，再用反例检查它。</p></div>
+            <div class="source-tools source-action-popover" role="toolbar" aria-label="这条笔记的操作"><button class="source-action" type="button" data-note-delete data-toast="笔记已删除">删除</button><button class="source-action" type="button" data-note-edit data-dialog-open="pdf-note-dialog">编辑</button><button class="source-action" type="button" data-note-copy data-toast="笔记已复制">复制</button></div>
+          </article>
+          <article class="card source-card source-activatable" tabindex="0" data-local-note-card data-od-id="pdf-note-slow-down">
+            <div class="source-head"><time datetime="2026-08-08">昨天</time></div>
+            <p data-note-copy-text>下次做重要判断时，先暂停一分钟，再检查第一个答案。</p>
+            <div class="source-tools source-action-popover" role="toolbar" aria-label="这条笔记的操作"><button class="source-action" type="button" data-note-delete data-toast="笔记已删除">删除</button><button class="source-action" type="button" data-note-edit data-dialog-open="pdf-note-dialog">编辑</button><button class="source-action" type="button" data-note-copy data-toast="笔记已复制">复制</button></div>
+          </article>
+        </div>
+        <div class="empty-state" data-local-notes-empty hidden><div class="empty-inner"><h2>还没有笔记</h2><p class="muted">阅读时选中文字，就能随手记下想法。</p></div></div>
+      </div>
+    </main>
+    <main class="main book-view-panel" data-book-view-panel="ppt" data-book-ppt-panel hidden data-od-id="pdf-book-ppt"><div class="content-limit stack"><div class="book-ppt-list" data-local-ppt-list data-book-ppt-list><article class="card entity-card ppt-record-card is-loading" data-book-ppt-loading aria-label="正在加载读书 PPT"><div class="ppt-record-cover ppt-record-cover-skeleton"></div><div class="ppt-record-loading-copy" aria-hidden="true"><span></span><span></span><span></span></div></article></div><div class="empty-state" data-book-empty="ppt" hidden><div class="empty-inner"><div class="empty-seal">己</div><h2>还没有读书 PPT</h2><p class="muted">开始最终逐页生成后，任务和完成作品会显示在这里。</p><div class="empty-actions"><a class="btn btn-primary" href="laoji-ppt-materials.html?book=local-thinking&amp;from=book">制作 PPT</a></div></div></div><div class="empty-state" data-book-ppt-error hidden><div class="empty-inner"><h2>读书 PPT 暂时无法加载</h2><p class="muted">当前书籍和已有作品不会丢失。</p><div class="empty-actions"><button class="btn btn-primary" type="button" data-book-ppt-retry>重试</button></div></div></div></div></main>
+    <nav class="bottom-nav"><a class="bottom-link" href="laoji-chat.html">对话</a><a class="bottom-link" href="laoji-library.html" aria-current="page">读书</a><a class="bottom-link" href="laoji-settings.html">设置</a></nav>
+  </div>
+
+  <dialog id="pdf-pages-dialog" data-od-id="pdf-pages-dialog" aria-labelledby="pdf-pages-dialog-title"><div class="dialog-head"><h2 id="pdf-pages-dialog-title" tabindex="-1">目录</h2><button class="btn btn-ghost icon-btn" aria-label="关闭" data-dialog-close>×</button></div><div class="dialog-body"><nav class="toc-list"><a class="toc-link" href="#">第一部分 · 两个系统</a><a class="toc-link active" href="#page-12" data-dialog-close>第二章 · 注意与努力</a><a class="toc-link" href="#page-13" data-dialog-close>第三章 · 懒惰的控制者</a></nav><div class="form-row" style="margin-top:18px"><div class="field"><label for="pdf-page-input">按页码跳转</label><input class="input data" id="pdf-page-input" type="number" value="12" min="1" max="236"></div><button class="btn" data-dialog-close data-toast="已跳转至第 12 页">跳转</button></div></div></dialog>
+  <dialog id="pdf-note-dialog" data-local-note-dialog data-od-id="pdf-note-dialog" aria-labelledby="pdf-note-dialog-title"><div class="dialog-head"><h2 id="pdf-note-dialog-title" tabindex="-1">老己笔记</h2><button class="btn btn-ghost icon-btn" aria-label="关闭" data-dialog-close>×</button></div><div class="dialog-body form-grid"><blockquote class="quote" data-local-note-source>当注意力被占用时，我们更容易接受系统一提供的答案。</blockquote><textarea class="textarea" aria-label="老己笔记" data-local-note-editor>重要判断前先写下第一反应，再用反例检查它。</textarea></div><div class="dialog-actions"><button class="btn" data-dialog-close>取消</button><button class="btn btn-primary" data-dialog-close data-toast="老己笔记已保存">保存</button></div></dialog>
+  <script>
+    (() => {
+      const stage = document.querySelector('[data-pdf-focus-stage]');
+      const toggle = document.querySelector('[data-pdf-focus-toggle]');
+      const label = toggle?.querySelector('[data-pdf-focus-label]');
+      const pdfStage = stage?.querySelector('.pdf-stage');
+      const readerToolbar = stage?.querySelector('[data-local-reader-toolbar]');
+      const tocPanel = stage?.querySelector('.reader-panel.left');
+      const tocToggle = stage?.querySelector('[data-pdf-focus-toc-toggle]');
+      const tocBackdrop = stage?.querySelector('[data-pdf-focus-toc-backdrop]');
+      const focusExit = stage?.querySelector('[data-pdf-focus-exit]');
+      const chrome = stage ? [...stage.querySelectorAll('[data-pdf-focus-chrome]')] : [];
+      const sizeControls = stage ? [...stage.querySelectorAll('[data-local-reader-size-control]')] : [];
+      const sizeValues = stage ? [...stage.querySelectorAll('[data-local-reader-size-value]')] : [];
+      if (!stage || !toggle || !label) return;
+
+      const fallbackClass = 'pdf-focus-fallback';
+      const controlsClass = 'pdf-focus-controls-visible';
+      const readerControlsClass = 'local-reader-controls-visible';
+      const mobileQuery = window.matchMedia('(max-width: 760px)');
+      const AUTO_HIDE_DELAY = 3000;
+      let autoHideTimer;
+      let sizeIndex = 1;
+      const sizeLevels = [
+        { label: '较小', scale: 0.9 },
+        { label: '标准', scale: 1 },
+        { label: '较大', scale: 1.1 },
+        { label: '更大', scale: 1.2 },
+      ];
+      const isFocused = () => document.fullscreenElement === stage || stage.classList.contains(fallbackClass);
+      const isMobileFocus = () => isFocused() && mobileQuery.matches;
+      const isTocOpen = () => stage.hasAttribute('data-pdf-focus-toc-open');
+      const stopAutoHide = () => {
+        window.clearTimeout(autoHideTimer);
+        autoHideTimer = undefined;
+      };
+      const setControlsVisible = (visible, scheduleHide = true) => {
+        const nextVisible = Boolean(visible && isMobileFocus());
+        if (nextVisible) stage.classList.remove(readerControlsClass);
+        stage.classList.toggle(controlsClass, nextVisible);
+        chrome.forEach((element) => element.setAttribute('aria-hidden', String(!nextVisible)));
+        stopAutoHide();
+        if (nextVisible && scheduleHide && !isTocOpen()) {
+          autoHideTimer = window.setTimeout(() => setControlsVisible(false), AUTO_HIDE_DELAY);
+        }
+      };
+      const setReaderControlsVisible = (visible, scheduleHide = true) => {
+        const nextVisible = Boolean(visible && !isFocused());
+        stage.classList.toggle(readerControlsClass, nextVisible);
+        readerToolbar?.setAttribute('aria-hidden', String(!nextVisible));
+        stopAutoHide();
+        if (nextVisible && scheduleHide) {
+          autoHideTimer = window.setTimeout(() => setReaderControlsVisible(false), AUTO_HIDE_DELAY);
+        }
+      };
+      const renderReaderSize = () => {
+        const level = sizeLevels[sizeIndex];
+        pdfStage?.style.setProperty('--local-reader-scale', String(level.scale));
+        sizeValues.forEach((value) => { value.textContent = level.label; });
+        sizeControls.forEach((control) => {
+          const isDecrease = control.dataset.localReaderSizeControl === 'decrease';
+          control.disabled = isDecrease ? sizeIndex === 0 : sizeIndex === sizeLevels.length - 1;
+        });
+      };
+      const setTocOpen = (open) => {
+        const nextOpen = Boolean(open && isMobileFocus());
+        stage.toggleAttribute('data-pdf-focus-toc-open', nextOpen);
+        tocToggle?.setAttribute('aria-expanded', String(nextOpen));
+        if (tocPanel) {
+          if (isMobileFocus()) tocPanel.setAttribute('aria-hidden', String(!nextOpen));
+          else tocPanel.removeAttribute('aria-hidden');
+        }
+        if (nextOpen) setControlsVisible(true, false);
+        else if (stage.classList.contains(controlsClass)) setControlsVisible(true);
+      };
+      const syncState = () => {
+        const focused = isFocused();
+        label.textContent = focused ? '退出专注' : '专注阅读';
+        toggle.setAttribute('aria-pressed', String(focused));
+        toggle.setAttribute('aria-label', focused ? '退出专注阅读' : '进入专注阅读');
+        setTocOpen(false);
+        setControlsVisible(false);
+        setReaderControlsVisible(false);
+      };
+      const exitFallback = () => {
+        stage.classList.remove(fallbackClass);
+        syncState();
+      };
+      const exitFocus = async () => {
+        if (document.fullscreenElement === stage) await document.exitFullscreen();
+        else if (stage.classList.contains(fallbackClass)) exitFallback();
+      };
+      const enterFocus = async () => {
+        if (stage.requestFullscreen) {
+          try {
+            await stage.requestFullscreen();
+            return;
+          } catch (error) {
+            // 浏览器拒绝原生全屏时继续使用当前页面的专注模式。
+          }
+        }
+        stage.classList.add(fallbackClass);
+        syncState();
+      };
+
+      toggle.addEventListener('click', async () => {
+        if (isFocused()) await exitFocus();
+        else await enterFocus();
+      });
+      focusExit?.addEventListener('click', exitFocus);
+      tocToggle?.addEventListener('click', () => setTocOpen(!isTocOpen()));
+      tocBackdrop?.addEventListener('click', () => setTocOpen(false));
+      tocPanel?.querySelectorAll('.toc-link').forEach((link) => link.addEventListener('click', () => setTocOpen(false)));
+      readerToolbar?.addEventListener('click', () => setReaderControlsVisible(true));
+      readerToolbar?.addEventListener('focusin', () => setReaderControlsVisible(true, false));
+      readerToolbar?.addEventListener('focusout', (event) => {
+        if (!readerToolbar.contains(event.relatedTarget)) setReaderControlsVisible(false);
+      });
+      sizeControls.forEach((control) => control.addEventListener('click', () => {
+        const direction = control.dataset.localReaderSizeControl === 'decrease' ? -1 : 1;
+        sizeIndex = Math.max(0, Math.min(sizeLevels.length - 1, sizeIndex + direction));
+        renderReaderSize();
+      }));
+      stage.addEventListener('click', (event) => {
+        if (event.target.closest('button, a, input, textarea, select, [role="toolbar"], .reader-panel.left, [data-local-reader-highlight], .local-reader-context-panel')) return;
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim()) return;
+
+        const bounds = stage.getBoundingClientRect();
+        const horizontalPosition = (event.clientX - bounds.left) / bounds.width;
+        const verticalPosition = (event.clientY - bounds.top) / bounds.height;
+        const isCenterTap = horizontalPosition >= 0.2 && horizontalPosition <= 0.8
+          && verticalPosition >= 0.16 && verticalPosition <= 0.84;
+        if (!isCenterTap) return;
+
+        if (isMobileFocus()) {
+          if (isTocOpen()) setTocOpen(false);
+          else setControlsVisible(!stage.classList.contains(controlsClass));
+        } else if (!isFocused()) {
+          setReaderControlsVisible(!stage.classList.contains(readerControlsClass));
+        }
+      });
+      pdfStage?.addEventListener('scroll', () => {
+        if (isMobileFocus() && !isTocOpen()) setControlsVisible(false);
+        else if (!isFocused()) setReaderControlsVisible(false);
+      }, { passive: true });
+      window.addEventListener('scroll', () => {
+        if (!isFocused()) setReaderControlsVisible(false);
+      }, { passive: true });
+      mobileQuery.addEventListener?.('change', () => {
+        setTocOpen(false);
+        setControlsVisible(false);
+        setReaderControlsVisible(false);
+      });
+      document.addEventListener('fullscreenchange', syncState);
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (isTocOpen()) setTocOpen(false);
+        else if (stage.classList.contains(fallbackClass)) exitFallback();
+      });
+      renderReaderSize();
+      syncState();
+    })();
+  </script>
+</body>
+</html>

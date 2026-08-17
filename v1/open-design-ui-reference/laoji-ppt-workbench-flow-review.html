@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>老己 · PPT 工作台流程评审</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f7f4;
+      --paper: #ffffff;
+      --paper-soft: #f8faf8;
+      --ink: #17332b;
+      --muted: #66756f;
+      --line: #dbe5df;
+      --accent: #08795d;
+      --accent-soft: #e5f3ed;
+      --gold: #c89b36;
+      --shadow: 0 18px 48px rgba(26, 64, 51, .10);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-width: 320px;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    button { font: inherit; }
+    .review-page { width: min(1480px, 100%); margin: 0 auto; padding: 32px; }
+    .review-head { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+    .eyebrow { margin: 0 0 7px; color: var(--accent); font-size: 13px; font-weight: 700; letter-spacing: .12em; }
+    h1 { margin: 0; font-size: clamp(26px, 3vw, 40px); letter-spacing: -.03em; }
+    .lead { max-width: 700px; margin: 10px 0 0; color: var(--muted); line-height: 1.7; }
+    .reference-note { max-width: 360px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.7); color: var(--muted); font-size: 13px; line-height: 1.6; }
+    .proposal {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+    .proposal-head {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    .proposal-head strong { display: block; font-size: 17px; }
+    .proposal-head span { color: var(--muted); font-size: 13px; }
+    .recommend { padding: 5px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent) !important; font-weight: 700; }
+    .desktop-shell { display: grid; grid-template-columns: 82px minmax(300px, 34%) minmax(520px, 1fr); min-height: 650px; }
+    .app-rail { padding: 18px 12px; border-right: 1px solid var(--line); background: #f8fbf9; }
+    .brand { margin: 6px 0 30px; color: var(--accent); font-size: 20px; font-weight: 800; text-align: center; }
+    .nav-icon { width: 42px; height: 42px; display: grid; place-items: center; margin: 0 auto 12px; border: 1px solid transparent; border-radius: 13px; color: var(--muted); }
+    .nav-icon.active { border-color: #b9d9cc; background: var(--accent-soft); color: var(--accent); }
+    .conversation { position: relative; min-width: 0; border-right: 1px solid var(--line); background: var(--paper); }
+    .surface-head { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--line); }
+    .surface-head h2 { margin: 0; font-size: 17px; }
+    .surface-head small { color: var(--muted); }
+    .conversation-feed { padding: 22px 18px 130px; }
+    .bubble { max-width: 88%; margin-bottom: 14px; padding: 12px 14px; border-radius: 14px; background: #f1f4f2; font-size: 14px; line-height: 1.6; }
+    .bubble.user { margin-left: auto; background: var(--accent-soft); }
+    .task-card { margin-top: 18px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); box-shadow: 0 8px 24px rgba(26,64,51,.07); }
+    .task-card-head { display: flex; justify-content: space-between; gap: 10px; }
+    .task-card h3 { margin: 5px 0 4px; font-size: 16px; }
+    .status { color: var(--accent); font-size: 12px; font-weight: 700; }
+    .task-card p { margin: 0; color: var(--muted); font-size: 13px; }
+    .progress { height: 6px; margin: 13px 0 8px; overflow: hidden; border-radius: 999px; background: #e5ece8; }
+    .progress span { display: block; width: 72%; height: 100%; background: var(--accent); }
+    .composer { position: absolute; right: 14px; bottom: 14px; left: 14px; min-height: 78px; padding: 14px; border: 1px solid #cfdcd5; border-radius: 17px; background: var(--paper); box-shadow: 0 12px 32px rgba(26,64,51,.12); color: #8a9691; font-size: 14px; }
+    .send { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; border: 0; border-radius: 12px; background: var(--accent); color: white; }
+    .workbench { min-width: 0; background: var(--paper-soft); }
+    .workbench .surface-head { background: var(--paper); }
+    .head-actions { display: flex; gap: 8px; }
+    .head-actions button { min-height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); }
+    .head-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
+    .workbench-body { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 16px; height: 586px; padding: 16px; overflow: hidden; }
+    .tools { display: grid; align-content: start; gap: 10px; }
+    .tool-card { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .tool-card h3 { margin: 0 0 8px; font-size: 14px; }
+    .steps { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+    .steps .active { color: var(--accent); font-weight: 700; }
+    .style-cover { position: relative; aspect-ratio: 16 / 9; overflow: hidden; margin-bottom: 8px; border-radius: 7px; background: #251508; }
+    .style-cover::before { content: "让好习惯\A 自然发生"; white-space: pre; position: absolute; left: 10px; bottom: 10px; color: white; font-size: 10px; font-weight: 700; }
+    .style-cover::after { content: ""; position: absolute; right: -12px; top: -8px; width: 54px; height: 54px; border-radius: 50%; background: linear-gradient(145deg, #f7c34f, #7c4800); }
+    .tool-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .waterfall-wrap { min-width: 0; overflow: auto; padding-right: 5px; }
+    .waterfall { display: grid; gap: 14px; }
+    .slide { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); box-shadow: 0 9px 22px rgba(26,64,51,.08); }
+    .page-number { position: absolute; top: 10px; left: 12px; color: #78867f; font: 700 11px/1 ui-monospace, monospace; }
+    .slide-copy { position: absolute; left: 9%; top: 22%; z-index: 2; width: 60%; }
+    .slide-copy h4 { margin: 0 0 12px; font-size: clamp(14px, 1.5vw, 24px); }
+    .lines { width: 80%; height: 68px; background: repeating-linear-gradient(to bottom, #cbd7d1 0 2px, transparent 2px 15px); opacity: .7; }
+    .shape { position: absolute; right: 7%; bottom: 12%; width: 25%; aspect-ratio: 1; border-radius: 50%; background: var(--accent-soft); }
+    .slide.dark { background: #251508; color: white; }
+    .slide.dark .page-number { color: #e9b84b; }
+    .slide.dark .lines { background: repeating-linear-gradient(to bottom, rgba(255,255,255,.45) 0 2px, transparent 2px 15px); }
+    .slide.dark .shape { background: linear-gradient(145deg, #f7c34f, #754100); }
+    .platforms { display: grid; grid-template-columns: minmax(0, 1fr) 292px; gap: 20px; padding: 20px; border-top: 1px solid var(--line); }
+    .rules h2 { margin: 0 0 12px; font-size: 18px; }
+    .rules ul { margin: 0; padding-left: 20px; color: var(--muted); line-height: 1.8; }
+    .phone { width: 272px; justify-self: center; padding: 9px; border-radius: 30px; background: #17221e; box-shadow: 0 18px 36px rgba(16,35,28,.22); }
+    .phone-screen { height: 532px; overflow: hidden; border-radius: 22px; background: var(--paper-soft); }
+    .phone-head { min-height: 54px; display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; padding: 0 7px; border-bottom: 1px solid var(--line); background: var(--paper); font-size: 13px; text-align: center; }
+    .phone-head b { font-size: 15px; }
+    .phone-scroll { height: 478px; overflow: auto; display: grid; align-content: start; gap: 10px; padding: 10px; }
+    .phone-scroll .slide { border-radius: 8px; }
+    .phone-scroll .slide-copy { top: 25%; }
+    .phone-scroll .slide-copy h4 { margin-bottom: 8px; font-size: 12px; }
+    .phone-scroll .lines { height: 34px; background-size: auto 9px; }
+    .choice-head { margin: 30px 0 14px; }
+    .choice-head h2 { margin: 0 0 6px; }
+    .choice-head p { margin: 0; color: var(--muted); }
+    .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .choice { min-height: 130px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: var(--paper); color: var(--ink); text-align: left; cursor: pointer; transition: 150ms ease; }
+    .choice:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+    .choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .choice strong { display: block; margin-bottom: 8px; font-size: 16px; }
+    .choice span { color: var(--muted); line-height: 1.6; }
+    .selection { min-height: 24px; margin: 13px 2px 0; color: var(--accent); font-weight: 700; }
+    .confirmed-choice { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 26px 0 18px; padding: 16px 18px; border: 1px solid #b9d9cc; border-radius: 15px; background: var(--accent-soft); }
+    .confirmed-choice strong { display: block; margin-bottom: 4px; color: var(--accent); }
+    .confirmed-choice span { color: var(--muted); line-height: 1.6; }
+    .state-section { margin-top: 28px; }
+    .state-section > h2 { margin: 0 0 7px; font-size: 24px; }
+    .state-section > p { margin: 0 0 16px; color: var(--muted); line-height: 1.7; }
+    .state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .state-card { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: var(--shadow); }
+    .state-card.outline-state-card { grid-column: 1 / -1; }
+    .state-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+    .state-card-head strong { display: block; margin-bottom: 3px; }
+    .state-card-head small { color: var(--muted); }
+    .state-desktop { display: grid; grid-template-columns: 34% minmax(0, 1fr); min-height: 510px; background: var(--paper-soft); }
+    .mini-chat { position: relative; padding: 58px 12px 92px; border-right: 1px solid var(--line); background: var(--paper); }
+    .mini-chat::before { content: "习惯系统分享"; position: absolute; inset: 0 0 auto; min-height: 48px; display: flex; align-items: center; padding: 0 12px; border-bottom: 1px solid var(--line); font-weight: 700; }
+    .mini-bubble { margin-bottom: 10px; padding: 9px 10px; border-radius: 10px; background: #f1f4f2; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .mini-bubble.user { margin-left: 16%; background: var(--accent-soft); color: var(--ink); }
+    .mini-composer { position: absolute; right: 10px; bottom: 10px; left: 10px; min-height: 62px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: #8a9691; font-size: 12px; }
+    .state-workbench { min-width: 0; padding: 13px; }
+    .state-toolbar { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -13px -13px 13px; padding: 0 13px; border-bottom: 1px solid var(--line); background: var(--paper); }
+    .state-toolbar span { color: var(--muted); font-size: 12px; }
+    .outline-document { width: min(660px, 100%); margin: 0 auto; padding: 8px 22px 26px; background: var(--paper); }
+    .doc-page { position: relative; padding: 17px 4px 19px 30px; border-bottom: 1px solid #edf1ee; }
+    .doc-page:last-child { border-bottom: 0; }
+    .doc-page-number { position: absolute; left: 0; top: 19px; color: var(--muted); font: 600 12px/1.4 ui-monospace, monospace; }
+    .doc-page-title { position: relative; margin: 0 0 5px; padding-right: 50px; font-size: 15px; font-weight: 700; line-height: 1.45; }
+    .doc-page-subtitle { margin: 0 0 13px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+    .doc-page-actions { position: absolute; right: 0; top: 0; display: flex; gap: 9px; color: #91a099; font-size: 11px; }
+    .doc-block { position: relative; margin: 0 0 13px; padding-left: 18px; }
+    .doc-block::before { content: "•"; position: absolute; left: 1px; top: -2px; color: var(--ink); font-size: 17px; }
+    .doc-block-title { margin: 0 0 4px; font-size: 12px; font-weight: 700; line-height: 1.5; }
+    .doc-block-body { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
+    .doc-block.is-editing { margin-left: -8px; padding: 8px 28px 8px 26px; border: 1px solid var(--accent); border-radius: 9px; background: #fff; box-shadow: 0 0 0 2px var(--accent-soft); }
+    .doc-block.is-editing::before { left: 9px; top: 6px; }
+    .doc-block-actions { position: absolute; right: 7px; top: 8px; display: grid; gap: 5px; color: #91a099; font-size: 10px; }
+    .doc-editable { border-radius: 4px; outline: none; }
+    .doc-editable:focus { background: #f7fbf9; box-shadow: 0 0 0 3px #f7fbf9; }
+    .doc-add-line { margin: 2px 0 9px 18px; color: var(--accent); font-size: 10px; }
+    .doc-image-intent { margin: 7px 0 0 18px; color: #6e7e77; font-size: 10px; font-style: italic; line-height: 1.55; }
+    .doc-image-intent strong { color: var(--accent); font-style: normal; }
+    .add-page { width: 100%; min-height: 40px; margin-top: 9px; border: 1px dashed #afc5ba; border-radius: 10px; background: transparent; color: var(--accent); }
+    .state-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 13px; }
+    .state-footer button { min-height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); }
+    .state-footer .primary { border-color: var(--accent); background: var(--accent); color: white; }
+    .template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .template-card { position: relative; padding: 8px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); }
+    .template-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+    .template-card.active::after { content: "✓"; position: absolute; top: 13px; right: 13px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: white; font-size: 12px; }
+    .template-thumb { position: relative; aspect-ratio: 16 / 9; overflow: hidden; margin-bottom: 7px; border-radius: 7px; background: #eef3ef; }
+    .template-thumb.business { background: #251508; }
+    .template-thumb.business::after { content: ""; position: absolute; right: -8%; top: -18%; width: 42%; aspect-ratio: 1; border-radius: 50%; background: linear-gradient(145deg, #f7c34f, #754100); }
+    .template-thumb.cards { background: #f4ead4; }
+    .template-thumb.cards::after { content: "01  02  03"; position: absolute; inset: auto 8px 8px; padding: 8px; border-radius: 5px; background: white; color: #765b25; font: 700 9px/1 ui-monospace, monospace; }
+    .template-thumb.story { background: linear-gradient(90deg, #18362f 54%, #e6d4aa 54%); }
+    .template-thumb.story::after { content: "图文叙事"; position: absolute; right: 6px; bottom: 7px; color: #18362f; font-size: 9px; font-weight: 700; }
+    .template-thumb.minimal { background: white; border: 1px solid #dce5df; }
+    .template-thumb.minimal::after { content: "少即是多"; position: absolute; left: 10px; bottom: 9px; color: var(--ink); font-size: 10px; font-weight: 700; }
+    .template-card strong { display: block; font-size: 12px; }
+    .template-card small { color: var(--muted); font-size: 11px; }
+    .state-mobile-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid var(--line); background: #fbfcfb; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .lifecycle-section { margin-top: 30px; }
+    .lifecycle-section > h2 { margin: 0 0 7px; font-size: 24px; }
+    .lifecycle-section > p { max-width: 900px; margin: 0 0 16px; color: var(--muted); line-height: 1.7; }
+    .lifecycle-rule { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+    .lifecycle-rule div { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+    .lifecycle-rule strong { display: block; margin-bottom: 5px; color: var(--accent); }
+    .lifecycle-rule span { color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .mobile-flow { display: grid; grid-template-columns: repeat(3, 272px); justify-content: center; gap: 22px; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--paper); box-shadow: var(--shadow); }
+    .mobile-flow-label { margin: 0 0 9px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: center; }
+    .mobile-page { height: 478px; overflow: auto; padding: 12px; }
+    .book-summary { margin-bottom: 12px; padding: 12px; border-radius: 14px; background: var(--accent-soft); }
+    .book-summary strong { display: block; margin-bottom: 3px; font-size: 14px; }
+    .book-summary span { color: var(--muted); font-size: 11px; }
+    .ppt-list { display: grid; gap: 10px; }
+    .ppt-list-item { display: grid; grid-template-columns: 82px 1fr; gap: 11px; min-height: 92px; padding: 10px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+    .ppt-list-item strong { display: block; margin: 2px 0 5px; font-size: 12px; line-height: 1.45; }
+    .ppt-list-item small { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .ppt-cover { position: relative; aspect-ratio: 16 / 10; overflow: hidden; align-self: start; border-radius: 8px; background: linear-gradient(135deg, #efe8d5, #dce9df); }
+    .ppt-cover::after { content: "原子习惯"; position: absolute; left: 8px; bottom: 8px; color: #35584b; font-size: 9px; font-weight: 800; }
+    .ppt-cover.generating { background: linear-gradient(110deg, #e9f1ed 8%, #f9fbfa 18%, #e9f1ed 33%); background-size: 200% 100%; }
+    .ppt-cover.generating::after { content: "第 8 页生成中"; right: 6px; left: 6px; bottom: 8px; color: var(--accent); text-align: center; }
+    .progress-copy { color: var(--accent) !important; font-weight: 700; }
+    .live-status { position: sticky; top: -12px; z-index: 2; margin: -12px -12px 12px; padding: 12px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.96); }
+    .live-status strong { display: flex; justify-content: space-between; font-size: 12px; }
+    .live-status p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+    .live-progress { height: 5px; margin-top: 9px; overflow: hidden; border-radius: 999px; background: #e6ede9; }
+    .live-progress span { display: block; width: 66.67%; height: 100%; background: var(--accent); }
+    .live-stack { display: grid; gap: 9px; }
+    .live-stack .slide { border-radius: 8px; }
+    .live-page { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    .live-page.current { display: grid; place-items: center; background: linear-gradient(110deg, #eef3f0 8%, #fbfcfb 18%, #eef3f0 33%); background-size: 200% 100%; color: var(--accent); font-size: 11px; font-weight: 700; }
+    .live-page.waiting { padding: 13px; background: #f7f9f8; color: var(--muted); }
+    .live-page.waiting strong { display: block; margin-bottom: 4px; color: #7e8b86; font-size: 11px; }
+    .live-page.waiting span { font-size: 9px; }
+    .failure-card { padding: 14px; border: 1px solid #e5c9bd; border-radius: 15px; background: #fffaf7; }
+    .failure-card .failure-label { color: #a14b2b; font-size: 11px; font-weight: 800; }
+    .failure-card h3 { margin: 7px 0 5px; font-size: 14px; }
+    .failure-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .failure-preview { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 12px 0; }
+    .failure-preview span { aspect-ratio: 16 / 9; border-radius: 6px; background: #e7eee9; }
+    .mobile-actions { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+    .mobile-actions button { min-height: 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); }
+    .mobile-actions .primary { border-color: var(--accent); background: var(--accent); color: white; }
+    .flow-caption { margin: 14px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+    @media (max-width: 980px) {
+      .review-page { padding: 18px; }
+      .review-head { display: block; }
+      .reference-note { max-width: none; margin-top: 14px; }
+      .proposal { overflow-x: auto; }
+      .desktop-shell { min-width: 920px; }
+      .platforms { grid-template-columns: 1fr; }
+      .choices { grid-template-columns: 1fr; }
+      .state-grid { grid-template-columns: 1fr; }
+      .lifecycle-rule { grid-template-columns: 1fr; }
+      .mobile-flow { overflow-x: auto; justify-content: start; }
+      .confirmed-choice { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main class="review-page">
+    <header class="review-head">
+      <div>
+        <p class="eyebrow">LAOJI · PPT FLOW REVIEW</p>
+        <h1>在当前会话里完成 PPT</h1>
+        <p class="lead">桌面端保留对话并展开右侧作品工作台；移动端进入可返回的全屏作品层；生成结果采用纵向瀑布流连续预览。</p>
+      </div>
+      <aside class="reference-note">提取 Image 2 与文心一言参考图的有效部分：对话不丢失、作品区与会话并存、真实 PPT 封面、连续页面预览。没有照搬其产品导航和付费按钮。</aside>
+    </header>
+
+    <section class="proposal">
+      <div class="proposal-head">
+        <div><strong>A · 会话内嵌右侧工作台</strong><span>工作台可收起；桌面保持对话上下文可见</span></div>
+        <span class="recommend">推荐方案</span>
+      </div>
+
+      <div class="desktop-shell">
+        <nav class="app-rail" aria-label="主导航">
+          <div class="brand">老己</div>
+          <div class="nav-icon active" title="对话">◉</div>
+          <div class="nav-icon" title="读书">▣</div>
+          <div class="nav-icon" title="设置">●</div>
+        </nav>
+
+        <section class="conversation" aria-label="当前对话">
+          <header class="surface-head"><div><h2>习惯系统分享</h2><small>《原子习惯》· 当前会话</small></div><span>•••</span></header>
+          <div class="conversation-feed">
+            <div class="bubble user">帮我把《原子习惯》做成一份团队读书分享 PPT。</div>
+            <div class="bubble">大纲已经确认。我会按照配图意图，在必要时自动补充视觉素材。</div>
+            <article class="task-card">
+              <div class="task-card-head"><span class="status">PPT 正在生成</span><span>8 / 12</span></div>
+              <h3>让好习惯自然发生</h3>
+              <p>正在生成第 8 / 12 页</p>
+              <div class="progress"><span></span></div>
+              <p>可以继续聊天或离开，任务不会中断。</p>
+            </article>
+          </div>
+          <div class="composer">继续告诉老己怎么修改…<button class="send" type="button" aria-label="发送">↑</button></div>
+        </section>
+
+        <section class="workbench" aria-label="PPT 作品工作台">
+          <header class="surface-head">
+            <div><h2>《原子习惯》读书分享</h2><small>预览 · 自动保存</small></div>
+            <div class="head-actions"><button type="button">收起</button><button class="primary" type="button">下载 PPTX</button></div>
+          </header>
+          <div class="workbench-body">
+            <aside class="tools">
+              <section class="tool-card"><h3>制作流程</h3><div class="steps"><span>✓ 范围与要求</span><span>✓ 编辑大纲</span><span class="active">● 预览与生成</span></div></section>
+              <section class="tool-card"><div class="style-cover"></div><h3>简洁商务</h3><p>点击封面更换 PPT 风格</p></section>
+              <section class="tool-card"><h3>不满意？</h3><p>直接在左侧告诉老己“重新生成整份”或描述要修改的页面，不提供额外的“新建版本”按钮。</p></section>
+            </aside>
+            <div class="waterfall-wrap">
+              <div class="waterfall">
+                <article class="slide dark"><span class="page-number">01</span><div class="slide-copy"><h4>让好习惯自然发生</h4><div class="lines"></div></div><div class="shape"></div></article>
+                <article class="slide"><span class="page-number">02</span><div class="slide-copy"><h4>为什么好习惯很重要</h4><div class="lines"></div></div><div class="shape"></div></article>
+                <article class="slide dark"><span class="page-number">03</span><div class="slide-copy"><h4>四步法则：让改变自然发生</h4><div class="lines"></div></div><div class="shape"></div></article>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="platforms">
+        <section class="rules">
+          <h2>跨端统一规则</h2>
+          <ul>
+            <li><strong>桌面：</strong>作品工作台始终在当前会话右侧展开，不跳到独立后台；可收起以恢复完整聊天宽度。</li>
+            <li><strong>移动：</strong>从对话中的作品卡进入全屏作品层；返回时恢复原消息位置、输入草稿和生成进度。</li>
+            <li><strong>预览：</strong>所有页面上下连续排列；页码用于定位，不设置“上一页 / 下一页”主按钮。</li>
+            <li><strong>重新生成：</strong>去掉“创建新版本”。新结果成功后成为另一份独立作品，不覆盖旧作品，也不展示版本号。</li>
+          </ul>
+        </section>
+        <div class="phone" aria-label="移动端 PPT 全屏工作台">
+          <div class="phone-screen">
+            <header class="phone-head"><span>‹ 会话</span><b>PPT 预览</b><span>•••</span></header>
+            <div class="phone-scroll">
+              <article class="slide dark"><span class="page-number">01</span><div class="slide-copy"><h4>让好习惯自然发生</h4><div class="lines"></div></div><div class="shape"></div></article>
+              <article class="slide"><span class="page-number">02</span><div class="slide-copy"><h4>为什么好习惯很重要</h4><div class="lines"></div></div><div class="shape"></div></article>
+              <article class="slide dark"><span class="page-number">03</span><div class="slide-copy"><h4>四步法则</h4><div class="lines"></div></div><div class="shape"></div></article>
+              <article class="slide"><span class="page-number">04</span><div class="slide-copy"><h4>行动计划</h4><div class="lines"></div></div><div class="shape"></div></article>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="confirmed-choice">
+      <div><strong>已确认：方案 A</strong><span>会话内嵌右侧工作台；桌面不离开当前会话，移动端进入全屏作品层。</span></div>
+      <span>已确认会话归属、工作台形态与瀑布流预览</span>
+    </section>
+
+    <section class="state-section">
+      <h2>同一个工作台，覆盖编辑大纲与更换模板</h2>
+      <p>它们不是两套独立后台页面，而是右侧作品工作台的连续状态；对话始终留在左侧。移动端沿用同一内容结构，只切换为全屏和底部唯一主操作。</p>
+      <div class="state-grid">
+        <article class="state-card outline-state-card">
+          <header class="state-card-head"><div><strong>A2 · 文档式编辑大纲</strong><small>直接编辑连续文档；标题层级、缩进和编号自然表达 PPT 结构</small></div><span class="recommend">自动保存</span></header>
+          <div class="state-desktop">
+            <div class="mini-chat">
+              <div class="mini-bubble user">把第三页改成四步法则，并增加团队练习。</div>
+              <div class="mini-bubble">已更新右侧大纲。你可以像编辑文档一样直接修改文字。</div>
+              <div class="mini-composer">继续描述大纲修改…</div>
+            </div>
+            <section class="state-workbench">
+              <div class="state-toolbar"><strong>编辑大纲</strong><span>已保存 · 5 页</span></div>
+              <div class="outline-document" aria-label="可编辑 PPT 大纲文档">
+                <section class="doc-page">
+                  <span class="doc-page-number">1.1</span>
+                  <h3 class="doc-page-title doc-editable" contenteditable="true" spellcheck="false">为什么好习惯很重要<span class="doc-page-actions"><span>⠿</span><span>×</span></span></h3>
+                  <p class="doc-page-subtitle doc-editable" contenteditable="true" spellcheck="false">从微小选择开始，理解长期改变的复利效应</p>
+                  <div class="doc-block"><h4 class="doc-block-title doc-editable" contenteditable="true" spellcheck="false">微小改变会持续累积</h4><p class="doc-block-body doc-editable" contenteditable="true" spellcheck="false">每天进步一点看似不起眼，但时间会放大行为带来的差异。</p></div>
+                  <div class="doc-block"><h4 class="doc-block-title doc-editable" contenteditable="true" spellcheck="false">系统比单一目标更可靠</h4><p class="doc-block-body doc-editable" contenteditable="true" spellcheck="false">真正决定结果的，是能够被重复执行的日常系统。</p></div>
+                </section>
+
+                <section class="doc-page">
+                  <span class="doc-page-number">1.2</span>
+                  <h3 class="doc-page-title doc-editable" contenteditable="true" spellcheck="false">习惯是如何形成的<span class="doc-page-actions"><span>⠿</span><span>×</span></span></h3>
+                  <p class="doc-page-subtitle doc-editable" contenteditable="true" spellcheck="false">从一次选择，到自动发生的行为回路</p>
+                  <div class="doc-block is-editing"><h4 class="doc-block-title doc-editable" contenteditable="true" spellcheck="false">行为回路的四个阶段</h4><p class="doc-block-body doc-editable" contenteditable="true" spellcheck="false">提示、渴求、反应和奖励共同构成完整习惯回路。</p><span class="doc-block-actions"><span>⠿</span><span>×</span></span></div>
+                  <div class="doc-block"><h4 class="doc-block-title doc-editable" contenteditable="true" spellcheck="false">重复让选择变得自动</h4><p class="doc-block-body doc-editable" contenteditable="true" spellcheck="false">环境线索不断强化路径，最终减少每次行动需要的意志力。</p></div>
+                  <p class="doc-add-line">＋ 在此页添加一个内容要点</p>
+                  <p class="doc-image-intent"><strong>配图意图：</strong>四段循环示意“提示 → 渴求 → 反应 → 奖励”</p>
+                </section>
+
+                <section class="doc-page">
+                  <span class="doc-page-number">1.3</span>
+                  <h3 class="doc-page-title doc-editable" contenteditable="true" spellcheck="false">四步法则：让改变自然发生<span class="doc-page-actions"><span>⠿</span><span>×</span></span></h3>
+                  <p class="doc-page-subtitle doc-editable" contenteditable="true" spellcheck="false">让提示显而易见，让行动简单到可以立刻开始</p>
+                  <div class="doc-block"><h4 class="doc-block-title doc-editable" contenteditable="true" spellcheck="false">设计环境，而不是依赖意志力</h4><p class="doc-block-body doc-editable" contenteditable="true" spellcheck="false">把正确选择放到最容易看见、最容易执行的位置。</p></div>
+                </section>
+              </div>
+              <button class="add-page" type="button">＋ 添加一页</button>
+              <div class="state-footer"><button type="button">返回范围</button><button class="primary" type="button">确认大纲并选择模板</button></div>
+            </section>
+          </div>
+          <div class="state-mobile-notes"><span>移动端：同样是一列连续文档；点击文字即可编辑，不切换到表单页。</span><span>页号、字号、字重、缩进和项目符号表达层级；只有当前段落显示轻量操作。</span></div>
+        </article>
+
+        <article class="state-card">
+          <header class="state-card-head"><div><strong>A3 · 更换模板</strong><small>真实 16:9 风格封面，不使用文字占位</small></div><span class="recommend">即时预览</span></header>
+          <div class="state-desktop">
+            <div class="mini-chat">
+              <div class="mini-bubble user">风格更克制一些，适合内部分享。</div>
+              <div class="mini-bubble">可以在右侧直接比较模板封面，选择后会套用到整份 PPT。</div>
+              <div class="mini-composer">也可以直接告诉老己想要的风格…</div>
+            </div>
+            <section class="state-workbench">
+              <div class="state-toolbar"><strong>选择 PPT 风格</strong><span>当前：简洁商务</span></div>
+              <div class="template-grid">
+                <div class="template-card active"><div class="template-thumb business"></div><strong>简洁商务</strong><small>克制、清晰、适合汇报</small></div>
+                <div class="template-card"><div class="template-thumb cards"></div><strong>知识卡片</strong><small>信息密度高、便于总结</small></div>
+                <div class="template-card"><div class="template-thumb story"></div><strong>图文叙事</strong><small>画面主导、适合故事表达</small></div>
+                <div class="template-card"><div class="template-thumb minimal"></div><strong>留白极简</strong><small>重点突出、节奏舒展</small></div>
+              </div>
+              <div class="state-footer"><button type="button">返回大纲</button><button class="primary" type="button">开始生成 PPT</button></div>
+            </section>
+          </div>
+          <div class="state-mobile-notes"><span>移动端：两列模板封面，点选后直接显示选中状态。</span><span>选中模板仍属于生成前草稿；只有点击“开始生成 PPT”才创建生成任务。</span></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="lifecycle-section">
+      <h2>移动端：书籍任务列表与逐页生成</h2>
+      <p>书籍详情只沉淀已经启动最终生成的任务和完成作品。范围、要求、大纲与模板选择仍留在创作会话；点击“开始生成 PPT”后，任务卡才进入书籍列表并展示明确页进度。</p>
+      <div class="lifecycle-rule">
+        <div><strong>生成前草稿</strong><span>范围、要求、大纲、模板；只在创作会话中继续。</span></div>
+        <div><strong>生成任务</strong><span>点击“开始生成 PPT”后创建；会话和书籍列表共享进度。</span></div>
+        <div><strong>完成作品</strong><span>全部页面与 PPTX 保存成功；重新生成形成另一份作品。</span></div>
+      </div>
+
+      <div class="mobile-flow">
+        <div>
+          <p class="mobile-flow-label">01 · 书籍“读书 PPT”</p>
+          <div class="phone">
+            <div class="phone-screen">
+              <header class="phone-head"><span>‹ 书籍</span><b>读书 PPT</b><span>＋</span></header>
+              <div class="mobile-page">
+                <div class="book-summary"><strong>《原子习惯》</strong><span>生成任务与完成作品</span></div>
+                <div class="ppt-list">
+                  <article class="ppt-list-item"><div class="ppt-cover generating"></div><div><small class="progress-copy">正在生成第 8 / 12 页</small><strong>让好习惯自然发生</strong><small>可以离开，后台将继续生成</small></div></article>
+                  <article class="ppt-list-item"><div class="ppt-cover"></div><div><small>今天 14:08 · 12 页</small><strong>团队读书分享</strong><small>点击查看瀑布流预览</small></div></article>
+                  <article class="ppt-list-item"><div class="ppt-cover"></div><div><small>8 月 10 日 · 10 页</small><strong>行动系统复盘</strong><small>独立作品 · 不覆盖</small></div></article>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="mobile-flow-label">02 · 实时逐页生成</p>
+          <div class="phone">
+            <div class="phone-screen">
+              <header class="phone-head"><span>‹ 返回</span><b>PPT 生成</b><span>•••</span></header>
+              <div class="mobile-page">
+                <div class="live-status"><strong><span>正在生成第 8 / 12 页</span><span>67%</span></strong><div class="live-progress"><span></span></div><p>可以离开，后台将继续生成</p></div>
+                <div class="live-stack">
+                  <article class="slide dark"><span class="page-number">06</span><div class="slide-copy"><h4>让行动简单到可以开始</h4><div class="lines"></div></div><div class="shape"></div></article>
+                  <article class="slide"><span class="page-number">07</span><div class="slide-copy"><h4>团队场景练习</h4><div class="lines"></div></div><div class="shape"></div></article>
+                  <div class="live-page current">第 8 页生成中</div>
+                  <div class="live-page waiting"><strong>09 · 复盘与反馈</strong><span>等待生成</span></div>
+                  <div class="live-page waiting"><strong>10 · 从今天开始</strong><span>等待生成</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="mobile-flow-label">03 · 失败后继续</p>
+          <div class="phone">
+            <div class="phone-screen">
+              <header class="phone-head"><span>‹ 返回</span><b>PPT 生成</b><span>•••</span></header>
+              <div class="mobile-page">
+                <div class="failure-card">
+                  <span class="failure-label">生成失败 · 已完成 8 / 12 页</span>
+                  <h3>内容和进度都已保留</h3>
+                  <p>网络中断，没有覆盖此前完成的 PPT。继续后会从第 9 页开始。</p>
+                  <div class="failure-preview"><span></span><span></span><span></span><span></span></div>
+                  <div class="mobile-actions"><button class="primary" type="button">继续生成</button><button type="button">删除任务</button></div>
+                </div>
+                <p class="flow-caption">返回逻辑由入口决定：从会话进入就返回原消息位置；从书籍列表进入就返回“读书 PPT”。页面不固定放“返回会话”。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
