@@ -4,8 +4,8 @@
 
 | 文件 | 状态 |
 | --- | --- |
-| `laoji-avatar-conversation-approved-v1.png` | 当前 Logo 与对话头像指定素材。 |
-| `laoji-avatar-qingci-chibi-v2.png` | 青瓷古风头像探索稿。 |
+| `laoji-avatar-qingci-chibi-v2.png` | 当前 Logo 与对话头像指定素材。 |
+| `laoji-avatar-conversation-approved-v1.png` | 历史候选素材，不再作为当前头像。 |
 | `laoji-avatar-a-qingci.png` | 首轮探索稿。 |
 | `laoji-avatar-b-tang.png` | 首轮探索稿。 |
 
