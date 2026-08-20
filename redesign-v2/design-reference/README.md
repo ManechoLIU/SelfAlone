@@ -26,6 +26,7 @@
 | 11 | 移动端 / 会话抽屉打开态 | [`11-mobile-conversation-drawer.png`](11-mobile-conversation-drawer.png) | [`04-mountain-pavilion-refinement.png`](../work/mobile-design/visual-exploration-v2/04-mountain-pavilion-refinement.png) | Compact 抽屉的单任务层级、顶部品牌 / 新建对话 / 搜索顺序、无卡片最近会话列表、充足留白、底部导航、移动端大圆角，以及列表下方贴底并向上消隐的远山亭子视觉落款 | 图像模型重绘的头像与图标、示例会话与时间、首条会话的书签形标记和时间线圆点、被遮罩主画布中的示例内容、截图像素尺寸 |
 | 13 | 移动端 / 通用会话主画面 | [`13-mobile-conversation-shell.png`](13-mobile-conversation-shell.png) | [`mobile-conversation-shell-codex-imagegen-v1-original.png`](../work/mobile-design/conversation-shell-v2/mobile-conversation-shell-codex-imagegen-v1-original.png) | Compact 全屏会话层级、一行通用会话名称、消息内的条件式任务阶段、单列消息 / 选择 / 确认 / 输入区、移动端饱满圆角、输入框左上低存在感趴卧桌宠，以及下部低对比远山亭子留白 | 示例书名、任务文案、时间与进度，图像模型生成的头像 / 桌宠 / 图标像素，截图尺寸，以及把整张图作为运行时界面素材 |
 | 14 | 移动端 / 统一书架 | [`14-mobile-reading-library.png`](14-mobile-reading-library.png) | [`reading-library-codex-imagegen-v1-original.png`](../work/mobile-design/reading-library-v1/reading-library-codex-imagegen-v1-original.png) | Compact 菜单 / “读书” / 导入页头、单一大圆角搜索框、连续双列封面网格、封面底部阅读进度、一行书名与无底色来源小图标，以及不依赖桌宠或底部导航的内容优先布局 | 示例封面、书名、进度与生成图标像素，最近阅读大卡片、来源分区、同步时间、被内容覆盖的山亭背景、截图尺寸，以及把整张图作为运行时素材 |
+| 15 | 移动端 / 登录页 | [`15-mobile-auth-login.png`](15-mobile-auth-login.png) | [`mobile-auth-login-approved-v1.png`](../output/ui-design-preview/product-design/mobile-auth-login-approved-v1.png) | Compact 单列登录层级、只出现一次的趴卧老己、较矮微信主按钮、无边框邮箱次入口、协议位置、冷象牙纸白与低饱和青灰绿，以及“上方山亭 / 中央留白 / 底部极淡远山”的背景分区 | 生成图中的角色、微信 / 邮箱图标、印章和文字像素，截图尺寸，以及把整张图作为运行时界面素材 |
 
 `08-book-detail-ppt-works.png` 是 2026-08-19 用户明确认可的书籍详情“PPT 作品”页面参考，尺寸为 `1487×1058`，SHA-256 为 `5944dffa44247538b561381e1f2775ff3a220d59ea3fc1b40abb9ac03f4b2632`。它约束该标签页的内容密度和状态组织，但不覆盖 `DESIGN.md` 的共享外壳、冷调 `app-paper`、原始头像与桌宠资产规则，也不自动成为运行时图片素材。
 
@@ -36,6 +37,8 @@
 `13-mobile-conversation-shell.png` 是 2026-08-20 用户明确定稿并纳入的 Compact 通用会话主画面参考，尺寸为 `853×1844`，SHA-256 为 `38569bae11f33492523b3546bed1d9a8e297a9be55a0cbdf23d44f7cf4117d5e`。它约束会话主画面的页头、消息、条件式任务阶段、结构化选择、确认操作、输入区、移动端圆角节奏、桌宠位置与下部山亭留白；普通对话必须省略任务阶段。它与 11 的会话抽屉、12 的桌宠姿态互相补充，但不把 12 或本图中的生成像素升级为运行时素材；实现继续使用已确认头像、另行确认的透明桌宠资产、成熟图标和真实数据，不得直接铺设整张参考图。
 
 `14-mobile-reading-library.png` 是 2026-08-20 用户明确认可并纳入的 Compact 统一书架参考，尺寸为 `853×1844`，SHA-256 为 `3e80d4a9d64567c439ffab09b8e90d0444f0025a794a44e8d4100d69d7465212`。它约束移动书架的页头、搜索、双列封面密度、进度与来源层级，并与 11、13 共用同一 Compact 外壳气质；正常内容态不放浮动桌宠或底部导航。图片中的示例书籍、封面、进度和图标仅用于说明层级，运行时必须使用真实书籍数据、真实封面、成熟图标和可访问名称，不得直接铺设整张参考图。
+
+`15-mobile-auth-login.png` 是 2026-08-20 用户明确认可并纳入的 Compact 登录页参考，尺寸为 `841×1871`，SHA-256 为 `65b2028810188027eddea61cb3b6455dca30103cdf607e6434bdbcc54b26bf00`。它约束登录页的单列层级、微信与邮箱的主次关系、趴卧老己的位置、协议区域、文字色阶和背景留白分区；标语固定为“亲爱的老己，爱你哟~”。图片中的角色、印章、图标和文字像素均只用于说明构图，运行时必须使用已确认角色资产、成熟图标、真实文字与可访问名称，不得直接铺设整张参考图。
 
 ## 已认可视觉元素，不是运行时资产
 
