@@ -1,0 +1,45 @@
+{
+  "project": "老己 MVP",
+  "mode": "built-in-imagegen",
+  "global_style": "延续 main-refined-hybrid-v1 的布局与现代知识工具基底，使用浅绿同色系的可见分层和低对比混合绿：最左导航轨略深略饱和，会话列表、对话画布和 PPT 工作区使用相邻但可区分的绿阶，白色只用于需要凸显的内容面。允许缓慢的浅绿线性或径向混合，不使用高饱和、多色或霓虹渐变。应用底色可带宣纸纤维、书页压纹和局部淡远山线稿。固定一级导航为对话/读书/设置；左上 Logo 与消息头像必须直接引用 laoji-avatar-conversation-approved-v1.png，不得重绘；桌宠使用 laoji-character-master-v1.png。会话不分类，PPT 只是任意会话中的临时任务状态；无重阴影、高对比水墨或卡片套卡片。",
+  "conversation_states": {
+    "model_thinking": "当前会话禁止再次发送，发送按钮改为停止回答；允许保留输入草稿，消息区显示低频正在思考反馈。",
+    "ppt_generating": "当前会话禁止再次发送，发送按钮改为停止生成；对话中只保留一条原位更新的任务消息，右侧使用大图瀑布流。",
+    "unlocked": "回答或 PPT 任务完成、停止或失败后立即恢复发送，原会话可继续任何后续请求；其他空闲会话始终不受影响。"
+  },
+  "screens": [
+    {
+      "name": "01-scope-and-requirements",
+      "goal": "选择全书、章节或个人笔记范围，并填写用途、受众、页数与补充要求。",
+      "size": "1440x1024",
+      "count": 1
+    },
+    {
+      "name": "02-template-selection",
+      "goal": "确认已保存大纲后选择带预览的内置模板，并说明图片模型为可选增强。",
+      "size": "1440x1024",
+      "count": 1
+    },
+    {
+      "name": "03-generation-progress",
+      "goal": "以单列 16:9 大图瀑布流展示已完成页面和末尾当前页骨架；未来页面不占位，无缩略图列表、单页切换器或显示开关，允许离开后后台继续。",
+      "size": "1440x1024",
+      "count": 1
+    },
+    {
+      "name": "04-generation-failure",
+      "goal": "在大图瀑布流的失败页原位提示，保留大纲、模板与此前完整页面，并提供从失败页继续或返回修改大纲。",
+      "size": "1440x1024",
+      "count": 1
+    },
+    {
+      "name": "05-completed-work",
+      "goal": "同一工作区以单列大图瀑布流连续预览全部页面，并提供下载 PPTX、返回修改大纲与重新生成独立作品，不使用缩略图切换。",
+      "size": "1440x1024",
+      "count": 1
+    }
+  ],
+  "format": "png",
+  "concurrency": 1,
+  "output_root": "redesign-v2/output/ui-design-preview/product-design/ppt-flow"
+}

@@ -1,0 +1,72 @@
+{
+  "project": "SelfAlone 老己 redesign-v2",
+  "mode": "built-in-imagegen-ui-base-then-deterministic-asset-compositing",
+  "target_dimensions": "1440x1024",
+  "reference_images": [
+    {
+      "path": "redesign-v2/design-reference/02-conversation-and-scope.png",
+      "role": "完整桌面共享外壳、青瓷层级、左侧远山亭子与应用密度基准"
+    },
+    {
+      "path": "redesign-v2/design-reference/03-reading-library.png",
+      "role": "读书模块宽导航、书籍封面尺度、桌宠与对话气泡位置基准"
+    },
+    {
+      "path": "redesign-v2/output/ui-design-preview/product-design/book-detail/reader-feedback-comprehensive-candidate-v3.png",
+      "role": "同一本书的书籍信息条、标签栏、阅读工作区与页面构图基准"
+    },
+    {
+      "path": "redesign-v2/assets/avatar/laoji-avatar-qingci-chibi-v2.png",
+      "role": "左上 Logo 头像身份基准，必须保持粉色双云髻、圆眼镜与青瓷服饰"
+    },
+    {
+      "path": "redesign-v2/output/ui-design-preview/product-design/settings/settings-service-overview-v8.png",
+      "role": "坐姿持书桌宠原始像素来源；只允许确定性裁切和合成，不交给图像模型重绘"
+    }
+  ],
+  "asset_assembly": {
+    "generation_rule": "ImageGen 只生成界面底稿，左上头像圆位和右下桌宠位必须留空；不得生成、近似绘制或修补角色。",
+    "avatar": {
+      "source": "redesign-v2/assets/avatar/laoji-avatar-qingci-chibi-v2.png",
+      "operation": "按原始比例缩放并作圆形裁切后确定性合成；不改色、不换表情、不生成相似头像。"
+    },
+    "mascot": {
+      "source": "redesign-v2/output/ui-design-preview/product-design/settings/settings-service-overview-v8.png",
+      "source_canvas": "1485x1059",
+      "source_crop": "x=1200,y=845,w=170,h=210",
+      "operation": "从已确认参考图裁取坐姿持书桌宠原始像素，按比例缩放后确定性合成；不得使用站立素材冒充，不得让模型补画。"
+    },
+    "chat_bubble": "使用确定性 UI 图标绘制 44px 墨绿色圆形气泡，放在桌宠可见边缘右侧 6–8px；不从生成图提取。"
+  },
+  "shared_constraints": [
+    "生产级简体中文桌面 Web UI，不含浏览器外框，不做展示板或多方案拼图",
+    "画布目标 1440x1024，延续参考图而不是发明新视觉系统",
+    "左侧固定宽导航包含老己字标、对话、读书选中、设置和留空的头像圆位；低对比远山树木亭子贴底，头像在生成后确定性合成",
+    "主区域顶部保持紧凑书籍信息条：深度工作封面、深度工作、卡尔·纽波特、本地导入、轻量描边的基于本书制作 PPT",
+    "标签固定为阅读、划线与想法、老己笔记、PPT 作品，每张只改变当前标签和主内容",
+    "ImageGen 底稿的右下桌宠区域必须留空，不得绘制任何人物；生成后再确定性合成参考图中的原始坐姿持书桌宠，并在其可见边缘右侧 6–8px 绘制 44px 墨绿色圆形对话气泡",
+    "青瓷绿、雾白、纸面感、宋体阅读气质；列表以分组、留白和细分隔线组织，不使用卡片套卡片、重阴影、多色渐变或高对比水墨",
+    "不增加目录侧栏、书友笔记、页码字段、来源筛选、任务中心或未定义功能",
+    "所有中文必须清晰可读，不得出现乱码、伪 Logo、错误标签或多余营销文案"
+  ],
+  "screens": [
+    {
+      "name": "book-detail-highlights-and-thoughts-v3",
+      "selected_tab": "划线与想法",
+      "output": "redesign-v2/output/ui-design-preview/product-design/book-detail/book-detail-highlights-and-thoughts-v3.png",
+      "prompt": "显示单列连续的划线与想法内容流。每条以细分隔线分隔，不做独立重卡片。部分条目在引用上方显示可交互的章节定位文字，例如‘第 3 章 深度工作的四个准则’，使用正式线性箭头图标和下划线共同表达可跳回原文；另一些条目完全没有定位行，内容自然上移，不留空白、占位符或未知标签。不要显示页码，不要显示独立‘查看原文’按钮，不要把引用正文整块做成链接。引用原文使用克制的浅青底或左侧细线；关联想法直接在下方以缩进、间距和较弱正文层级呈现，不在每条重复显示‘我的想法’，不使用笔形图标。书籍信息条在简介存在时显示一至两行简介。主体沿用已确认稿件的低饱和浅青灰底，空白区以 #F3F5F5 为基准，仅在边缘保留极淡青瓷雾感，不得偏黄、偏粉或成为暖灰纸色。左栏水墨近景只收在底部约三分之一并保持极低对比。左上头像圆位和右下桌宠位必须留空，禁止绘制人物或相似角色；真实头像、桌宠和气泡由生成后的确定性合成步骤加入。展示 4 条真实中文内容，信息密度适中，无目录侧栏。"
+    },
+    {
+      "name": "book-detail-laoji-notes-v3",
+      "selected_tab": "老己笔记",
+      "output": "redesign-v2/output/ui-design-preview/product-design/book-detail/book-detail-laoji-notes-v3.png",
+      "prompt": "显示单列、全宽连续的老己笔记列表，页面顶部只有一个明确主操作‘新建笔记’。沿用已确认探索稿的简洁列表节奏：每条依靠充足上下留白和横向细分隔线组织，更多菜单贴近行尾，不把笔记放进独立卡片。展示三种真实状态：一篇独立笔记；一篇引用原文的笔记，引用区域只读且视觉弱于笔记正文；一篇由老己根据对话整理的笔记，仅用轻量元信息‘由老己整理 · 今天 10:24’说明来源。不要在每条左侧放置文档、引号、星光或类型图标；引用只使用一条低饱和青瓷色竖线和轻微缩进，不要完整边框、圆角容器或底色卡片。完全不设置或显示独立标题，也不要把正文第一行放大、加粗或排成标题式摘要；每条笔记直接从统一的正文层级开始展示。每篇只使用正文、必要的引用、更新时间或 AI 来源元信息，以及低强调的正式线性更多菜单图标。书籍信息条在简介存在时显示一至两行简介。主体沿用已确认稿件的低饱和浅青灰底，空白区以 #F3F5F5 为基准，仅在边缘保留极淡青瓷雾感，不得偏黄、偏粉或成为暖灰纸色。左栏水墨近景只收在底部约三分之一并保持极低对比。左上头像圆位和右下桌宠位必须留空，禁止绘制人物或相似角色；真实头像、桌宠和气泡由生成后的确定性合成步骤加入。不要出现预览确认、待处理、覆盖或另存选择，也不要增加书友笔记。"
+    },
+    {
+      "name": "book-detail-ppt-works-v1",
+      "selected_tab": "PPT 作品",
+      "output": "redesign-v2/output/ui-design-preview/product-design/book-detail/book-detail-ppt-works-v1.png",
+      "prompt": "显示与本书关联的 PPT 作品主界面。顶部不再增加第二个制作按钮，沿用书籍信息条中的‘基于本书制作 PPT’入口。主体展示一个生成中作品和两个已生成作品；生成中项目以稳定的 16:9 预览骨架、标题和‘正在生成第 6 / 12 页’表达，不显示失败、排队或草稿。已生成作品使用真实 16:9 封面预览、标题、生成日期和低强调下载图标；整项可进入查看，不设置额外‘显示 PPT’开关。使用两列宽预览布局和充足留白，避免小缩略图任务列表与卡片套卡片。"
+    }
+  ]
+}

@@ -72,8 +72,8 @@
         position: absolute;
         z-index: 6;
         inset: 0 0 auto;
-        height: calc(72px + env(safe-area-inset-top));
-        padding: calc(10px + env(safe-area-inset-top)) 12px 8px;
+        height: calc(64px + env(safe-area-inset-top));
+        padding: calc(10px + env(safe-area-inset-top)) 12px;
         display: grid;
         grid-template-columns: 44px minmax(0, 1fr) 44px;
         align-items: center;
@@ -112,7 +112,7 @@
         overflow: hidden;
         color: var(--pine);
         font-family: "Songti SC", "STSong", serif;
-        font-size: 17px;
+        font-size: 16px;
         font-weight: 600;
         line-height: 24px;
         letter-spacing: 0.02em;
@@ -120,19 +120,11 @@
         white-space: nowrap;
       }
 
-      .conversation-title span {
-        display: block;
-        color: var(--ink-soft);
-        font-size: 11px;
-        line-height: 16px;
-        letter-spacing: 0.04em;
-      }
-
-      .conversation-title b { color: var(--jade); font-weight: 600; }
+      .header-spacer { width: 44px; height: 44px; }
 
       .conversation {
         position: absolute;
-        inset: calc(72px + env(safe-area-inset-top)) 0 calc(155px + env(safe-area-inset-bottom));
+        inset: calc(64px + env(safe-area-inset-top)) 0 calc(155px + env(safe-area-inset-bottom));
         overflow-y: auto;
         overscroll-behavior: contain;
         padding: 18px 16px 86px;
@@ -186,6 +178,22 @@
         font-size: 16px;
         font-weight: 600;
       }
+
+      .task-stage {
+        width: fit-content;
+        max-width: 100%;
+        margin: 0 0 8px;
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: rgba(220, 233, 226, 0.62);
+        color: #55766c;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 16px;
+        letter-spacing: 0.03em;
+      }
+
+      .task-stage b { color: var(--jade); font-weight: 600; }
 
       .message-meta { margin-top: 7px; color: var(--ink-faint); font-size: 11px; line-height: 16px; }
 
@@ -290,12 +298,11 @@
       .composer-mascot {
         position: absolute;
         z-index: 2;
-        top: -72px;
-        left: calc(50% - 6px);
-        width: 122px;
-        height: 122px;
+        top: -38px;
+        left: 18px;
+        width: 88px;
+        height: 88px;
         overflow: hidden;
-        transform: translateX(-50%);
         pointer-events: none;
         clip-path: polygon(7% 0, 93% 0, 100% 64%, 96% 100%, 4% 100%, 0 64%);
         mix-blend-mode: multiply;
@@ -307,7 +314,7 @@
         height: 100%;
         object-fit: contain;
         filter: brightness(1.075) contrast(1.07) saturate(0.9);
-        transform: translateY(16px);
+        transform: translateY(11px);
       }
 
       .composer-box {
@@ -609,13 +616,10 @@
           <button class="icon-button" id="menuButton" type="button" aria-label="打开导航" aria-expanded="false">
             <i class="ph ph-list" aria-hidden="true"></i>
           </button>
-          <div class="conversation-title">
+          <div class="conversation-title" aria-label="会话名称">
             <strong>《活着》读书分享</strong>
-            <span>范围与需求 · <b>1 / 4</b></span>
           </div>
-          <button class="icon-button" type="button" aria-label="新建对话">
-            <i class="ph ph-note-pencil" aria-hidden="true"></i>
-          </button>
+          <span class="header-spacer" aria-hidden="true"></span>
         </header>
 
         <div class="conversation" id="conversation" aria-live="polite">
@@ -631,6 +635,8 @@
           <article class="message assistant">
             <img class="avatar" src="../../../assets/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" />
             <div class="message-body">
+              <!-- 仅在会话中存在进行中的任务时显示；普通对话不渲染。 -->
+              <p class="task-stage" aria-label="当前任务阶段">PPT 任务 · 范围与需求 · <b>1 / 4</b></p>
               <p class="assistant-copy"><strong>好呀。</strong>这次想重点覆盖哪些内容？可以多选。</p>
               <div class="choices" id="choices" aria-label="选择内容范围">
                 <button class="choice" type="button" aria-pressed="true" data-value="全书">

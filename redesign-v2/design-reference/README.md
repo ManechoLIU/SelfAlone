@@ -24,12 +24,18 @@
 | 08 | 书籍详情 / PPT 作品 | [`08-book-detail-ppt-works.png`](08-book-detail-ppt-works.png) | [`book-detail-ppt-works-reference-v1.png`](../output/ui-design-preview/product-design/book-detail/book-detail-ppt-works-reference-v1.png) | 紧凑书籍信息条与标签层级、最多两列的 `16:9` 作品网格、生成中与已完成项的统一比例、作品名 / 日期或状态 / 下载操作层级 | 示例文案与日期、生成内容、截图中的头像和桌宠像素、偏暖或偏黄背景 |
 | 10 | 书籍详情 / 老己笔记、划线与想法 | [`10-book-detail-laoji-notes.png`](10-book-detail-laoji-notes.png) | [`book-detail-laoji-notes-reference-v1.png`](../output/ui-design-preview/product-design/book-detail/book-detail-laoji-notes-reference-v1.png) | 两个标签共享的单列全宽内容流、充足上下留白、细分隔线、行尾操作、轻量引用竖线与元信息；老己笔记保留唯一“新建笔记”主操作 | 标题式首行或独立标题字段、重复“我的想法”标签或笔形图标、截图中的示例文案 / 时间 / 头像 / 桌宠像素、偏暖或偏黄背景 |
 | 11 | 移动端 / 会话抽屉打开态 | [`11-mobile-conversation-drawer.png`](11-mobile-conversation-drawer.png) | [`04-mountain-pavilion-refinement.png`](../work/mobile-design/visual-exploration-v2/04-mountain-pavilion-refinement.png) | Compact 抽屉的单任务层级、顶部品牌 / 新建对话 / 搜索顺序、无卡片最近会话列表、充足留白、底部导航、移动端大圆角，以及列表下方贴底并向上消隐的远山亭子视觉落款 | 图像模型重绘的头像与图标、示例会话与时间、首条会话的书签形标记和时间线圆点、被遮罩主画布中的示例内容、截图像素尺寸 |
+| 13 | 移动端 / 通用会话主画面 | [`13-mobile-conversation-shell.png`](13-mobile-conversation-shell.png) | [`mobile-conversation-shell-codex-imagegen-v1-original.png`](../work/mobile-design/conversation-shell-v2/mobile-conversation-shell-codex-imagegen-v1-original.png) | Compact 全屏会话层级、一行通用会话名称、消息内的条件式任务阶段、单列消息 / 选择 / 确认 / 输入区、移动端饱满圆角、输入框左上低存在感趴卧桌宠，以及下部低对比远山亭子留白 | 示例书名、任务文案、时间与进度，图像模型生成的头像 / 桌宠 / 图标像素，截图尺寸，以及把整张图作为运行时界面素材 |
+| 14 | 移动端 / 统一书架 | [`14-mobile-reading-library.png`](14-mobile-reading-library.png) | [`reading-library-codex-imagegen-v1-original.png`](../work/mobile-design/reading-library-v1/reading-library-codex-imagegen-v1-original.png) | Compact 菜单 / “读书” / 导入页头、单一大圆角搜索框、连续双列封面网格、封面底部阅读进度、一行书名与无底色来源小图标，以及不依赖桌宠或底部导航的内容优先布局 | 示例封面、书名、进度与生成图标像素，最近阅读大卡片、来源分区、同步时间、被内容覆盖的山亭背景、截图尺寸，以及把整张图作为运行时素材 |
 
 `08-book-detail-ppt-works.png` 是 2026-08-19 用户明确认可的书籍详情“PPT 作品”页面参考，尺寸为 `1487×1058`，SHA-256 为 `5944dffa44247538b561381e1f2775ff3a220d59ea3fc1b40abb9ac03f4b2632`。它约束该标签页的内容密度和状态组织，但不覆盖 `DESIGN.md` 的共享外壳、冷调 `app-paper`、原始头像与桌宠资产规则，也不自动成为运行时图片素材。
 
 `10-book-detail-laoji-notes.png` 是 2026-08-19 用户明确认可的书籍详情内容列表参考，尺寸为 `1486×1058`，SHA-256 为 `b27d3863033fea8fe39e03d971a44e2b8d672fc2fdc39dfb70e9827dc6eadbdf`。它同时约束“老己笔记”和“划线与想法”的列表节奏，但不改变两类内容各自的字段与交互。两个标签都不设置独立标题，也不把正文首行标题化，因此图中放大的首行只能视为示例瑕疵；“划线与想法”仍按 `SPEC.md` 处理可选定位、只读引用与关联想法。头像、桌宠和背景继续服从原始资产与冷调 `app-paper` 规则。
 
 `11-mobile-conversation-drawer.png` 是 2026-08-19 用户明确认可的移动端会话抽屉打开态参考，尺寸为 `853×1844`，SHA-256 为 `9e764e60189845b6f46eb1181c97bbc622a363c067274ae479cfb7a15c68c36e`。它只约束 Compact 会话导航的布局层级、留白、圆角与下部山亭背景，不扩展为其他移动页面的通用构图，也不自动成为运行时整图素材；实现必须使用已确认头像资产、统一会话图标和真实数据，并按 `DESIGN.md` 保证长列表、焦点与触控目标不被装饰背景遮挡。
+
+`13-mobile-conversation-shell.png` 是 2026-08-20 用户明确定稿并纳入的 Compact 通用会话主画面参考，尺寸为 `853×1844`，SHA-256 为 `38569bae11f33492523b3546bed1d9a8e297a9be55a0cbdf23d44f7cf4117d5e`。它约束会话主画面的页头、消息、条件式任务阶段、结构化选择、确认操作、输入区、移动端圆角节奏、桌宠位置与下部山亭留白；普通对话必须省略任务阶段。它与 11 的会话抽屉、12 的桌宠姿态互相补充，但不把 12 或本图中的生成像素升级为运行时素材；实现继续使用已确认头像、另行确认的透明桌宠资产、成熟图标和真实数据，不得直接铺设整张参考图。
+
+`14-mobile-reading-library.png` 是 2026-08-20 用户明确认可并纳入的 Compact 统一书架参考，尺寸为 `853×1844`，SHA-256 为 `3e80d4a9d64567c439ffab09b8e90d0444f0025a794a44e8d4100d69d7465212`。它约束移动书架的页头、搜索、双列封面密度、进度与来源层级，并与 11、13 共用同一 Compact 外壳气质；正常内容态不放浮动桌宠或底部导航。图片中的示例书籍、封面、进度和图标仅用于说明层级，运行时必须使用真实书籍数据、真实封面、成熟图标和可访问名称，不得直接铺设整张参考图。
 
 ## 已认可视觉元素，不是运行时资产
 
