@@ -25,6 +25,8 @@
 
 | 顺序 | 界面 | 文件 | 原稿 | 可采用 | 不得照搬 |
 | --- | --- | --- | --- | --- | --- |
+| 04 | 桌面 Web / PPT·大纲编辑 | [`04-ppt-outline-editing.png`](04-ppt-outline-editing.png) | [`desktop-outline-feishu-v3.png`](../output/ui-design-preview/product-design/ppt-flow/desktop-outline-feishu-v3.png) | 共享复古外壳、四阶段页头、无工具栏和无编辑器框的连续分层正文、原位光标与轻量拖拽提示、按输入上下文自动继承层级，以及稳定的返回与确认操作 | 示例书名、大纲与会话内容，固定层级数量，富文本格式工具栏、页卡和增删页操作，图像模型生成的头像 / 桌宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
+| 06 | 桌面 Web / PPT·生成中 | [`03-generation-progress-waterfall-v2.png`](03-generation-progress-waterfall-v2.png) | [`desktop-generation-waterfall-v2.png`](../output/ui-design-preview/product-design/ppt-flow/desktop-generation-waterfall-v2.png) | 共享复古外壳、生成阶段与后台继续提示、连续单列大尺寸 `16:9` 页面瀑布流、已完成页面与同尺寸当前页骨架，以及工作区内独立滚动 | 示例页数、百分比、模板与 PPT 内容，图像模型生成的页面 / 头像 / 桌宠 / 图标 / 字体像素、固定截图尺寸，以及缩略图列表、轮播或把整张图作为运行时素材 |
 | 08 | 桌面 Web / 书籍详情·PPT 作品 | [`08-book-detail-ppt-works.png`](08-book-detail-ppt-works.png) | [`book-detail-ppt-works-reference-v1.png`](../output/ui-design-preview/product-design/book-detail/book-detail-ppt-works-reference-v1.png) | 紧凑书籍信息条与标签层级、最多两列的 `16:9` 作品网格、生成中与已完成项的统一比例、作品名 / 日期或状态 / 下载操作层级 | 示例文案与日期、生成内容、截图中的头像和桌宠像素、偏暖或偏黄背景 |
 | 10 | 桌面 Web / 书籍详情·老己笔记与划线想法 | [`10-book-detail-laoji-notes.png`](10-book-detail-laoji-notes.png) | [`book-detail-laoji-notes-reference-v1.png`](../output/ui-design-preview/product-design/book-detail/book-detail-laoji-notes-reference-v1.png) | 两个标签共享的单列全宽内容流、充足上下留白、细分隔线、行尾操作、轻量引用竖线与元信息；老己笔记保留唯一“新建笔记”主操作 | 标题式首行或独立标题字段、重复“我的想法”标签或笔形图标、截图中的示例文案 / 时间 / 头像 / 桌宠像素、偏暖或偏黄背景 |
 | 11 | 微信小程序 / 会话抽屉打开态 | [`11-mobile-conversation-drawer.png`](11-mobile-conversation-drawer.png) | [`04-mountain-pavilion-refinement.png`](../work/mobile-design/visual-exploration-v2/04-mountain-pavilion-refinement.png) | 会话抽屉的单任务层级、顶部品牌 / 新建对话 / 搜索顺序、无卡片最近会话列表、充足留白、底部导航、小程序大圆角，以及列表下方贴底并向上消隐的远山亭子视觉落款 | 图像模型重绘的头像与图标、示例会话与时间、首条会话的书签形标记和时间线圆点、被遮罩主画布中的示例内容、截图像素尺寸 |
@@ -48,6 +50,7 @@
 | 30 | 微信小程序 / 会话·底部半屏多选 | [`30-mobile-conversation-selection-sheet.png`](30-mobile-conversation-selection-sheet.png) | [`01-selection-sheet.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/01-selection-sheet.png) | 原会话留在遮罩后的空间关系、单一大圆角底部半屏表面、开放式多选列表、成熟复选反馈、底部安全区内唯一“确认”主操作，以及趴宠依附面板左上沿的关系 | 示例书名、消息、选项、时间与任务进度，固定面板高度，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
 | 31 | 微信小程序 / 会话·确认后普通输入 | [`31-mobile-conversation-confirmed-input.png`](31-mobile-conversation-confirmed-input.png) | [`02-confirmed-normal-input.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/02-confirmed-normal-input.png) | 选择层关闭后的轻量范围摘要与“修改”入口、紧凑吸底输入面、独立图片入口、稳定发送操作、完整趴宠和下部山亭留白 | 示例范围、消息、书名、时间与任务进度，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
 | 32 | 微信小程序 / 会话·图片附件输入 | [`32-mobile-conversation-image-attachments.png`](32-mobile-conversation-image-attachments.png) | [`03-image-attachment-input.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/03-image-attachment-input.png) | 图片在文字输入行上方组成同一输入面、不显示容量计数、浅色轻量移除操作、底边与发送按钮保持锚定，以及趴宠完整覆盖输入框左上边界 | 示例范围、缩略图、消息、书名、时间与任务进度，图中偏大的缩略图和输入面高度、色块式范围摘要，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
+| 33 | 桌面 Web / PPT·生成失败 | [`33-desktop-ppt-generation-failed.png`](33-desktop-ppt-generation-failed.png) | [`desktop-generation-failure-waterfall-v2.png`](../output/ui-design-preview/product-design/ppt-flow/desktop-generation-failure-waterfall-v2.png) | 共享复古外壳、已完成页面继续保留、失败页占用原 `16:9` 位置、原位错误说明、“重新生成 / 修改大纲”主次操作，以及右上低频更多菜单承载删除 | 示例页数、百分比、错误原因与 PPT 内容，图像模型生成的页面 / 头像 / 桌宠 / 图标 / 字体像素、固定截图尺寸，把删除做成第三个并列按钮或把整张图作为运行时素材 |
 `08-book-detail-ppt-works.png` 是 2026-08-19 用户明确认可的桌面 Web 书籍详情“PPT 作品”页面参考，尺寸为 `1487×1058`，SHA-256 为 `5944dffa44247538b561381e1f2775ff3a220d59ea3fc1b40abb9ac03f4b2632`。它约束该标签页的内容密度和状态组织，但不覆盖共享视觉、桌面 Web 外壳、冷调 `app-paper`、原始头像与桌宠资产规则，也不自动成为运行时图片素材。
 
 `10-book-detail-laoji-notes.png` 是 2026-08-19 用户明确认可的书籍详情内容列表参考，尺寸为 `1486×1058`，SHA-256 为 `b27d3863033fea8fe39e03d971a44e2b8d672fc2fdc39dfb70e9827dc6eadbdf`。它同时约束“老己笔记”和“划线与想法”的列表节奏，但不改变两类内容各自的字段与交互。两个标签都不设置独立标题，也不把正文首行标题化，因此图中放大的首行只能视为示例瑕疵；“划线与想法”仍按 `SPEC.md` 处理可选定位、只读引用与关联想法。头像、桌宠和背景继续服从原始资产与冷调 `app-paper` 规则。
@@ -70,6 +73,8 @@
 
 `30-mobile-conversation-selection-sheet.png`、`31-mobile-conversation-confirmed-input.png` 和 `32-mobile-conversation-image-attachments.png` 是 2026-08-22 用户明确认可并纳入的微信小程序会话局部状态参考，尺寸均为 `853×1844`，SHA-256 分别为 `5b231f018b55b535bca2659403d6e46c33e356f129ee4a85ab21fc55d5077728`、`bc286413ddbf0ecd87bde39793b7197e1abea0032891c13eb4356c751863127f`、`8bdb333b34314303fcf01ac37d91bdd80b05844490af64878daf18da1361b0fa`。三图依次补齐底部半屏多选、确认后的普通输入和图片附件输入；局部状态与 13 冲突时以 30–32 为准，具体尺寸、触控目标、动态高度、附件上限与失败保留继续以 `SPEC.md` 和 `DESIGN-MINIAPP.md` 为准。三图是实现参考而不是运行时整图或角色资产。
 
+`04-ppt-outline-editing.png`、`03-generation-progress-waterfall-v2.png` 和 `33-desktop-ppt-generation-failed.png` 是 2026-08-22 用户明确认可并纳入的桌面 Web PPT 大纲、生成中与生成失败页面参考，尺寸均为 `1440×1024`，SHA-256 分别为 `79b50eaba146dce1108bf2590061b2c9f6997475bf88a5ec3d012f517a8d0419`、`27a300c726a423e232a86fdbbe0d551c5239974c44c4e9e1cf3d93419b7f61f8`、`4b678dbe035eee514d5f6a561764a38b79d0f2936131c8642f9a98abd86100c9`。三图补齐共享复古外壳下的连续大纲编辑、连续大页生成和失败恢复视觉；产品状态、动态页数、保存与失败规则仍以 `SPEC.md` 和 `DESIGN-WEB.md` 为准，运行时必须使用正式头像、透明桌宠、成熟图标与真实数据，不得直接铺设参考图。
+
 ## 已认可视觉元素，不是运行时资产
 
 | 顺序 | 元素 | 文件 | 原稿 | 可采用 | 不得照搬 |
@@ -82,19 +87,17 @@
 
 | 顺序 | 界面 | 文件 | 原稿 / 同字节来源 | 仅可参考 |
 | --- | --- | --- | --- | --- |
-| 04 | 桌面 Web / PPT 大纲编辑工作区 | [`04-ppt-outline-editing.png`](04-ppt-outline-editing.png) | [`main-refined-hybrid-v1.png`](../output/ui-design-preview/product-design/main-interface/main-refined-hybrid-v1.png) | 行式 / 连续分层大纲、阶段和操作结构 |
 | 05 | 桌面 Web / PPT 模板选择 | [`02-template-selection.png`](02-template-selection.png) | [`02-template-selection.png`](../output/ui-design-preview/product-design/ppt-flow/02-template-selection.png) | 模板预览、选中反馈和底部操作结构 |
-| 06 | 桌面 Web / PPT 生成中 | [`03-generation-progress-waterfall-v2.png`](03-generation-progress-waterfall-v2.png) | [`03-generation-progress-waterfall-v2.png`](../output/ui-design-preview/product-design/ppt-flow/03-generation-progress-waterfall-v2.png) | 连续大图瀑布流、当前页骨架和生成进度结构 |
 | 07 | 桌面 Web / 微信读书书籍详情 | [`07-weread-book-detail.png`](07-weread-book-detail.png) | — | 紧凑书籍信息条、PPT 入口、标签与工具区层级、选区工具面、桌宠与气泡位置；产品内容和背景色按 `SPEC.md`、`DESIGN.md`、`DESIGN-WEB.md` |
 
-04–06 缺少或偏离完整视觉定稿中的复古共享外壳，尤其不能继承其书页 Logo、空白左栏、旧头像、会话封面和过淡绿色。实现桌面 Web 时保留上述流程结构，同时以 `02-conversation-and-scope.png`、[`../DESIGN.md`](../DESIGN.md) 和 [`../DESIGN-WEB.md`](../DESIGN-WEB.md) 重建页面主体与左侧远山亭子背景。
+05 仍只确认模板选择的流程 / 结构，不能继承旧稿中的书页 Logo、空白左栏、旧头像、会话封面和过淡绿色。实现桌面 Web 时保留模板预览、选中反馈和底部操作结构，同时以 `02-conversation-and-scope.png`、[`../DESIGN.md`](../DESIGN.md) 和 [`../DESIGN-WEB.md`](../DESIGN-WEB.md) 重建页面主体与左侧远山亭子背景。
 
-04–06 的原稿 / 同字节来源仅用于文件追溯，不改变其流程 / 结构参考层级：`04-ppt-outline-editing.png` 与 `main-refined-hybrid-v1.png` 均为 `1440×1024`、SHA-256 `6ef8175ebd173b9599ded79c12897fa2d55c00bff7f8a688e44234ed6de1cafb`；`02-template-selection.png` 与 `ppt-flow/02-template-selection.png` 均为 `1440×1024`、SHA-256 `ce0a47a3dcd157762f749825d3382b45831074dc9c0072fc2bf576263a06b595`；`03-generation-progress-waterfall-v2.png` 与 `ppt-flow/03-generation-progress-waterfall-v2.png` 均为 `1440×1024`、SHA-256 `6e507dd024874150aaa24de07855cd978e5cdcba6f54d029cdc4fbc24b922a0c`。
+05 的原稿 / 同字节来源仅用于文件追溯，不改变其流程 / 结构参考层级：`02-template-selection.png` 与 `ppt-flow/02-template-selection.png` 均为 `1440×1024`、SHA-256 `ce0a47a3dcd157762f749825d3382b45831074dc9c0072fc2bf576263a06b595`。
 
 `07-weread-book-detail.png` 是 2026-08-19 用户明确指定的桌面 Web 微信读书书籍详情参考图，原稿为 [`weread-book-detail-reference-v1.png`](../output/ui-design-preview/product-design/book-detail/weread-book-detail-reference-v1.png)，尺寸 `1487×1058`，SHA-256 为 `604e0c36ad6f9a80d7e815bdc94eb63c3cfe686ac8de9f364aae3888339dec0e`。该图不是完整视觉定稿：其中“本地导入”、完整正文、目录 / 阅读设置 / 专注阅读和偏暖纸白均不得用于微信读书详情；桌面 Web 只采用表中列出的布局关系，并以 `SPEC.md` 的微信读书内容边界、`DESIGN.md` 的共享规则和 `DESIGN-WEB.md` 的桌面布局规则为准。微信小程序本地阅读不从本图推断；其介绍首屏、沉浸正文、操作层和三种“书籍内容”面板状态统一以 15–20、当前 `SPEC.md`、`DESIGN.md` 和 `DESIGN-MINIAPP.md` 为准。
 
 ## PPT 视觉缺口
 
-桌面 Web 目前只有 02 所示“对话 + 范围与需求”具备完整视觉定稿；04、05、06 只完成流程 / 结构确认，仍缺套用共享复古外壳后的完整视觉稿，桌面端生成失败和生成完成工作区也尚无认可页面参考。书籍详情的“PPT 作品”标签已有 08 认可页面参考，但它不替代桌面生成工作区的完成态定稿；对应旧探索稿仍在 [`../output/ui-design-preview/product-design/ppt-flow/`](../output/ui-design-preview/product-design/ppt-flow/)，不得复制回来补齐流程或作为实现依据。
+桌面 Web 的 04 大纲、06 生成中和 33 生成失败已经有套用共享复古外壳的认可页面参考；05 模板选择仍只有流程 / 结构参考，生成完成工作区仍无认可页面参考。02 所示“对话 + 范围与需求”继续作为共享外壳的完整视觉定稿，08 书籍详情“PPT 作品”不替代桌面生成完成工作区；对应旧探索稿仍在 [`../output/ui-design-preview/product-design/ppt-flow/`](../output/ui-design-preview/product-design/ppt-flow/)，不得复制回来补齐流程或作为实现依据。
 
 微信小程序 PPT 流程的视觉缺口已经由 23–29 七张认可页面参考补齐；后续设计与开发按 `DESIGN-MINIAPP.md` 和本索引列出的采用点实施，不从桌面流程图或更早的会话截图反向推断。
