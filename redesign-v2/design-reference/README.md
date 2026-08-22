@@ -8,12 +8,12 @@
 
 | 顺序 | 界面 | 文件 | 原稿 |
 | --- | --- | --- | --- |
-| 01 | 桌面 Web / 登录与注册 | [`01-auth-login-register.png`](01-auth-login-register.png) | [`auth-login-register-approved-v1.png`](../output/ui-design-preview/product-design/auth-login-register-approved-v1.png) |
+| 01 | 桌面 Web / 登录与注册 | [`01-auth-login-register.png`](01-auth-login-register.png) | [`auth-wechat-email-modal-v3.png`](../output/ui-design-preview/product-design/auth-wechat-email-modal-v3.png) |
 | 02 | 桌面 Web / 对话与 PPT 范围需求 | [`02-conversation-and-scope.png`](02-conversation-and-scope.png) | [`guided-compact-workbench-v3.png`](../output/ui-design-preview/product-design/task-workspace-source-selection/guided-compact-workbench-v3.png) |
 | 03 | 桌面 Web / 统一书架 | [`03-reading-library.png`](03-reading-library.png) | [`library-unified-compact-v3.png`](../output/ui-design-preview/product-design/library/library-unified-compact-v3.png) |
 | 09 | 桌面 Web / 设置服务总览 | [`09-settings-overview.png`](09-settings-overview.png) | [`settings-service-overview-v8.png`](../output/ui-design-preview/product-design/settings/settings-service-overview-v8.png) |
 
-`01-auth-login-register.png` 继续完整约束桌面 Web 账户入口的水墨书页构图、左右分区、字体、颜色、角色比例与控件质感；图中的具体邮箱表单、标签和操作文案已由当前账户规则局部替代。实现按 `SPEC.md`、`DESIGN.md` 和 `DESIGN-WEB.md` 使用微信主登录与邮箱备选，不增加手机号，也不把该桌面构图照搬为微信小程序登录页；无需仅为这处内容调整重新生成整张视觉稿。
+`01-auth-login-register.png` 是 2026-08-22 用户最后确认的桌面 Web 账户入口完整视觉定稿，原稿与参考副本均为 `1440×1024`，SHA-256 为 `d49f5a61ee52e49f0d7158509a97431568b333de85daa978522d462fc3eda824`。它替代本槽位的旧稿，锁定水墨书页左右分区、共享标语“遇见自己，爱你老己”、紧凑的微信主按钮与邮箱次入口，以及点击微信按钮后才出现的居中扫码弹窗；默认页不得暴露二维码或保留隐藏占位。注册页沿用同一账户外壳，具体字段与行为以 `SPEC.md` 为准。图中的二维码、角色、图标和文字像素及固定截图尺寸不得作为运行时素材。
 
 其中 `02-conversation-and-scope.png` 是桌面应用共享外壳的主基准。2026-08-19 用户再次明确将所附定稿截图纳入开发参考；该截图、当前开发副本与原稿逐字节一致，尺寸均为 `1440×1024`，SHA-256 均为 `d84ffbae4a483be35c4c9c32192c05aa6e1ae111c966c6ee01599bcb28fd94f6`。应用内页面都必须延续其青瓷绿层次、老己头像与桌宠、左侧复古远山 / 树木 / 亭子背景；书架和设置稿补充较宽导航下的裁切与内容密度。
 
@@ -59,7 +59,7 @@
 
 `18-mobile-book-content-highlights.png`、`19-mobile-book-content-notes.png` 和 `20-mobile-book-content-ppt-works.png` 是 2026-08-20 用户明确认可并纳入的微信小程序“书籍内容”底部面板三种状态参考。18 的尺寸为 `852×1846`，19、20 的尺寸均为 `853×1844`；SHA-256 分别为 `2ddebcb614497d88efc79e0bf77197fc26192c5641ea2833d2a7a820cef8152f`、`23d078e390f6fc2b4422587b81b990f50154ca6e98535a94ccf65c418ec76077`、`e76a281751844095d080d8564980f13cc2d0ed7b9112dc3b842f6262b98b19cb`。三图锁定共享面板外壳、分段切换、内容密度和底部工具栏层级；具体数据、排序结果、生成进度和下载可用性继续以 `SPEC.md` 为准，面板须支持内容滚动、动态高度、安全区和五类数据状态，不得按截图固定裁切。
 
-`21-mobile-auth-login.png` 是 2026-08-20 用户明确认可并纳入的微信小程序登录页参考，尺寸为 `841×1871`，SHA-256 为 `65b2028810188027eddea61cb3b6455dca30103cdf607e6434bdbcc54b26bf00`。它约束登录页的单列层级、微信与邮箱的主次关系、趴卧老己的位置、协议区域、文字色阶和背景留白分区；标语固定为“亲爱的老己，爱你哟~”。图片中的角色、印章、图标和文字像素均只用于说明构图，运行时必须使用已确认角色资产、成熟图标、真实文字与可访问名称，不得直接铺设整张参考图。
+`21-mobile-auth-login.png` 是 2026-08-20 用户明确认可并纳入的微信小程序登录页参考，尺寸为 `841×1871`，SHA-256 为 `65b2028810188027eddea61cb3b6455dca30103cdf607e6434bdbcc54b26bf00`。它约束登录页的单列层级、微信与邮箱的主次关系、趴卧老己的位置、协议区域、文字色阶和背景留白分区；图中的旧标语已由 `DESIGN.md` 的共享登录页标语替代。图片中的角色、印章、图标和文字像素均只用于说明构图，运行时必须使用已确认角色资产、成熟图标、真实文字与可访问名称，不得直接铺设整张参考图。
 
 `22-mobile-settings-overview.png` 是 2026-08-20 用户明确认可并纳入的微信小程序设置总览参考，尺寸为 `853×1844`，SHA-256 为 `ce28f93874444d6877713576716b1395dff6752da36650d6a5792e293f657288`。它约束微信小程序设置页的页头、账户与服务分组、开放式单列入口、状态层级、中性纸白底色和下部山亭留白；小程序不得复用桌面设置稿的说明列、状态中列或“账户与登录方式”汇总行。运行时必须使用成熟图标、真实状态和可访问名称，不得直接铺设整张参考图。
 
