@@ -6,7 +6,9 @@
 
 - [`PROJECT_STATUS.md`](PROJECT_STATUS.md)：唯一当前状态账本，记录里程碑、工作包、证据、阻塞和下一步。
 - [`redesign-v2/SPEC.md`](redesign-v2/SPEC.md)：产品目标、对象、功能、流程、状态和验收。
-- [`redesign-v2/DESIGN.md`](redesign-v2/DESIGN.md)：视觉语言、布局、组件外观、响应式、动效和视觉验收。
+- [`redesign-v2/DESIGN.md`](redesign-v2/DESIGN.md)：共享视觉规范与唯一视觉文档入口。
+- [`redesign-v2/DESIGN-WEB.md`](redesign-v2/DESIGN-WEB.md)：桌面 Web 专属布局、交互与视觉验收。
+- [`redesign-v2/DESIGN-MINIAPP.md`](redesign-v2/DESIGN-MINIAPP.md)：微信小程序专属布局、交互与视觉验收。
 - [`redesign-v2/design-reference/README.md`](redesign-v2/design-reference/README.md)：全项目统一使用的完整视觉定稿、流程 / 结构参考与排除说明。
 - [`AGENTS.md`](AGENTS.md)：协作边界、修改规则、安全和交付要求。
 - [`EVOLUTION.md`](EVOLUTION.md)：可复用经验和错误预防，不是需求事实源。
