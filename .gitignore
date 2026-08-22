@@ -1,4 +1,11 @@
 .superpowers/
 .DS_Store
+node_modules/
+dist/
+.env
+coverage/
+playwright-report/
+test-results/
+data/artifacts/
 v1/.od-skills/
 v1/tools/

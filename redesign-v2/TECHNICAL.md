@@ -1,6 +1,6 @@
 # 老己 MVP 技术设计
 
-- 状态：开发方案基线；用户确认进入开发后按本文件执行
+- 状态：已确认，开发中
 - 产品行为：[`SPEC.md`](SPEC.md)
 - 共享视觉：[`DESIGN.md`](DESIGN.md)
 - 开发顺序：[`../docs/superpowers/plans/2026-08-23-mvp-launch.md`](../docs/superpowers/plans/2026-08-23-mvp-launch.md)
@@ -32,7 +32,7 @@
 | `apps/worker/` | 导入解析、AI、PPT 生成与失败恢复 | pg-boss 消费 PostgreSQL 任务；复用服务模块 |
 | `packages/contracts/` | 两端共享的请求、响应、状态枚举和错误码 | 只含 TypeScript 类型与 JSON 兼容常量 |
 | `packages/domain/` | 账户、书籍、会话、笔记、PPT 草稿与任务规则 | 无 UI、无网络、无数据库依赖的纯函数 |
-| `packages/presentation-adapter/` | PPT 引擎适配、模板映射、进度和产物归一化 | 优先适配自托管 Presenton；PptxGenJS / Office Kit 只作为未通过适配验收时的窄回退 |
+| `packages/presentation-adapter/` | PPT 引擎适配、模板映射、进度和产物归一化 | 复用自托管 Presenton；PptxGenJS / Office Kit 只补充已确认缺口和确定性本地开发产物 |
 | `packages/test-support/` | 假模型、假微信读书、假检索和确定性测试数据 | 仅测试与本地开发使用，不进入生产分支逻辑 |
 
 生产基础设施只包含：
@@ -154,7 +154,9 @@ interface PublicBookSourceAdapter {
 }
 ```
 
-- MVP 只接一个部署时指定的 OpenAI-compatible 文本模型提供方；前台只收集 API Key，不暴露提供方、端点或模型高级配置。
+- 国内版 MVP 的用户自有文本模型固定支持 `deepseek`、`kimi`、`glm`、`qwen` 四个 provider id。前台只显示对应供应商下拉和凭证字段，不开放任意 Base URL、模型名称或高级参数。
+- 服务端维护版本化模型目录，记录固定官方端点、允许的模型 ID、默认模型、能力（文本、结构化输出、图片输入）、备案名称与备案号、地域和最近核验时间；客户端不得提交目录之外的端点或模型。初始官方端点为 DeepSeek `https://api.deepseek.com`、Kimi `https://api.moonshot.cn/v1`、GLM `https://open.bigmodel.cn/api/paas/v4`、千问北京地域业务空间专属 OpenAI-compatible 端点。
+- 初始默认模型按实施时官方目录核验为 DeepSeek `deepseek-v4-flash`、Kimi `kimi-k3`、GLM `glm-5.2`、千问 `qwen3.8-max`；模型版本与备案状态变化只更新服务端目录，不增加用户模型选择器。千问配置额外保存业务空间 ID，并校验 API Key 与北京地域端点匹配。
 - 平台免费体验与用户自有 Key 复用同一适配器，凭证来源不同；每次平台调用在提交前预占成本、完成后按实际值结算，账户累计硬上限为 `¥5`。
 - 图片模型是可选增强；没有图片模型时，PPT 模板必须依靠形状、字体、线条、色块和用户已有图片生成完整页面。
 - 联网补全提供方必须在开发阶段单独获得服务、预算和调用范围授权；未获授权时不执行真实联网调用，也不把本地内容不足的结果描述为完整全书分析。
@@ -163,19 +165,21 @@ interface PublicBookSourceAdapter {
 
 ```ts
 interface WeReadAdapter {
-  validate(skillKey: string): Promise<WeReadAccount>;
+  validate(apiKey: string): Promise<WeReadAccount>;
   syncBooks(connectionId: string, cursor?: string): Promise<WeReadSyncPage>;
   syncAnnotations(connectionId: string, bookExternalId: string): Promise<WeReadAnnotation[]>;
 }
 ```
 
-Skill Key 的实际供应方协议、限流、错误码和数据字段必须以实施时取得的正式接口资料和真实沙箱响应为准；在此之前只实现适配器契约、假服务与失败保留，不猜测私有接口。
+微信读书使用腾讯官方 Agent API Gateway：`POST https://i.weread.qq.com/api/agent/gateway`，以 `Authorization: Bearer wrk-...` 鉴权，请求体平铺 `api_name`、业务参数与当前 `skill_version`。首发只同步 `/shelf/sync`、`/user/notebooks`、`/book/bookmarklist`、`/review/list/mine` 所需的书架、进度、个人划线与想法，不抓取 Cookie，不宣称提供完整正文。
+
+每次调用检查非零 `errcode` 与 `upgrade_info`；出现升级要求时暂停同步并保留上次成功快照。分页游标、外部稳定 ID 和连接账户相互隔离，新 API Key 验证成功后才替换旧连接。正式 H4 仍需用户提供自己的 API Key 并授权一次首同步、增量同步、无效 Key 和换号验证；官方未公开的限流值不写死，先采用单连接串行、超时和对 `429/5xx` 的有界退避。
 
 ## 6. PPTX 生成与复用策略
 
-开发开始时先做一个最多 `1` 个工作日的引擎适配 Spike，不先写三套渲染器：
+已完成 Presenton 快速冒烟，确认中文无图片 PPTX 能生成并经 WPS 重存。开发不再安排整日 Spike，也不先写三套渲染器：
 
-1. 首选自托管 [Presenton](https://github.com/presenton/presenton) 作为内部 PPT 引擎。它提供 Apache 2.0 开源代码、Docker 部署、生成 API、自有模板和可编辑 PPTX；老己只使用 API，不继承其账户、工作区或产品 UI。
+1. 复用自托管 [Presenton](https://github.com/presenton/presenton) 作为服务器侧 PPT 生成服务。它可以与老己部署在同一服务器或独立内网网段，老己后端通过 API 调用；Presenton 管理界面不直接暴露给产品用户，老己不继承其账户、工作区或产品 UI。
 2. 使用当前已安装的 `Presentations` Skill 创建青瓷模板原型、渲染每页、检测溢出并生成 PowerPoint / WPS 验收样本；该 Skill 只服务开发和 QA，不作为用户请求时的生产后端。
 3. 只有 Presenton 无法满足中文、精确大纲、无图片质量、异步进度、停止恢复、模板一致性或 PowerPoint / WPS 可编辑性时，才用 PptxGenJS 或 Office Kit 实现失败的那一小段，不从头重写完整生成器。
 
