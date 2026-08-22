@@ -98,6 +98,7 @@
 - 桌面 Web 与微信小程序登录页统一使用标语“遇见自己，爱你老己”；该标语只约束登录页，不作为应用内页面的常驻文案。
 - 产品 Logo 和老己消息头像必须直接使用 `assets/avatar/laoji-avatar-qingci-chibi-v2.png`，不得重绘、改色、换表情或以文字圆标替代。
 - 老己角色身份以 `assets/mascot/laoji-character-master-v1.png`、已确认桌宠参考和正式透明资产为准；默认道具为书，其他道具只由明确任务语义短暂触发。
+- 坐姿持书与趴卧扶书造型分别以 `assets/mascot/laoji-mascot-seated-reading-approved-v1.png`、`assets/mascot/laoji-mascot-prone-reading-approved-v1.png` 为确认源图；两图没有 Alpha 且棋盘格已写入像素，只用于造型溯源。运行时分别使用 `assets/mascot/laoji-mascot-seated-reading-transparent-v1.png`、`assets/mascot/laoji-mascot-prone-reading-transparent-v1.png`，不得重新生成或改画角色。
 - `design-reference/12-mobile-composer-prone-mascot.png` 只确认趴卧姿态、构图与表情，因棋盘格已经写入像素且没有透明通道，不是运行时资产。
 - 桌宠在固定、底部对齐的槽位内变化，不得推动周围内容、遮挡主要任务或把人物本身伪装成按钮。
 - 端侧姿态、召回方式、角色尺寸和对话快捷入口分别由桌面 Web 与微信小程序规范定义。

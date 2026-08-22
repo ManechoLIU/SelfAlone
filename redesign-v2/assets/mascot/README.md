@@ -5,9 +5,13 @@
 | 文件 | 状态 |
 | --- | --- |
 | `laoji-character-master-v1.png` | 当前标准透明背景角色素材。 |
+| `laoji-mascot-seated-reading-transparent-v1.png` | 当前坐姿持书透明运行时素材。 |
+| `laoji-mascot-prone-reading-transparent-v1.png` | 当前趴卧扶书透明运行时素材。 |
+| `laoji-mascot-seated-reading-approved-v1.png` | 用户确认的坐姿持书造型源图；无 Alpha，仅用于造型溯源。 |
+| `laoji-mascot-prone-reading-approved-v1.png` | 用户确认的趴卧扶书造型源图；无 Alpha，仅用于造型溯源。 |
 | `laoji-character-master-v1-local-v2.png` | 边缘处理过程稿。 |
 | `laoji-character-master-v1-local-v3.png` | 边缘处理过程稿。 |
 
 过程稿只用于追溯，不作为实现默认素材。
 
-`laoji-character-master-v1.png` 是站立角色素材，不能经图像模型改造成坐姿桌宠。当前已确认的坐姿持书桌宠原始像素来自 `../../output/ui-design-preview/product-design/settings/settings-service-overview-v8.png`；Compact 对话输入框的趴卧持书造型以 `../../design-reference/12-mobile-composer-prone-mascot.png` 为认可视觉参考。后者没有透明通道且棋盘格已写入像素，因此不是运行时素材；在独立透明素材确认前不得直接接入原型或实现，也不得将棋盘格抠图结果静默标记为已确认资产。
+`laoji-character-master-v1.png` 是站立角色素材，不能经图像模型改造成坐姿桌宠。坐姿持书和趴卧扶书的确认造型分别以 `laoji-mascot-seated-reading-approved-v1.png`、`laoji-mascot-prone-reading-approved-v1.png` 为准，趴卧构图同时服从 `../../design-reference/12-mobile-composer-prone-mascot.png` 的输入框依附关系。两张源图的棋盘格已经写入像素，不能直接接入界面；运行时分别使用同尺寸、保留原角色像素并经本地前景分割取得真实 Alpha 的 `laoji-mascot-seated-reading-transparent-v1.png`、`laoji-mascot-prone-reading-transparent-v1.png`。
