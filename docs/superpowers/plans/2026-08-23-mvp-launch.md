@@ -6,7 +6,7 @@
 
 **Architecture:** 使用 TypeScript 单仓和模块化单体后端，PostgreSQL 保存业务事实与任务队列，对象存储保存文件，独立 Worker 执行解析、模型调用和 PPTX 生成。先用桌面 Web 建立真实纵向闭环，再让微信小程序复用稳定 API 和状态机；两端共享契约，不强行共享 UI。
 
-**Tech Stack:** Node.js 24 LTS、pnpm、React + Vite、微信小程序原生 TypeScript、Fastify、Zod、Prisma、PostgreSQL、pg-boss、S3-compatible storage、PptxGenJS、Vitest、Playwright。
+**Tech Stack:** Node.js 24 LTS、pnpm、React + Vite、微信小程序原生 TypeScript、Fastify、Zod、Prisma、PostgreSQL、pg-boss、S3-compatible storage；PPT 优先适配自托管 Presenton，并使用已安装的 Presentations Skill 做模板与 QA，PptxGenJS / Office Kit 仅作窄回退；测试使用 Vitest 与 Playwright。
 
 **Spec:** [`redesign-v2/SPEC.md`](../../../redesign-v2/SPEC.md)、[`redesign-v2/DESIGN.md`](../../../redesign-v2/DESIGN.md)、[`redesign-v2/DESIGN-WEB.md`](../../../redesign-v2/DESIGN-WEB.md)、[`redesign-v2/DESIGN-MINIAPP.md`](../../../redesign-v2/DESIGN-MINIAPP.md)、[`redesign-v2/TECHNICAL.md`](../../../redesign-v2/TECHNICAL.md)、[`redesign-v2/design-reference/README.md`](../../../redesign-v2/design-reference/README.md)
 
@@ -48,6 +48,20 @@ P0 必须尽快出现，但它只使用明确标识的本地假模型和假微�
 
 最强反对意见是：P0 的假服务可能形成“演示完成”的错觉。应对方式不是取消 P0，而是把 P0 与 P1 的证据严格分开；任何需要模型、微信读书或真实账户的验收都必须在 P1/P2 重跑真实路径。
 
+### 1.3 复用优先清单
+
+| 能力 | 首选复用 | 项目只负责 |
+| --- | --- | --- |
+| PPT 生成与可编辑导出 | 自托管 Presenton 的异步/API 能力 | 大纲、任务状态、权限、成本、模板映射和产物归档 |
+| PPT 模板与质量检查 | 当前已安装的 Presentations Skill、渲染与溢出检查工具 | 青瓷视觉决策和 PowerPoint/WPS 实开验收 |
+| PPT 底层对象补缺 | PptxGenJS 或 Office Kit | 只实现 Presenton 验收失败的具体能力，不建另一套完整引擎 |
+| EPUB / PDF 阅读 | 成熟 EPUB、PDF 解析与渲染库 | 统一书籍模型、位置映射、同步和错误恢复 |
+| 数据库访问与迁移 | Prisma + PostgreSQL | 领域约束、事务、账户隔离和索引 |
+| 后台任务 | pg-boss | 任务业务状态、取消语义和用户可见进度 |
+| 文件存储 | S3-compatible SDK 与签名 URL | 对象所有权、生命周期和数据库引用 |
+
+任何自研模块开始前都先回答三件事：现成项目是否已有、许可证能否用于产品、现成能力能否通过当前验收。三项都不满足才写新实现。
+
 ## 2. 文件结构与责任
 
 ```text
@@ -59,7 +73,7 @@ apps/
 packages/
   contracts/           两端共享请求、响应、枚举与错误码
   domain/              无框架依赖的业务规则和状态机
-  pptx/                三套内置模板与确定性布局器
+  presentation-adapter/ Presenton 适配、模板映射与窄回退
   test-support/        本地假服务和确定性测试数据
 infra/
   migrations/          数据库迁移审查入口
@@ -80,7 +94,7 @@ tests/
 
 - Create: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.env.example`
 - Create: `apps/web/`, `apps/miniapp/`, `apps/server/`, `apps/worker/`
-- Create: `packages/contracts/`, `packages/domain/`, `packages/pptx/`, `packages/test-support/`
+- Create: `packages/contracts/`, `packages/domain/`, `packages/presentation-adapter/`, `packages/test-support/`
 - Create: `infra/compose.yaml`, `infra/deploy/Dockerfile`
 - Test: `packages/domain/src/health.test.ts`, `tests/integration/health.test.ts`
 
@@ -123,7 +137,7 @@ tests/
 - Create: `apps/server/src/modules/demo-flow/`, `apps/worker/src/jobs/demo-ppt.ts`
 - Create: `apps/web/src/routes/login/`, `apps/web/src/routes/library/`, `apps/web/src/routes/conversation/`
 - Create: `apps/web/src/features/ppt-workspace/`
-- Create: `packages/pptx/src/templates/celadon-reading.ts`
+- Create: `packages/presentation-adapter/src/fake-local.ts`, `packages/presentation-adapter/src/presenton.ts`
 - Test: `packages/domain/src/ppt-state.test.ts`, `tests/e2e/web/walking-skeleton.spec.ts`
 
 **Interfaces:**
@@ -142,31 +156,35 @@ export type PptTaskSnapshot = {
 };
 ```
 
-- [ ] **Step 1: Write state-machine tests**
+- [ ] **Step 1: Run the one-day PPT engine reuse Spike**
+
+  Start a pinned Presenton container only after installation/network authorization. Feed it exact Chinese `slides_markdown`, a no-image request and one青瓷模板；verify API authentication, custom template fidelity, async progress, stop behavior, editable objects, PowerPoint / WPS open-and-resave, and Docker restart recovery. Record pass/fail per criterion. Use Presenton only if it passes the required behavior; otherwise retain its passing parts and use PptxGenJS or Office Kit only for the failed capability.
+
+- [ ] **Step 2: Write state-machine tests**
 
   Cover valid stage progression, rejection of template submission before outline confirmation, idempotent task submission, stale version rejection, stop from `queued/running`, and preservation of completed pages after failure.
 
-- [ ] **Step 2: Verify tests fail**
+- [ ] **Step 3: Verify tests fail**
 
   Run `pnpm test:unit -- ppt-state.test.ts`. Expected: failure because the state machine does not exist.
 
-- [ ] **Step 3: Implement the smallest domain state machine and persistence schema**
+- [ ] **Step 4: Implement the smallest domain state machine and persistence schema**
 
   Store one seeded development account, one TXT book, one conversation, one draft and one task. Use real PostgreSQL rows and object-storage objects; only outline/copy generation is fake and must be labeled `adapter: "fake-local"`.
 
-- [ ] **Step 4: Implement one desktop route chain**
+- [ ] **Step 5: Implement one desktop route chain**
 
   Build login shell → unified library → book detail / conversation entry → requirements → outline → template → generating waterfall → completed waterfall → PPTX download. Use reference 02 for the shared shell and current Web design rules; do not build settings, WeRead or all empty states yet.
 
-- [ ] **Step 5: Generate an actual editable PPTX**
+- [ ] **Step 6: Generate an actual editable PPTX**
 
-  Render title, text and shapes as PowerPoint objects with the `celadon-reading` template. The artifact must not be a screenshot-only deck; open the file with a parser test and assert slide count, `16:9` dimensions and editable text nodes.
+  Use the selected engine adapter and `celadon-reading` template. The artifact must not be a screenshot-only deck; open the file with a parser test and assert slide count, `16:9` dimensions and editable text nodes. Use the installed Presentations Skill to render all pages and run overflow checks instead of creating another QA tool.
 
-- [ ] **Step 6: Run the real browser path**
+- [ ] **Step 7: Run the real browser path**
 
   Run `pnpm test:e2e:web -- walking-skeleton.spec.ts` at `1440×1024`. Expected: the test uses only visible UI, observes at least two progress snapshots, downloads a `.pptx`, and confirms the artifact record persists after browser refresh.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
   Review screenshots against reference exclusions, run `pnpm verify`, then commit Task 2 files with `feat: add mvp walking skeleton`.
 
@@ -315,9 +333,9 @@ export type PptTaskSnapshot = {
 
 - Create: `apps/server/src/modules/text-model/`, `apps/server/src/modules/ppt/`
 - Create: `apps/worker/src/jobs/create-outline.ts`, `apps/worker/src/jobs/generate-ppt.ts`
-- Create: `packages/pptx/src/templates/editorial-paper.ts`, `packages/pptx/src/templates/minimal-ink.ts`
-- Modify: `packages/pptx/src/render.ts`, `packages/domain/src/ppt-state.ts`
-- Test: `tests/integration/ppt-job.test.ts`, `packages/pptx/src/render.test.ts`, `tests/e2e/web/ppt-flow.spec.ts`
+- Create: `packages/presentation-adapter/src/templates.ts`, `packages/presentation-adapter/src/progress.ts`
+- Modify: `packages/presentation-adapter/src/presenton.ts`, `packages/domain/src/ppt-state.ts`
+- Test: `tests/integration/ppt-job.test.ts`, `packages/presentation-adapter/src/presenton.test.ts`, `tests/e2e/web/ppt-flow.spec.ts`
 
 **Interfaces:**
 
@@ -339,9 +357,9 @@ export type PptTaskSnapshot = {
 
   Preserve focus and selection, reject orphan child nodes in place, and require a fresh confirmation after a confirmed outline changes.
 
-- [ ] **Step 4: Implement three deterministic PPT templates**
+- [ ] **Step 4: Lock three reusable PPT templates**
 
-  Each template includes title, section, content and closing layouts and produces a usable no-image deck. Optional images may fill declared image slots only and may not determine basic visual quality.
+  Use the installed Presentations Skill and Presenton template tooling to produce and visually inspect `celadon-reading`、`editorial-paper`、`minimal-ink`. Each includes title, section, content and closing layouts and produces a usable no-image deck. Check the versioned template assets into the project; do not rebuild a generic template designer.
 
 - [ ] **Step 5: Implement the Worker lifecycle**
 
@@ -499,13 +517,15 @@ export type PptTaskSnapshot = {
 
 | 里程碑 | Codex 实际工作时间 | 人类日历时间 | 停止条件 |
 | --- | --- | --- | --- |
-| P0 行走骨架（Task 1–2） | `16–24h` | `3–5` 个工作日 | 真实浏览器下载确定性 PPTX，明确假服务边界 |
-| P1 真实桌面闭环（Task 3–6） | `42–60h` | `2–3` 周 | 真实账户、本地书、模型和 Office/WPS 验收通过 |
-| P2 双端候选（Task 7–8） | `32–48h` | `2–3` 周 | 微信读书与小程序真机核心链路通过 |
-| P3 邀请制 Beta（Task 9） | `12–20h` | `1–2` 周，另加平台等待 | Staging、备案/审核、生产冒烟和回滚证据通过 |
-| 合计 | `102–152h` | `5–8` 周，外部备案/审核可能另增 `1–4` 周 | 两端邀请制 Beta 可用且可恢复 |
+| P0 行走骨架（Task 1–2） | `8–14h` | `1–2` 个工作日 | Presenton 适配结论明确，真实浏览器下载确定性 PPTX |
+| P1 真实桌面闭环（Task 3–6） | `28–42h` | `1–2` 周 | 真实账户、本地书、模型和 Office/WPS 验收通过 |
+| P2 双端候选（Task 7–8） | `24–36h` | `1–2` 周 | 微信读书与小程序真机核心链路通过 |
+| P3 邀请制 Beta（Task 9） | `10–16h` | `3–7` 个工作日，另加平台等待 | Staging、备案/审核、生产冒烟和回滚证据通过 |
+| 合计 | `70–108h` | `3–5` 周，外部备案/审核时间另计 | 两端邀请制 Beta 可用且可恢复 |
 
 时间不包含等待用户提供凭证、付费调用授权、域名/主体材料或平台审核的时间。若先只做到 P1 内测，不能称为完整 MVP 上线。
+
+如果目标先收窄为“给你本人真实使用的桌面纵向闭环”，而不是双端备案上线，预计为 `24–40h` Codex 实际工作时间、`4–7` 个工作日；这才是第一版应该追求的速度。
 
 ## 6. 执行与协作规则
 

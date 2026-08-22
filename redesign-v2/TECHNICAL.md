@@ -15,6 +15,7 @@
 
 - 一个单体仓库、一个模块化后端、一个 PostgreSQL 数据库和一个对象存储；后台任务使用同一代码库中的独立 Worker 进程。
 - 桌面 Web 与微信小程序共享业务契约、数据和状态机，不共享页面组件；两端分别实现已确认视觉。
+- 先找成熟开源项目、现有 Skill、模板和解析库，再写项目特有胶水代码；只有现成能力无法满足当前验收时才自研对应部分。
 - 先实现 PPT 这一种任务，不建设通用任务中心、可视化工作流、插件平台或多租户组织权限。
 - 不引入微服务、Kubernetes、消息总线、Redis、全文搜索集群、事件溯源或数据湖。
 - 外部模型、微信读书、联网检索和真实发布都通过明确适配器与授权门接入；未获授权时只运行不收费的假服务和本地验证。
@@ -31,15 +32,21 @@
 | `apps/worker/` | 导入解析、AI、PPT 生成与失败恢复 | pg-boss 消费 PostgreSQL 任务；复用服务模块 |
 | `packages/contracts/` | 两端共享的请求、响应、状态枚举和错误码 | 只含 TypeScript 类型与 JSON 兼容常量 |
 | `packages/domain/` | 账户、书籍、会话、笔记、PPT 草稿与任务规则 | 无 UI、无网络、无数据库依赖的纯函数 |
-| `packages/pptx/` | 内置模板、页面布局、PNG 预览和 PPTX 导出 | 共享布局描述；PptxGenJS 导出 PPTX，SVG + Sharp 导出预览 |
+| `packages/presentation-adapter/` | PPT 引擎适配、模板映射、进度和产物归一化 | 优先适配自托管 Presenton；PptxGenJS / Office Kit 只作为未通过适配验收时的窄回退 |
 | `packages/test-support/` | 假模型、假微信读书、假检索和确定性测试数据 | 仅测试与本地开发使用，不进入生产分支逻辑 |
 
 生产基础设施只包含：
 
 - PostgreSQL：业务事实、会话、任务、幂等键、成本账本和队列元数据。
 - S3 兼容对象存储：本地书原文件、提取结果附件、会话图片和 PPTX；对象键必须带账户与资源 ID。
-- 两个进程：`server` 和 `worker`。两者可由同一镜像用不同启动命令部署。
+- 两个自有进程：`server` 和 `worker`。两者可由同一镜像用不同启动命令部署；若 Presenton 适配验收通过，再增加一个固定版本和镜像摘要的内部生成服务，不对公网开放其管理界面。
 - 一个 HTTPS API 域名：同时服务桌面 Web 与微信小程序，减少跨域和域名备案范围。
+
+### 2.1 为什么选择 PostgreSQL，而不是 MySQL
+
+PostgreSQL 与 MySQL 是同一类关系型数据库，都能保存老己的账户、书籍、会话和任务；选择 PostgreSQL 不是因为 MySQL 不能做，而是当前方案希望直接复用 `pg-boss`，把 PostgreSQL 同时作为业务数据库和可靠任务队列，从而少部署一个 Redis。
+
+本项目还会频繁使用事务、行锁、`SKIP LOCKED`、JSON 数据、条件唯一约束和并发成本账本，PostgreSQL 对这组组合更顺手。若现有团队只会维护 MySQL，或已经有稳定 MySQL 托管实例，改用 MySQL 也可行，但需要同时更换任务队列方案；这不会明显缩短开发时间，反而会增加一次架构替换。当前推荐保持 PostgreSQL。
 
 ## 3. 核心模块与数据
 
@@ -164,13 +171,29 @@ interface WeReadAdapter {
 
 Skill Key 的实际供应方协议、限流、错误码和数据字段必须以实施时取得的正式接口资料和真实沙箱响应为准；在此之前只实现适配器契约、假服务与失败保留，不猜测私有接口。
 
-## 6. PPTX 生成
+## 6. PPTX 生成与复用策略
 
-- 先提供 `celadon-reading`、`editorial-paper`、`minimal-ink` 三个内置模板；每个模板由 `16:9` 母版、标题页、章节页、正文页和结束页组成。
-- 大纲节点在服务端验证层级和页数；页数只按一级页面节点计算。
-- Worker 先生成逐页文案，再由确定性布局器计算文本框、形状、图片和安全边距，最后由 PptxGenJS 导出。
-- 文本使用 `fit: shrink` 和最小字号下限；超过下限时任务失败并返回修改大纲，不静默裁切。
-- 每页先生成与客户端无关的布局描述，再由 SVG + Sharp 输出 PNG 预览、由 PptxGenJS 输出 PPTX；两种产物共享同一布局输入，避免两套内容和坐标漂移。
+开发开始时先做一个最多 `1` 个工作日的引擎适配 Spike，不先写三套渲染器：
+
+1. 首选自托管 [Presenton](https://github.com/presenton/presenton) 作为内部 PPT 引擎。它提供 Apache 2.0 开源代码、Docker 部署、生成 API、自有模板和可编辑 PPTX；老己只使用 API，不继承其账户、工作区或产品 UI。
+2. 使用当前已安装的 `Presentations` Skill 创建青瓷模板原型、渲染每页、检测溢出并生成 PowerPoint / WPS 验收样本；该 Skill 只服务开发和 QA，不作为用户请求时的生产后端。
+3. 只有 Presenton 无法满足中文、精确大纲、无图片质量、异步进度、停止恢复、模板一致性或 PowerPoint / WPS 可编辑性时，才用 PptxGenJS 或 Office Kit 实现失败的那一小段，不从头重写完整生成器。
+
+引擎统一实现以下项目内接口：
+
+```ts
+interface PresentationEngine {
+  generate(input: PresentationInput, signal: AbortSignal): Promise<PresentationJobRef>;
+  getProgress(jobId: string): Promise<PresentationProgress>;
+  stop(jobId: string): Promise<void>;
+  getArtifact(jobId: string): Promise<PresentationArtifact>;
+}
+```
+
+- 老己服务端仍负责验证大纲层级、页数、资料来源、幂等、成本和任务所有权；外部引擎不能成为业务事实源。
+- 第一批只发布 `celadon-reading`、`editorial-paper`、`minimal-ink` 三个青瓷系模板。模板优先由现有 Skill 和 Presenton 的自有模板能力生成，再人工锁定为版本化资产。
+- Presenton 必须固定版本和镜像摘要、关闭匿名遥测、禁止公网管理入口、使用独立服务凭证并经过许可证与依赖扫描。
+- 如果引擎只返回整份 PPTX 而无法提供可信逐页进度，不能伪造“正在生成第 N 页”；Spike 必须验证其异步任务接口或退回项目内可观测的逐页路线。
 - 发布候选必须用真实 PowerPoint 与 WPS 打开至少三份含中文、长标题、图片和无图片版本的 PPTX，检查可编辑对象、字体替代、比例、溢出与再次保存。
 
 ## 7. Harness 与发布
@@ -193,6 +216,7 @@ Skill Key 的实际供应方协议、限流、错误码和数据字段必须以�
 - 不支持多书 PPT、逐页 PPT 编辑、在线协作、评论或版本树。
 - 不做 OCR、Embedding、向量数据库、全文搜索服务或推荐系统。
 - 不做 Redis 缓存、实时消息总线、WebSocket、微服务拆分或多区域部署。
+- 不复制、魔改或重新实现 Presenton 的完整产品；只通过版本化适配器调用通过验收的能力。
 - 不把探索稿、参考图整图或生成图中的头像、图标和文字作为运行时素材。
 
 这些能力只有在真实用户数据证明当前架构成为瓶颈，或产品规格明确扩展后才重新评估。
