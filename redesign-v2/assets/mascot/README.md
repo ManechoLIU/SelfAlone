@@ -5,8 +5,8 @@
 | 文件 | 状态 |
 | --- | --- |
 | `laoji-character-master-v1.png` | 当前标准透明背景角色素材。 |
-| `laoji-mascot-seated-reading-transparent-v1.png` | 当前坐姿持书透明运行时素材。 |
-| `laoji-mascot-prone-reading-transparent-v1.png` | 当前趴卧扶书透明运行时素材。 |
+| `laoji-mascot-seated-reading-transparent-v1.png` | 用户已确认的坐姿持书透明运行时素材。 |
+| `laoji-mascot-prone-reading-transparent-v1.png` | 用户已确认的趴卧扶书透明运行时素材。 |
 | `laoji-mascot-seated-reading-approved-v1.png` | 用户确认的坐姿持书造型源图；无 Alpha，仅用于造型溯源。 |
 | `laoji-mascot-prone-reading-approved-v1.png` | 用户确认的趴卧扶书造型源图；无 Alpha，仅用于造型溯源。 |
 | `laoji-character-master-v1-local-v2.png` | 边缘处理过程稿。 |

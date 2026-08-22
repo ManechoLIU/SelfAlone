@@ -42,7 +42,7 @@
 
 ## 最近验证证据
 
-- 2026-08-23：按用户要求将两张确认造型源图本地处理为真正透明素材，不经过生成式重绘。`laoji-mascot-seated-reading-transparent-v1.png`、`laoji-mascot-prone-reading-transparent-v1.png` 均为 `1254×1254` RGBA PNG，检测结果 `hasAlpha: yes`、四周边界 Alpha 最大值为 `0`，SHA-256 分别为 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`、`92fe6c1c35cad88d654075dfd71e2af4a693ba66a6e3cca110dc6d4f65870854`；已在浅青色背景与约 `180px` 使用尺寸下复核轮廓。
+- 2026-08-23：按用户要求将两张确认造型源图本地处理为真正透明素材，不经过生成式重绘；用户随后明确确认使用最新处理结果作为正式素材。`laoji-mascot-seated-reading-transparent-v1.png`、`laoji-mascot-prone-reading-transparent-v1.png` 均为 `1254×1254` RGBA PNG，检测结果 `hasAlpha: yes`、四周边界 Alpha 最大值为 `0`，SHA-256 分别为 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`、`92fe6c1c35cad88d654075dfd71e2af4a693ba66a6e3cca110dc6d4f65870854`；已在浅青色背景与约 `180px` 使用尺寸下复核轮廓。
 - 2026-08-23：用户明确把坐姿持书与趴卧扶书两张图片加入角色资产；已分别保存到 `assets/mascot/` 并登记为 34、35 号认可视觉元素。两张源图与参考副本均为 `1254×1254` RGB PNG、无 Alpha，SHA-256 分别为 `64e9bcbcfc380382593ba124dd1011a7d825a1d319f99eeaeffba47c69f30bf7`、`f285e4fa787bfcab1695dd2092cc400897fce15eb2eb02d3fab01efa88d61f88`；不得直接作为运行时透明素材。
 - 2026-08-22：用户明确确认桌面 PPT 的大纲、生成中与生成失败三张页面参考；有效参考副本均为 `1440×1024`，SHA-256 分别为 `79b50eaba146dce1108bf2590061b2c9f6997475bf88a5ec3d012f517a8d0419`、`27a300c726a423e232a86fdbbe0d551c5239974c44c4e9e1cf3d93419b7f61f8`、`4b678dbe035eee514d5f6a561764a38b79d0f2936131c8642f9a98abd86100c9`，已登记为 04、06、33 号认可页面参考。
 - 2026-08-22：经用户授权执行 5 次 Codex 内置 ImageGen 调用且未自动重试；三张桌面 PPT 候选已规范化为 `1440×1024`，SHA-256 分别为 `c7ff865cf12aca28c228e88bfcf446ddbde178c390f1b2f97e546ed5ca7c82b1`、`4eca6204b68d9eaf1801292ecd7edb456d77340fe3286ddc1dabb7908b2867cf`、`ee5783b0e341bc898316ddfb23ba0f6188102ce67dc783d039d12904fc6d5e88`；坐姿与趴卧候选均为 `1024×1024` RGB PNG，检测结果 `hasAlpha: no`，不得作为运行时透明资产。
