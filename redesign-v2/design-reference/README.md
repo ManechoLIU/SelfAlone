@@ -32,6 +32,7 @@
 | 18 | 移动端 / 书籍内容·划线与想法 | [`18-mobile-book-content-highlights.png`](18-mobile-book-content-highlights.png) | [`mobile-book-content-highlights-v1.png`](../work/mobile-design/reading-detail-v2/mobile-book-content-highlights-v1.png) | 阅读页遮罩之上的大圆角底部面板、三段内容切换、按章节入口、单列引用与关联想法、细分隔线，以及底部阅读工具栏保持可见的层级 | 示例章节、原文、想法、时间、图标像素与固定面板高度；不得为每条内容增加卡片或复制整图 |
 | 19 | 移动端 / 书籍内容·老己笔记 | [`19-mobile-book-content-notes.png`](19-mobile-book-content-notes.png) | [`mobile-book-content-notes-v1.png`](../work/mobile-design/reading-detail-v2/mobile-book-content-notes-v1.png) | 与划线页共享的底部面板外壳、老己笔记选中态、轻量“新建笔记”、单列正文 / 引用 / 元信息 / 行尾更多及细分隔节奏 | 示例章节、笔记、引用、时间、生成图标像素，独立标题字段、标题式首行、笔记卡片或把整图作为运行时素材 |
 | 20 | 移动端 / 书籍内容·PPT 作品 | [`20-mobile-book-content-ppt-works.png`](20-mobile-book-content-ppt-works.png) | [`mobile-book-content-ppt-works-v1.png`](../work/mobile-design/reading-detail-v2/mobile-book-content-ppt-works-v1.png) | PPT 作品选中态、按时间入口、紧凑双列 `16:9` 网格、生成中与已完成项的统一比例、进度 / 日期 / 下载层级，以及空余网格位保留呼吸空间 | 示例作品、日期、进度、预览图与生成图标像素，额外创建按钮、非 `16:9` 缩略图、卡片套卡片或把整图作为运行时素材 |
+| 21 | 移动端 / 登录页 | [`21-mobile-auth-login.png`](21-mobile-auth-login.png) | [`mobile-auth-login-approved-v1.png`](../output/ui-design-preview/product-design/mobile-auth-login-approved-v1.png) | Compact 单列登录层级、只出现一次的趴卧老己、较矮微信主按钮、无边框邮箱次入口、协议位置、冷象牙纸白与低饱和青灰绿，以及“上方山亭 / 中央留白 / 底部极淡远山”的背景分区 | 生成图中的角色、微信 / 邮箱图标、印章和文字像素，截图尺寸，以及把整张图作为运行时界面素材 |
 
 `08-book-detail-ppt-works.png` 是 2026-08-19 用户明确认可的书籍详情“PPT 作品”页面参考，尺寸为 `1487×1058`，SHA-256 为 `5944dffa44247538b561381e1f2775ff3a220d59ea3fc1b40abb9ac03f4b2632`。它约束该标签页的内容密度和状态组织，但不覆盖 `DESIGN.md` 的共享外壳、冷调 `app-paper`、原始头像与桌宠资产规则，也不自动成为运行时图片素材。
 
@@ -46,6 +47,8 @@
 `15-mobile-reading-immersive.png`、`16-mobile-reading-controls.png` 和 `17-mobile-book-introduction.png` 是 2026-08-20 用户明确认可并纳入的 Compact 本地阅读主流程参考。15、16 的尺寸均为 `852×1846`，SHA-256 分别为 `82c09e3849e000dbe3b4a4cf796b1498e9de94efc323a933d1395903652537e3`、`dcaacd30403fabfd8d01d12704ea8b5ab40572ac299f1dd2685756242393df36`；17 的尺寸为 `853×1844`，SHA-256 为 `a847e81aad0d1935cb91586ea761fb8f1abfd6ad905f4f1c2b457056a12d9608`。三图共同约束“介绍首屏 → 上滑翻页 → 沉浸正文 → 轻点呼出操作层”的状态链、纸面色调、正文排版、操作位置和角色组关系；运行时仍须使用真实书籍数据、真实封面、正式字体、成熟图标与已确认透明桌宠资产，不能截取或铺设参考图。
 
 `18-mobile-book-content-highlights.png`、`19-mobile-book-content-notes.png` 和 `20-mobile-book-content-ppt-works.png` 是 2026-08-20 用户明确认可并纳入的 Compact “书籍内容”底部面板三种状态参考，尺寸均为 `853×1844`，SHA-256 分别为 `2ddebcb614497d88efc79e0bf77197fc26192c5641ea2833d2a7a820cef8152f`、`23d078e390f6fc2b4422587b81b990f50154ca6e98535a94ccf65c418ec76077`、`e76a281751844095d080d8564980f13cc2d0ed7b9112dc3b842f6262b98b19cb`。三图锁定共享面板外壳、分段切换、内容密度和底部工具栏层级；具体数据、排序结果、生成进度和下载可用性继续以 `SPEC.md` 为准，面板须支持内容滚动、动态高度、安全区和五类数据状态，不得按截图固定裁切。
+
+`21-mobile-auth-login.png` 是 2026-08-20 用户明确认可并纳入的 Compact 登录页参考，尺寸为 `841×1871`，SHA-256 为 `65b2028810188027eddea61cb3b6455dca30103cdf607e6434bdbcc54b26bf00`。它约束登录页的单列层级、微信与邮箱的主次关系、趴卧老己的位置、协议区域、文字色阶和背景留白分区；标语固定为“亲爱的老己，爱你哟~”。图片中的角色、印章、图标和文字像素均只用于说明构图，运行时必须使用已确认角色资产、成熟图标、真实文字与可访问名称，不得直接铺设整张参考图。
 
 ## 已认可视觉元素，不是运行时资产
 
