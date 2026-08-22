@@ -13,7 +13,7 @@
 | 03 | 桌面 Web / 统一书架 | [`03-reading-library.png`](03-reading-library.png) | [`library-unified-compact-v3.png`](../output/ui-design-preview/product-design/library/library-unified-compact-v3.png) |
 | 09 | 桌面 Web / 设置服务总览 | [`09-settings-overview.png`](09-settings-overview.png) | [`settings-service-overview-v8.png`](../output/ui-design-preview/product-design/settings/settings-service-overview-v8.png) |
 
-`01-auth-login-register.png` 是 2026-08-22 用户最后确认的桌面 Web 账户入口完整视觉定稿，原稿与参考副本均为 `1440×1024`，SHA-256 为 `d49f5a61ee52e49f0d7158509a97431568b333de85daa978522d462fc3eda824`。它替代本槽位的旧稿，锁定水墨书页左右分区、共享标语“遇见自己，爱你老己”、紧凑的微信主按钮与邮箱次入口，以及点击微信按钮后才出现的居中扫码弹窗；默认页不得暴露二维码或保留隐藏占位。注册页沿用同一账户外壳，具体字段与行为以 `SPEC.md` 为准。图中的二维码、角色、图标和文字像素及固定截图尺寸不得作为运行时素材。
+`01-auth-login-register.png` 是 2026-08-22 用户最后确认的桌面 Web 账户入口完整视觉定稿，原稿与参考副本均为 `1440×1024`，SHA-256 为 `d49f5a61ee52e49f0d7158509a97431568b333de85daa978522d462fc3eda824`。它替代本槽位的旧稿，锁定水墨书页左右分区、共享标语“遇见自己，爱你老己”，以及登录标签、标题、说明、微信主按钮与邮箱次入口连续排列的紧凑账户区；微信主按钮上方不得保留大片空白。点击微信按钮后才出现居中扫码弹窗，默认页不得暴露二维码或保留隐藏占位。注册页沿用同一账户外壳，具体字段与行为以 `SPEC.md` 为准。图中的二维码、角色、图标和文字像素及固定截图尺寸不得作为运行时素材。
 
 其中 `02-conversation-and-scope.png` 是桌面应用共享外壳的主基准。2026-08-19 用户再次明确将所附定稿截图纳入开发参考；该截图、当前开发副本与原稿逐字节一致，尺寸均为 `1440×1024`，SHA-256 均为 `d84ffbae4a483be35c4c9c32192c05aa6e1ae111c966c6ee01599bcb28fd94f6`。应用内页面都必须延续其青瓷绿层次、老己头像与桌宠、左侧复古远山 / 树木 / 亭子背景；书架和设置稿补充较宽导航下的裁切与内容密度。
 
@@ -48,10 +48,6 @@
 | 30 | 微信小程序 / 会话·底部半屏多选 | [`30-mobile-conversation-selection-sheet.png`](30-mobile-conversation-selection-sheet.png) | [`01-selection-sheet.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/01-selection-sheet.png) | 原会话留在遮罩后的空间关系、单一大圆角底部半屏表面、开放式多选列表、成熟复选反馈、底部安全区内唯一“确认”主操作，以及趴宠依附面板左上沿的关系 | 示例书名、消息、选项、时间与任务进度，固定面板高度，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
 | 31 | 微信小程序 / 会话·确认后普通输入 | [`31-mobile-conversation-confirmed-input.png`](31-mobile-conversation-confirmed-input.png) | [`02-confirmed-normal-input.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/02-confirmed-normal-input.png) | 选择层关闭后的轻量范围摘要与“修改”入口、紧凑吸底输入面、独立图片入口、稳定发送操作、完整趴宠和下部山亭留白 | 示例范围、消息、书名、时间与任务进度，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
 | 32 | 微信小程序 / 会话·图片附件输入 | [`32-mobile-conversation-image-attachments.png`](32-mobile-conversation-image-attachments.png) | [`03-image-attachment-input.png`](../output/ui-design-preview/product-design/mobile-conversation/imagegen-v3-bottom-sheet/03-image-attachment-input.png) | 图片在文字输入行上方组成同一输入面、不显示容量计数、浅色轻量移除操作、底边与发送按钮保持锚定，以及趴宠完整覆盖输入框左上边界 | 示例范围、缩略图、消息、书名、时间与任务进度，图中偏大的缩略图和输入面高度、色块式范围摘要，图像模型生成的头像 / 趴宠 / 图标 / 字体像素、截图尺寸和整张图作为运行时素材 |
-| 33 | 桌面 Web / 微信扫码登录弹窗状态 | [`33-desktop-auth-wechat-scan-modal.png`](33-desktop-auth-wechat-scan-modal.png) | [`auth-wechat-email-modal-v2.png`](../output/ui-design-preview/product-design/auth-wechat-email-modal-v2.png) | 微信主按钮后的居中扫码弹窗位置、尺寸、遮罩关系和关闭层级 | 旧标语不得照搬；完整登录 / 注册外壳继续以 01 为准；二维码、角色、图标、文字像素、截图尺寸和整图不得作为运行时素材 |
-
-`33-desktop-auth-wechat-scan-modal.png` 是 2026-08-22 用户明确要求纳入的桌面 Web 微信扫码登录弹窗状态参考，当前副本与 [`auth-wechat-email-modal-v2.png`](../output/ui-design-preview/product-design/auth-wechat-email-modal-v2.png) 逐字节一致，尺寸均为 `1440×1024`，SHA-256 均为 `2c7ddcfb449eaea791e34bf0be43c103443158214feb997a0bc257c7acaebf94`。它只约束点击微信主按钮后出现的居中弹窗、遮罩、尺寸和关闭层级；完整账户入口外壳继续以 01 为准，图中旧标语、二维码、角色、图标、文字像素和整图不得照搬为运行时内容。
-
 `08-book-detail-ppt-works.png` 是 2026-08-19 用户明确认可的桌面 Web 书籍详情“PPT 作品”页面参考，尺寸为 `1487×1058`，SHA-256 为 `5944dffa44247538b561381e1f2775ff3a220d59ea3fc1b40abb9ac03f4b2632`。它约束该标签页的内容密度和状态组织，但不覆盖共享视觉、桌面 Web 外壳、冷调 `app-paper`、原始头像与桌宠资产规则，也不自动成为运行时图片素材。
 
 `10-book-detail-laoji-notes.png` 是 2026-08-19 用户明确认可的书籍详情内容列表参考，尺寸为 `1486×1058`，SHA-256 为 `b27d3863033fea8fe39e03d971a44e2b8d672fc2fdc39dfb70e9827dc6eadbdf`。它同时约束“老己笔记”和“划线与想法”的列表节奏，但不改变两类内容各自的字段与交互。两个标签都不设置独立标题，也不把正文首行标题化，因此图中放大的首行只能视为示例瑕疵；“划线与想法”仍按 `SPEC.md` 处理可选定位、只读引用与关联想法。头像、桌宠和背景继续服从原始资产与冷调 `app-paper` 规则。
