@@ -30,6 +30,7 @@ class FakePdfReaderRepository implements PdfReaderRepository {
   readonly notes: Array<{ accountId: string; bookId: string; body: string; locator: { kind: "pdf"; fileVersion: number; pageNumber: number } }> = [];
   failNextNoteSave = false;
   private leaseSequence = 0;
+  private readonly leaseResumeStates = new Map<string, PdfReaderFileRecord["status"]>();
 
   addFile(file: Omit<PdfReaderFileRecord, "status" | "pageCount" | "lease"> & Partial<Pick<PdfReaderFileRecord, "status" | "pageCount" | "lease">>) {
     this.files.set(key(file), {
@@ -49,9 +50,20 @@ class FakePdfReaderRepository implements PdfReaderRepository {
     if (!file || file.fileVersion !== input.expectedFileVersion) return "stale" as const;
     if (file.lease && file.lease.expiresAt > input.now) return null;
     const lease = { token: `lease-${++this.leaseSequence}`, owner: input.workerId, expiresAt: input.now + input.leaseMs };
+    this.leaseResumeStates.set(lease.token, file.status === "processing" ? "pending" : file.status);
     file.status = "processing";
     file.lease = lease;
     return { file: { ...file, lease }, lease };
+  }
+
+  async releaseLease(input: { accountId: string; bookId: string; fileVersion: number; leaseToken: string }) {
+    const file = this.files.get(key(input));
+    if (!file || file.fileVersion !== input.fileVersion) return "stale" as const;
+    if (file.lease?.token !== input.leaseToken) return "lease_lost" as const;
+    file.status = this.leaseResumeStates.get(input.leaseToken) ?? "pending";
+    file.lease = null;
+    this.leaseResumeStates.delete(input.leaseToken);
+    return "stored" as const;
   }
 
   async storePage(input: { accountId: string; bookId: string; fileVersion: number; leaseToken: string; page: PdfReaderPageRecord; imageBytes: Uint8Array | null }) {
@@ -132,10 +144,12 @@ class ExplicitFakePdfReaderAdapter {
   pageCount = 3;
   beforeFirstPage: (() => Promise<void>) | null = null;
   inspectError: "PDF_ENCRYPTED" | "PDF_INVALID" | "PDF_UNSUPPORTED" | null = null;
+  inspectFailure: Error | null = null;
   inspectCalls = 0;
 
   async inspect() {
     this.inspectCalls += 1;
+    if (this.inspectFailure) throw this.inspectFailure;
     if (this.inspectError) throw Object.assign(new Error(this.inspectError), { code: this.inspectError });
     return { pageCount: this.pageCount };
   }
@@ -151,11 +165,15 @@ class ExplicitFakePdfReaderAdapter {
   }
 }
 
-function service(repository: FakePdfReaderRepository, adapter: ExplicitFakePdfReaderAdapter) {
+function service(
+  repository: FakePdfReaderRepository,
+  adapter: ExplicitFakePdfReaderAdapter,
+  validateRenderRequest = validatePdfRenderRequest,
+) {
   return new PdfReaderService(repository, adapter, {
     limits: PDF_READER_LIMITS,
     buildCacheKey: buildPdfPageCacheKey,
-    validateRenderRequest: validatePdfRenderRequest,
+    validateRenderRequest,
     summarizePages: summarizePdfPages,
   });
 }
@@ -177,6 +195,11 @@ describe("PDF reader service with explicit fake adapter", () => {
 
     const partial = await runtime.processFile({ accountId: "account-a", bookId: "shared-book-id", expectedFileVersion: 1, workerId: "worker-a", width: 1200, height: 1600, now: 1_000 });
     expect(partial).toMatchObject({ state: "ready_partial", readyPageCount: 2, failedPageCount: 1, retryablePages: [2] });
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "shared-book-id" }))).toMatchObject({ status: "ready_partial", lease: null });
+
+    const failedRetry = await runtime.retryPage({ accountId: "account-a", bookId: "shared-book-id", expectedFileVersion: 1, pageNumber: 2, workerId: "worker-retry-failure", width: 1200, height: 1600, now: 1_500 });
+    expect(failedRetry).toMatchObject({ state: "ready_partial", failedPageCount: 1, retryablePages: [2] });
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "shared-book-id" }))).toMatchObject({ status: "ready_partial", lease: null });
 
     adapter.failPages.clear();
     const other = await runtime.processFile({ accountId: "account-b", bookId: "shared-book-id", expectedFileVersion: 1, workerId: "worker-b", width: 1200, height: 1600, now: 2_000 });
@@ -189,6 +212,65 @@ describe("PDF reader service with explicit fake adapter", () => {
 
     const retried = await runtime.retryPage({ accountId: "account-a", bookId: "shared-book-id", expectedFileVersion: 1, pageNumber: 2, workerId: "worker-retry", width: 1200, height: 1600, now: 3_000 });
     expect(retried).toMatchObject({ state: "ready", readyPageCount: 3, failedPageCount: 0 });
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "shared-book-id" }))).toMatchObject({ status: "ready", lease: null });
+  });
+
+  it("releases a retry lease and rethrows the original inspect error", async () => {
+    const repository = new FakePdfReaderRepository();
+    const objectKey = resolve(fixtureRoot, "multi-page-text.pdf");
+    repository.addFile({
+      accountId: "account-a",
+      bookId: "inspect-retry",
+      fileVersion: 1,
+      objectKey,
+      byteSize: (await readFile(objectKey)).length,
+      status: "ready_partial",
+      pageCount: null,
+    });
+    const adapter = new ExplicitFakePdfReaderAdapter();
+    const originalError = new Error("inspect exploded");
+    adapter.inspectFailure = originalError;
+    const runtime = service(repository, adapter);
+
+    await expect(runtime.retryPage({ accountId: "account-a", bookId: "inspect-retry", expectedFileVersion: 1, pageNumber: 1, workerId: "retry-worker", width: 1200, height: 1600, now: 1_000 })).rejects.toBe(originalError);
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "inspect-retry" }))).toMatchObject({ status: "ready_partial", lease: null });
+
+    adapter.inspectFailure = null;
+    adapter.pageCount = 1;
+    await expect(runtime.retryPage({ accountId: "account-a", bookId: "inspect-retry", expectedFileVersion: 1, pageNumber: 1, workerId: "next-worker", width: 1200, height: 1600, now: 1_001 })).resolves.toMatchObject({ state: "ready" });
+  });
+
+  it("releases a retry lease after page or render precondition validation errors", async () => {
+    const repository = new FakePdfReaderRepository();
+    const objectKey = resolve(fixtureRoot, "multi-page-text.pdf");
+    repository.addFile({
+      accountId: "account-a",
+      bookId: "validation-retry",
+      fileVersion: 1,
+      objectKey,
+      byteSize: (await readFile(objectKey)).length,
+      status: "ready_partial",
+      pageCount: 3,
+    });
+    const adapter = new ExplicitFakePdfReaderAdapter();
+    const runtime = service(repository, adapter);
+
+    await expect(runtime.retryPage({ accountId: "account-a", bookId: "validation-retry", expectedFileVersion: 1, pageNumber: 4, workerId: "page-worker", width: 1200, height: 1600, now: 2_000 })).rejects.toMatchObject({ code: "PDF_PAGE_OUT_OF_RANGE" });
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "validation-retry" }))).toMatchObject({ status: "ready_partial", lease: null });
+
+    const renderPreconditionError = new Error("render precondition exploded");
+    const preconditionRuntime = service(repository, adapter, (input: {
+      fileBytes: number;
+      pageCount: number;
+      pageNumber: number;
+      width: number;
+      height: number;
+    }) => {
+      validatePdfRenderRequest(input);
+      if (input.fileBytes > 1 && input.pageNumber === 2) throw renderPreconditionError;
+    });
+    await expect(preconditionRuntime.retryPage({ accountId: "account-a", bookId: "validation-retry", expectedFileVersion: 1, pageNumber: 2, workerId: "precondition-worker", width: 1200, height: 1600, now: 2_001 })).rejects.toBe(renderPreconditionError);
+    expect(repository.files.get(key({ accountId: "account-a", bookId: "validation-retry" }))).toMatchObject({ status: "ready_partial", lease: null });
   });
 
   it("recovers an expired persisted lease after a service restart but leaves a live lease alone", async () => {

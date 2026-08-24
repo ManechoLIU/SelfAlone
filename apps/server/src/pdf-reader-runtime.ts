@@ -72,6 +72,12 @@ export type PdfReaderRepository = {
     now: number;
     leaseMs: number;
   }): Promise<{ file: PdfReaderFileRecord; lease: PdfReaderLease } | "stale" | null>;
+  releaseLease(input: {
+    accountId: string;
+    bookId: string;
+    fileVersion: number;
+    leaseToken: string;
+  }): Promise<"stored" | "stale" | "lease_lost">;
   storePage(input: {
     accountId: string;
     bookId: string;
@@ -234,28 +240,66 @@ export class PdfReaderService {
   }): Promise<ReturnType<PdfReaderPolicy["summarizePages"]>> {
     this.validateRequestedSize(input.width, input.height);
     const acquired = await this.acquire(input);
-    const inspection = acquired.file.pageCount
-      ? { pageCount: acquired.file.pageCount }
-      : await this.adapter.inspect({
-          accountId: input.accountId,
-          bookId: input.bookId,
-          fileVersion: input.expectedFileVersion,
-          objectKey: acquired.file.objectKey,
-          byteSize: acquired.file.byteSize,
-        });
-    await this.renderAndStore({
-      ...input,
-      pageCount: inspection.pageCount,
-      file: acquired.file,
-      leaseToken: acquired.lease.token,
-    });
-    return this.finish({
-      accountId: input.accountId,
-      bookId: input.bookId,
-      fileVersion: input.expectedFileVersion,
-      pageCount: inspection.pageCount,
-      leaseToken: acquired.lease.token,
-    });
+    try {
+      const inspection = acquired.file.pageCount
+        ? { pageCount: acquired.file.pageCount }
+        : await this.adapter.inspect({
+            accountId: input.accountId,
+            bookId: input.bookId,
+            fileVersion: input.expectedFileVersion,
+            objectKey: acquired.file.objectKey,
+            byteSize: acquired.file.byteSize,
+          });
+      await this.renderAndStore({
+        ...input,
+        pageCount: inspection.pageCount,
+        file: acquired.file,
+        leaseToken: acquired.lease.token,
+      });
+      return await this.finish({
+        accountId: input.accountId,
+        bookId: input.bookId,
+        fileVersion: input.expectedFileVersion,
+        pageCount: inspection.pageCount,
+        leaseToken: acquired.lease.token,
+      });
+    } catch (error) {
+      return this.releaseRetryLeaseAndRethrow({
+        accountId: input.accountId,
+        bookId: input.bookId,
+        fileVersion: input.expectedFileVersion,
+        leaseToken: acquired.lease.token,
+        error,
+      });
+    }
+  }
+
+  private async releaseRetryLeaseAndRethrow(input: {
+    accountId: string;
+    bookId: string;
+    fileVersion: number;
+    leaseToken: string;
+    error: unknown;
+  }): Promise<never> {
+    let releaseError: unknown;
+    try {
+      const released = await this.repository.releaseLease({
+        accountId: input.accountId,
+        bookId: input.bookId,
+        fileVersion: input.fileVersion,
+        leaseToken: input.leaseToken,
+      });
+      if (released !== "stored") releaseError = new Error(`PDF_READER_LEASE_RELEASE_${released.toUpperCase()}`);
+    } catch (error) {
+      releaseError = error;
+    }
+    if (releaseError && input.error instanceof Error && input.error.cause === undefined) {
+      Object.defineProperty(input.error, "cause", {
+        configurable: true,
+        value: releaseError,
+      });
+    }
+    throw input.error;
   }
 
   async recoverExpiredLeases(input: { workerId: string; now: number; width: number; height: number }) {
