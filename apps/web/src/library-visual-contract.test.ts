@@ -52,12 +52,13 @@ describe("library binding visual contract", () => {
     expect(styles).toContain(".library-nav a.active { color: #174c3f; background: #d4e5dc;");
   });
 
-  it("compensates for the mascot asset transparent edge", async () => {
+  it("keeps a compact visible chat bubble on a 44px shoulder-aligned target", async () => {
     const styles = await readFile(stylesPath, "utf8");
 
     expect(styles).toContain(".library-companion { position: fixed; z-index: 12; right: 22px; bottom: 14px; display: flex; align-items: end; gap: 0;");
-    expect(styles).toContain("margin-left: -14px;");
-    expect(styles).toContain(".library-companion-button { margin-left: -8px; }");
+    expect(styles).toContain(".library-companion-button { width: 44px; height: 44px; margin-left: -14px; align-self: center; transform: translateY(-4px);");
+    expect(styles).toContain(".library-companion-button svg { width: 38px; height: 38px; padding: 9px; border-radius: 50%; background: #0d6a57;");
+    expect(styles).toContain(".library-companion-button { margin-left: -8px; transform: none; }");
   });
 
   it("keeps the bound title and removes repeated cover metadata", async () => {
