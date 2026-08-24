@@ -95,6 +95,34 @@ type ApiError = {
 - 原文件先写入对象存储，再由 Worker 解析；成功后事务性发布解析版本。
 - 书籍搜索使用 PostgreSQL 的标题、作者和来源字段，不建设全文搜索服务。
 
+#### 5.1.1 文本 / PDF 阅读共享接缝
+
+M1-F2-B 与 M1-F2-C 共用下列接缝，端侧和解析模块不得各自发明另一套定位或版本语义：
+
+```ts
+type TextLocator = {
+  kind: "text";
+  fileVersion: number;
+  sectionId: string;
+  offset: number;
+};
+
+type PdfLocator = {
+  kind: "pdf";
+  fileVersion: number;
+  pageNumber: number;
+};
+
+type ReadingLocator = TextLocator | PdfLocator;
+```
+
+- `book_files.version` 是阅读内容版本。Worker 只能事务性发布同一版本的章节或页面；保存位置、重试、笔记和缓存均携带 `fileVersion`，版本不一致返回 `STALE_VERSION`，旧任务不得回写当前内容。
+- 文本章节使用稳定 `sectionId + offset`；PDF 只使用从 1 开始的 `pageNumber`，不得把文本偏移用于页面定位。阅读位置按 `(account_id, book_id)` 唯一并带递增 `version`，客户端写入必须携带 `expectedVersion`。
+- 共享 API 固定为：`GET /api/v1/books/:bookId/reading` 返回当前文件版本、内容模式与位置；文本内容位于 `/content/sections`，PDF 页摘要与单页资源位于 `/content/pages`；位置写入使用 `PUT /position`；笔记 CRUD 位于 `/notes`，锚点复用 `ReadingLocator`。具体查询参数和 JSON 字段只在 `packages/contracts` 定义一次。
+- 共享数据层新增 `book_sections`、`book_pages`、`reading_positions` 与 `notes`。所有表带 `account_id`，对子资源使用 `(account_id, book_id)` 复合外键；章节唯一键为文件版本与 `section_id`，页面唯一键为文件版本与页码。页面缓存另带渲染器版本与尺寸，不作为内容事实源。
+- B 独占 `text-reader*` 模块，C 独占 `pdf-reader*` 与 PDF Worker / 缓存模块；`packages/contracts`、迁移、Server 组合入口和 Web 共享路由 / 样式由项目总控单写入并集成。
+- 当前仓库尚无批准的生产 PDF 解析 / 渲染依赖。C 可以先交付真实样本、适配器接口、安全上限、缓存键、任务恢复和失败关闭测试；在生产依赖及许可证 / 资源边界明确前，不得把本机工具、检测摘要或占位页面称为真实页面渲染。
+
 ### 5.2 模型与公开资料
 
 ```ts
