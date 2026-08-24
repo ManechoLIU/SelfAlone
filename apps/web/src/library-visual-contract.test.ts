@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
@@ -5,6 +6,10 @@ const stylesPath = new URL("./styles.css", import.meta.url);
 const mainPath = new URL("./main.ts", import.meta.url);
 const designPath = new URL("../../../redesign-v2/DESIGN.md", import.meta.url);
 const webDesignPath = new URL("../../../redesign-v2/DESIGN-WEB.md", import.meta.url);
+const rightSceneryPath = new URL(
+  "../../../redesign-v2/assets/backgrounds/desktop-right-distant-mountains-transparent-v1.png",
+  import.meta.url,
+);
 
 describe("library binding visual contract", () => {
   it("scopes the library visual tokens without changing the legacy workspace", async () => {
@@ -65,17 +70,40 @@ describe("library binding visual contract", () => {
     expect(styles).not.toContain("desktop-left-rail-landscape-approved-v1");
   });
 
-  it("derives a quiet right-canvas mountain crop from the approved scenery without exposing the pavilion", async () => {
+  it("uses the independent approved right-canvas mountain without masks or global fading", async () => {
     const styles = await readFile(stylesPath, "utf8");
     const mainSceneryRule = styles.match(/\.library-main::after\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const responsiveSceneryRules = [...styles.matchAll(/\.library-main::after\s*\{([\s\S]*?)\n\}/g)]
+      .map((match) => match[1] ?? "")
+      .join("\n");
+    const companionRule = styles.match(/\.library-companion\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const at1200 = styles.match(/@media \(max-width: 1200px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const at1024 = styles.match(/@media \(max-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const at768 = styles.match(/@media \(max-width: 768px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
 
-    expect(mainSceneryRule).toContain('background-image: url("/backgrounds/desktop-left-rail-vintage-transparent-v2.png");');
-    expect(mainSceneryRule).toContain("background-size: 620px auto;");
-    expect(mainSceneryRule).toContain("background-position: right 52%;");
+    expect(mainSceneryRule).toContain('background-image: url("/backgrounds/desktop-right-distant-mountains-transparent-v1.png");');
+    expect(mainSceneryRule).not.toContain("desktop-left-rail-vintage-transparent-v2.png");
+    expect(mainSceneryRule).toContain("right: 0;");
+    expect(mainSceneryRule).toContain("bottom: 0;");
+    expect(mainSceneryRule).toContain("width: 680px;");
+    expect(mainSceneryRule).toContain("height: 136px;");
+    expect(mainSceneryRule).toContain("background-size: contain;");
+    expect(mainSceneryRule).toContain("background-position: right bottom;");
+    expect(mainSceneryRule).toContain("background-repeat: no-repeat;");
     expect(mainSceneryRule).toContain("pointer-events: none;");
-    expect(mainSceneryRule).toContain("opacity: .14;");
-    expect(mainSceneryRule).toContain("mask-image: radial-gradient(ellipse at right bottom");
-    expect(mainSceneryRule).not.toContain("rotate(");
+    expect(mainSceneryRule).toContain("opacity: 1;");
+    expect(responsiveSceneryRules).not.toMatch(/mask|blur|filter/);
+    expect(at1200).toContain(".library-main::after { width: 560px; height: 112px; }");
+    expect(at1024).toContain(".library-main::after { width: 420px; height: 84px; }");
+    expect(at768).toContain(".library-main::after { display: none; }");
+    expect(companionRule).toContain("z-index: 12;");
+  });
+
+  it("ships the byte-identical approved transparent right-canvas asset", async () => {
+    const bytes = await readFile(rightSceneryPath).catch(() => Buffer.alloc(0));
+
+    expect(createHash("sha256").update(bytes).digest("hex"))
+      .toBe("2d6d70888bf55e4c629e27f883a2ccc1c3dee5e3e36d00e46e2f86d2f7229f0f");
   });
 
   it("uses the real Chrome toolbar and five-column shelf dimensions", async () => {

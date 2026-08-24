@@ -78,11 +78,9 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 }
 .library-main { position: relative; isolation: isolate; min-height: 100vh; margin-left: var(--library-rail); padding: 36px 32px 72px 52px; overflow: hidden; background: #f1f1ef; }
 .library-main::after {
-  content: ""; position: fixed; z-index: 0; right: 0; bottom: 0; width: min(720px, 52vw); height: 260px;
-  pointer-events: none; background-image: url("/backgrounds/desktop-left-rail-vintage-transparent-v2.png");
-  background-repeat: no-repeat; background-size: 620px auto; background-position: right 52%; opacity: .14;
-  -webkit-mask-image: radial-gradient(ellipse at right bottom, #000 0%, rgba(0,0,0,.9) 55%, transparent 90%);
-  mask-image: radial-gradient(ellipse at right bottom, #000 0%, rgba(0,0,0,.9) 55%, transparent 90%);
+  content: ""; position: fixed; z-index: 0; right: 0; bottom: 0; width: 680px; height: 136px;
+  pointer-events: none; background-image: url("/backgrounds/desktop-right-distant-mountains-transparent-v1.png");
+  background-repeat: no-repeat; background-size: contain; background-position: right bottom; opacity: 1;
 }
 .library-main > :not(.library-companion) { position: relative; z-index: 1; }
 .library-title, .library-toolbar, .library-inline-error { width: min(944px, 100%); }
@@ -302,20 +300,24 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 @media (max-width: 1439px) {
   .book-grid { width: 100%; grid-template-columns: repeat(4, minmax(132px, 160px)); gap: 32px 36px; }
 }
+@media (max-width: 1200px) {
+  .library-main::after { width: 560px; height: 112px; }
+}
 @media (max-width: 1199px) {
   .book-grid { grid-template-columns: repeat(3, minmax(132px, 160px)); }
   .library-toolbar { gap: 24px; }
   .library-toolbar form, .import-button { min-height: 48px; }
   .weread-note { align-items: flex-start; flex-direction: column; gap: 4px; }
-  .library-main::after { width: min(620px, 65vw); opacity: .07; }
   .library-companion { right: 6px; bottom: 8px; }
   .library-companion img { width: 72px; height: 72px; }
   .library-companion-button { transform: none; }
 }
+@media (max-width: 1024px) {
+  .library-main::after { width: 420px; height: 84px; }
+}
 @media (max-width: 900px) {
   .library-shell { --library-rail: 80px; }
   .library-rail::before { opacity: .36; }
-  .library-main::after { opacity: .04; }
   .library-companion { right: 0; }
   .library-companion img { width: 60px; height: 60px; }
   .library-brand { margin: 24px auto 0; }
@@ -328,6 +330,9 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
   .import-button { min-width: 56px; width: 56px; }
   .import-button span { display: none; }
   .book-grid { gap: 34px 20px; margin-top: 38px; }
+}
+@media (max-width: 768px) {
+  .library-main::after { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

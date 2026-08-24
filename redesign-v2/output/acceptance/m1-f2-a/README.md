@@ -6,8 +6,8 @@
 
 - 任务：M1-F2-A visual reopen；worktree `/Users/echoman/.codex/worktrees/59ae/SelfAlone`，分支 `codex/m1-f2-a-visual-reopen`，固定基线 `2298f633a16e0b6e97e32529aa1ff5018b5e4279`。
 - 隔离运行：PostgreSQL schema `m1_f2_a_visual_reopen_20260825_59ae`、Server `4320`、Web `4390`、对象目录 `/tmp/selfalone-m1-f2-a-59ae/books`；未使用审查者 `4380` 或既有 `4310`。
-- 当前状态仍是 `VERIFY / BLOCKED_BY_RIGHT_SCENERY_REVIEW`，不是 `DONE`。正式 `03-reading-library.png` 与用户定稿图的解码原始像素 MD5 均为 `0fc27276fc13aee7199eb230408a66c4`；本轮右下山水与定稿冲突，已按总控要求冻结。
-- 冻结边界：工作树中的 `.library-main::after` 和 `library-visual-contract.test.ts` 对应右山断言不得继续修改、暂存或提交。`25-reopen-normal-1440x844.png`、`26-reopen-reference-03-top844-comparison.png` 是失败诊断图，不属于通过证据，也不进入当前候选提交。
+- 当前状态为 `VERIFY / PENDING_ORIGINAL_UI_UX_PAGE_REVIEW`，不是 `DONE`。正式 `03-reading-library.png` 与用户定稿图的解码原始像素 MD5 均为 `0fc27276fc13aee7199eb230408a66c4`；独立横向远山资产已获原非作者 UI/UX 审查者 `ASSET PASS`，仍等待其真实页面复验。
+- 旧冻结右山 hunk 已由批准独立资产方案替换；`25-reopen-normal-1440x844.png`、`26-reopen-reference-03-top844-comparison.png` 仍是失败诊断图，不属于通过证据，也不进入当前候选提交。
 
 ### 本轮真实交互结论
 
@@ -35,6 +35,26 @@
 | `36-reopen-scale-200-long-title.png` | `720×422` | `12323b79a9454b81337f4be96f635238e0c2fe42fc08700f5893be3c5fc1cba2` | DevTools page scale 2 的长标题/作者/24px 状态带补证 |
 
 `27–32 / 34–35` 使用显式 `1440×844` viewport override，实测 DPR 1、zoom 1、`visualViewport.scale = 1`、横向溢出 0，属于交互补证而非“无 override 的 DPR 2”同态证据。`33 / 36` 使用 `pageScaleFactor = 2`，视觉视口 `720×422`、文档横向溢出 0；长标题盒 `259–337.61`、作者 `349.61–366.41`、状态带 `397–421`，互不碰撞。结束后已清除 scale 与 viewport override，恢复原生 Chrome `1440×900 @ DPR 2 / visualViewport.scale 1`；本轮没有重新取得要求的无 override `1440×844 @ DPR 2`，该项与右山新 brief 一并留待复验。
+
+### ASSET PASS 右山实装
+
+- 批准资产复制到 `redesign-v2/assets/backgrounds/desktop-right-distant-mountains-transparent-v1.png`，源与运行时文件均为 `1600×320`、带 Alpha，逐字节 SHA-256 均为 `2d6d70888bf55e4c629e27f883a2ccc1c3dee5e3e36d00e46e2f86d2f7229f0f`。运行时不再引用左栏竖幅素材。
+- 1440 规则为 `680×136px / right 0 / bottom 0 / contain / no-repeat / opacity 1 / pointer-events none`；computed style 为 `mask-image: none`、`filter: none`、`backdrop-filter: none`。右山 `z-index: 0`、书架内容 `z-index: 1`、桌宠 `z-index: 12`。
+- 1200 为 `560×112px`，1024 为 `420×84px`，≤768 `display: none`；11 本真实书在 1200 / 1024 / 768 均 `scrollWidth - innerWidth = 0`。最后一列封面区、主峰窗与桌宠安全区无可见冲突。
+- Chrome 成功加载独立资产一次，`initiatorType: css`，`decodedBodySize: 58348`；全程控制台 warning/error 为 0。
+
+| 证据 | 尺寸 | SHA-256 | 证据等级与用途 |
+| --- | ---: | --- | --- |
+| `37-right-approved-native-1440x900-dpr2.png` | `1440×900` | `0f1921f9fb1a219a0cc6df70bd1398869d6202429a49613928fbd034b9625b8c` | 当前同态：真实 Chrome、无 override、100%、DPR 2、11 本；受物理窗口限制高度为 900 |
+| `38-right-approved-1440x844-override-supplement.png` | `1440×844` | `0a22e2423da8c8a541a7fb15e3ec09500fa445dfe2536390171fe4322faf6843` | 构图补充：显式 override、DPR 1；不得冒充目标真实窗口 |
+| `39-right-approved-03-02-top844-comparison.png` | `4320×844` | `7ffaeee84d352b9d1c0bf10fa982af54bf4bd23dd011b0b8fafe6db8871741bb` | 标注同屏：03 / 02 / 当前 1440×844 补充构图 |
+| `40-right-approved-bottom-band-comparison.png` | `4320×260` | `ce2e83e041a1aa2e1592d7c54b443c4c187cedd1e4fa4208b67fc8d3b1cd4bda` | 标注底部带：贴底节奏、主峰窗、桌宠层级 |
+| `41-right-approved-1200x844.png` | `1200×844` | `8f45b9af4f051b1d4edb20940ac765a3f34a64bc116845a97d168f05e3955c79` | Chrome override 断点补证：560×112、无横向溢出 |
+| `42-right-approved-1024x844.png` | `1024×844` | `c0a8c81e31de1df30426a258a315e5e0581f415adefd71433ee0f09f9ba4a512` | Chrome override 断点补证：420×84、无横向溢出 |
+| `43-right-approved-768-hidden.png` | `768×844` | `52a52ca00c5b0b04ac83bc80f47eced884a10f340065dc089f31d140f4c1f436` | Chrome override 断点补证：右山隐藏、无横向溢出 |
+| `44-right-approved-page-scale-200-supplement.png` | `720×450` | `4f447a9794e644142ceb502b5d9e661e134833237e97b4bd47f803aa99a4fba8` | Chrome DevTools page scale 2 补证：scale 2、视觉视口 720×450、文档无横向溢出 |
+
+真实浏览器门的精确边界：清除 viewport override 后，本机 Chrome 最大原生内容视口为 `1440×900 @ DPR 2 / visualViewport.scale 1`，不能取得 `1440×844 @ DPR 2`；Chrome 控制面也不能设置原生浏览器 zoom，因此 `44` 只证明 DevTools page scale 2，不冒充真实浏览器 200% zoom。最终 `1440×844 @ DPR 2` 与原生 200% 仍须由原 UI/UX 审查者在其可控环境复验。下方无日期章节保留 47b 历史证据，不描述当前右山实现。
 
 ## 现场与范围
 
