@@ -249,6 +249,13 @@ describe("M1-F2-B desktop text reader view", () => {
     );
   });
 
+  it("removes the focused reader rail from access and hit testing", () => {
+    const css = readFileSync(new URL("./text-reader.css", import.meta.url), "utf8");
+    expect(css).toMatch(
+      /\.text-reader-shell\.is-focus \.text-reader-rail\s*\{[^}]*transform: translateX\(-100%\);[^}]*visibility: hidden;[^}]*pointer-events: none;[^}]*\}/,
+    );
+  });
+
   it("does not leave aria-controls dangling and disables tools only without retained content", () => {
     const closed = renderTextReader({ ...snapshot, directoryOpen: false });
     expect(closed).not.toContain('aria-controls="text-reader-directory"');

@@ -413,7 +413,11 @@
 .text-reader-copy-status { position: fixed; z-index: 20; left: 50%; bottom: 24px; transform: translateX(-50%); color: #fff; background: #174c3f; border-radius: 8px; font-size: 13px; }
 .text-reader-copy-status:not(:empty) { padding: 10px 16px; }
 
-.text-reader-shell.is-focus .text-reader-rail { transform: translateX(-100%); }
+.text-reader-shell.is-focus .text-reader-rail {
+  transform: translateX(-100%);
+  visibility: hidden;
+  pointer-events: none;
+}
 .text-reader-shell.is-focus .text-reader-main { left: 0; }
 .text-reader-shell.is-focus .text-reader-toolbar {
   display: flex;
