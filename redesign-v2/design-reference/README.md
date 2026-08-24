@@ -19,7 +19,7 @@
 
 `03-reading-library.png` 是 2026-08-24 用户重新提供并明确确认为桌面 Web 统一书架绑定基线的标准开发副本。确认原图为 [`library-study-display-approved-original.png`](../output/ui-design-preview/product-design/reading-module/library-study-display-approved-original.png)，尺寸 `1487×1058`，SHA-256 为 `d9bd07242159e66bc6a9590a8b98dbd3a3a6e113639680d9e9a3e9a70ab1dd85`；标准副本由原图等比缩放至宽 `1440px` 后仅裁去 `1px` 高度，无拉伸，尺寸 `1440×1024`，SHA-256 为 `3cee650a3125fa337d8c0f2eddfe21c6b34d1856d7b45cb9abda939be303da98`，并与 [`library-study-display-approved-1440x1024.png`](../output/ui-design-preview/product-design/reading-module/library-study-display-approved-1440x1024.png) 逐字节一致。它替代旧 `library-unified-compact-v3.png` 页面基线，锁定标题、搜索与导入层级、五列连续书架、封面内进度、封面下来源及左右两侧低对比水墨落款；示例书名、封面、来源、进度和生成图标不得作为运行时数据或素材。
 
-2026-08-24 用户进一步确认 [`library-companion-placement-approved-original.png`](../output/ui-design-preview/product-design/reading-module/library-companion-placement-approved-original.png) 中右下“坐姿读书桌宠 + 墨绿色圆形对话气泡”的位置关系，原图尺寸 `1486×1058`、SHA-256 为 `82fc9a7c4103d863a6115868f89bef16c35ef91c2f5885753ed30638b9b7a53e`。该图只补充统一书架桌宠与气泡的造型、相对尺寸和右下安全区关系；其中四列、大封面、缺少“读书”标题、较高工具区及示例内容均不属于有效页面基线。桌宠造型继续以 34 号参考为准，运行时必须使用 [`laoji-mascot-seated-reading-transparent-v1.png`](../assets/mascot/laoji-mascot-seated-reading-transparent-v1.png)（`1254×1254` RGBA，SHA-256 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`），不得重新生成角色。
+2026-08-24 用户进一步确认 [`library-companion-placement-approved-original.png`](../output/ui-design-preview/product-design/reading-module/library-companion-placement-approved-original.png) 为统一书架桌宠、气泡、左侧山水落款与左右底色的局部绑定参考，原图尺寸 `1486×1058`、SHA-256 为 `82fc9a7c4103d863a6115868f89bef16c35ef91c2f5885753ed30638b9b7a53e`。右下采用“坐姿读书桌宠 + `44px` 墨绿色圆形对话按钮”，按钮内必须是白色圆角对话框轮廓与三点省略号；左侧导航使用雾青灰 `#E7EAE8`，右侧主画布使用暖象牙纸白 `#F1F1EF`，山水、树木与亭子仅作为低对比透明落款叠加，不得自带纸白底或绿色遮罩。该图中的四列、大封面、缺少“读书”标题、较高工具区及示例内容均不属于有效页面基线。桌宠造型继续以 34 号参考为准，运行时必须使用 [`laoji-mascot-seated-reading-transparent-v1.png`](../assets/mascot/laoji-mascot-seated-reading-transparent-v1.png)（`1254×1254` RGBA，SHA-256 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`），不得重新生成角色。
 
 `09-settings-overview.png` 是 [`settings-service-overview-v8.png`](../output/ui-design-preview/product-design/settings/settings-service-overview-v8.png) 的标准开发副本。确认原图尺寸 `1485×1059`、SHA-256 为 `4cb5d0fba2d739cfa3b8aa6e3fc27e1f13f76128bdb4afff2484ddbd59ed10e3`；标准副本无拉伸地重新导出为 `1440×1024`，SHA-256 为 `e5a22a0ef0b1c24582b6bc7831de774a3851b053d706732617d9fec395b2cc4d`，并与 [`settings-service-overview-v8-1440x1024.png`](../output/ui-design-preview/product-design/settings/settings-service-overview-v8-1440x1024.png) 逐字节一致。
 
@@ -87,11 +87,9 @@
 
 ## 已确认运行时视觉资产
 
-| 资产 | 文件 | 适用范围 | 使用方式 |
-| --- | --- | --- | --- |
-| 桌面 Web / 共享左栏远山亭子背景 | [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) | 桌面共享左栏；书架、阅读、会话、设置及 PPT 工作区共用 | 以雾白 `nav-surface` 为兜底；宽导航使用 `cover / 37% bottom` 构图并叠加极浅青瓷纸色，保证亭子不被左边或底边裁断；不得叠加底部文案或提高山水对比度 |
+2026-08-24 用户确认三张本地默认封面底图可共同用于桌面 Web 与微信小程序。正式文件位于 [`../assets/book-covers/`](../assets/book-covers/)：`local-default-celadon-ink-v1.png`、`local-default-amber-lamp-v1.png`、`local-default-indigo-sea-v1.png`，均为 `1024×1434` RGB PNG，SHA-256 依次为 `b7c79385b385b404155b89ca685e90ac5e2f6887d7cc10e71d7cc0fb3351eae8`、`dde0cec465fcf131cea06e55f1b22951cc23e2cec4be2774f61f246a2c9fa1d1`、`e539f0db602a10383e0ff86f7b2905708b5c959f5d1f0c4c3440322b61d42d52`。运行时按稳定书籍 ID 哈希固定选择底图并叠加真实书名、作者，不随机换图，也不再用临时 CSS 几何图形代替封面插画。
 
-`desktop-left-rail-landscape-approved-v1.png` 由 Codex 内置 ImageGen 按用户指定参考生成，用户于 2026-08-23 查看真实页面效果后明确确认可作为使用资产。文件为 `887×1774` RGB PNG，完整近白背景为有意设计而非透明通道缺失，SHA-256 为 `cb3999d50772e0963b0a9c2204c4d5891a2e84a824a4c597f7eee3eeb0d07700`。它只提供共享左栏的低对比远山、树木和亭子视觉落款，不改变导航结构、交互或端侧布局规则。
+旧 [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) 因自带纸白底、构图和颜色偏离本次绑定参考，自 2026-08-24 起不再是有效运行时素材。替代素材必须从绑定参考中取得或另行确认，输出为真实 RGBA 透明 PNG，并先叠加到真实页面的 `#E7EAE8` 导航底色上完成视觉验收；在用户确认前只能作为候选，不得进入正式资产清单。
 
 ## 已认可视觉元素，不是运行时资产
 
