@@ -48,6 +48,15 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+function coverVariantClass(bookId: string) {
+  let hash = 2166136261;
+  for (const character of bookId) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `cover-variant-${((hash >>> 0) % 5) + 1}`;
+}
+
 function libraryShell(content: string) {
   return `
     <div class="library-shell">
@@ -63,6 +72,10 @@ function libraryShell(content: string) {
         </nav>
       </aside>
       <main class="library-main">${content}</main>
+      <a class="library-companion" href="#/conversation" aria-label="和老己聊聊">
+        <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
+        <span>${icons.chat}</span>
+      </a>
     </div>`;
 }
 
@@ -104,15 +117,12 @@ function libraryGrid(books: LibraryBookSummary[]) {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
       return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
-        <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
-          <span class="cover-source">老己 · 本地书</span>
+        <div class="default-cover ${coverVariantClass(book.id)}" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <strong>${escapeHtml(book.title)}</strong>
           <em>${escapeHtml(author)}</em>
-          <i aria-hidden="true"></i>
           <b class="parse-badge">${escapeHtml(status)}</b>
         </div>
         <div class="book-caption">
-          <strong title="${escapeHtml(book.title)}">${escapeHtml(book.title)}</strong>
           <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
         </div>
       </article>`;
