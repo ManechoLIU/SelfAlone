@@ -86,6 +86,27 @@ export function createLatestLibraryRequest() {
   };
 }
 
+export function createLibraryPollingScheduler(
+  onPoll: () => void,
+  delayMs = 700,
+) {
+  let timer: ReturnType<typeof setInterval> | undefined;
+  const stop = () => {
+    if (timer !== undefined) clearInterval(timer);
+    timer = undefined;
+  };
+
+  return {
+    stop,
+    sync(state: Pick<LibraryLoadState, "searching" | "searchError" | "books">) {
+      stop();
+      if (state.searching || state.searchError) return;
+      if (!state.books.some((book) => book.parseStatus === "processing")) return;
+      timer = setInterval(onPoll, delayMs);
+    },
+  };
+}
+
 export function libraryViewState(state: LibraryLoadState) {
   if (state.loading && state.books.length === 0) return "loading";
   if (state.error && state.books.length === 0) return "failure";

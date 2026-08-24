@@ -10,6 +10,7 @@ import {
   authorLabel,
   bindLibrarySearchInteractions,
   coverStatusLabel,
+  createLibraryPollingScheduler,
   createLatestLibraryRequest,
   libraryViewState,
   parseStatusLabel,
@@ -29,7 +30,6 @@ let busy = false;
 let errorMessage = "";
 let selectedTemplate = "qingci-study";
 let pollingTimer: number | undefined;
-let libraryPollingTimer: number | undefined;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -42,6 +42,9 @@ let libraryState: LibraryLoadState = {
 };
 let libraryUploading = false;
 const latestLibraryRequest = createLatestLibraryRequest();
+const libraryPolling = createLibraryPollingScheduler(
+  () => void loadLibrary(libraryState.query, "poll"),
+);
 
 function escapeHtml(value: string) {
   return value
@@ -185,6 +188,7 @@ async function loadLibrary(
   kind: LibraryLoadKind = "initial",
   preserveSearchFocus = false,
 ) {
+  libraryPolling.stop();
   const normalizedQuery = query.trim();
   const request = latestLibraryRequest.begin();
   libraryState = kind === "search"
@@ -247,11 +251,7 @@ async function loadLibrary(
 }
 
 function updateLibraryPolling() {
-  if (libraryPollingTimer) window.clearInterval(libraryPollingTimer);
-  libraryPollingTimer = undefined;
-  if (!libraryState.searchError && libraryState.books.some((book) => book.parseStatus === "processing")) {
-    libraryPollingTimer = window.setInterval(() => void loadLibrary(libraryState.query, "poll"), 700);
-  }
+  libraryPolling.sync(libraryState);
 }
 
 async function uploadBook(file: File) {

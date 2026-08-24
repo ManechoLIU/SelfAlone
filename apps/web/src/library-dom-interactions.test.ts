@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   bindLibrarySearchInteractions,
+  createLibraryPollingScheduler,
   createLatestLibraryRequest,
 } from "./library-state";
+import type { LibraryLoadState } from "./library-state";
 
 class SearchInput extends EventTarget {
   value = "";
@@ -89,5 +91,37 @@ describe("library search DOM interactions", () => {
     expect(latest.isCurrent(first.id)).toBe(false);
     expect(second.signal.aborted).toBe(false);
     expect(latest.isCurrent(second.id)).toBe(true);
+  });
+
+  it("stops a processing poll before a search can be preempted and restarts after the search result", () => {
+    vi.useFakeTimers();
+    try {
+      const onPoll = vi.fn();
+      const polling = createLibraryPollingScheduler(onPoll, 700);
+      const processingBooks: LibraryLoadState["books"] = [{
+        id: "processing-book",
+        title: "正在解析的书",
+        author: null,
+        format: "txt",
+        sourceLabel: "本地",
+        parseStatus: "processing",
+        errorCode: null,
+        sectionCount: 0,
+        pageCount: null,
+        createdAt: "2026-08-25T00:00:00.000Z",
+      }];
+
+      polling.sync({ searching: false, searchError: "", books: processingBooks });
+      vi.advanceTimersByTime(699);
+      polling.stop();
+      vi.advanceTimersByTime(1);
+      expect(onPoll).not.toHaveBeenCalled();
+
+      polling.sync({ searching: false, searchError: "", books: processingBooks });
+      vi.advanceTimersByTime(700);
+      expect(onPoll).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
