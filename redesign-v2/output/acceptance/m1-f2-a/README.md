@@ -12,6 +12,7 @@
 - 持久化结果：默认账户 10 个文件对象、10 个唯一对象键，全部以账户 ID 开头；状态为 `ready_text` 8、`ready_pages` 1、`failed` 1。第二账户列表为 0；服务重启后全部恢复。
 - 行为验收：真实文件选择器上传；上传后先显示 `processing`，轮询后落入可读/页面可用/失败；同名 TXT 保持为两本；缺作者显示“作者未知”；书名搜索、筛选空、服务失败保留原书架、刷新恢复均经真实浏览器入口验证。
 - 当前候选截图：`09-real-chrome-covers-1440x844-dpr2.png`，SHA-256 `2d20cb07a627fec22d8aecb1996eedbb0ed5702be83d78c7870b15e7bee5e755`。运行时桌宠只使用 RGBA 资产 `laoji-mascot-seated-reading-transparent-v1.png`（SHA-256 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`）；旧四列截图只约束桌宠位置关系，不约束页面列数或封面尺寸。
+- 用户逐点纠偏截图：`10-in-app-902x904-toolbar-companion.png`，SHA-256 `a72676e3cd9e0e3fbc487daabc244ef54e234ff51b9e074d49fbffb13c00053c`。当前内置浏览器未设置 viewport override，CSS 视口 `902×904`、DPR `1.8`；工具条与导入按钮为 `48px`，连接行上间距 `12px`、书架上间距 `22px`，导航选中背景为 `#D4E5DC`，桌宠与气泡盒模型从 `7px` 正间距改为透明边缘补偿，气泡本体保持 `44×44px`。截图时存在未提交的左栏素材临时预览，只用于量取上述三处，与左栏是否批准无关。
 - 无障碍与键盘：搜索框和文件选择器均由显式 `<label>` 提供可访问名称；Enter 提交搜索；真实 Tab 从搜索框进入文件选择器时，导入按钮显示 `3px` 焦点轮廓，Shift+Tab 可返回搜索框；当前导航使用 `aria-current="page"`，装饰图标不进入可访问名称。导入按钮为 `152×52px`，桌宠对话气泡为 `44×44px`，交互目标不小于 44 px，并尊重 `prefers-reduced-motion`。
 - 图标派生：筛选空和真实空复用现有 `search` / `book` SVG，不再用 `.empty-glyph` 的 CSS 方块与文字冒充图标。用户 Chrome 后续外窗变为 `1200×824`，未模拟 CSS 视口为 `1200×647 @ DPR 2`；该真实筛选空态实测共享 SVG 为 1、旧 CSS 图标为 0、清除按钮高 `44px`，随后恢复正常书架。该响应式检查不冒充 `1440×844` 视觉证据。
 

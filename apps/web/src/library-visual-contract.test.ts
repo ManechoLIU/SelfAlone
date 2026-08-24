@@ -35,6 +35,31 @@ describe("library binding visual contract", () => {
     expect(styles).toContain("gap: 28px 55px;");
   });
 
+  it("uses a compact toolbar and clear vertical rhythm below 1200px", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+    const compactRule = styles.match(/@media \(max-width: 1199px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const noteRule = styles.match(/\.weread-note\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const gridRule = styles.match(/\.book-grid\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(compactRule).toContain(".library-toolbar form, .import-button { min-height: 48px; }");
+    expect(noteRule).toContain("margin-top: 12px;");
+    expect(gridRule).toContain("margin-top: 22px;");
+  });
+
+  it("keeps the selected navigation state distinct from the rail", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+
+    expect(styles).toContain(".library-nav a.active { color: #174c3f; background: #d4e5dc;");
+  });
+
+  it("compensates for the mascot asset transparent edge", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+
+    expect(styles).toContain(".library-companion { position: fixed; z-index: 12; right: 22px; bottom: 14px; display: flex; align-items: end; gap: 0;");
+    expect(styles).toContain("margin-left: -14px;");
+    expect(styles).toContain(".library-companion-button { margin-left: -8px; }");
+  });
+
   it("keeps the bound title and removes repeated cover metadata", async () => {
     const [styles, main] = await Promise.all([
       readFile(stylesPath, "utf8"),
