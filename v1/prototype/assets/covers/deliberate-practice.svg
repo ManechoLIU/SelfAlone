@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="title desc">
-  <title id="title">刻意练习</title><desc id="desc">金黄色背景上的复古箭靶</desc>
-  <rect width="360" height="540" rx="8" fill="oklch(0.79 0.155 82)"/>
-  <text x="180" y="74" text-anchor="middle" fill="oklch(0.23 0.045 78)" font-family="Iowan Old Style,Noto Serif CJK SC,Songti SC,serif" font-size="39" font-weight="700" letter-spacing="4">刻意练习</text>
-  <text x="180" y="108" text-anchor="middle" fill="oklch(0.31 0.05 78)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="13" letter-spacing="1.5">如何从新手到大师</text>
-  <g transform="translate(180 314)"><path d="M-51 84l-30 112M51 84l31 112" stroke="oklch(0.29 0.04 75)" stroke-width="10" stroke-linecap="round"/><circle r="94" fill="oklch(0.34 0.07 164)"/><circle r="72" fill="oklch(0.94 0.035 90)"/><circle r="50" fill="oklch(0.39 0.075 165)"/><circle r="27" fill="oklch(0.94 0.035 90)"/><circle r="10" fill="oklch(0.36 0.08 165)"/><path d="M-6 6L86-86" stroke="oklch(0.26 0.045 75)" stroke-width="8" stroke-linecap="round"/><path d="M87-87l-3-28 27 4zM86-86l28 3-4 27z" fill="oklch(0.27 0.055 75)"/></g>
-  <text x="180" y="505" text-anchor="middle" fill="oklch(0.25 0.045 76)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="14">安德斯·艾利克森</text>
-</svg>

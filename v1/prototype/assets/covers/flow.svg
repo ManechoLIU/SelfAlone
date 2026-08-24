@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540" role="img" aria-labelledby="title desc">
-  <title id="title">心流</title><desc id="desc">酒红底色上流动的丝带形态</desc>
-  <defs><linearGradient id="wine" x2="1" y2="1"><stop stop-color="oklch(0.38 0.11 22)"/><stop offset="1" stop-color="oklch(0.24 0.075 16)"/></linearGradient></defs>
-  <rect width="360" height="540" rx="8" fill="url(#wine)"/>
-  <text x="42" y="78" fill="oklch(0.96 0.025 76)" font-family="Iowan Old Style,Noto Serif CJK SC,Songti SC,serif" font-size="44" font-weight="700" letter-spacing="7">心流</text>
-  <text x="44" y="111" fill="oklch(0.86 0.035 50)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="12" letter-spacing="1.5">最优体验心理学</text>
-  <path d="M-40 356c91-129 174-144 251-53s128 68 190-49" fill="none" stroke="oklch(0.7 0.12 44 / .7)" stroke-width="52"/><path d="M-38 385c93-108 164-110 239-34s139 52 201-35" fill="none" stroke="oklch(0.86 0.08 71 / .42)" stroke-width="18"/><circle cx="202" cy="308" r="13" fill="oklch(0.95 0.04 76)"/>
-  <text x="42" y="484" fill="oklch(0.94 0.025 72)" font-family="PingFang SC,Microsoft YaHei,sans-serif" font-size="14">米哈里·契克森米哈赖</text>
-</svg>

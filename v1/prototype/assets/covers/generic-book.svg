@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 540">
-  <rect width="360" height="540" rx="10" fill="oklch(0.57 0.045 193)"/>
-  <path d="M78 146h204v246H78z" fill="oklch(0.88 0.025 185 / .32)"/>
-  <path d="M110 190h140M110 234h140M110 278h92" fill="none" stroke="oklch(0.96 0.012 185 / .72)" stroke-width="9" stroke-linecap="round"/>
-  <circle cx="224" cy="342" r="42" fill="oklch(0.31 0.045 180 / .72)"/>
-  <text x="30" y="64" fill="oklch(0.98 0.01 180)" font-family="Iowan Old Style, Noto Serif CJK SC, Songti SC, serif" font-size="32" font-weight="700">我的书</text>
-</svg>
