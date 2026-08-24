@@ -31,7 +31,7 @@
 | Token | 色值 | 用途 |
 | --- | --- | --- |
 | `bg` | `#EAF1EC` | 有明确绿意的应用底色 |
-| `nav-surface` | `#CFE1D7` | 桌面导航与需要更强青瓷识别的背景 |
+| `nav-surface` | `#F5F8F6` | 桌面主导航的雾白纸色；浅青只用于底部水墨、选中态和细边界 |
 | `list-surface` | `#E0EBE5` | 会话列表与辅助区域 |
 | `workspace-surface` | `#D8E7DF` | 上下文工作区底色 |
 | `surface` | `#F8FAF6` | 主内容面和输入面 |

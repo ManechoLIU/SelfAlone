@@ -1,15 +1,24 @@
 import Fastify from "fastify";
 import { createReadStream } from "node:fs";
 import { z } from "zod";
+import { developmentAccountId } from "./account-migration";
+import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
+  library?: LibraryRuntime;
   m0?: M0Runtime;
 };
 
 export function createApp(dependencies: AppDependencies) {
   const app = Fastify({ logger: false });
+
+  app.addContentTypeParser(
+    "application/octet-stream",
+    { parseAs: "buffer", bodyLimit: 50 * 1024 * 1024 },
+    (_request, body, done) => done(null, body),
+  );
 
   app.get("/api/v1/health/live", async () => ({ status: "live" }));
 
@@ -20,6 +29,41 @@ export function createApp(dependencies: AppDependencies) {
     }
     return { status: "ready" };
   });
+
+  if (dependencies.library) {
+    const library = dependencies.library;
+    const accountId = (headers: Record<string, unknown>) => {
+      const value = headers["x-selfalone-account"];
+      return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
+    };
+
+    app.get("/api/v1/books", async (request) => {
+      const query = z.object({ query: z.string().max(120).optional() }).parse(request.query);
+      return { books: await library.listBooks(accountId(request.headers), query.query ?? "") };
+    });
+
+    app.get("/api/v1/books/:id", async (request) => {
+      const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
+      return library.getBook(accountId(request.headers), parameters.id);
+    });
+
+    app.post("/api/v1/books/import", async (request, reply) => {
+      const encodedName = request.headers["x-file-name"];
+      if (typeof encodedName !== "string" || !encodedName.trim()) {
+        throw new Error("BOOK_FILENAME_REQUIRED");
+      }
+      let filename: string;
+      try {
+        filename = decodeURIComponent(encodedName);
+      } catch {
+        throw new Error("BOOK_FILENAME_INVALID");
+      }
+      if (!Buffer.isBuffer(request.body)) throw new Error("BOOK_FILE_REQUIRED");
+      return reply.code(202).send(
+        await library.importBook(accountId(request.headers), filename, request.body),
+      );
+    });
+  }
 
   if (dependencies.m0) {
     const m0 = dependencies.m0;
@@ -104,6 +148,21 @@ export function createApp(dependencies: AppDependencies) {
     }
     if (message === "INVALID_STAGE_TRANSITION") {
       return reply.code(409).send({ code: message });
+    }
+    if (message === "ACCOUNT_FORBIDDEN") {
+      return reply.code(403).send({ code: message });
+    }
+    if (
+      [
+        "UNSUPPORTED_BOOK_FORMAT",
+        "EMPTY_BOOK_FILE",
+        "BOOK_FILE_TOO_LARGE",
+        "BOOK_FILENAME_REQUIRED",
+        "BOOK_FILENAME_INVALID",
+        "BOOK_FILE_REQUIRED",
+      ].includes(message)
+    ) {
+      return reply.code(400).send({ code: message });
     }
     return reply.code(500).send({ code: "INTERNAL_ERROR" });
   });

@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@selfalone/contracts": "workspace:*",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "typescript": "latest"

@@ -1,0 +1,198 @@
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import postgres, { type Sql } from "postgres";
+import { afterEach, describe, expect, it } from "vitest";
+import { createApp } from "./app";
+import { createLibraryRuntime, type LibraryRuntime } from "./library-runtime";
+
+const baseDatabaseUrl =
+  process.env.DATABASE_URL ?? "postgres://selfalone:selfalone@127.0.0.1:55432/selfalone";
+
+async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boolean) {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const value = await read();
+    if (accept(value)) return value;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("EXPECTED_STATE_NOT_REACHED");
+}
+
+describe("M1-F2-A local library runtime", () => {
+  const runtimes: LibraryRuntime[] = [];
+  const apps: Array<ReturnType<typeof createApp>> = [];
+  const databases: Array<{ administration: Sql; schema: string }> = [];
+  const objectDirectories: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(apps.splice(0).map((app) => app.close()));
+    await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
+    await Promise.all(
+      databases.splice(0).map(async ({ administration, schema }) => {
+        await administration.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+        await administration.end();
+      }),
+    );
+    await Promise.all(objectDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+  });
+
+  it("persists uploads, parse states and account-scoped search across a restart", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-"));
+    objectDirectories.push(objectDirectory);
+
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at)
+      VALUES ('account-a', now()), ('account-b', now())
+    `);
+    const app = createApp({ readiness: () => runtime.ready(), library: runtime });
+    apps.push(app);
+
+    const txtBytes = Buffer.from("一阵雨过后，山色重新显出来。", "utf8");
+    const uploaded = await app.inject({
+      method: "POST",
+      url: "/api/v1/books/import",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-file-name": encodeURIComponent("同名书.txt"),
+        "x-selfalone-account": "account-a",
+      },
+      payload: txtBytes,
+    });
+    expect(uploaded.statusCode).toBe(202);
+    expect(uploaded.json()).toMatchObject({
+      title: "同名书",
+      author: null,
+      format: "txt",
+      parseStatus: "processing",
+      sourceLabel: "本地",
+    });
+
+    const firstId = uploaded.json().id as string;
+    const ready = await eventually(
+      async () => {
+        const response = await app.inject({
+          method: "GET",
+          url: "/api/v1/books?query=%E5%90%8C%E5%90%8D",
+          headers: { "x-selfalone-account": "account-a" },
+        });
+        expect(response.statusCode).toBe(200);
+        return response.json<{ books: Array<Record<string, unknown>> }>();
+      },
+      (value) => value.books[0]?.parseStatus === "ready_text",
+    );
+    expect(ready.books).toHaveLength(1);
+
+    const [stored] = await administration.unsafe<
+      Array<{ objectKey: string; sha256: string; accountId: string }>
+    >(`
+      SELECT object_key AS "objectKey", sha256, account_id AS "accountId"
+      FROM "${schema}".book_files WHERE book_id = '${firstId}'
+    `);
+    expect(stored?.accountId).toBe("account-a");
+    expect(stored?.objectKey).toMatch(/^account-a\/.+\/original\/1\/original\.txt$/);
+    expect(stored?.sha256).toBe(createHash("sha256").update(txtBytes).digest("hex"));
+    expect(await readFile(join(objectDirectory, stored?.objectKey ?? ""))).toEqual(txtBytes);
+
+    const repeated = await app.inject({
+      method: "POST",
+      url: "/api/v1/books/import",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-file-name": encodeURIComponent("同名书.txt"),
+        "x-selfalone-account": "account-a",
+      },
+      payload: Buffer.from("这是另一本同名书。"),
+    });
+    expect(repeated.statusCode).toBe(202);
+    expect(repeated.json().id).not.toBe(firstId);
+
+    const failed = await app.inject({
+      method: "POST",
+      url: "/api/v1/books/import",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-file-name": encodeURIComponent("损坏.pdf"),
+        "x-selfalone-account": "account-a",
+      },
+      payload: Buffer.from("%PDF-not-complete"),
+    });
+    expect(failed.statusCode).toBe(202);
+    await eventually(
+      () => runtime.getBook("account-a", failed.json().id as string),
+      (book) => book.parseStatus === "failed" && book.errorCode === "PDF_INVALID",
+    );
+
+    const otherAccount = await app.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: { "x-selfalone-account": "account-b" },
+    });
+    expect(otherAccount.json()).toEqual({ books: [] });
+
+    await app.close();
+    apps.length = 0;
+    await runtime.close();
+    runtimes.length = 0;
+    const restoredRuntime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+    });
+    runtimes.push(restoredRuntime);
+    const restored = await restoredRuntime.listBooks("account-a", "同名");
+    expect(restored).toHaveLength(2);
+    expect(restored.map((book) => book.id)).toContain(firstId);
+  });
+
+  it("rejects unsupported files before creating a library record", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-"));
+    objectDirectories.push(objectDirectory);
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at) VALUES ('account-a', now())
+    `);
+    const app = createApp({ readiness: () => runtime.ready(), library: runtime });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/books/import",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-file-name": "archive.zip",
+        "x-selfalone-account": "account-a",
+      },
+      payload: Buffer.from("not a book"),
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "UNSUPPORTED_BOOK_FORMAT" });
+    const [count] = await administration.unsafe<Array<{ count: number }>>(
+      `SELECT count(*)::int AS count FROM "${schema}".books`,
+    );
+    expect(count?.count).toBe(0);
+  });
+});

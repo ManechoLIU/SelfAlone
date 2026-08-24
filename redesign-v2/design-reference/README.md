@@ -83,6 +83,14 @@
 
 `38-mobile-conversation-free-quota-unclaimed.png` 和 `39-mobile-text-model-configuration.png` 是 2026-08-23 用户明确认可并纳入的微信小程序页面参考，尺寸均为 `853×1844`，SHA-256 分别为 `ea5876adf8a5953c19ac105dfd251d5f77bf1d2417d71c35df5981f0b6a9fb7a`、`e74f589f85b9c8f9bf6654ef68bca8d5e6f5f87399a34a69744722f718b5ed17`。38 锁定一次性额度条的暖纸色、赭金图标与细边、墨绿按钮和其在会话首页顶部的位置；桌面 Web 只借鉴额度条组件，不继承小程序页头、消息流或输入区布局。39 锁定文本模型配置全屏次级页的层级、单一密文字段、显隐操作、底部唯一主操作与留白节奏；具体行为和状态继续以 `SPEC.md`、`DESIGN.md` 与端侧规范为准，两图都不是运行时整图或角色 / 图标资产。
 
+## 已确认运行时视觉资产
+
+| 资产 | 文件 | 适用范围 | 使用方式 |
+| --- | --- | --- | --- |
+| 桌面 Web / 共享左栏远山亭子背景 | [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) | 桌面共享左栏；书架、阅读、会话、设置及 PPT 工作区共用 | 以雾白 `nav-surface` 为兜底，`cover / center bottom` 贴底裁切；不得叠加底部文案或提高山水对比度 |
+
+`desktop-left-rail-landscape-approved-v1.png` 由 Codex 内置 ImageGen 按用户指定参考生成，用户于 2026-08-23 查看真实页面效果后明确确认可作为使用资产。文件为 `887×1774` RGB PNG，完整近白背景为有意设计而非透明通道缺失，SHA-256 为 `cb3999d50772e0963b0a9c2204c4d5891a2e84a824a4c597f7eee3eeb0d07700`。它只提供共享左栏的低对比远山、树木和亭子视觉落款，不改变导航结构、交互或端侧布局规则。
+
 ## 已认可视觉元素，不是运行时资产
 
 | 顺序 | 元素 | 文件 | 原稿 | 可采用 | 不得照搬 |
