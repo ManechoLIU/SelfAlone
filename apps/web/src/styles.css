@@ -1,6 +1,6 @@
 :root {
   color: #183c31;
-  background: #edf4f1;
+  background: #f1f1ef;
   font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
   font-synthesis: none;
   --ink: #183c31;
@@ -16,7 +16,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 0; min-height: 100vh; background: #edf4f1; }
+body { margin: 0; min-width: 0; min-height: 100vh; background: #f1f1ef; }
 button, textarea, input { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visible {
@@ -32,21 +32,13 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 
 .library-shell {
   --library-rail: 184px;
-  min-height: 100vh; color: #21312d; background: #f8faf6;
+  min-height: 100vh; color: #21312d; background: #f1f1ef;
 }
 .library-rail {
   position: fixed; inset: 0 auto 0 0; z-index: 10; width: var(--library-rail);
   display: flex; flex-direction: column; overflow: hidden;
-  background-color: #cfe1d7;
-  background-image: url("/backgrounds/desktop-left-rail-landscape-approved-v1.png");
-  background-repeat: no-repeat;
-  background-position: 37% bottom;
-  background-size: cover;
+  background-color: #e7eae8;
   border-right: 1px solid #dbe5e0;
-}
-.library-rail::before {
-  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: rgba(207, 225, 215, .24);
 }
 .library-brand {
   position: relative; z-index: 2; display: flex; align-items: center; gap: 12px;
@@ -66,14 +58,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .library-nav svg, .library-toolbar svg, .library-state svg, .book-source svg {
   width: 23px; height: 23px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
 }
-.library-main { position: relative; isolation: isolate; min-height: 100vh; margin-left: var(--library-rail); padding: 36px 32px 72px 52px; overflow: hidden; }
-.library-main::after {
-  content: ""; position: fixed; z-index: -1; right: 0; bottom: 0; width: min(580px, 44vw); height: 172px;
-  pointer-events: none; opacity: .5; mix-blend-mode: multiply; background-image: url("/backgrounds/desktop-left-rail-landscape-approved-v1.png");
-  background-repeat: no-repeat; background-size: 720px 1440px; background-position: right -875px;
-  -webkit-mask-image: radial-gradient(ellipse at 100% 100%, #000 0 48%, rgba(0,0,0,.78) 62%, transparent 82%);
-  mask-image: radial-gradient(ellipse at 100% 100%, #000 0 48%, rgba(0,0,0,.78) 62%, transparent 82%);
-}
+.library-main { position: relative; min-height: 100vh; margin-left: var(--library-rail); padding: 36px 32px 72px 52px; overflow: hidden; background: #f1f1ef; }
 .library-title, .library-toolbar, .weread-note, .library-inline-error { width: min(1128px, 100%); }
 .library-title { margin: 0 0 16px; color: #174c3f; font: 600 28px/1.25 "Songti SC", "STSong", serif; letter-spacing: .08em; }
 .library-toolbar { display: grid; grid-template-columns: minmax(280px, 1fr) 152px; gap: 24px; align-items: center; }
@@ -111,20 +96,20 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .book-item { min-width: 0; }
 .default-cover {
   position: relative; aspect-ratio: 5 / 7; overflow: hidden; display: flex; flex-direction: column;
-  padding: 20px 17px 34px; border: 1px solid #bdcbc5; border-radius: 4px 7px 7px 4px;
+  padding: 20px 17px 34px; border-radius: 4px 7px 7px 4px;
   background: #f3f5f2;
   color: #174c3f; box-shadow: 0 8px 18px rgba(33,49,45,.08);
 }
+.default-cover-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .default-cover strong { position: relative; z-index: 1; margin: 42px 0 0; font: 600 clamp(18px, 1.4vw, 22px)/1.3 "Songti SC", "STSong", serif; letter-spacing: .06em; overflow-wrap: anywhere; }
 .default-cover em { position: relative; z-index: 1; margin-top: 12px; color: #5f6f69; font: normal 12px/1.4 "PingFang SC", sans-serif; }
 .parse-badge {
   position: absolute; z-index: 2; inset: auto 0 0; height: 28px; display: flex; align-items: center; justify-content: flex-end;
-  padding: 0 9px 0 64px; border-top: 1px solid #dce5e1; background: transparent;
+  padding: 0 9px 0 64px; border-top: 1px solid #d7d9d5; background: #f1f1ef;
   color: #174c3f; font-size: 10px; font-weight: 500;
 }
 .parse-badge::before { content: ""; position: absolute; left: 10px; top: 12px; width: 42px; height: 3px; border-radius: 2px; background: #9dbbb0; }
 .book-item.processing .parse-badge { color: #8a5a00; }
-.book-item.failed .default-cover { border-color: #d8b9b0; background: #f4f0ed; }
 .book-item.failed .parse-badge { color: #8d3527; }
 .book-caption { display: grid; margin-top: 8px; }
 .book-source { display: flex; align-items: center; gap: 5px; color: #5f6f69; font-size: 12px; }
@@ -143,9 +128,9 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 .shelf-loading i { height: 92px; border-radius: 3px 7px 7px 3px; background: linear-gradient(110deg, #dce8e2 25%, #edf3ef 45%, #dce8e2 65%); background-size: 220% 100%; animation: library-shimmer 1.2s linear infinite; }
 .shelf-loading i:nth-child(2), .shelf-loading i:nth-child(5) { height: 105px; }
 @keyframes library-shimmer { to { background-position: -220% 0; } }
-.library-companion { position: fixed; z-index: 12; right: 22px; bottom: 14px; display: flex; align-items: end; gap: 7px; text-decoration: none; }
+.library-companion { position: fixed; z-index: 12; right: 22px; bottom: 14px; display: flex; align-items: end; gap: 7px; }
 .library-companion img { width: 104px; height: 104px; object-fit: contain; }
-.library-companion span { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: #0d6a57; color: #fff; box-shadow: 0 6px 16px rgba(13,106,87,.16); }
+.library-companion-button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: #0d6a57; color: #fff; text-decoration: none; box-shadow: 0 6px 16px rgba(13,106,87,.16); }
 .library-companion svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 92px minmax(0, 1fr); }
 .side-rail {

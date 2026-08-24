@@ -14,13 +14,15 @@ describe("library binding visual contract", () => {
     const shellRule = styles.match(/\.library-shell\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
     const railRule = styles.match(/\.library-rail\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
 
-    expect(design).toContain("| `nav-surface` | `#CFE1D7` |");
-    expect(design).not.toContain("| `nav-surface` | `#F5F8F6` |");
+    expect(design).toContain("| `nav-surface` | `#E7EAE8` |");
+    expect(design).toContain("| `desktop-canvas` | `#F1F1EF` |");
     expect(shellRule).toContain("--library-rail: 184px;");
-    expect(shellRule).toContain("background: #f8faf6;");
-    expect(railRule).toContain("background-color: #cfe1d7;");
-    expect(railRule).toContain("background-position: 37% bottom;");
-    expect(railRule).toContain("background-size: cover;");
+    expect(shellRule).toContain("background: #f1f1ef;");
+    expect(railRule).toContain("background-color: #e7eae8;");
+    expect(railRule).not.toContain("background-image:");
+    expect(styles).not.toContain(".library-rail::before");
+    expect(styles).not.toContain("desktop-left-rail-landscape-transparent-v4-preview");
+    expect(styles).not.toContain("desktop-left-rail-landscape-approved-v1");
   });
 
   it("uses the real Chrome toolbar and five-column shelf dimensions", async () => {
@@ -45,17 +47,17 @@ describe("library binding visual contract", () => {
     expect(styles).toContain("aspect-ratio: 5 / 7;");
   });
 
-  it("keeps a deterministic asset-variant boundary and a restrained fallback", async () => {
+  it("renders approved cover art under real title and author metadata", async () => {
     const [styles, main] = await Promise.all([
       readFile(stylesPath, "utf8"),
       readFile(mainPath, "utf8"),
     ]);
     const coverRule = styles.match(/\.default-cover\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
 
-    expect(main).toContain("function coverVariantClass(bookId: string)");
-    expect(main).toContain("coverVariantClass(book.id)");
-    expect(main).toContain("% 5");
+    expect(main).toContain("coverAssetForBook(book.id)");
+    expect(main).toContain('class="default-cover-art"');
     expect(coverRule).toContain("box-shadow: 0 8px 18px rgba(33,49,45,.08);");
+    expect(coverRule).not.toContain("border:");
     expect(coverRule).not.toContain("gradient(");
     expect(coverRule).not.toContain("5px 5px 0");
     expect(styles).not.toContain(".default-cover::after");
@@ -68,7 +70,9 @@ describe("library binding visual contract", () => {
     ]);
 
     expect(main).toContain('class="library-companion"');
+    expect(main).toContain('class="library-companion-button"');
     expect(main).toContain('/mascot/laoji-mascot-seated-reading-transparent-v1.png');
+    expect(main).toContain('aria-label="和老己聊聊"');
     expect(styles).toContain(".library-companion img { width: 104px; height: 104px;");
     expect(styles).toContain("width: 44px; height: 44px;");
     expect(styles).toContain("fill: none; stroke: currentColor;");

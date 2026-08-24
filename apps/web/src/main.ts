@@ -12,6 +12,8 @@ import {
   parseStatusLabel,
   type LibraryLoadState,
 } from "./library-state";
+import { coverAssetForBook } from "./library-cover";
+import { icons } from "./ui/icons";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -28,17 +30,6 @@ let libraryPollingTimer: number | undefined;
 let libraryState: LibraryLoadState = { loading: true, error: "", query: "", books: [] };
 let libraryUploading = false;
 
-const icons = {
-  chat: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M8 9h8M8 12h5"/></svg>`,
-  book: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5A3.5 3.5 0 0 1 8 2h4v17H8a3.5 3.5 0 0 0-3.5 3V5.5Z"/><path d="M19.5 5.5A3.5 3.5 0 0 0 16 2h-4v17h4a3.5 3.5 0 0 1 3.5 3V5.5Z"/></svg>`,
-  settings: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.4-2.6h-4L10 6a8 8 0 0 0-1.6 1.1L6 6.1 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5l2 3.4 2.4-1A8 8 0 0 0 10 18l.5 2.6h4L15 18a8 8 0 0 0 1.6-1.1l2.4 1 2-3.4-2.1-1.5c.1-.3.1-.7.1-1Z"/></svg>`,
-  arrow: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>`,
-  search: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>`,
-  upload: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 14v5h14v-5"/></svg>`,
-  file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5"/></svg>`,
-  retry: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M18.2 16.2A8 8 0 1 1 19.4 9"/></svg>`,
-};
-
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -46,15 +37,6 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
-}
-
-function coverVariantClass(bookId: string) {
-  let hash = 2166136261;
-  for (const character of bookId) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  return `cover-variant-${((hash >>> 0) % 5) + 1}`;
 }
 
 function libraryShell(content: string) {
@@ -72,10 +54,10 @@ function libraryShell(content: string) {
         </nav>
       </aside>
       <main class="library-main">${content}</main>
-      <a class="library-companion" href="#/conversation" aria-label="和老己聊聊">
+      <div class="library-companion">
         <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
-        <span>${icons.chat}</span>
-      </a>
+        <a class="library-companion-button" href="#/conversation" aria-label="和老己聊聊">${icons.chat}</a>
+      </div>
     </div>`;
 }
 
@@ -117,7 +99,8 @@ function libraryGrid(books: LibraryBookSummary[]) {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
       return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
-        <div class="default-cover ${coverVariantClass(book.id)}" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
+        <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
+          <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
           <strong>${escapeHtml(book.title)}</strong>
           <em>${escapeHtml(author)}</em>
           <b class="parse-badge">${escapeHtml(status)}</b>
