@@ -89,7 +89,7 @@
 
 2026-08-24 用户确认三张本地默认封面底图可共同用于桌面 Web 与微信小程序。正式文件位于 [`../assets/book-covers/`](../assets/book-covers/)：`local-default-celadon-ink-v1.png`、`local-default-amber-lamp-v1.png`、`local-default-indigo-sea-v1.png`，均为 `1024×1434` RGB PNG，SHA-256 依次为 `b7c79385b385b404155b89ca685e90ac5e2f6887d7cc10e71d7cc0fb3351eae8`、`dde0cec465fcf131cea06e55f1b22951cc23e2cec4be2774f61f246a2c9fa1d1`、`e539f0db602a10383e0ff86f7b2905708b5c959f5d1f0c4c3440322b61d42d52`。运行时按稳定书籍 ID 哈希固定选择底图并叠加真实书名、作者，不随机换图，也不再用临时 CSS 几何图形代替封面插画。
 
-旧 [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) 因自带纸白底、构图和颜色偏离本次绑定参考，自 2026-08-24 起不再是有效运行时素材。替代素材必须从绑定参考中取得或另行确认，输出为真实 RGBA 透明 PNG，并先叠加到真实页面的 `#E7EAE8` 导航底色上完成视觉验收；在用户确认前只能作为候选，不得进入正式资产清单。
+旧 `desktop-left-rail-landscape-approved-v1.png` 因自带纸白底、构图和颜色偏离绑定参考，自 2026-08-24 起不再是有效运行时素材。2026-08-25 用户确认 40 号复古山水构图及其裁去内部多余留白、上缘渐隐、贴底放大的真实页面呈现；正式运行时文件为 [`desktop-left-rail-vintage-transparent-v2.png`](../assets/backgrounds/desktop-left-rail-vintage-transparent-v2.png)，尺寸 `640×1812` RGBA，SHA-256 为 `83477391af8a155e15bfbfa6c89a8c9fd6102e15f26bc1ca439eee3dce1b65c2`。确认原图中的棋盘格已经烧录，只用于构图溯源，运行时不得使用。
 
 ## 已认可视觉元素，不是运行时资产
 
@@ -98,10 +98,13 @@
 | 12 | 微信小程序 / 对话输入框趴卧桌宠 | [`12-mobile-composer-prone-mascot.png`](12-mobile-composer-prone-mascot.png) | [`laoji-prone-peek-v1.png`](../work/mobile-design/mascot-exploration-v1/laoji-prone-peek-v1.png) | 老己的头像身份、青瓷衣装、微歪头表情、双臂趴靠输入框上沿、双手扶小书、只露头部与少量上半身的低矮探头构图 | 棋盘格背景、方形画布留白、截图像素尺寸，以及把角色当成输入按钮或让它覆盖输入 / 附件 / 发送操作 |
 | 34 | 桌面 Web / 坐姿持书桌宠造型 | [`34-desktop-seated-reading-mascot.png`](34-desktop-seated-reading-mascot.png) | [`laoji-mascot-seated-reading-approved-v1.png`](../assets/mascot/laoji-mascot-seated-reading-approved-v1.png) | 老己角色身份、双云髻与圆眼镜、青瓷衣装、低矮坐姿、双手持打开的小书，以及适合输入框和设置页小尺寸摆放的完整轮廓 | 棋盘格背景、固定方形画布和源图本身；不得将其误作账号头像，运行时改用素材清单登记的透明版本 |
 | 35 | 微信小程序 / 趴卧扶书桌宠造型 | [`35-mobile-prone-reading-mascot.png`](35-mobile-prone-reading-mascot.png) | [`laoji-mascot-prone-reading-approved-v1.png`](../assets/mascot/laoji-mascot-prone-reading-approved-v1.png) | 老己角色身份、微歪头与友好表情、双臂横向趴靠、双手扶打开的小书、仅露头肩手臂和少量上身的低矮轮廓 | 棋盘格背景、固定方形画布和源图本身；不得让角色覆盖输入操作，运行时改用素材清单登记的透明版本 |
+| 40 | 桌面 Web / 左侧复古山水落款 | [`40-desktop-left-rail-vintage-element.png`](40-desktop-left-rail-vintage-element.png) | — | 青灰低饱和远山、树木与亭子的纵向层次，以及远山渐入、树亭落底的构图关系 | 烧录棋盘格、原图透明画布内过多留白、固定尺寸和直接矩形铺贴；运行时改用素材清单登记的裁切透明版本与上缘渐隐呈现 |
 
 `12-mobile-composer-prone-mascot.png` 是 2026-08-19 用户明确认可的微信小程序对话输入框桌宠造型参考，尺寸为 `1254×1254`，SHA-256 为 `c8c7dac388c2e1437db2f483b7e83837b58020e80932516cf22405a288457721`。本次认可锁定姿态、构图、角色身份与小书道具，但不把文件升级为运行时素材：该 PNG 没有透明通道，棋盘格已经写入像素，开发前仍需另行取得并确认干净透明的独立资产。
 
 `34-desktop-seated-reading-mascot.png` 和 `35-mobile-prone-reading-mascot.png` 是 2026-08-23 用户明确加入项目的坐姿与趴卧造型资产参考，参考副本与 `assets/mascot/` 中的确认源图逐字节一致，尺寸均为 `1254×1254`，SHA-256 分别为 `64e9bcbcfc380382593ba124dd1011a7d825a1d319f99eeaeffba47c69f30bf7`、`f285e4fa787bfcab1695dd2092cc400897fce15eb2eb02d3fab01efa88d61f88`。两张参考图仍为无 Alpha 的造型证据，不直接接入界面；对应运行时文件为 `assets/mascot/laoji-mascot-seated-reading-transparent-v1.png`、`assets/mascot/laoji-mascot-prone-reading-transparent-v1.png`，均为 `1254×1254` RGBA PNG，SHA-256 分别为 `5ce94a3a2c80659a49bfc89fa8ec8efc69504ac9376ccaa0a52991e494a2c9ff`、`92fe6c1c35cad88d654075dfd71e2af4a693ba66a6e3cca110dc6d4f65870854`。
+
+`40-desktop-left-rail-vintage-element.png` 是 2026-08-25 用户明确认可的桌面 Web 左侧复古山水构图参考，尺寸 `724×2172` RGB，SHA-256 为 `778ef9c29e61af7903e1145b65267cd5e1c971af2e5b6672477c1dafce93ab93`。用户随后在真实书架页面确认裁去内部多余透明留白、横向铺满左栏下半部并保留上缘雾化渐隐的最终呈现；原图棋盘格不得进入运行时，正式透明资产及哈希以“已确认运行时视觉资产”章节为准。
 
 ## 已确认流程 / 结构，不是完整视觉定稿
 
