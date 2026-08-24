@@ -5,6 +5,8 @@
 ## 文档导航
 
 - [`PROJECT_STATUS.md`](PROJECT_STATUS.md)：唯一当前状态账本，记录里程碑、工作包、证据、阻塞和下一步。
+- [`MEMORY.md`](MEMORY.md)：项目级长期记忆，只保存稳定、可复用且有证据指针的结论。
+- [`WIKI_INDEX.md`](WIKI_INDEX.md)：知识入口，说明结构化事实、原始资料和查询顺序。
 - [`redesign-v2/SPEC.md`](redesign-v2/SPEC.md)：产品目标、对象、功能、流程、状态和验收。
 - [`redesign-v2/DESIGN.md`](redesign-v2/DESIGN.md)：共享视觉规范与唯一视觉文档入口。
 - [`redesign-v2/DESIGN-WEB.md`](redesign-v2/DESIGN-WEB.md)：桌面 Web 专属布局、交互与视觉验收。
