@@ -8,7 +8,9 @@ import {
 import type { LibraryBookSummary, LibrarySnapshot } from "@selfalone/contracts";
 import {
   authorLabel,
+  bindLibrarySearchInteractions,
   coverStatusLabel,
+  createLatestLibraryRequest,
   libraryViewState,
   parseStatusLabel,
   type LibraryLoadState,
@@ -28,8 +30,18 @@ let errorMessage = "";
 let selectedTemplate = "qingci-study";
 let pollingTimer: number | undefined;
 let libraryPollingTimer: number | undefined;
-let libraryState: LibraryLoadState = { loading: true, error: "", query: "", books: [] };
+let libraryState: LibraryLoadState = {
+  loading: true,
+  searching: false,
+  error: "",
+  searchError: "",
+  query: "",
+  draftQuery: "",
+  books: [],
+  unfilteredBooks: [],
+};
 let libraryUploading = false;
+const latestLibraryRequest = createLatestLibraryRequest();
 
 function escapeHtml(value: string) {
   return value
@@ -88,7 +100,7 @@ function libraryStatePanel() {
     return `<section class="library-state empty">
       <span class="library-state-icon">${icons.book}</span><h2>把第一本书放进来</h2>
       <p>支持 EPUB、TXT 和 PDF；文件会保存到你的账户，再在这里显示解析结果。</p>
-      <label class="primary-button state-import" for="book-import">${icons.upload}导入书籍</label>
+      <button id="empty-import-button" class="primary-button state-import" type="button" aria-label="导入一本书">${icons.upload}导入一本书</button>
     </section>`;
   }
   return libraryGrid(libraryState.books);
@@ -115,51 +127,130 @@ function libraryGrid(books: LibraryBookSummary[]) {
   </section>`;
 }
 
-function renderLibrary() {
+function renderLibrary(preserveSearchFocus = false) {
+  const activeElement = document.activeElement;
+  const activeSearch = activeElement instanceof HTMLInputElement
+    && activeElement.id === "book-query";
+  const searchSelection = activeSearch
+    ? [activeElement.selectionStart, activeElement.selectionEnd] as const
+    : [null, null] as const;
   const retainedError = libraryState.error && libraryState.books.length
     ? `<div class="library-inline-error" role="alert">${escapeHtml(libraryState.error)}，已保留当前书架。</div>`
+    : "";
+  const searchError = libraryState.searchError
+    ? `<div class="library-inline-error library-search-error" role="alert">
+        <span>搜索“${escapeHtml(libraryState.query)}”失败，当前显示未筛选的 ${libraryState.unfilteredBooks.length} 本书。</span>
+        <div>
+          <button id="retry-search" class="quiet-button" type="button">重试搜索</button>
+          <button id="clear-search" class="quiet-button" type="button">清除搜索</button>
+        </div>
+      </div>`
     : "";
   app.innerHTML = libraryShell(`
     <h1 class="library-title">读书</h1>
     <section class="library-toolbar" aria-label="书架工具">
-      <form id="library-search" role="search">
+      <form id="library-search" role="search" aria-busy="${libraryState.searching}">
         <label class="visually-hidden" for="book-query">搜索书名或作者</label>
         <span>${icons.search}</span>
-        <input id="book-query" name="query" type="search" value="${escapeHtml(libraryState.query)}" placeholder="搜索书名或作者" autocomplete="off" />
+        <input id="book-query" name="query" type="search" value="${escapeHtml(libraryState.draftQuery)}" placeholder="搜索书名或作者" autocomplete="off" aria-describedby="library-search-status" />
+        <span id="library-search-status" class="library-search-status" role="status" aria-live="polite">${libraryState.searching ? `<i aria-hidden="true"></i><span>正在搜索…</span>` : ""}</span>
       </form>
-      <label class="import-button ${libraryUploading ? "busy" : ""}" for="book-import" aria-label="导入书籍" title="导入书籍" aria-disabled="${libraryUploading}">
+      <button id="top-import-button" class="import-button ${libraryUploading ? "busy" : ""}" type="button" aria-label="导入书籍" title="导入书籍" ${libraryUploading ? "disabled" : ""}>
         ${icons.upload}<span>${libraryUploading ? "正在保存…" : "导入书籍"}</span>
-        <input class="visually-hidden" id="book-import" type="file" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
-      </label>
+      </button>
+      <input class="visually-hidden" id="book-import" type="file" tabindex="-1" aria-hidden="true" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
     </section>
     <section class="weread-note" aria-label="微信读书连接状态">
-      <div><strong>连接微信读书</strong><span>暂未开放</span></div>
+      <div><strong>连接微信读书</strong><span>开发中</span></div>
       <p>本地书籍已可导入；连接能力将在账户与设置闭环中开放。</p>
     </section>
     ${retainedError}
+    ${searchError}
     ${libraryStatePanel()}
   `);
   bindLibraryInteractions();
+  if (activeSearch || preserveSearchFocus) {
+    const nextSearch = document.querySelector<HTMLInputElement>("#book-query");
+    nextSearch?.focus({ preventScroll: true });
+    if (searchSelection[0] !== null && searchSelection[1] !== null) {
+      nextSearch?.setSelectionRange(searchSelection[0], searchSelection[1]);
+    }
+  }
 }
 
-async function loadLibrary(query = libraryState.query) {
-  libraryState = { ...libraryState, loading: libraryState.books.length === 0, error: "", query };
-  renderLibrary();
+type LibraryLoadKind = "initial" | "search" | "poll";
+
+async function loadLibrary(
+  query = libraryState.query,
+  kind: LibraryLoadKind = "initial",
+  preserveSearchFocus = false,
+) {
+  const normalizedQuery = query.trim();
+  const request = latestLibraryRequest.begin();
+  libraryState = kind === "search"
+    ? {
+        ...libraryState,
+        loading: false,
+        searching: true,
+        error: "",
+        searchError: "",
+        query: normalizedQuery,
+        draftQuery: query,
+      }
+    : {
+        ...libraryState,
+        loading: libraryState.books.length === 0,
+        searching: false,
+        error: "",
+        searchError: "",
+      };
+  renderLibrary(preserveSearchFocus);
   try {
-    const snapshot = await requestJson<LibrarySnapshot>(`/api/v1/books?query=${encodeURIComponent(query)}`);
-    libraryState = { loading: false, error: "", query, books: snapshot.books };
-  } catch {
-    libraryState = { ...libraryState, loading: false, error: "无法连接书架服务，请检查本地服务后重试" };
+    const snapshot = await requestJson<LibrarySnapshot>(
+      `/api/v1/books?query=${encodeURIComponent(normalizedQuery)}`,
+      { signal: request.signal },
+    );
+    if (!latestLibraryRequest.isCurrent(request.id)) return;
+    libraryState = {
+      ...libraryState,
+      loading: false,
+      searching: false,
+      error: "",
+      searchError: "",
+      query: normalizedQuery,
+      draftQuery: normalizedQuery,
+      books: snapshot.books,
+      unfilteredBooks: normalizedQuery ? libraryState.unfilteredBooks : snapshot.books,
+    };
+  } catch (error) {
+    if (!latestLibraryRequest.isCurrent(request.id) || (error instanceof DOMException && error.name === "AbortError")) return;
+    libraryState = kind === "search"
+      ? {
+          ...libraryState,
+          loading: false,
+          searching: false,
+          error: "",
+          searchError: "无法连接书架服务",
+          query: normalizedQuery,
+          draftQuery: query,
+          books: libraryState.unfilteredBooks,
+        }
+      : {
+          ...libraryState,
+          loading: false,
+          searching: false,
+          error: "无法连接书架服务，请检查本地服务后重试",
+        };
   }
-  renderLibrary();
+  renderLibrary(preserveSearchFocus);
   updateLibraryPolling();
 }
 
 function updateLibraryPolling() {
   if (libraryPollingTimer) window.clearInterval(libraryPollingTimer);
   libraryPollingTimer = undefined;
-  if (libraryState.books.some((book) => book.parseStatus === "processing")) {
-    libraryPollingTimer = window.setInterval(() => void loadLibrary(), 700);
+  if (!libraryState.searchError && libraryState.books.some((book) => book.parseStatus === "processing")) {
+    libraryPollingTimer = window.setInterval(() => void loadLibrary(libraryState.query, "poll"), 700);
   }
 }
 
@@ -195,17 +286,26 @@ async function uploadBook(file: File) {
 }
 
 function bindLibraryInteractions() {
-  document.querySelector<HTMLFormElement>("#library-search")?.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget as HTMLFormElement);
-    void loadLibrary(String(form.get("query") ?? "").trim());
-  });
-  document.querySelector<HTMLInputElement>("#book-import")?.addEventListener("change", (event) => {
+  const searchForm = document.querySelector<HTMLFormElement>("#library-search");
+  const searchInput = document.querySelector<HTMLInputElement>("#book-query");
+  if (searchForm && searchInput) {
+    bindLibrarySearchInteractions({
+      form: searchForm,
+      input: searchInput,
+      onQueryChange: (query) => { libraryState = { ...libraryState, draftQuery: query }; },
+      onSearch: (query) => void loadLibrary(query, "search", true),
+    });
+  }
+  const fileInput = document.querySelector<HTMLInputElement>("#book-import");
+  fileInput?.addEventListener("change", (event) => {
     const file = (event.currentTarget as HTMLInputElement).files?.[0];
     if (file) void uploadBook(file);
   });
-  document.querySelector<HTMLButtonElement>("#retry-library")?.addEventListener("click", () => void loadLibrary());
-  document.querySelector<HTMLButtonElement>("#clear-search")?.addEventListener("click", () => void loadLibrary(""));
+  document.querySelector<HTMLButtonElement>("#top-import-button")?.addEventListener("click", () => fileInput?.click());
+  document.querySelector<HTMLButtonElement>("#empty-import-button")?.addEventListener("click", () => fileInput?.click());
+  document.querySelector<HTMLButtonElement>("#retry-library")?.addEventListener("click", () => void loadLibrary("", "initial"));
+  document.querySelector<HTMLButtonElement>("#retry-search")?.addEventListener("click", () => void loadLibrary(libraryState.query, "search", true));
+  document.querySelector<HTMLButtonElement>("#clear-search")?.addEventListener("click", () => void loadLibrary("", "search", true));
 }
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -551,7 +651,7 @@ window.addEventListener("hashchange", () => window.location.reload());
 if (!window.location.hash) window.history.replaceState(null, "", "#/library");
 if (window.location.hash === "#/library") {
   renderLibrary();
-  void loadLibrary();
+  void loadLibrary("", "initial");
 } else {
   renderLoading();
   void loadWorkspace();

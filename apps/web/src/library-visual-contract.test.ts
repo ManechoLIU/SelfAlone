@@ -56,10 +56,11 @@ describe("library binding visual contract", () => {
     expect(railRule).toContain("background-color: #e7eae8;");
     expect(railRule).not.toContain("background-image:");
     expect(sceneryRule).toContain('background: url("/backgrounds/desktop-left-rail-vintage-transparent-v2.png") center bottom / 100% auto no-repeat;');
-    expect(sceneryRule).toContain("width: 120%;");
-    expect(sceneryRule).toContain("opacity: .44;");
-    expect(sceneryRule).toContain("mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);");
-    expect(narrowRule).toContain(".library-rail::before { opacity: .28; }");
+    expect(sceneryRule).toContain("bottom: -1px;");
+    expect(sceneryRule).toContain("width: 128%;");
+    expect(sceneryRule).toContain("opacity: .50;");
+    expect(sceneryRule).toContain("mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.7) 7%, #000 15%, #000 100%);");
+    expect(narrowRule).toContain(".library-rail::before { opacity: .36; }");
     expect(styles).not.toContain("desktop-left-rail-landscape-transparent-v4-preview");
     expect(styles).not.toContain("desktop-left-rail-landscape-approved-v1");
   });
@@ -84,7 +85,8 @@ describe("library binding visual contract", () => {
     expect(styles).toContain("min-height: 52px; display: grid;");
     expect(styles).toContain("min-width: 152px; min-height: 52px;");
     expect(styles).toContain("grid-template-columns: repeat(5, 160px);");
-    expect(styles).toContain("gap: 28px 55px;");
+    expect(styles).toContain("width: 944px;");
+    expect(styles).toContain("gap: 30px 36px;");
   });
 
   it("uses a compact toolbar and clear vertical rhythm below 1200px", async () => {
@@ -101,7 +103,11 @@ describe("library binding visual contract", () => {
   it("keeps the icon-only import control named and discoverable on narrow screens", async () => {
     const main = await readFile(mainPath, "utf8");
 
-    expect(main).toContain('class="import-button ${libraryUploading ? "busy" : ""}" for="book-import" aria-label="导入书籍" title="导入书籍"');
+    expect(main).toContain('id="top-import-button" class="import-button ${libraryUploading ? "busy" : ""}" type="button" aria-label="导入书籍" title="导入书籍"');
+    expect(main).toContain('id="empty-import-button" class="primary-button state-import" type="button"');
+    expect(main).toContain('id="book-import" type="file"');
+    expect(main).toContain('id="book-import" type="file" tabindex="-1" aria-hidden="true"');
+    expect(main.match(/id="book-import"/g)).toHaveLength(1);
   });
 
   it("keeps the selected navigation state distinct from the rail", async () => {
@@ -165,10 +171,31 @@ describe("library binding visual contract", () => {
     expect(titleRule).toContain("overflow: hidden;");
     expect(badgeRule).toContain("inset: auto 0 0;");
     expect(badgeRule).toContain("height: 24px;");
-    expect(badgeRule).toContain("background: rgba(241,241,239,.78);");
+    expect(badgeRule).toContain("background: rgba(241,241,239,.48);");
+    expect(badgeRule).toContain("background-image: linear-gradient(to left, rgba(241,241,239,.52) 0 62px, transparent 88px);");
     expect(badgeRule).toContain("font-size: 12px;");
     expect(badgeRule).toContain("line-height: 18px;");
+    expect(badgeRule).toContain("font-weight: 500;");
+    expect(badgeRule).not.toContain("backdrop-filter");
     expect(badgeRule).not.toContain("border-top:");
+    expect(styles).toContain("linear-gradient(rgba(23,76,63,.20), rgba(23,76,63,.20)), rgba(241,241,239,.82)");
+    expect(styles).toContain("background: #174c3f;");
+    expect(styles).toContain("height: 3px;");
+  });
+
+  it("keeps the search progress local and the WeChat service copy in one left-aligned cluster", async () => {
+    const [styles, main] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(mainPath, "utf8"),
+    ]);
+
+    expect(main).toContain('aria-busy="${libraryState.searching}"');
+    expect(main).toContain('class="library-search-status" role="status" aria-live="polite"');
+    expect(main).toContain("正在搜索…");
+    expect(main).toContain("开发中");
+    expect(styles).toContain(".weread-note { width: min(944px, 100%);");
+    expect(styles).toContain("justify-content: flex-start;");
+    expect(styles).toContain("margin: 0 0 0 20px;");
   });
 
   it("restores the approved seated companion and 44px conversation bubble", async () => {

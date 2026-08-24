@@ -2,6 +2,40 @@
 
 > 当前状态：`VERIFY`，等待候选提交与 `main` 集成复验。本地 EPUB / TXT / PDF 的账户归属、对象保存、解析状态、元信息、固定批准底图的稳定哈希封面、搜索、刷新恢复和账户隔离已形成真实纵向闭环。书架在用户 Chrome `1440×844 @ DPR 2 / 100%` 及 `200%` 重排下已复验；受本机物理屏幕限制无法取得真实 `1440×1024` 内容视口，因此按 `DESIGN-WEB.md` 另以明确标注的 composition-only 证据检查完整页面构图，不把 viewport override 冒充真实窗口。
 
+## 2026-08-25 视觉门重开候选（当前）
+
+- 任务：M1-F2-A visual reopen；worktree `/Users/echoman/.codex/worktrees/59ae/SelfAlone`，分支 `codex/m1-f2-a-visual-reopen`，固定基线 `2298f633a16e0b6e97e32529aa1ff5018b5e4279`。
+- 隔离运行：PostgreSQL schema `m1_f2_a_visual_reopen_20260825_59ae`、Server `4320`、Web `4390`、对象目录 `/tmp/selfalone-m1-f2-a-59ae/books`；未使用审查者 `4380` 或既有 `4310`。
+- 当前状态仍是 `VERIFY / BLOCKED_BY_RIGHT_SCENERY_REVIEW`，不是 `DONE`。正式 `03-reading-library.png` 与用户定稿图的解码原始像素 MD5 均为 `0fc27276fc13aee7199eb230408a66c4`；本轮右下山水与定稿冲突，已按总控要求冻结。
+- 冻结边界：工作树中的 `.library-main::after` 和 `library-visual-contract.test.ts` 对应右山断言不得继续修改、暂存或提交。`25-reopen-normal-1440x844.png`、`26-reopen-reference-03-top844-comparison.png` 是失败诊断图，不属于通过证据，也不进入当前候选提交。
+
+### 本轮真实交互结论
+
+- 搜索：300ms 输入防抖；Enter 立即请求；原生清除与 Escape 立即请求空查询。输入中保留旧书架并只在搜索框内显示 `正在搜索…`；快速 `paper → 远山` 的第一请求以 `net::ERR_ABORTED / canceled: true` 结束，第二请求写回《远山来信》，输入焦点始终保留。
+- 搜索失败：断开 `4320` 后保留查询和 10 本未筛选书，明确显示 `搜索“网络失败”失败，当前显示未筛选的 10 本书。`，并提供“重试搜索”“清除搜索”；恢复服务后重试与清除均成功。初始加载失败只出现独立“重新载入”，恢复后重新载入 10 本，不混用搜索动作。
+- 空账户可访问性：顶部“导入书籍”和中央“导入一本书”均为独立 button，共用唯一隐藏 file input；Tab 顺序不进入隐藏 input，顶部 `152×52px`、中央 `144×44px`，Space / Enter 均打开原生文件选择器，焦点样式可见。
+- 导入：隔离服务真实保存并解析 EPUB《远山来信》、TXT、PDF；不支持 `.md` 保留 15 本并给出格式原因；断网时 `网络中断恢复样本.txt` 保留 15 本，恢复后经历 `processing → ready_text`；`浏览器损坏样本.pdf` 经 `processing → failed / PDF_INVALID`；服务重启与刷新后记录仍在，控制台 warning/error 为 0。
+- 原生文件选择器的 Enter / Space 激活已由真实 Chrome 验证；Chrome 插件未获本机“允许访问文件网址”权限，不能用插件把本地路径注入原生 chooser。后续文件 payload 通过当前页面的 Chrome DevTools 主世界赋给共享 input，触发生产 `change → fetch → 保存 → 解析 → 轮询` 路径；因此“用户在 chooser 中选中本地文件”这一最后一步仍是明确未闭合边界。
+
+### 本轮截图索引
+
+以下截图只证明对应交互、状态、尺寸或放大压力；它们都包含已冻结且判定 FAIL 的右山，不能作为右山视觉通过证据。
+
+| 证据 | 尺寸 | SHA-256 | 用途 |
+| --- | ---: | --- | --- |
+| `27-reopen-search-loading-retains-shelf.png` | `1440×844` | `d561fb3937fc041a7ca65717812dcc50dac572082f3396dc4ba4de938638f309` | 输入中局部 loading、旧书架保留 |
+| `28-reopen-search-matched-focus.png` | `1440×844` | `872faa338cabda9de79c987384560dce3d34f7e8dcf0af45443547458096ee49` | 匹配结果与焦点保留 |
+| `29-reopen-filtered-empty.png` | `1440×844` | `3ea390d37f7f0ea1ebd3f55894528b9b3532e46857e5a349cffbe0e57da3c987` | 筛选空态 |
+| `30-reopen-search-failure-retains-unfiltered.png` | `1440×844` | `54e8ac6ba370c21efc48a90cddf38425515b50a34b6933e3e312da5ac0613c89` | 搜索失败、旧书架与双动作 |
+| `31-reopen-initial-load-failure.png` | `1440×844` | `29afd11d82d2b9c31997ba5022e2b85ccdf8ae7e7878285b0f8a405bb9b63c0f` | 独立初始加载失败 |
+| `32-reopen-import-processing.png` | `1440×844` | `c15c0a12c399c3ae76b28923df5a9bb8ce9dca15a16896d0d3fa45fbb51b6b12` | 真实解析中卡片与旧书架同屏 |
+| `34-reopen-import-network-recovery.png` | `1440×844` | `665eb90eac3bfd6e0b64f6e804bf0d815ca4d040edb2e8eab6116a217772a93a` | 断网恢复后的 ready_text |
+| `35-reopen-import-damaged-pdf.png` | `1440×844` | `61da0dc4c405ea68c7af26b7317910adadd05673b0b7745bb52bf73f82e41ee7` | 损坏 PDF 失败原因 |
+| `33-reopen-scale-200-percent.png` | `720×422` | `437fe4485337591c3077cdc8d77bc3827dcbb5c6683c9977789b7bd9e4e09cb5` | DevTools page scale 2 的工具区压力补证 |
+| `36-reopen-scale-200-long-title.png` | `720×422` | `12323b79a9454b81337f4be96f635238e0c2fe42fc08700f5893be3c5fc1cba2` | DevTools page scale 2 的长标题/作者/24px 状态带补证 |
+
+`27–32 / 34–35` 使用显式 `1440×844` viewport override，实测 DPR 1、zoom 1、`visualViewport.scale = 1`、横向溢出 0，属于交互补证而非“无 override 的 DPR 2”同态证据。`33 / 36` 使用 `pageScaleFactor = 2`，视觉视口 `720×422`、文档横向溢出 0；长标题盒 `259–337.61`、作者 `349.61–366.41`、状态带 `397–421`，互不碰撞。结束后已清除 scale 与 viewport override，恢复原生 Chrome `1440×900 @ DPR 2 / visualViewport.scale 1`；本轮没有重新取得要求的无 override `1440×844 @ DPR 2`，该项与右山新 brief 一并留待复验。
+
 ## 现场与范围
 
 - 候选分支：`codex/m1-f2-a`；当前恢复 HEAD：`353b4fd`。

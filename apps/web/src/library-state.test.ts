@@ -9,8 +9,11 @@ import {
 
 const normal: LibraryLoadState = {
   loading: false,
+  searching: false,
   error: "",
+  searchError: "",
   query: "",
+  draftQuery: "",
   books: [
     {
       id: "book-1",
@@ -25,6 +28,7 @@ const normal: LibraryLoadState = {
       createdAt: "2026-08-24T10:00:00.000Z",
     },
   ],
+  unfilteredBooks: [],
 };
 
 describe("desktop library state", () => {
