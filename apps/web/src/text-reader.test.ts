@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
+  COPY_SUCCESS_CLEAR_MS,
+  applyTextReaderMode,
   copyReaderSelection,
+  copyStatusClearDelay,
   createTextReaderApi,
   readCachedReaderBackground,
   readerBackgroundCacheKey,
@@ -207,6 +210,9 @@ describe("M1-F2-B desktop text reader view", () => {
     expect(css).toContain("--reader-muted: #b7c3be");
     expect(css).toContain("--reader-line: #3a4843");
     expect(css).toContain("--reader-rail-active-bg: #2b3833");
+    expect(css).toContain("--reader-rail-art-opacity: .34");
+    expect(css).toContain("--reader-rail-art-opacity: .08");
+    expect(css).not.toContain("min(var(--reader-rail-art-opacity)");
     expect(css).toContain("background: var(--reader-rail-bg)");
     expect(css).toMatch(/prefers-reduced-motion:[\s\S]*?\.text-reader-rail[\s\S]*?transition: none/);
     expect(css).not.toContain("is-background-pending");
@@ -258,6 +264,52 @@ describe("M1-F2-B desktop text reader view", () => {
     expect(ok).toHaveBeenCalledWith("序章");
     await expect(copyReaderSelection("序章", async () => { throw new Error("DENIED"); }))
       .resolves.toBe("复制失败，选区已保留，请重试。");
+    expect(copyStatusClearDelay("已复制所选正文")).toBe(COPY_SUCCESS_CLEAR_MS);
+    expect(COPY_SUCCESS_CLEAR_MS).toBeGreaterThanOrEqual(2_000);
+    expect(COPY_SUCCESS_CLEAR_MS).toBeLessThanOrEqual(3_000);
+    expect(copyStatusClearDelay("复制失败，选区已保留，请重试。")).toBeNull();
+  });
+
+  it("patches theme and focus controls in place without replacing the reader DOM", () => {
+    const classes = new Set(["text-reader-shell", "is-light"]);
+    const shell = {
+      classList: {
+        toggle: (name: string, force?: boolean) => {
+          if (force) classes.add(name);
+          else classes.delete(name);
+          return Boolean(force);
+        },
+      },
+      dataset: { readerBackground: "light" },
+    };
+    const backgroundAttributes = new Map<string, string>();
+    const focusAttributes = new Map<string, string>();
+    const backgroundButton = {
+      setAttribute: (name: string, value: string) => void backgroundAttributes.set(name, value),
+    };
+    const focusButton = {
+      setAttribute: (name: string, value: string) => void focusAttributes.set(name, value),
+    };
+    const root = {
+      querySelector: (selector: string) => {
+        if (selector === ".text-reader-shell") return shell;
+        if (selector === "button[data-reader-background]") return backgroundButton;
+        if (selector === "[data-reader-focus]") return focusButton;
+        return null;
+      },
+      set innerHTML(_value: string) {
+        throw new Error("reader DOM was replaced");
+      },
+    } as unknown as HTMLElement;
+
+    expect(() => applyTextReaderMode(root, { background: "dark", focusMode: true })).not.toThrow();
+    expect(classes).toEqual(new Set(["text-reader-shell", "is-dark", "is-focus"]));
+    expect(shell.dataset.readerBackground).toBe("dark");
+    expect(backgroundAttributes.get("aria-pressed")).toBe("true");
+    expect(focusAttributes).toEqual(new Map([
+      ["aria-pressed", "true"],
+      ["aria-label", "退出专注阅读"],
+    ]));
   });
 
   it("uses the frozen reading, sections and expected-version position routes", async () => {

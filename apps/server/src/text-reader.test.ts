@@ -217,7 +217,10 @@ describe("M1-F2-B text reader runtime and routes", () => {
     await setup.administration.unsafe(`
       INSERT INTO "${setup.schema}".book_files
         (id, account_id, book_id, object_key, original_filename, version)
-      VALUES ('file-v2', 'account-a', 'txt-book', 'account-a/txt-book/original/2/book.txt', '新版本.txt', 2)
+      VALUES ('file-v2', 'account-a', 'txt-book', 'account-a/txt-book/original/2/book.txt', '新版本.txt', 2);
+      INSERT INTO "${setup.schema}".book_sections
+        (account_id, book_id, file_version, section_id, section_order, title, body)
+      VALUES ('account-a', 'txt-book', 2, 'txt:00000000', 0, '新版本', '第二版正文')
     `);
     const stale = await app.inject({
       method: "PUT",
@@ -243,6 +246,38 @@ describe("M1-F2-B text reader runtime and routes", () => {
       version: 1,
       locator: { kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: 2 },
     });
+
+    const competingWrites = [
+      { offset: 3, background: "dark" },
+      { offset: 4, background: "light" },
+    ] as const;
+    const results = await Promise.all(competingWrites.map(({ offset, background }) => app.inject({
+      method: "PUT",
+      url: "/api/v1/books/txt-book/position",
+      headers: { "x-selfalone-account": "account-a", "content-type": "application/json" },
+      payload: {
+        expectedVersion: 0,
+        locator: { kind: "text", fileVersion: 2, sectionId: "txt:00000000", offset },
+        background,
+      },
+    })));
+    expect(results.map((result) => result.statusCode).sort()).toEqual([200, 409]);
+    const winner = results.find((result) => result.statusCode === 200);
+    const loser = results.find((result) => result.statusCode === 409);
+    expect(winner?.json()).toMatchObject({
+      version: 2,
+      locator: { kind: "text", fileVersion: 2, sectionId: "txt:00000000" },
+    });
+    expect(loser?.json()).toEqual({ code: "STALE_VERSION" });
+    const [currentStored] = await setup.administration.unsafe<Array<{
+      locator: unknown;
+      background: string;
+      version: number;
+    }>>(`
+      SELECT locator, background, version FROM "${setup.schema}".reading_positions
+      WHERE account_id = 'account-a' AND book_id = 'txt-book'
+    `);
+    expect(currentStored).toEqual(winner?.json());
   });
 });
 

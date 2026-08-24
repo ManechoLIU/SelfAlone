@@ -14,7 +14,7 @@
   --reader-rail-active-ink: #21312d;
   --reader-rail-avatar-ring: rgba(255,255,255,.78);
   --reader-rail-avatar-shadow: rgba(33,49,45,.09);
-  --reader-rail-art-opacity: .44;
+  --reader-rail-art-opacity: .34;
   position: fixed;
   inset: 0;
   overflow: hidden;
@@ -447,7 +447,7 @@
   --reader-rail-active-ink: #edf2ef;
   --reader-rail-avatar-ring: rgba(237,242,239,.54);
   --reader-rail-avatar-shadow: rgba(0,0,0,.34);
-  --reader-rail-art-opacity: .12;
+  --reader-rail-art-opacity: .08;
 }
 .text-reader-shell.is-dark .text-reader-icon:hover:not(:disabled) { color: #edf2ef; background: #2b3833; }
 .text-reader-shell.is-dark .text-reader-icon[aria-pressed="true"] { color: #edf2ef; border-color: #3a4843; background: #2b3833; }
@@ -462,7 +462,6 @@
   .text-reader-rail nav { margin: 72px 10px 0; }
   .text-reader-rail nav a,
   .text-reader-rail nav > span { justify-content: center; padding: 0; }
-  .text-reader-rail::before { opacity: min(var(--reader-rail-art-opacity), .28); }
   .text-reader-canvas { padding-inline: clamp(24px, 7vw, 64px); }
 }
 

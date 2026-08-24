@@ -213,8 +213,10 @@ export class TextReaderRuntime {
         WHERE account_id = ${accountId} AND book_id = ${bookId}
         FOR UPDATE
       `;
-      if ((existing?.version ?? 0) !== parsed.expectedVersion) throw new Error("STALE_VERSION");
-      const version = parsed.expectedVersion + 1;
+      const baseVersion =
+        existing?.locator.fileVersion === parsed.locator.fileVersion ? existing.version : 0;
+      if (baseVersion !== parsed.expectedVersion) throw new Error("STALE_VERSION");
+      const version = (existing?.version ?? 0) + 1;
       const [saved] = await transaction<Array<PositionRow>>`
         INSERT INTO reading_positions (account_id, book_id, locator, background, version)
         VALUES (

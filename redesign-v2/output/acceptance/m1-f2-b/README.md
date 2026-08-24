@@ -7,7 +7,8 @@
 - `acceptance-server.ts` 在隔离 PostgreSQL schema 和临时对象目录中，经现有书库导入链路写入一个真实 EPUB ZIP 与一个真实 UTF-8 TXT，再调用文本发布模块生成正文。
 - EPUB 的 spine 顺序为 `epub:one`（雨停以后）→ `epub:two`（山路尽头）；TXT 的源偏移顺序为 `txt:00000000`（序章）→ `txt:00000013`（第一章 风从海上来）→ `txt:00000500`（第二章 靠岸以后）。
 - 浏览器在 TXT 末章保存 `TextLocator={kind:"text",fileVersion:1,sectionId:"txt:00000500",offset:0}` 与深色背景；刷新后 `/reading` 返回同一定位，刷新前后首个活动章节均为 `txt:00000500`，截图 11 为恢复结果。
-- 服务集成测试另行用两账户、两个真实文件证明 owner 隔离；旧文件版本写入返回 `409 STALE_VERSION`，并证明数据库中的先前定位不被覆盖。
+- 服务集成测试另行用两账户、两个真实文件证明 owner 隔离；旧文件版本写入返回 `409 STALE_VERSION`，并证明数据库中的先前定位不被覆盖。follow-up Case 再从已有 v1 位置发布 v2 sections：v1 写入继续 409；两个同时以 v2 `expectedVersion=0` 发起的写入恰有一个成功为单调版本 2、另一个 409，数据库保留胜者。
+- EPUB 上限 follow-up Case 分别证明：central directory 声明超过 100 MiB 时不调用 inflate；伪造偏小 `uncompressedSize` 的 deflate 条目只能按剩余额度膨胀且 zlib 超限统一为 `EPUB_INVALID`；stored 超限条目在复制正文 Buffer 前拒绝。
 - 保存失败 Case 让背景变更写入持续失败到用户重试；截图 07 与浏览器 DOM 同时证明正文、当前章节、当前浅色背景和重试入口仍保留；点击“重试保存”后变为“阅读位置已保存”。
 
 ## 真实 Chrome 证据
@@ -16,17 +17,17 @@
 
 | 文件 | 证据 |
 | --- | --- |
-| `01-epub-light-native-1440x844.png` | EPUB 浅色正文 `#FAFBF8` 与浅色左栏 `#E7EAE8` |
-| `02-epub-dark-native-1440x844.png` | EPUB 深色正文 `#171B1A` 与深色左栏 `#202624` |
-| `03-trusted-cache-first-frame-native-1440x844.png` | API 延迟 2 秒时，可信深色缓存首帧直接显示整栏和深色 loading，无默认闪回 |
-| `04-epub-normal-native-1440x844.png` | EPUB 连续正文和第二节正常态 |
-| `05-txt-deduplicated-native-1440x844.png` | 真实 TXT 的三节顺序，章节标题首行不在正文重复 |
-| `06-directory-filtered-empty-native-1440x844.png` | 非 modal、无遮罩目录与筛选空 |
-| `07-save-failure-retained-native-1440x844.png` | 保存失败保留正文与当前背景，并显示刷新风险和重试 |
-| `08-true-empty-native-1440x844.png` | 真空态与禁用阅读工具 |
-| `09-load-failure-native-1440x844.png` | 失败态、非颜色提示、重新载入与禁用阅读工具 |
-| `10-txt-responsive-768x844.png` | 768×844 响应式断点，80px 私有左栏与无横向溢出 |
-| `11-refresh-restored-txt-dark-native-1440x844.png` | TXT 末章与深色背景刷新恢复 |
+| `01-epub-light-native-1440x844.jpg` | EPUB 浅色正文 `#FAFBF8` 与浅色左栏 `#E7EAE8` |
+| `02-epub-dark-native-1440x844.jpg` | EPUB 深色正文 `#171B1A` 与深色左栏 `#202624` |
+| `03-trusted-cache-first-frame-native-1440x844.jpg` | API 延迟 2 秒时，可信深色缓存首帧直接显示整栏和深色 loading，无默认闪回 |
+| `04-epub-normal-native-1440x844.jpg` | EPUB 连续正文和第二节正常态 |
+| `05-txt-deduplicated-native-1440x844.jpg` | 真实 TXT 的三节顺序，章节标题首行不在正文重复 |
+| `06-directory-filtered-empty-native-1440x844.jpg` | 非 modal、无遮罩目录与筛选空 |
+| `07-save-failure-retained-native-1440x844.jpg` | 保存失败保留正文与当前背景，并显示刷新风险和重试 |
+| `08-true-empty-native-1440x844.jpg` | 真空态与禁用阅读工具 |
+| `09-load-failure-native-1440x844.jpg` | 失败态、非颜色提示、重新载入与禁用阅读工具 |
+| `10-txt-responsive-768x844.jpg` | 768×844 响应式断点，80px 私有左栏与无横向溢出 |
+| `11-refresh-restored-txt-dark-native-1440x844.jpg` | TXT 末章与深色背景刷新恢复 |
 
 真实浏览器额外检查：
 
@@ -42,6 +43,10 @@
 - 1200×844、1024×844、768×844 的 document/main 横向溢出均为 0；正文宽度分别为 720、约 717、约 639px，768 时左栏为 80px。768 下选区已激活复制与“和老己聊聊”后，工具区宽 288px，横向溢出仍为 0。
 - 验收入口模拟路由替换后 `.text-reader-shell` 数量为 0，共享外壳 probe 恢复静态定位，正文主题没有污染 `body` 或共享 nav token。生产共享入口仍由总控集成。
 - Chrome console 的 warning/error 为 0。普通/专注文本阅读均无坐姿桌宠或固定气泡，仅保留左栏品牌头像与选中文本入口。
+
+follow-up 在 2026-08-25 再用未设 viewport override 的真实 Chrome（`1440×900`、`devicePixelRatio=2`）复验 Selection：选中 EPUB 的“第一章”并滚动至 `scrollTop=773.5` 后，以真实鼠标切换 dark→light，选区、Range、复制按钮、“和老己聊聊”、按钮焦点和 `scrollTop` 全部不变，light 山水 opacity 为 `.34`；随后进入并退出专注阅读，两次仍保持同一 Selection 与 `scrollTop=773.5`。成功复制提示在 2.4 秒后清空但选区继续保留；拒绝复制提示在 3.1 秒后仍保留，选区、复制按钮与对话入口仍可用，console warning/error 为 0。该轮没有用 viewport override 冒充原生 `1440×844`。
+
+原有 11 个截图经 `file` 核验均为 JPEG/JFIF，现已只改扩展名为 `.jpg` 并同步本表，没有重编码或重拍；像素尺寸仍为十张 `1440×844` 与一张 `768×844`。
 
 原生 200%：当前 Chrome 控制接口发送浏览器原生放大快捷键后，`innerWidth/devicePixelRatio` 仍为 `1440/2`，未能证明缩放生效。因此本候选明确登记为未完成浏览器证据；旧的 CSS `zoom:2` 截图和 query 已删除，不用 override 或 CSS zoom 冒充原生 200%。
 

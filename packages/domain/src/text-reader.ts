@@ -128,15 +128,21 @@ function readZipEntries(bytes: Buffer) {
     const localExtraLength = bytes.readUInt16LE(localOffset + 28);
     const dataOffset = localOffset + 30 + localFilenameLength + localExtraLength;
     if (dataOffset + compressedSize > bytes.length) throw new Error("EPUB_INVALID");
+    const remaining = MAX_EXTRACTED_BYTES - extractedBytes;
+    if (remaining <= 0 || uncompressedSize > remaining) throw new Error("EPUB_INVALID");
     const compressed = bytes.subarray(dataOffset, dataOffset + compressedSize);
-    const body = method === 0
-      ? Buffer.from(compressed)
-      : method === 8
-        ? inflateRawSync(compressed)
-        : null;
+    let body: Buffer | null = null;
+    if (method === 0) {
+      body = Buffer.from(compressed);
+    } else if (method === 8) {
+      try {
+        body = inflateRawSync(compressed, { maxOutputLength: remaining });
+      } catch {
+        throw new Error("EPUB_INVALID");
+      }
+    }
     if (!body || body.length !== uncompressedSize) throw new Error("EPUB_INVALID");
     extractedBytes += body.length;
-    if (extractedBytes > MAX_EXTRACTED_BYTES) throw new Error("EPUB_INVALID");
     entries.set(normalized, body);
     centralOffset += 46 + filenameLength + extraLength + commentLength;
   }

@@ -19,6 +19,9 @@ export type ReaderBackgroundCacheScope = {
 
 type ReaderBackgroundStorage = Pick<Storage, "getItem" | "setItem">;
 
+const COPY_SUCCESS_MESSAGE = "已复制所选正文";
+export const COPY_SUCCESS_CLEAR_MS = 2_400;
+
 function isCompleteCacheScope(scope: ReaderBackgroundCacheScope | null): scope is ReaderBackgroundCacheScope {
   return Boolean(
     scope
@@ -70,10 +73,31 @@ export async function copyReaderSelection(
 ) {
   try {
     await writeText(text);
-    return "已复制所选正文";
+    return COPY_SUCCESS_MESSAGE;
   } catch {
     return "复制失败，选区已保留，请重试。";
   }
+}
+
+export function copyStatusClearDelay(message: string) {
+  return message === COPY_SUCCESS_MESSAGE ? COPY_SUCCESS_CLEAR_MS : null;
+}
+
+export function applyTextReaderMode(
+  root: HTMLElement,
+  mode: { background: "light" | "dark"; focusMode: boolean },
+) {
+  const shell = root.querySelector<HTMLElement>(".text-reader-shell");
+  if (!shell) return;
+  shell.classList.toggle("is-light", mode.background === "light");
+  shell.classList.toggle("is-dark", mode.background === "dark");
+  shell.classList.toggle("is-focus", mode.focusMode);
+  shell.dataset.readerBackground = mode.background;
+  root.querySelector<HTMLButtonElement>("button[data-reader-background]")
+    ?.setAttribute("aria-pressed", String(mode.background === "dark"));
+  const focus = root.querySelector<HTMLButtonElement>("[data-reader-focus]");
+  focus?.setAttribute("aria-pressed", String(mode.focusMode));
+  focus?.setAttribute("aria-label", mode.focusMode ? "退出专注阅读" : "进入专注阅读");
 }
 
 async function requestJson<T>(fetcher: typeof fetch, url: string, options?: RequestInit) {
@@ -142,6 +166,7 @@ export function mountTextReader(
     readCachedReaderBackground(storage, cacheScope) ?? "light",
   );
   let scrollTimer: number | undefined;
+  let copyStatusTimer: number | undefined;
   let restoringPosition = false;
   let destroyed = false;
 
@@ -164,7 +189,7 @@ export function mountTextReader(
     } else if (model.snapshot.focusMode) {
       event.preventDefault();
       model.snapshot = { ...model.snapshot, focusMode: false };
-      render();
+      applyTextReaderMode(root, model.snapshot);
       root.querySelector<HTMLButtonElement>("[data-reader-focus]")?.focus({ preventScroll: true });
     }
   };
@@ -204,6 +229,22 @@ export function mountTextReader(
       writeCachedReaderBackground(storage, trustedScope, input.background);
       updateSaveStatus();
     }).catch(updateSaveStatus);
+  }
+
+  function setCopyStatus(message: string) {
+    if (destroyed) return;
+    if (copyStatusTimer) window.clearTimeout(copyStatusTimer);
+    copyStatusTimer = undefined;
+    const status = root.querySelector<HTMLElement>(".text-reader-copy-status");
+    if (status) status.textContent = message;
+    const clearDelay = copyStatusClearDelay(message);
+    if (clearDelay !== null) {
+      copyStatusTimer = window.setTimeout(() => {
+        const current = root.querySelector<HTMLElement>(".text-reader-copy-status");
+        if (current?.textContent === message) current.textContent = "";
+        copyStatusTimer = undefined;
+      }, clearDelay);
+    }
   }
 
   function visibleLocator() {
@@ -261,21 +302,17 @@ export function mountTextReader(
       if (!pending) return;
       pending.background = pending.background === "dark" ? "light" : "dark";
       save(pending);
-      render();
+      applyTextReaderMode(root, model.snapshot);
     });
     root.querySelector<HTMLButtonElement>("[data-reader-focus]")?.addEventListener("click", () => {
       model.snapshot = { ...model.snapshot, focusMode: !model.snapshot.focusMode };
-      render();
-      root.querySelector<HTMLButtonElement>("[data-reader-focus]")?.focus();
+      applyTextReaderMode(root, model.snapshot);
     });
     root.querySelector<HTMLButtonElement>("[data-reader-copy]")?.addEventListener("click", () => {
       const text = selectedTextInside(root);
       if (!text) return;
       const writeClipboard = options.writeClipboard ?? ((value: string) => navigator.clipboard.writeText(value));
-      void copyReaderSelection(text, writeClipboard).then((message) => {
-        const status = root.querySelector<HTMLElement>(".text-reader-copy-status");
-        if (status) status.textContent = message;
-      });
+      void copyReaderSelection(text, writeClipboard).then(setCopyStatus);
     });
     root.querySelector<HTMLButtonElement>("[data-reader-reload]")?.addEventListener("click", () => {
       void load();
@@ -351,6 +388,7 @@ export function mountTextReader(
     destroy() {
       destroyed = true;
       if (scrollTimer) window.clearTimeout(scrollTimer);
+      if (copyStatusTimer) window.clearTimeout(copyStatusTimer);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("keydown", onKeyDown);
     },
