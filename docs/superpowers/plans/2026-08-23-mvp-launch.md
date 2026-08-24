@@ -3,7 +3,7 @@
 - 状态：用户已确认，开发中
 - 产品事实：[`redesign-v2/SPEC.md`](../../../redesign-v2/SPEC.md)
 - 技术事实：[`redesign-v2/TECHNICAL.md`](../../../redesign-v2/TECHNICAL.md)
-- 当前状态：[`PROJECT_STATUS.md`](../../../PROJECT_STATUS.md)
+- 当前状态：[`TASK_LEDGER.md`](../../../TASK_LEDGER.md)
 
 ## 1. 目标与边界
 
@@ -89,7 +89,7 @@
 
 ## 3. 当前执行入口：M1
 
-M0 已完成并形成可恢复基线；当前不按整块 M1 直接开发，而由 [`PROJECT_STATUS.md`](../../../PROJECT_STATUS.md) 维护唯一工作包顺序、粒度、证据和阻塞。M1 先执行账户归属与 M0 数据迁移对账，再按认证、真实文件与阅读笔记、模型、免费体验、Presenton 和完整业务 Case 收口。
+M0 已完成并形成可恢复基线；当前不按整块 M1 直接开发，而由 [`TASK_LEDGER.md`](../../../TASK_LEDGER.md) 维护唯一工作包顺序、粒度、证据和阻塞。M1 先执行账户归属与 M0 数据迁移对账，再按认证、真实文件与阅读笔记、模型、免费体验、Presenton 和完整业务 Case 收口。
 
 每个工作包独立完成开发、相关回归、与风险相称的真实业务 Case、修复复验、diff 审查和本地提交。用户可见路径使用真实浏览器或 Computer Use；外部调用、远端 push、合并、PR、发布和部署仍遵循授权门。本文只保留里程碑范围，不复制当前台账细节。
 

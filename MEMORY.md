@@ -1,6 +1,6 @@
 # SelfAlone 项目长期记忆
 
-> 本文件与 `AGENTS.md` 同级，是可版本控制的项目长期记忆。它只保存跨会话仍稳定、可复用且能追溯证据的结论；当前进度、待办和阻塞只写入 [`PROJECT_STATUS.md`](PROJECT_STATUS.md)。
+> 本文件与 `AGENTS.md` 同级，是可版本控制的项目长期记忆。它只保存跨会话仍稳定、可复用且能追溯证据的结论；当前进度、待办和阻塞只写入 [`TASK_LEDGER.md`](TASK_LEDGER.md)。
 
 ## 记忆准入与更新
 
