@@ -1,104 +1,64 @@
 # 老己 MVP 技术设计
 
-- 状态：已确认，开发中
-- 产品行为：[`SPEC.md`](SPEC.md)
-- 共享视觉：[`DESIGN.md`](DESIGN.md)
-- 开发顺序：[`../docs/superpowers/plans/2026-08-23-mvp-launch.md`](../docs/superpowers/plans/2026-08-23-mvp-launch.md)
+## 1. 架构
 
-## 1. 设计目标
+- Node.js 24 LTS、pnpm workspace、TypeScript strict mode。
+- 单体仓库、模块化后端、一个 PostgreSQL 数据库和一个 S3 兼容对象存储。
+- HTTP API 与后台 Worker 使用同一代码库、不同进程；任务队列使用 PostgreSQL，不增加 Redis。
+- 桌面 Web 与微信小程序共享 JSON 兼容契约、账户数据和状态机，不共享页面组件。
+- 外部模型、微信读书、公开资料与 PPT 引擎均由服务端适配器隔离；外部系统不成为账户、任务或作品的业务事实源。
 
-用一套可上线但不过度抽象的生产架构，先跑通以下真实纵向闭环：
-
-`登录 → 导入一本书 → 阅读 / 笔记 → 发起 PPT → 确认范围、大纲和模板 → 后台生成 → 预览并下载 PPTX`
-
-技术方案遵循以下边界：
-
-- 一个单体仓库、一个模块化后端、一个 PostgreSQL 数据库和一个对象存储；后台任务使用同一代码库中的独立 Worker 进程。
-- 桌面 Web 与微信小程序共享业务契约、数据和状态机，不共享页面组件；两端分别实现已确认视觉。
-- 先找成熟开源项目、现有 Skill、模板和解析库，再写项目特有胶水代码；只有现成能力无法满足当前验收时才自研对应部分。
-- 先实现 PPT 这一种任务，不建设通用任务中心、可视化工作流、插件平台或多租户组织权限。
-- 不引入微服务、Kubernetes、消息总线、Redis、全文搜索集群、事件溯源或数据湖。
-- 外部模型、微信读书、联网检索和真实发布都通过明确适配器与授权门接入；未获授权时只运行不收费的假服务和本地验证。
-
-## 2. 技术栈与仓库结构
-
-运行时使用 Node.js 24 LTS 与 pnpm workspace，全仓使用 TypeScript strict mode。
-
-| 位置 | 职责 | 推荐实现 |
+| 位置 | 职责 | 技术约束 |
 | --- | --- | --- |
-| `apps/web/` | 桌面 Web | React、Vite、React Router、TanStack Query、CSS Modules 与共享视觉 token |
-| `apps/miniapp/` | 微信小程序 | 微信小程序原生框架与 TypeScript；不为单一平台引入跨端 UI 框架 |
-| `apps/server/` | HTTP API、认证、上传签名、业务编排 | Fastify、Zod、Prisma |
-| `apps/worker/` | 导入解析、AI、PPT 生成与失败恢复 | pg-boss 消费 PostgreSQL 任务；复用服务模块 |
-| `packages/contracts/` | 两端共享的请求、响应、状态枚举和错误码 | 只含 TypeScript 类型与 JSON 兼容常量 |
-| `packages/domain/` | 账户、书籍、会话、笔记、PPT 草稿与任务规则 | 无 UI、无网络、无数据库依赖的纯函数 |
-| `packages/presentation-adapter/` | PPT 引擎适配、模板映射、进度和产物归一化 | 复用自托管 Presenton；PptxGenJS / Office Kit 只补充已确认缺口和确定性本地开发产物 |
-| `packages/test-support/` | 假模型、假微信读书、假检索和确定性测试数据 | 仅测试与本地开发使用，不进入生产分支逻辑 |
+| `apps/web/` | 桌面 Web | React、Vite、TypeScript 与共享视觉 token |
+| `apps/miniapp/` | 微信小程序 | 原生框架与 TypeScript，不引入跨端 UI 框架 |
+| `apps/server/` | HTTP API、认证、上传签名、业务编排 | Fastify、Zod 与 PostgreSQL |
+| `apps/worker/` | 导入解析、AI、PPT 生成与恢复 | Node.js 进程消费 PostgreSQL 任务 |
+| `packages/contracts/` | 请求、响应、状态和错误契约 | 只含 TypeScript 类型与 JSON 兼容常量 |
+| `packages/domain/` | 领域状态与并发规则 | 无 UI、网络和数据库依赖 |
+| `packages/presentation-adapter/` | PPT 引擎与模板映射 | 屏蔽引擎差异，归一化进度和产物 |
+| `packages/test-support/` | 假外部服务和确定性数据 | 只用于测试与本地开发 |
 
-生产基础设施只包含：
+生产运行单元为 `server`、`worker` 和内网 PPT 生成服务。`server` 与 `worker` 可由同一镜像使用不同启动命令运行；PPT 服务固定版本和镜像摘要，不开放公网管理入口。桌面 Web 与微信小程序共用一个 HTTPS API 域名。
 
-- PostgreSQL：业务事实、会话、任务、幂等键、成本账本和队列元数据。
-- S3 兼容对象存储：本地书原文件、提取结果附件、会话图片和 PPTX；对象键必须带账户与资源 ID。
-- 两个自有进程：`server` 和 `worker`。两者可由同一镜像用不同启动命令部署；若 Presenton 适配验收通过，再增加一个固定版本和镜像摘要的内部生成服务，不对公网开放其管理界面。
-- 一个 HTTPS API 域名：同时服务桌面 Web 与微信小程序，减少跨域和域名备案范围。
+## 2. 数据与安全
 
-### 2.1 为什么选择 PostgreSQL，而不是 MySQL
-
-PostgreSQL 与 MySQL 是同一类关系型数据库，都能保存老己的账户、书籍、会话和任务；选择 PostgreSQL 不是因为 MySQL 不能做，而是当前方案希望直接复用 `pg-boss`，把 PostgreSQL 同时作为业务数据库和可靠任务队列，从而少部署一个 Redis。
-
-本项目还会频繁使用事务、行锁、`SKIP LOCKED`、JSON 数据、条件唯一约束和并发成本账本，PostgreSQL 对这组组合更顺手。若现有团队只会维护 MySQL，或已经有稳定 MySQL 托管实例，改用 MySQL 也可行，但需要同时更换任务队列方案；这不会明显缩短开发时间，反而会增加一次架构替换。当前推荐保持 PostgreSQL。
-
-## 3. 核心模块与数据
-
-### 3.1 身份与安全
-
-- `accounts` 保存稳定账户；`login_identities` 分别保存 `email`、`wechat_web`、`wechat_miniapp` 身份，唯一键为提供方与外部标识。
-- Web 使用随机、可撤销、仅服务端可读的 `HttpOnly + Secure + SameSite=Lax` 会话 Cookie；小程序使用随机不透明令牌，数据库只保存令牌摘要和过期时间。
-- 邮箱密码使用 Argon2id；找回密码与邮箱验证使用一次性、短期有效、数据库只保存摘要的令牌。
-- 小程序把 `wx.login()` 的一次性 code 发送给服务端，由服务端调用 `code2Session`；`AppSecret` 与 `session_key` 永不下发客户端。
-- Web 微信扫码与小程序身份只有在完成重新验证和明确确认后才绑定同一账户；两个已有数据账户拒绝合并。
-- 用户模型 Key 使用部署主密钥进行 AES-256-GCM 信封加密；API、日志和错误响应不回传完整密钥。
-
-### 3.2 业务数据
-
-最小表集合如下：
+核心数据表：
 
 - `accounts`, `login_identities`, `sessions`, `email_tokens`
 - `conversations`, `messages`, `message_attachments`
 - `books`, `book_files`, `book_sections`, `reading_positions`
 - `highlights`, `notes`
 - `ppt_drafts`, `ppt_outline_nodes`, `ppt_tasks`, `ppt_pages`, `ppt_artifacts`
-- `service_connections`, `model_credentials`
-- `trial_grants`, `cost_ledger`
-- `job_events`
+- `service_connections`, `model_credentials`, `trial_grants`, `cost_ledger`, `job_events`
 
-所有用户数据表必须带 `account_id`；所有更新使用资源版本号或条件更新阻止旧请求回写。作品与历史成功任务不可被失败任务删除级联影响。
+所有用户数据表带 `account_id`，父子资源使用包含 `account_id` 的复合外键。写入使用资源版本或条件更新拒绝旧请求；账户级幂等键不能跨账户冲突；失败任务的清理不得级联删除历史成功作品。
 
-### 3.3 状态机
+- Web 会话使用随机、可撤销的 `HttpOnly + Secure + SameSite=Lax` Cookie；小程序使用随机不透明令牌，数据库只保存令牌摘要和过期时间。
+- 邮箱密码使用 Argon2id；邮箱验证与找回令牌一次有效、短期过期，数据库只保存摘要。
+- `wx.login()` code 只发送给服务端；`AppSecret` 与 `session_key` 不下发客户端。
+- 两个已有数据账户拒绝静默合并；身份绑定需要重新验证并显式确认。
+- 模型和外部服务凭证使用部署主密钥执行 AES-256-GCM 信封加密；API、日志和错误响应不回传完整凭证。
 
-PPT 草稿阶段固定为：
-
-```text
-requirements -> outline -> template -> submitted
-```
-
-PPT 任务运行状态固定为：
+## 3. 状态、任务与并发
 
 ```text
-queued -> running -> completed
-                  -> failed
-                  -> stopped
+PPT 草稿: requirements -> outline -> template -> submitted
+
+PPT 任务: queued -> running -> completed
+                            -> failed
+                            -> stopped
 ```
 
-- 同一 `conversation_id` 最多一个 `running` AI 回答或任务；数据库约束与事务共同执行互斥。
-- `POST /ppt-tasks` 必须携带草稿版本和幂等键；重试返回原任务，不创建重复任务。
-- Worker 使用租约、心跳和有限重试；进程重启后可重新领取过期租约。
-- 停止任务只设置取消请求；Worker 在页面边界检查，保留已完成页面与草稿。
-- 失败任务不进入作品列表；删除失败任务只删除其临时页与任务记录。
+- 同一 `conversation_id` 最多存在一个运行中的 AI 回答或 PPT 任务，由数据库约束与事务共同保证。
+- 创建 PPT 任务必须携带草稿版本和账户级幂等键；同一请求重试返回原任务。
+- Worker 使用租约、心跳和有限重试；进程重启后重新领取过期租约。
+- 停止只写入取消请求；Worker 在可恢复边界检查并保留已经完成的产物。
+- 外部结果写回前再次校验账户、资源版本和任务状态，过期结果不得覆盖新状态。
 
-## 4. API 契约
+## 4. API 与存储
 
-API 使用 `/api/v1`，错误统一为：
+API 前缀为 `/api/v1`，错误统一为：
 
 ```ts
 type ApiError = {
@@ -117,30 +77,25 @@ type ApiError = {
 };
 ```
 
-首个上线版本只保留以下资源组：
+资源组包括账户与身份、会话与消息、书籍与阅读位置、划线与笔记、PPT 草稿与任务、产物下载、外部连接、模型凭证、体验领取和健康检查。
 
-- `/auth/*`, `/account`, `/account/identities`
-- `/conversations`, `/conversations/:id/messages`
-- `/books`, `/books/:id/file`, `/books/:id/sections`, `/books/:id/position`
-- `/books/:id/highlights`, `/books/:id/notes`
-- `/ppt-drafts`, `/ppt-drafts/:id/outline`, `/ppt-tasks`, `/ppt-tasks/:id`
-- `/ppt-artifacts/:id/download`
-- `/service-connections/weread`, `/model-credentials/text`, `/model-credentials/image`
-- `/trial-grant`, `/health/live`, `/health/ready`
-
-上传与下载使用短时效签名 URL；客户端不通过 API 进程转发大文件。任务进度由两端统一轮询，前台活跃时每 `2s`，后台或非末尾浏览时降为 `5s`；MVP 不引入 WebSocket 或 SSE。
+- 上传与下载使用短时效签名 URL，API 进程不转发大文件。
+- 对象键包含 `account_id`、资源 ID 和版本；原文件与派生缓存分开保存。
+- 客户端通过轮询读取任务状态；前台活跃时 `2s`，后台或非末尾浏览时 `5s`，不引入 WebSocket 或 SSE。
 
 ## 5. 内容与外部适配器
 
 ### 5.1 本地书籍
 
-- 第一批支持 `EPUB`、`TXT` 和 `PDF`；三种格式使用同一导入入口、书架和书籍详情外壳，格式差异只留在解析、渲染与定位内部。
-- EPUB/TXT 生成章节与稳定定位。PDF 先校验文件并枚举页面，再尝试提取文本层：存在可用文本时同时提供页面渲染与文本能力；没有可用文本但页面可渲染时，以页面图像方式正常浏览，不引入 OCR，也不伪造正文或精准划线能力；加密、损坏或没有任何可渲染页面时才标记失败，并保留明确原因。
-- PDF 原文件是唯一内容事实源；页面图像、缩略图和文本层都是可重建的派生缓存，按文件版本、页序号、渲染器版本与所需尺寸区分，不把缓存存在当作导入成功。图片型 PDF 的独立笔记以文件版本和页序号作为稳定锚点，不依赖文本偏移；单页渲染失败只影响该页并允许重试，所有页面均不可渲染时才进入文件级失败。
-- 原文件先入对象存储，再由 Worker 解析；解析成功后事务性发布新版本，失败不影响既有书架。
-- 搜索先使用 PostgreSQL 标题、作者与来源字段；MVP 不建设全文搜索服务。
+- 导入适配器按 `EPUB`、`TXT`、`PDF` 分派解析器，对外输出统一的文件元信息、解析状态和稳定定位结构。
+- EPUB/TXT 生成规范化章节与稳定定位。
+- PDF 依次执行文件校验、页面枚举、文本层提取和页面渲染；加密、损坏、单页失败与文件级不可渲染使用不同的结构化结果。
+- PDF 原文件是内容事实源；页面图像、缩略图和文本层均为按文件版本、页码、渲染器版本和尺寸区分的可重建缓存。
+- 图片型 PDF 的独立笔记以文件版本和页码作为锚点，不依赖文本偏移。单页失败允许单独重试；所有页面均不可渲染才进入文件级失败。
+- 原文件先写入对象存储，再由 Worker 解析；成功后事务性发布解析版本。
+- 书籍搜索使用 PostgreSQL 的标题、作者和来源字段，不建设全文搜索服务。
 
-### 5.2 模型与联网资料
+### 5.2 模型与公开资料
 
 ```ts
 interface TextModelAdapter {
@@ -155,12 +110,11 @@ interface PublicBookSourceAdapter {
 }
 ```
 
-- 国内版 MVP 的用户自有文本模型固定支持 `deepseek`、`kimi`、`glm`、`qwen` 四个 provider id。前台只显示对应供应商下拉和凭证字段，不开放任意 Base URL、模型名称或高级参数。
-- 服务端维护版本化模型目录，记录固定官方端点、允许的模型 ID、默认模型、能力（文本、结构化输出、图片输入）、备案名称与备案号、地域和最近核验时间；客户端不得提交目录之外的端点或模型。初始官方端点为 DeepSeek `https://api.deepseek.com`、Kimi `https://api.moonshot.cn/v1`、GLM `https://open.bigmodel.cn/api/paas/v4`、千问北京地域业务空间专属 OpenAI-compatible 端点。
-- 初始默认模型按实施时官方目录核验为 DeepSeek `deepseek-v4-flash`、Kimi `kimi-k3`、GLM `glm-5.2`、千问 `qwen3.8-max`；模型版本与备案状态变化只更新服务端目录，不增加用户模型选择器。千问配置额外保存业务空间 ID，并校验 API Key 与北京地域端点匹配。
-- 平台免费体验与用户自有 Key 复用同一适配器，凭证来源不同；每次平台调用在提交前预占成本、完成后按实际值结算，账户累计硬上限为 `¥5`。
-- 图片模型是可选增强；没有图片模型时，PPT 模板必须依靠形状、字体、线条、色块和用户已有图片生成完整页面。
-- 联网补全提供方必须在开发阶段单独获得服务、预算和调用范围授权；未获授权时不执行真实联网调用，也不把本地内容不足的结果描述为完整全书分析。
+- 文本 provider id 为 `deepseek`、`kimi`、`glm`、`qwen`；客户端不提交任意端点或模型名。
+- 服务端模型目录记录端点、允许模型、默认模型、能力、备案信息、地域、来源和最近核验时间；易变值不固化在本文。
+- 平台凭证与用户凭证复用适配器但使用不同凭证来源。平台调用事务性预占成本，完成后结算，失败则释放预占。
+- 图片能力使用可空的独立适配器；没有图片适配器时 PPT 引擎仍须返回有效产物。
+- 公开资料结果保留来源 URL、标题、发布时间、抓取时间和使用范围。
 
 ### 5.3 微信读书
 
@@ -172,19 +126,9 @@ interface WeReadAdapter {
 }
 ```
 
-微信读书使用腾讯官方 Agent API Gateway：`POST https://i.weread.qq.com/api/agent/gateway`，以 `Authorization: Bearer wrk-...` 鉴权，请求体平铺 `api_name`、业务参数与当前 `skill_version`。首发只同步 `/shelf/sync`、`/user/notebooks`、`/book/bookmarklist`、`/review/list/mine` 所需的书架、进度、个人划线与想法，不抓取 Cookie，不宣称提供完整正文。
+适配器通过 `POST https://i.weread.qq.com/api/agent/gateway` 调用允许列表内的 `api_name`，使用 Bearer 凭证并携带 `skill_version`。调用检查 `errcode` 与 `upgrade_info`；升级要求暂停同步并保留上次成功快照。分页游标、外部 ID 和连接账户相互隔离；新凭证验证成功后才原子替换旧连接。限流采用单连接串行、超时和对 `429/5xx` 的有界退避。
 
-每次调用检查非零 `errcode` 与 `upgrade_info`；出现升级要求时暂停同步并保留上次成功快照。分页游标、外部稳定 ID 和连接账户相互隔离，新 API Key 验证成功后才替换旧连接。正式 H4 仍需用户提供自己的 API Key 并授权一次首同步、增量同步、无效 Key 和换号验证；官方未公开的限流值不写死，先采用单连接串行、超时和对 `429/5xx` 的有界退避。
-
-## 6. PPTX 生成与复用策略
-
-已完成 Presenton 快速冒烟，确认中文无图片 PPTX 能生成并经 WPS 重存。开发不再安排整日 Spike，也不先写三套渲染器：
-
-1. 复用自托管 [Presenton](https://github.com/presenton/presenton) 作为服务器侧 PPT 生成服务。它可以与老己部署在同一服务器或独立内网网段，老己后端通过 API 调用；Presenton 管理界面不直接暴露给产品用户，老己不继承其账户、工作区或产品 UI。
-2. 使用当前已安装的 `Presentations` Skill 创建青瓷模板原型、渲染每页、检测溢出并生成 PowerPoint / WPS 验收样本；该 Skill 只服务开发和 QA，不作为用户请求时的生产后端。
-3. 只有 Presenton 无法满足中文、精确大纲、无图片质量、异步进度、停止恢复、模板一致性或 PowerPoint / WPS 可编辑性时，才用 PptxGenJS 或 Office Kit 实现失败的那一小段，不从头重写完整生成器。
-
-引擎统一实现以下项目内接口：
+### 5.4 PPT 引擎
 
 ```ts
 interface PresentationEngine {
@@ -195,33 +139,19 @@ interface PresentationEngine {
 }
 ```
 
-- 老己服务端仍负责验证大纲层级、页数、资料来源、幂等、成本和任务所有权；外部引擎不能成为业务事实源。
-- 第一批只发布 `celadon-reading`、`editorial-paper`、`minimal-ink` 三个青瓷系模板。模板优先由现有 Skill 和 Presenton 的自有模板能力生成，再人工锁定为版本化资产。
-- Presenton 必须固定版本和镜像摘要、关闭匿名遥测、禁止公网管理入口、使用独立服务凭证并经过许可证与依赖扫描。
-- 如果引擎只返回整份 PPTX 而无法提供可信逐页进度，不能伪造“正在生成第 N 页”；Spike 必须验证其异步任务接口或退回项目内可观测的逐页路线。
-- 发布候选必须用真实 PowerPoint 与 WPS 打开至少三份含中文、长标题、图片和无图片版本的 PPTX，检查可编辑对象、字体替代、比例、溢出与再次保存。
+PPT 生成优先使用自托管 Presenton 内网服务。适配器只接受 `celadon-reading`、`editorial-paper`、`minimal-ink` 三个模板 ID，并映射到固定版本资产。Presenton 固定版本和镜像摘要、关闭匿名遥测、使用独立服务凭证并经过许可证与依赖扫描。
 
-## 7. Harness 与发布
+外部引擎不保存老己账户或业务状态。不能取得可信逐页进度时不得伪造页级进度；开发与 QA 工具不进入生产调用链。只有验收证明某项能力缺失时，才用 PptxGenJS 或 Office Kit 补充该缺口。
 
-| 层级 | 本项目证据 |
+## 6. 技术验证与非目标
+
+| 层级 | 技术证据 |
 | --- | --- |
 | H0 | 格式、Lint、TypeScript、生产构建、数据库迁移检查 |
-| H1 | 领域状态机、账户绑定、成本上限、幂等、模板布局单元测试 |
-| H2 | PostgreSQL、对象存储、Worker 重启恢复、上传与下载集成测试 |
-| H3 | 浏览器与微信开发者工具从登录到 PPTX 下载的真实用户路径 |
-| H4 | 经授权的微信登录、微信读书、文本模型、联网检索与可选图片模型 |
-| H5 | Staging 迁移、生产镜像、合法域名、备案 / 审核、冒烟与回滚演练 |
+| H1 | 领域状态、账户边界、成本并发、幂等和模板布局单元测试 |
+| H2 | PostgreSQL、对象存储、Worker 恢复、上传与下载集成测试 |
+| H3 | 浏览器、微信开发者工具和真实 PPTX 客户端路径 |
+| H4 | 真实微信、微信读书、文本模型、公开资料与图片模型适配器 |
+| H5 | Staging 迁移、生产镜像、备份恢复、告警、冒烟与回滚演练 |
 
-上线采用邀请制 Beta：先发布同一生产后端和桌面 Web，再提交同一候选版本的小程序审核；两端 H3 完成、适用 H4 获授权且 H5 通过后才称为 MVP 上线。发布前必须具备隐私政策、用户数据导出 / 删除处理流程、备份与恢复验证、日志脱敏、费用告警、任务队列积压告警和一键回滚到前一镜像 / 前一兼容迁移的操作手册。
-
-## 8. 明确不做
-
-- 不建设通用任务 UI、任务市场、插件系统、多 Agent 编排或 Prompt 管理后台。
-- 不建设多组织、多角色、RBAC、付费订阅、积分或营销系统。
-- 不支持多书 PPT、逐页 PPT 编辑、在线协作、评论或版本树。
-- 不做 OCR、Embedding、向量数据库、全文搜索服务或推荐系统。
-- 不做 Redis 缓存、实时消息总线、WebSocket、微服务拆分或多区域部署。
-- 不复制、魔改或重新实现 Presenton 的完整产品；只通过版本化适配器调用通过验收的能力。
-- 不把探索稿、参考图整图或生成图中的头像、图标和文字作为运行时素材。
-
-这些能力只有在真实用户数据证明当前架构成为瓶颈，或产品规格明确扩展后才重新评估。
+不建设 Redis、消息总线、WebSocket、微服务、多区域部署、通用任务编排、插件运行时、多 Agent 编排或 Prompt 管理基础设施；不引入 OCR、Embedding、向量数据库或全文搜索服务；不复制或魔改 Presenton 完整产品。
