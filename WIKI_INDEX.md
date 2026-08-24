@@ -58,7 +58,7 @@ knowledge/
 
 - 视觉原稿、认可层级、适用范围、尺寸和哈希只由 [`redesign-v2/design-reference/README.md`](redesign-v2/design-reference/README.md) 索引；图片本身不能独立定义产品或视觉规则。
 - 外部官方资料优先保留直接链接和最近核验时间；只有链接不稳定、审计需要且许可允许时，才把副本放入 `raw_sources/external/`。
-- `v1/` 和 Git 历史只用于追溯，不默认恢复为当前规则。
+- 已删除旧版只在 Git 历史中用于追溯，不默认恢复为当前规则。
 - 敏感信息、凭证、个人数据、未经验证的猜测和一次性会话内容不得进入 Wiki。
 
 ## 6. 后续资料进入 Wiki

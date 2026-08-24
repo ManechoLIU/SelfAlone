@@ -38,7 +38,7 @@ description: Use when planning, implementing, reviewing, documenting, or reporti
 - 核对产品行为、数据持久化、加载 / 空 / 失败 / 正常等完整状态、视觉还原和可访问性。
 - Web 用真实浏览器验收；小程序用开发者工具并在阶段门要求时进行真机验收；PPTX 在授权门内用 PowerPoint / WPS 打开、编辑和重存。
 - 外部服务、费用、认证、迁移和发布按 `AGENTS.md` 的授权与回滚门执行。
-- 完成前运行风险相称的定向测试、相关回归、真实业务 Case、diff 审查和格式检查；范围单一且通过后可建本地提交。
+- 完成前运行风险相称的定向测试、相关回归、真实业务 Case、diff 审查和格式检查；Git 提交与外部授权只按 `AGENTS.md` 执行，不在本文件重复定义。
 
 ## 落档规则
 
