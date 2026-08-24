@@ -35,6 +35,7 @@ const icons = {
   arrow: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>`,
   search: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m0 0L7.5 7.5M12 3l4.5 4.5"/><path d="M5 14v5h14v-5"/></svg>`,
+  file: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5"/></svg>`,
   retry: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M18.2 16.2A8 8 0 1 1 19.4 9"/></svg>`,
 };
 
@@ -62,10 +63,6 @@ function libraryShell(content: string) {
         </nav>
       </aside>
       <main class="library-main">${content}</main>
-      <a class="library-companion" href="#/conversation" aria-label="和老己聊聊">
-        <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
-        <span>${icons.chat}</span>
-      </a>
     </div>`;
 }
 
@@ -102,14 +99,11 @@ function libraryStatePanel() {
 }
 
 function libraryGrid(books: LibraryBookSummary[]) {
-  const titleCounts = new Map<string, number>();
-  books.forEach((book) => titleCounts.set(book.title, (titleCounts.get(book.title) ?? 0) + 1));
   return `<section class="book-grid" aria-label="书架，共 ${books.length} 本书">
     ${books.map((book) => {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
-      const duplicate = (titleCounts.get(book.title) ?? 0) > 1;
-      return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(status)}">
+      return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
         <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <span class="cover-source">老己 · 本地书</span>
           <strong>${escapeHtml(book.title)}</strong>
@@ -119,7 +113,7 @@ function libraryGrid(books: LibraryBookSummary[]) {
         </div>
         <div class="book-caption">
           <strong title="${escapeHtml(book.title)}">${escapeHtml(book.title)}</strong>
-          ${duplicate ? `<span>本地 · ${book.format.toUpperCase()}</span>` : ""}
+          <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
         </div>
       </article>`;
     }).join("")}
@@ -131,6 +125,7 @@ function renderLibrary() {
     ? `<div class="library-inline-error" role="alert">${escapeHtml(libraryState.error)}，已保留当前书架。</div>`
     : "";
   app.innerHTML = libraryShell(`
+    <h1 class="library-title">读书</h1>
     <section class="library-toolbar" aria-label="书架工具">
       <form id="library-search" role="search">
         <label class="visually-hidden" for="book-query">搜索书名或作者</label>

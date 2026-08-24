@@ -87,7 +87,7 @@
 
 | 资产 | 文件 | 适用范围 | 使用方式 |
 | --- | --- | --- | --- |
-| 桌面 Web / 共享左栏远山亭子背景 | [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) | 桌面共享左栏；书架、阅读、会话、设置及 PPT 工作区共用 | 以雾白 `nav-surface` 为兜底，`cover / center bottom` 贴底裁切；不得叠加底部文案或提高山水对比度 |
+| 桌面 Web / 共享左栏远山亭子背景 | [`desktop-left-rail-landscape-approved-v1.png`](../assets/backgrounds/desktop-left-rail-landscape-approved-v1.png) | 桌面共享左栏；书架、阅读、会话、设置及 PPT 工作区共用 | 以雾白 `nav-surface` 为兜底；宽导航使用 `cover / 37% bottom` 构图并叠加极浅青瓷纸色，保证亭子不被左边或底边裁断；不得叠加底部文案或提高山水对比度 |
 
 `desktop-left-rail-landscape-approved-v1.png` 由 Codex 内置 ImageGen 按用户指定参考生成，用户于 2026-08-23 查看真实页面效果后明确确认可作为使用资产。文件为 `887×1774` RGB PNG，完整近白背景为有意设计而非透明通道缺失，SHA-256 为 `cb3999d50772e0963b0a9c2204c4d5891a2e84a824a4c597f7eee3eeb0d07700`。它只提供共享左栏的低对比远山、树木和亭子视觉落款，不改变导航结构、交互或端侧布局规则。
 
