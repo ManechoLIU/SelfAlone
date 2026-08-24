@@ -239,6 +239,16 @@ describe("M1-F2-B desktop text reader view", () => {
     expect(html).not.toContain("laoji-mascot-seated-reading");
   });
 
+  it("removes non-reading toolbar actions and empty grid columns in focus mode", () => {
+    const css = readFileSync(new URL("./text-reader.css", import.meta.url), "utf8");
+    expect(css).toMatch(
+      /\.text-reader-shell\.is-focus \.text-reader-toolbar > a\[aria-label="返回书架"\],[\s\S]*?\.text-reader-shell\.is-focus \[data-reader-chat\]\s*\{\s*display: none;\s*\}/,
+    );
+    expect(css).toMatch(
+      /\.text-reader-shell\.is-focus \.text-reader-toolbar\s*\{[^}]*display: flex;[^}]*justify-content: flex-end;[^}]*\}/,
+    );
+  });
+
   it("does not leave aria-controls dangling and disables tools only without retained content", () => {
     const closed = renderTextReader({ ...snapshot, directoryOpen: false });
     expect(closed).not.toContain('aria-controls="text-reader-directory"');

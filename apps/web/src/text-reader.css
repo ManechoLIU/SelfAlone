@@ -415,7 +415,17 @@
 
 .text-reader-shell.is-focus .text-reader-rail { transform: translateX(-100%); }
 .text-reader-shell.is-focus .text-reader-main { left: 0; }
-.text-reader-shell.is-focus .text-reader-toolbar { padding-inline: max(24px, calc((100vw - 880px) / 2)); }
+.text-reader-shell.is-focus .text-reader-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding-inline: max(24px, calc((100vw - 880px) / 2));
+}
+.text-reader-shell.is-focus .text-reader-toolbar > a[aria-label="返回书架"],
+.text-reader-shell.is-focus .text-reader-heading,
+.text-reader-shell.is-focus [data-reader-copy],
+.text-reader-shell.is-focus [data-reader-chat] {
+  display: none;
+}
 
 .text-reader-shell.is-light {
   --reader-paper: #fafbf8;
