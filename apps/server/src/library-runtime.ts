@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import type { LibraryBookSummary } from "@selfalone/contracts";
 import { inspectImportedBook } from "@selfalone/domain";
 import postgres, { type Sql } from "postgres";
+import type { PreparedTextBookPublication, TextReaderRuntime } from "./text-reader";
 
 export type LibraryBook = LibraryBookSummary;
 
@@ -15,6 +16,11 @@ type ProcessingFile = {
   originalFilename: string;
   objectKey: string;
 };
+
+type TextPublisher = Pick<
+  TextReaderRuntime,
+  "prepareTextBook" | "publishPreparedTextBook"
+>;
 
 function delay(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -39,7 +45,7 @@ export class LibraryRuntime {
     private readonly sql: Sql,
     private readonly objectDirectory: string,
     private readonly parseDelayMs: number,
-    private readonly onTextReady?: (accountId: string, bookId: string) => Promise<unknown>,
+    private readonly textPublisher?: TextPublisher,
   ) {}
 
   async initialize() {
@@ -233,32 +239,49 @@ export class LibraryRuntime {
     const bytes = await readFile(join(this.objectDirectory, ...file.objectKey.split("/")));
     const result = inspectImportedBook({ filename: file.originalFilename, bytes });
     let publicationError = "";
-    if (result.parseStatus === "ready_text" && this.onTextReady) {
+    let prepared: PreparedTextBookPublication | undefined;
+    if (result.parseStatus === "ready_text" && this.textPublisher) {
       try {
-        await this.onTextReady(file.accountId, file.bookId);
+        prepared = await this.textPublisher.prepareTextBook(file.accountId, file.bookId);
+      } catch (error) {
+        publicationError = error instanceof Error ? error.message : "TEXT_PARSE_FAILED";
+      }
+    }
+    if (prepared && this.textPublisher) {
+      const publisher = this.textPublisher;
+      try {
+        await this.sql.begin(async (transaction) => {
+          await publisher.publishPreparedTextBook(prepared, transaction);
+          const ready = await transaction<Array<{ id: string }>>`
+            UPDATE books
+            SET parse_status = 'ready_text', parse_error_code = NULL
+            WHERE id = ${file.bookId} AND account_id = ${file.accountId}
+              AND parse_status = 'processing'
+            RETURNING id
+          `;
+          if (!ready[0]) throw new Error("TEXT_PUBLICATION_STALE");
+          await transaction`
+            UPDATE book_files
+            SET parse_result = ${transaction.json(result)}
+            WHERE book_id = ${file.bookId} AND account_id = ${file.accountId}
+              AND version = ${prepared.extracted.fileVersion}
+          `;
+        });
+        return;
       } catch (error) {
         publicationError = error instanceof Error ? error.message : "TEXT_PARSE_FAILED";
       }
     }
     await this.sql.begin(async (transaction) => {
-      if (result.parseStatus === "ready_text" && this.onTextReady && !publicationError) {
-        await transaction`
-          UPDATE books
-          SET parse_status = 'ready_text', parse_error_code = NULL
-          WHERE id = ${file.bookId} AND account_id = ${file.accountId}
-            AND parse_status = 'processing'
-        `;
-      } else {
-        await transaction`
-          UPDATE books
-          SET title = ${result.title}, author = ${result.author},
-              parse_status = ${publicationError ? "failed" : result.parseStatus},
-              parse_error_code = ${publicationError || result.errorCode},
-              section_count = ${result.sectionCount}, page_count = ${result.pageCount}
-          WHERE id = ${file.bookId} AND account_id = ${file.accountId}
-            AND parse_status = 'processing'
-        `;
-      }
+      await transaction`
+        UPDATE books
+        SET title = ${result.title}, author = ${result.author},
+            parse_status = ${publicationError ? "failed" : result.parseStatus},
+            parse_error_code = ${publicationError || result.errorCode},
+            section_count = ${result.sectionCount}, page_count = ${result.pageCount}
+        WHERE id = ${file.bookId} AND account_id = ${file.accountId}
+          AND parse_status = 'processing'
+      `;
       await transaction`
         UPDATE book_files
         SET parse_result = ${transaction.json(result)}
@@ -277,14 +300,14 @@ export async function createLibraryRuntime(options: {
   databaseUrl: string;
   objectDirectory: string;
   parseDelayMs?: number;
-  onTextReady?: (accountId: string, bookId: string) => Promise<unknown>;
+  textPublisher?: TextPublisher;
 }) {
   const sql = postgres(options.databaseUrl, { max: 4 });
   const runtime = new LibraryRuntime(
     sql,
     options.objectDirectory,
     options.parseDelayMs ?? 20,
-    options.onTextReady,
+    options.textPublisher,
   );
   await runtime.initialize();
   return runtime;

@@ -32,7 +32,7 @@ const library = await createLibraryRuntime({
   databaseUrl,
   objectDirectory: bookObjectDirectory,
   parseDelayMs: Number(process.env.BOOK_PARSE_DELAY_MS ?? 20),
-  onTextReady: (accountId, bookId) => textReader.publishTextBook(accountId, bookId),
+  textPublisher: textReader,
 });
 const app = createApp({
   readiness: async () =>

@@ -25,7 +25,7 @@ const library = await createLibraryRuntime({
   databaseUrl: databaseUrl.toString(),
   objectDirectory,
   parseDelayMs: 0,
-  onTextReady: (accountId, bookId) => reader.publishTextBook(accountId, bookId),
+  textPublisher: reader,
 });
 await administration.unsafe(`
   INSERT INTO "${schema}".accounts (id, created_at)

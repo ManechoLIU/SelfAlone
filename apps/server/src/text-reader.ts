@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import type { FastifyInstance, FastifyReply } from "fastify";
-import postgres, { type Sql } from "postgres";
+import postgres, { type Sql, type TransactionSql } from "postgres";
 import { z } from "zod";
 import type {
   ReaderBackground,
@@ -24,6 +24,12 @@ type ExtractedTextBook = {
     order: number;
     text: string;
   }>;
+};
+
+export type PreparedTextBookPublication = {
+  accountId: string;
+  bookId: string;
+  extracted: ExtractedTextBook;
 };
 
 type ExtractTextBook = (input: {
@@ -106,7 +112,7 @@ export class TextReaderRuntime {
     return file;
   }
 
-  async publishTextBook(accountId: string, bookId: string) {
+  async prepareTextBook(accountId: string, bookId: string): Promise<PreparedTextBookPublication> {
     const file = await this.currentFile(accountId, bookId, true);
     const root = resolve(this.objectDirectory);
     const objectPath = resolve(root, ...file.objectKey.split("/"));
@@ -116,40 +122,50 @@ export class TextReaderRuntime {
       bytes: await readFile(objectPath),
       fileVersion: file.fileVersion,
     });
+    return { accountId, bookId, extracted };
+  }
 
-    await this.sql.begin(async (transaction) => {
-      const [current] = await transaction<Array<{ fileVersion: number }>>`
-        SELECT version AS "fileVersion"
-        FROM book_files
-        WHERE account_id = ${accountId} AND book_id = ${bookId}
-        ORDER BY version DESC
-        LIMIT 1
-        FOR UPDATE
-      `;
-      if (current?.fileVersion !== extracted.fileVersion) throw new Error("STALE_VERSION");
+  async publishPreparedTextBook(
+    prepared: PreparedTextBookPublication,
+    transaction: TransactionSql,
+  ) {
+    const { accountId, bookId, extracted } = prepared;
+    const [current] = await transaction<Array<{ fileVersion: number }>>`
+      SELECT version AS "fileVersion"
+      FROM book_files
+      WHERE account_id = ${accountId} AND book_id = ${bookId}
+      ORDER BY version DESC
+      LIMIT 1
+      FOR UPDATE
+    `;
+    if (current?.fileVersion !== extracted.fileVersion) throw new Error("STALE_VERSION");
+    await transaction`
+      DELETE FROM book_sections
+      WHERE account_id = ${accountId} AND book_id = ${bookId}
+        AND file_version = ${extracted.fileVersion}
+    `;
+    for (const section of extracted.sections) {
       await transaction`
-        DELETE FROM book_sections
-        WHERE account_id = ${accountId} AND book_id = ${bookId}
-          AND file_version = ${extracted.fileVersion}
+        INSERT INTO book_sections (
+          account_id, book_id, file_version, section_id, section_order, title, body
+        ) VALUES (
+          ${accountId}, ${bookId}, ${extracted.fileVersion}, ${section.sectionId},
+          ${section.order}, ${section.title}, ${section.text}
+        )
       `;
-      for (const section of extracted.sections) {
-        await transaction`
-          INSERT INTO book_sections (
-            account_id, book_id, file_version, section_id, section_order, title, body
-          ) VALUES (
-            ${accountId}, ${bookId}, ${extracted.fileVersion}, ${section.sectionId},
-            ${section.order}, ${section.title}, ${section.text}
-          )
-        `;
-      }
-      await transaction`
-        UPDATE books
-        SET title = ${extracted.title}, author = ${extracted.author},
-            section_count = ${extracted.sections.length}
-        WHERE account_id = ${accountId} AND id = ${bookId}
-      `;
-    });
+    }
+    await transaction`
+      UPDATE books
+      SET title = ${extracted.title}, author = ${extracted.author},
+          section_count = ${extracted.sections.length}
+      WHERE account_id = ${accountId} AND id = ${bookId}
+    `;
     return { fileVersion: extracted.fileVersion, sectionCount: extracted.sections.length };
+  }
+
+  async publishTextBook(accountId: string, bookId: string) {
+    const prepared = await this.prepareTextBook(accountId, bookId);
+    return this.sql.begin((transaction) => this.publishPreparedTextBook(prepared, transaction));
   }
 
   async getReading(accountId: string, bookId: string) {

@@ -69,7 +69,7 @@ API_TARGET=http://127.0.0.1:3001 apps/web/node_modules/.bin/vite --config apps/w
 ## 总控 main 集成收据
 
 - `packages/contracts` 现只定义一份 `TextLocator / PdfLocator / ReadingLocator`、浅 / 深背景、文本阅读响应与位置写入结构；domain、Server 与 Web 已改为共享类型。
-- `book_sections` 同时使用 `(account_id,book_id)` 与 `(account_id,book_id,file_version)` 复合外键；`reading_positions` 按 owner + book 唯一并使用递增版本。集成测试证明 TXT 导入、章节发布、位置保存及服务重启恢复。
-- 导入链只在 `TextReaderRuntime.publishTextBook` 完成后把书籍从 `processing` 升为 `ready_text`；发布失败关闭为书籍失败，不留下“可阅读但无章节”的短暂窗口。
+- `book_sections` 同时使用 `(account_id,book_id)` 与 `(account_id,book_id,file_version)` 复合外键；`reading_positions` 按 owner + book 唯一并使用递增版本。根集成测试现同时证明真实 TXT 与真实 EPUB 均从上传进入 `processing`，发布章节、保存各自位置，并在服务重启后恢复。
+- 文本提取在数据库事务外准备；章节、标题 / 作者 / 章节数、`ready_text` 状态和解析收据随后在同一数据库事务提交。故障注入测试在章节写入后主动抛错，证明事务会回滚全部章节并把书籍关闭为明确失败，不留下半发布或“可阅读但无章节”的状态。
 - Server 组合入口已注册 `/reading`、`/content/sections`、`/position`；Web 仅把 `ready_text` 卡片变成阅读链接，预取当前 `fileVersion` 后再提供完整 cache scope 并挂载阅读器，页面卸载时销毁控制器。
 - 原生 Chrome 200% 与同 revision 无 override `1440×844` 仍是完整视觉 `DONE` 门；PDF 页面一致性留在 M1-F2-C，不由本次文本集成冒充完成。

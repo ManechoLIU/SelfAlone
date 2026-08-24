@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import postgres, { type Sql } from "postgres";
+import postgres, { type Sql, type TransactionSql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app";
 import { createLibraryRuntime, type LibraryRuntime } from "./library-runtime";
@@ -217,9 +217,28 @@ describe("M1-F2-A local library runtime", () => {
       databaseUrl: isolatedUrl.toString(),
       objectDirectory,
       parseDelayMs: 0,
-      onTextReady: async () => {
-        markPublisherStarted();
-        await publisherGate;
+      textPublisher: {
+        prepareTextBook: async (accountId, bookId) => {
+          markPublisherStarted();
+          await publisherGate;
+          return {
+            accountId,
+            bookId,
+            extracted: {
+              format: "txt" as const,
+              fileVersion: 1,
+              title: "等待发布",
+              author: null,
+              sections: [{
+                sectionId: "txt:00000000",
+                title: "等待发布",
+                order: 0,
+                text: "章节必须先发布。",
+              }],
+            },
+          };
+        },
+        publishPreparedTextBook: async () => ({ fileVersion: 1, sectionCount: 1 }),
       },
     });
     runtimes.push(runtime);
@@ -246,5 +265,71 @@ describe("M1-F2-A local library runtime", () => {
     } finally {
       releasePublisher();
     }
+  });
+
+  it("rolls back text sections when the ready transition cannot commit", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-"));
+    objectDirectories.push(objectDirectory);
+    const textPublisher = {
+      prepareTextBook: async (accountId: string, bookId: string) => ({
+        accountId,
+        bookId,
+        extracted: {
+          format: "txt" as const,
+          fileVersion: 1,
+          title: "原子发布",
+          author: null,
+          sections: [],
+        },
+      }),
+      publishPreparedTextBook: async (
+        prepared: { accountId: string; bookId: string },
+        transaction: TransactionSql,
+      ) => {
+        await transaction`
+          INSERT INTO book_sections (
+            account_id, book_id, file_version, section_id, section_order, title, body
+          ) VALUES (
+            ${prepared.accountId}, ${prepared.bookId}, 1, 'txt:00000000', 0,
+            '等待发布', '这段正文不得在失败后残留。'
+          )
+        `;
+        throw new Error("TEXT_PUBLICATION_ABORTED");
+      },
+    };
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+      textPublisher,
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at) VALUES ('account-a', now())
+    `);
+
+    const imported = await runtime.importBook(
+      "account-a",
+      "原子发布.txt",
+      Buffer.from("第一章\n章节与可读状态必须共同提交。"),
+    );
+    const failed = await eventually(
+      () => runtime.getBook("account-a", imported.id),
+      (book) => book.parseStatus === "failed",
+    );
+    expect(failed.errorCode).toBe("TEXT_PUBLICATION_ABORTED");
+
+    const [sections] = await administration.unsafe<Array<{ count: number }>>(`
+      SELECT count(*)::int AS count
+      FROM "${schema}".book_sections
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    expect(sections?.count).toBe(0);
   });
 });
