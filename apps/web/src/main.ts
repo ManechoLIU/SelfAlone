@@ -5,6 +5,16 @@ import {
   type OutlineItem,
   type WorkspaceSnapshot,
 } from "./app-state";
+import type { LibraryBookSummary, LibrarySnapshot } from "@selfalone/contracts";
+import {
+  authorLabel,
+  coverStatusLabel,
+  libraryViewState,
+  parseStatusLabel,
+  type LibraryLoadState,
+} from "./library-state";
+import { coverAssetForBook } from "./library-cover";
+import { icons } from "./ui/icons";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -17,13 +27,186 @@ let busy = false;
 let errorMessage = "";
 let selectedTemplate = "qingci-study";
 let pollingTimer: number | undefined;
+let libraryPollingTimer: number | undefined;
+let libraryState: LibraryLoadState = { loading: true, error: "", query: "", books: [] };
+let libraryUploading = false;
 
-const icons = {
-  chat: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5.5h14v10H9l-4 3v-13Z"/><path d="M8 9h8M8 12h5"/></svg>`,
-  book: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5A3.5 3.5 0 0 1 8 2h4v17H8a3.5 3.5 0 0 0-3.5 3V5.5Z"/><path d="M19.5 5.5A3.5 3.5 0 0 0 16 2h-4v17h4a3.5 3.5 0 0 1 3.5 3V5.5Z"/></svg>`,
-  settings: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.4-2.6h-4L10 6a8 8 0 0 0-1.6 1.1L6 6.1 4 9.5 6.1 11a7 7 0 0 0 0 2L4 14.5l2 3.4 2.4-1A8 8 0 0 0 10 18l.5 2.6h4L15 18a8 8 0 0 0 1.6-1.1l2.4 1 2-3.4-2.1-1.5c.1-.3.1-.7.1-1Z"/></svg>`,
-  arrow: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 4 6 6-6 6"/></svg>`,
-};
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function libraryShell(content: string) {
+  return `
+    <div class="library-shell">
+      <aside class="library-rail" aria-label="主导航">
+        <a class="library-brand" href="#/conversation" aria-label="老己，对话首页">
+          <img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="" />
+          <strong>老己</strong>
+        </a>
+        <nav class="library-nav">
+          <a href="#/conversation">${icons.chat}<span>对话</span></a>
+          <a class="active" href="#/library" aria-current="page">${icons.book}<span>读书</span></a>
+          <span class="disabled-nav" aria-disabled="true">${icons.settings}<span>设置</span></span>
+        </nav>
+      </aside>
+      <main class="library-main">${content}</main>
+      <div class="library-companion">
+        <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
+        <a class="library-companion-button" href="#/conversation" aria-label="和老己聊聊">${icons.chat}</a>
+      </div>
+    </div>`;
+}
+
+function libraryStatePanel() {
+  const view = libraryViewState(libraryState);
+  if (view === "loading") {
+    return `<section class="library-state" aria-live="polite">
+      <div class="shelf-loading" aria-hidden="true">${Array.from({ length: 5 }, () => "<i></i>").join("")}</div>
+      <p>正在取回你的书架…</p>
+    </section>`;
+  }
+  if (view === "failure") {
+    return `<section class="library-state failure" role="alert">
+      <span>${icons.retry}</span><h2>书架暂时没有载入</h2>
+      <p>${escapeHtml(libraryState.error)}</p>
+      <button id="retry-library" class="quiet-button" type="button">重新载入</button>
+    </section>`;
+  }
+  if (view === "filtered_empty") {
+    return `<section class="library-state">
+      <span class="library-state-icon">${icons.search}</span><h2>没有找到“${escapeHtml(libraryState.query)}”</h2>
+      <p>换一个书名或作者试试，书架内容不会被改动。</p>
+      <button id="clear-search" class="quiet-button" type="button">清除搜索</button>
+    </section>`;
+  }
+  if (view === "empty") {
+    return `<section class="library-state empty">
+      <span class="library-state-icon">${icons.book}</span><h2>把第一本书放进来</h2>
+      <p>支持 EPUB、TXT 和 PDF；文件会保存到你的账户，再在这里显示解析结果。</p>
+      <label class="primary-button state-import" for="book-import">${icons.upload}导入书籍</label>
+    </section>`;
+  }
+  return libraryGrid(libraryState.books);
+}
+
+function libraryGrid(books: LibraryBookSummary[]) {
+  return `<section class="book-grid" aria-label="书架，共 ${books.length} 本书">
+    ${books.map((book) => {
+      const author = authorLabel(book.author);
+      const status = parseStatusLabel(book.parseStatus, book.errorCode);
+      const coverStatus = coverStatusLabel(book.parseStatus, book.errorCode);
+      return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
+        <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
+          <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
+          <strong>${escapeHtml(book.title)}</strong>
+          <em>${escapeHtml(author)}</em>
+          <b class="parse-badge" aria-label="解析状态：${escapeHtml(status)}">${escapeHtml(coverStatus)}</b>
+        </div>
+        <div class="book-caption">
+          <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
+        </div>
+      </article>`;
+    }).join("")}
+  </section>`;
+}
+
+function renderLibrary() {
+  const retainedError = libraryState.error && libraryState.books.length
+    ? `<div class="library-inline-error" role="alert">${escapeHtml(libraryState.error)}，已保留当前书架。</div>`
+    : "";
+  app.innerHTML = libraryShell(`
+    <h1 class="library-title">读书</h1>
+    <section class="library-toolbar" aria-label="书架工具">
+      <form id="library-search" role="search">
+        <label class="visually-hidden" for="book-query">搜索书名或作者</label>
+        <span>${icons.search}</span>
+        <input id="book-query" name="query" type="search" value="${escapeHtml(libraryState.query)}" placeholder="搜索书名或作者" autocomplete="off" />
+      </form>
+      <label class="import-button ${libraryUploading ? "busy" : ""}" for="book-import" aria-label="导入书籍" title="导入书籍" aria-disabled="${libraryUploading}">
+        ${icons.upload}<span>${libraryUploading ? "正在保存…" : "导入书籍"}</span>
+        <input class="visually-hidden" id="book-import" type="file" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
+      </label>
+    </section>
+    <section class="weread-note" aria-label="微信读书连接状态">
+      <div><strong>连接微信读书</strong><span>暂未开放</span></div>
+      <p>本地书籍已可导入；连接能力将在账户与设置闭环中开放。</p>
+    </section>
+    ${retainedError}
+    ${libraryStatePanel()}
+  `);
+  bindLibraryInteractions();
+}
+
+async function loadLibrary(query = libraryState.query) {
+  libraryState = { ...libraryState, loading: libraryState.books.length === 0, error: "", query };
+  renderLibrary();
+  try {
+    const snapshot = await requestJson<LibrarySnapshot>(`/api/v1/books?query=${encodeURIComponent(query)}`);
+    libraryState = { loading: false, error: "", query, books: snapshot.books };
+  } catch {
+    libraryState = { ...libraryState, loading: false, error: "无法连接书架服务，请检查本地服务后重试" };
+  }
+  renderLibrary();
+  updateLibraryPolling();
+}
+
+function updateLibraryPolling() {
+  if (libraryPollingTimer) window.clearInterval(libraryPollingTimer);
+  libraryPollingTimer = undefined;
+  if (libraryState.books.some((book) => book.parseStatus === "processing")) {
+    libraryPollingTimer = window.setInterval(() => void loadLibrary(), 700);
+  }
+}
+
+async function uploadBook(file: File) {
+  libraryUploading = true;
+  libraryState = { ...libraryState, error: "" };
+  renderLibrary();
+  try {
+    const response = await fetch("/api/v1/books/import", {
+      method: "POST",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-file-name": encodeURIComponent(file.name),
+      },
+      body: file,
+    });
+    const payload = await response.json() as LibraryBookSummary & { code?: string };
+    if (!response.ok) throw new Error(payload.code ?? "UPLOAD_FAILED");
+    libraryState = { ...libraryState, books: [payload, ...libraryState.books] };
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "UPLOAD_FAILED";
+    const messages: Record<string, string> = {
+      UNSUPPORTED_BOOK_FORMAT: "只支持 EPUB、TXT 和 PDF 文件",
+      BOOK_FILE_TOO_LARGE: "文件超过 50 MB，未保存",
+      EMPTY_BOOK_FILE: "文件没有内容，未保存",
+    };
+    libraryState = { ...libraryState, error: messages[code] ?? "这本书没有导入，当前书架已保留" };
+  } finally {
+    libraryUploading = false;
+    renderLibrary();
+    updateLibraryPolling();
+  }
+}
+
+function bindLibraryInteractions() {
+  document.querySelector<HTMLFormElement>("#library-search")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget as HTMLFormElement);
+    void loadLibrary(String(form.get("query") ?? "").trim());
+  });
+  document.querySelector<HTMLInputElement>("#book-import")?.addEventListener("change", (event) => {
+    const file = (event.currentTarget as HTMLInputElement).files?.[0];
+    if (file) void uploadBook(file);
+  });
+  document.querySelector<HTMLButtonElement>("#retry-library")?.addEventListener("click", () => void loadLibrary());
+  document.querySelector<HTMLButtonElement>("#clear-search")?.addEventListener("click", () => void loadLibrary(""));
+}
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -364,5 +547,12 @@ function render() {
   bindInteractions();
 }
 
-renderLoading();
-void loadWorkspace();
+window.addEventListener("hashchange", () => window.location.reload());
+if (!window.location.hash) window.history.replaceState(null, "", "#/library");
+if (window.location.hash === "#/library") {
+  renderLibrary();
+  void loadLibrary();
+} else {
+  renderLoading();
+  void loadWorkspace();
+}

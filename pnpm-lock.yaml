@@ -48,6 +48,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@selfalone/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@vitejs/plugin-react':
         specifier: latest
         version: 6.1.0(vite@8.2.2(@types/node@26.2.0)(esbuild@0.28.2)(tsx@4.23.12))
