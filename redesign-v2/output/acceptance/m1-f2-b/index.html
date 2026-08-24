@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>老己 · EPUB/TXT 阅读验收</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module">
+      import {
+        createTextReaderApi,
+        mountTextReader,
+        readerBackgroundCacheKey,
+      } from "/apps/web/src/text-reader.ts";
+
+      const parameters = new URLSearchParams(location.search);
+      const books = await fetch("/api/v1/acceptance/text-books").then((response) => response.json());
+      const selectedCase = parameters.get("book") || "epub";
+      const bookId = books[selectedCase] || books.epub;
+      const cacheScope = {
+        accountId: parameters.get("scopeAccount") || "account-a",
+        bookId,
+        fileVersion: Number(parameters.get("scopeVersion") || 1),
+      };
+      const cached = parameters.get("cache");
+      if (cached === "light" || cached === "dark") {
+        const seedScope = {
+          accountId: parameters.get("seedAccount") || cacheScope.accountId,
+          bookId,
+          fileVersion: Number(parameters.get("seedVersion") || cacheScope.fileVersion),
+        };
+        localStorage.setItem(readerBackgroundCacheKey(seedScope), cached);
+      }
+      const baseApi = createTextReaderApi(bookId);
+      const delay = Number(parameters.get("delay") || 0);
+      let failSave = parameters.get("saveFail") === "1";
+      let initialBackground = "light";
+      const delayed = async (read) => {
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        return read();
+      };
+      const api = {
+        loadReading: async () => {
+          if (parameters.get("loadFail") === "1") throw new Error("正文服务暂时不可用");
+          const reading = await delayed(baseApi.loadReading);
+          initialBackground = reading.position?.background || "light";
+          return reading;
+        },
+        loadSections: () => delayed(baseApi.loadSections),
+        savePosition: (input) => {
+          if (failSave && input.background !== initialBackground) {
+            return Promise.reject(new Error("POSITION_SAVE_FAILED"));
+          }
+          return baseApi.savePosition(input);
+        },
+      };
+      const root = document.querySelector("#app");
+      root.addEventListener("click", (event) => {
+        if (event.target.closest("[data-reader-retry-save]")) failSave = false;
+      }, { capture: true });
+      const deniedStorage = {
+        getItem() { throw new Error("STORAGE_DENIED"); },
+        setItem() { throw new Error("STORAGE_DENIED"); },
+      };
+      const mountOptions = {
+        bookId,
+        api,
+        storage: parameters.get("storageDenied") === "1" ? deniedStorage : localStorage,
+        writeClipboard: parameters.get("clipboardFail") === "1"
+          ? async () => { throw new Error("CLIPBOARD_DENIED"); }
+          : undefined,
+      };
+      if (parameters.get("noScope") !== "1") mountOptions.cacheScope = cacheScope;
+      const controller = mountTextReader(root, mountOptions);
+      if (parameters.get("leave") === "1") {
+        window.setTimeout(() => {
+          controller.destroy();
+          root.innerHTML = '<main data-shared-shell-probe tabindex="0">共享应用外壳</main>';
+        }, 1200);
+      }
+      if (parameters.get("select") === "1") {
+        window.setTimeout(() => {
+          const paragraph = root.querySelector("[data-reader-paragraph]");
+          const text = paragraph?.firstChild;
+          if (!text) return;
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, Math.min(8, text.textContent.length));
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          document.dispatchEvent(new Event("selectionchange"));
+        }, 800);
+      }
+      window.__readerHarness = { controller, books, selectedCase, api, cacheScope };
+    </script>
+  </body>
+</html>
