@@ -162,6 +162,7 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | --- | --- | --- | --- | --- | --- |
 | `IMG-01` | `REJECTED` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`1487×1058`；书架右下低对比远山候选 | `47b4`：`redesign-v2/output/ui-design-preview/product-design/shared-shell/right-canvas-candidates/v1/desktop-right-canvas-mountains-transparent-v1-candidate.png`；SHA-256 `2879ee0dda69580504d42a561158ee6f2ab3b451c8b989ac900d143c851c6178`，`hasAlpha: no`，棋盘格烧录，未实装 | 已实际调用 `1 / 20`，剩余 `19` |
 | `IMG-02` | `REJECTED` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`1486×1059`；只尝试修复 `IMG-01` 的真实 Alpha | `47b4`：`redesign-v2/output/ui-design-preview/product-design/shared-shell/right-canvas-candidates/v1/desktop-right-canvas-mountains-transparent-v2-candidate.png`；SHA-256 `91acb39e39d744f5007ca00b96e662d6df89e87fdaee2ada8d823cf808600115`，`hasAlpha: no`，仍有棋盘格烧录，未实装；实现任务已停止继续调用 | 已实际调用 `2 / 20`，剩余 `18` |
+| `IMG-03` | `CANDIDATE / 待实装前审查` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，原始 `2172×724`；按右山聚焦审查 brief 生成独立透明横向远山，再以可靠本地 Alpha 流程等比裁切为 `1600×320` 运行时候选 | 主线候选目录 `redesign-v2/output/ui-design-preview/product-design/shared-shell/right-canvas-candidates/v2/`：原始 SHA-256 `3a826b572ad039bd60a2403e0dda28848e14e86523e9124b85fc8c4c165bdb52`；处理后 `desktop-right-distant-mountains-transparent-v1-candidate.png` SHA-256 `547eae01fcfbecdd8b620ea201ab0da5bccdc155fae34afa6ed3cbc0dd6c5ed2`，RGBA、Alpha `0–52 / 255`、空白像素 `69.4%`、四边全透明且非透明像素仅 `#5F6F69`；尚未接入运行时，已交原非作者审查任务裁决资产门 | 已实际调用 `3 / 20`，剩余 `17` |
 
 ## 8. 恢复证据与授权门
 
