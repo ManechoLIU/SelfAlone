@@ -19,6 +19,41 @@ async function eventually<T>(read: () => Promise<T>, accept: (value: T) => boole
   throw new Error("EXPECTED_STATE_NOT_REACHED");
 }
 
+function createTestTextPublisher() {
+  return {
+    prepareTextBook: async (accountId: string, bookId: string) => ({
+      accountId,
+      bookId,
+      extracted: {
+        format: "txt" as const,
+        fileVersion: 1,
+        title: "测试正文",
+        author: null,
+        sections: [{
+          sectionId: "txt:00000000",
+          title: "测试正文",
+          order: 0,
+          text: "测试正文。",
+        }],
+      },
+    }),
+    publishPreparedTextBook: async (
+      prepared: { accountId: string; bookId: string },
+      transaction: TransactionSql,
+    ) => {
+      await transaction`
+        INSERT INTO book_sections (
+          account_id, book_id, file_version, section_id, section_order, title, body
+        ) VALUES (
+          ${prepared.accountId}, ${prepared.bookId}, 1, 'txt:00000000', 0,
+          '测试正文', '测试正文。'
+        )
+      `;
+      return { fileVersion: 1, sectionCount: 1 };
+    },
+  };
+}
+
 describe("M1-F2-A local library runtime", () => {
   const runtimes: LibraryRuntime[] = [];
   const apps: Array<ReturnType<typeof createApp>> = [];
@@ -51,6 +86,7 @@ describe("M1-F2-A local library runtime", () => {
       databaseUrl: isolatedUrl.toString(),
       objectDirectory,
       parseDelayMs: 0,
+      textPublisher: createTestTextPublisher(),
     });
     runtimes.push(runtime);
     await administration.unsafe(`
@@ -150,6 +186,7 @@ describe("M1-F2-A local library runtime", () => {
       databaseUrl: isolatedUrl.toString(),
       objectDirectory,
       parseDelayMs: 0,
+      textPublisher: createTestTextPublisher(),
     });
     runtimes.push(restoredRuntime);
     const restored = await restoredRuntime.listBooks("account-a", "同名");
@@ -194,6 +231,37 @@ describe("M1-F2-A local library runtime", () => {
       `SELECT count(*)::int AS count FROM "${schema}".books`,
     );
     expect(count?.count).toBe(0);
+  });
+
+  it("fails text imports closed when no text publisher is configured", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-"));
+    objectDirectories.push(objectDirectory);
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at) VALUES ('account-a', now())
+    `);
+
+    const imported = await runtime.importBook(
+      "account-a",
+      "缺少发布器.txt",
+      Buffer.from("正文不得被标记为可读。"),
+    );
+    const failed = await eventually(
+      () => runtime.getBook("account-a", imported.id),
+      (book) => book.parseStatus === "failed",
+    );
+    expect(failed.errorCode).toBe("TEXT_PUBLISHER_UNAVAILABLE");
   });
 
   it("keeps a text book processing until its readable sections are published", async () => {

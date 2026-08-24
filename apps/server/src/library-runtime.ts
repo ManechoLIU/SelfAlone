@@ -240,6 +240,9 @@ export class LibraryRuntime {
     const result = inspectImportedBook({ filename: file.originalFilename, bytes });
     let publicationError = "";
     let prepared: PreparedTextBookPublication | undefined;
+    if (result.parseStatus === "ready_text" && !this.textPublisher) {
+      publicationError = "TEXT_PUBLISHER_UNAVAILABLE";
+    }
     if (result.parseStatus === "ready_text" && this.textPublisher) {
       try {
         prepared = await this.textPublisher.prepareTextBook(file.accountId, file.bookId);
