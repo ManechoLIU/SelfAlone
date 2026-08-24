@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { generateDevelopmentPptx } from "@selfalone/presentation-adapter";
 import postgres, { type Sql } from "postgres";
+import { developmentAccountId, migrateM0AccountOwnership } from "./account-migration";
 
 const seedBookId = "book-development-changan-lychee";
 const seedConversationId = "conversation-development-changan-lychee";
@@ -149,6 +150,8 @@ export class M0Runtime {
       )
     `;
 
+    await migrateM0AccountOwnership(this.#sql);
+
     if (resetDevelopmentData) {
       await this.#sql`
         TRUNCATE ppt_artifacts, ppt_pages, ppt_tasks, ppt_drafts, conversations, books
@@ -156,18 +159,18 @@ export class M0Runtime {
     }
 
     await this.#sql`
-      INSERT INTO books (id, title, source_label)
-      VALUES (${seedBookId}, ${"长安的荔枝"}, ${"开发种子书"})
+      INSERT INTO books (id, account_id, title, source_label)
+      VALUES (${seedBookId}, ${developmentAccountId}, ${"长安的荔枝"}, ${"开发种子书"})
       ON CONFLICT (id) DO NOTHING
     `;
     await this.#sql`
-      INSERT INTO conversations (id, book_id)
-      VALUES (${seedConversationId}, ${seedBookId})
+      INSERT INTO conversations (id, account_id, book_id)
+      VALUES (${seedConversationId}, ${developmentAccountId}, ${seedBookId})
       ON CONFLICT (id) DO NOTHING
     `;
     await this.#sql`
-      INSERT INTO ppt_drafts (id, conversation_id, stage, version)
-      VALUES (${seedDraftId}, ${seedConversationId}, ${"requirements"}, 1)
+      INSERT INTO ppt_drafts (id, account_id, conversation_id, stage, version)
+      VALUES (${seedDraftId}, ${developmentAccountId}, ${seedConversationId}, ${"requirements"}, 1)
       ON CONFLICT (id) DO NOTHING
     `;
   }
@@ -185,21 +188,22 @@ export class M0Runtime {
     const [book] = await this.#sql<Array<{ id: string; title: string; sourceLabel: string }>>`
       SELECT id, title, source_label AS "sourceLabel"
       FROM books
-      WHERE id = ${seedBookId}
+      WHERE id = ${seedBookId} AND account_id = ${developmentAccountId}
     `;
     const [conversation] = await this.#sql<Array<{ id: string }>>`
-      SELECT id FROM conversations WHERE id = ${seedConversationId}
+      SELECT id FROM conversations
+      WHERE id = ${seedConversationId} AND account_id = ${developmentAccountId}
     `;
     const [draft] = await this.#sql<Array<DraftRow>>`
       SELECT id, stage, version, requirements, outline, template_id AS "templateId"
       FROM ppt_drafts
-      WHERE id = ${seedDraftId}
+      WHERE id = ${seedDraftId} AND account_id = ${developmentAccountId}
     `;
     const [task] = await this.#sql<Array<TaskRow>>`
       SELECT id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
              version, artifact_id AS "artifactId", error
       FROM ppt_tasks
-      WHERE draft_id = ${seedDraftId}
+      WHERE draft_id = ${seedDraftId} AND account_id = ${developmentAccountId}
       ORDER BY version DESC, id DESC
       LIMIT 1
     `;
@@ -233,7 +237,8 @@ export class M0Runtime {
       UPDATE ppt_drafts
       SET stage = ${"outline"}, version = version + 1,
           requirements = ${requirements}, outline = ${this.#sql.json(defaultOutline)}
-      WHERE id = ${draftId} AND stage = ${"requirements"} AND version = ${expectedVersion}
+      WHERE id = ${draftId} AND account_id = ${developmentAccountId}
+        AND stage = ${"requirements"} AND version = ${expectedVersion}
       RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
     `;
     if (!updated) {
@@ -246,7 +251,8 @@ export class M0Runtime {
     const [updated] = await this.#sql<Array<DraftRow>>`
       UPDATE ppt_drafts
       SET stage = ${"template"}, version = version + 1, outline = ${this.#sql.json(outline)}
-      WHERE id = ${draftId} AND stage = ${"outline"} AND version = ${expectedVersion}
+      WHERE id = ${draftId} AND account_id = ${developmentAccountId}
+        AND stage = ${"outline"} AND version = ${expectedVersion}
       RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
     `;
     if (!updated) {
@@ -265,7 +271,8 @@ export class M0Runtime {
       SELECT id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
              version, artifact_id AS "artifactId", error
       FROM ppt_tasks
-      WHERE idempotency_key = ${input.idempotencyKey}
+      WHERE account_id = ${developmentAccountId}
+        AND idempotency_key = ${input.idempotencyKey}
     `;
     if (existing) {
       return taskSnapshot(existing);
@@ -276,7 +283,8 @@ export class M0Runtime {
       const [draft] = await transaction<Array<DraftRow>>`
         UPDATE ppt_drafts
         SET stage = ${"submitted"}, version = version + 1, template_id = ${input.templateId}
-        WHERE id = ${input.draftId} AND stage = ${"template"}
+        WHERE id = ${input.draftId} AND account_id = ${developmentAccountId}
+          AND stage = ${"template"}
           AND version = ${input.expectedVersion}
         RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
       `;
@@ -285,10 +293,11 @@ export class M0Runtime {
       }
       const [task] = await transaction<Array<TaskRow>>`
         INSERT INTO ppt_tasks (
-          id, draft_id, idempotency_key, status, completed_pages, total_pages, version
+          id, account_id, draft_id, idempotency_key, status,
+          completed_pages, total_pages, version
         ) VALUES (
-          ${taskId}, ${input.draftId}, ${input.idempotencyKey}, ${"queued"}, 0,
-          ${draft.outline.length}, 1
+          ${taskId}, ${developmentAccountId}, ${input.draftId}, ${input.idempotencyKey},
+          ${"queued"}, 0, ${draft.outline.length}, 1
         )
         RETURNING id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
                   version, artifact_id AS "artifactId", error
@@ -309,7 +318,7 @@ export class M0Runtime {
     const [task] = await this.#sql<Array<TaskRow>>`
       SELECT id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
              version, artifact_id AS "artifactId", error
-      FROM ppt_tasks WHERE id = ${taskId}
+      FROM ppt_tasks WHERE id = ${taskId} AND account_id = ${developmentAccountId}
     `;
     if (!task) {
       throw new Error("TASK_NOT_FOUND");
@@ -321,7 +330,8 @@ export class M0Runtime {
     const [task] = await this.#sql<Array<TaskRow>>`
       UPDATE ppt_tasks
       SET status = ${"stopped"}, version = version + 1
-      WHERE id = ${taskId} AND version = ${expectedVersion}
+      WHERE id = ${taskId} AND account_id = ${developmentAccountId}
+        AND version = ${expectedVersion}
         AND status IN (${"queued"}, ${"running"})
       RETURNING id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
                 version, artifact_id AS "artifactId", error
@@ -342,7 +352,7 @@ export class M0Runtime {
     >`
       SELECT file_path AS "filePath", filename
       FROM ppt_artifacts
-      WHERE id = ${artifactId}
+      WHERE id = ${artifactId} AND account_id = ${developmentAccountId}
     `;
     if (!artifact) {
       throw new Error("ARTIFACT_NOT_FOUND");
@@ -359,14 +369,16 @@ export class M0Runtime {
     try {
       await this.#sql`
         UPDATE ppt_tasks SET status = ${"running"}, version = version + 1
-        WHERE id = ${taskId} AND status = ${"queued"}
+        WHERE id = ${taskId} AND account_id = ${developmentAccountId}
+          AND status = ${"queued"}
       `;
       const [draft] = await this.#sql<Array<DraftRow>>`
         SELECT draft.id, draft.stage, draft.version, draft.requirements, draft.outline,
                draft.template_id AS "templateId"
         FROM ppt_drafts AS draft
-        JOIN ppt_tasks AS task ON task.draft_id = draft.id
-        WHERE task.id = ${taskId}
+        JOIN ppt_tasks AS task
+          ON task.draft_id = draft.id AND task.account_id = draft.account_id
+        WHERE task.id = ${taskId} AND task.account_id = ${developmentAccountId}
       `;
       if (!draft) {
         throw new Error("DRAFT_NOT_FOUND");
@@ -382,15 +394,19 @@ export class M0Runtime {
         }
         await this.#sql.begin(async (transaction) => {
           await transaction`
-            INSERT INTO ppt_pages (id, task_id, page_number, title, body)
-            VALUES (${randomUUID()}, ${taskId}, ${index + 1}, ${page.title}, ${page.body})
+            INSERT INTO ppt_pages (id, account_id, task_id, page_number, title, body)
+            VALUES (
+              ${randomUUID()}, ${developmentAccountId}, ${taskId}, ${index + 1},
+              ${page.title}, ${page.body}
+            )
             ON CONFLICT (task_id, page_number) DO UPDATE
             SET title = EXCLUDED.title, body = EXCLUDED.body
           `;
           await transaction`
             UPDATE ppt_tasks
             SET completed_pages = ${index + 1}, version = version + 1
-            WHERE id = ${taskId} AND status = ${"running"}
+            WHERE id = ${taskId} AND account_id = ${developmentAccountId}
+              AND status = ${"running"}
           `;
         });
       }
@@ -402,10 +418,14 @@ export class M0Runtime {
       const [book] = await this.#sql<Array<{ title: string }>>`
         SELECT book.title
         FROM books AS book
-        JOIN conversations AS conversation ON conversation.book_id = book.id
-        JOIN ppt_drafts AS draft ON draft.conversation_id = conversation.id
-        JOIN ppt_tasks AS task ON task.draft_id = draft.id
-        WHERE task.id = ${taskId}
+        JOIN conversations AS conversation
+          ON conversation.book_id = book.id AND conversation.account_id = book.account_id
+        JOIN ppt_drafts AS draft
+          ON draft.conversation_id = conversation.id
+          AND draft.account_id = conversation.account_id
+        JOIN ppt_tasks AS task
+          ON task.draft_id = draft.id AND task.account_id = draft.account_id
+        WHERE task.id = ${taskId} AND task.account_id = ${developmentAccountId}
       `;
       const artifactId = randomUUID();
       const filename = "selfalone-development.pptx";
@@ -416,13 +436,16 @@ export class M0Runtime {
       );
       await this.#sql.begin(async (transaction) => {
         await transaction`
-          INSERT INTO ppt_artifacts (id, task_id, file_path, filename)
-          VALUES (${artifactId}, ${taskId}, ${filePath}, ${filename})
+          INSERT INTO ppt_artifacts (id, account_id, task_id, file_path, filename)
+          VALUES (
+            ${artifactId}, ${developmentAccountId}, ${taskId}, ${filePath}, ${filename}
+          )
         `;
         await transaction`
           UPDATE ppt_tasks
           SET status = ${"completed"}, artifact_id = ${artifactId}, version = version + 1
-          WHERE id = ${taskId} AND status = ${"running"}
+          WHERE id = ${taskId} AND account_id = ${developmentAccountId}
+            AND status = ${"running"}
         `;
       });
     } catch (error) {
@@ -430,7 +453,8 @@ export class M0Runtime {
       await this.#sql`
         UPDATE ppt_tasks
         SET status = ${"failed"}, error = ${message}, version = version + 1
-        WHERE id = ${taskId} AND status <> ${"stopped"}
+        WHERE id = ${taskId} AND account_id = ${developmentAccountId}
+          AND status <> ${"stopped"}
       `;
     }
   }
@@ -441,7 +465,8 @@ export class M0Runtime {
     expectedStage: string,
   ): Promise<never> {
     const [draft] = await this.#sql<Array<{ stage: string; version: number }>>`
-      SELECT stage, version FROM ppt_drafts WHERE id = ${draftId}
+      SELECT stage, version FROM ppt_drafts
+      WHERE id = ${draftId} AND account_id = ${developmentAccountId}
     `;
     if (!draft) {
       throw new Error("DRAFT_NOT_FOUND");

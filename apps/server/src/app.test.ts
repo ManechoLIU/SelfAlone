@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
+import { developmentAccountId } from "./account-migration";
 import { createApp } from "./app";
 import { createM0Runtime, type M0Runtime } from "./m0-runtime";
 
@@ -172,6 +173,25 @@ describe("M0 persisted presentation flow", () => {
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     );
     expect(download.rawPayload.subarray(0, 2).toString()).toBe("PK");
+
+    for (const [table, expectedRows] of [
+      ["books", 1],
+      ["conversations", 1],
+      ["ppt_drafts", 1],
+      ["ppt_tasks", 1],
+      ["ppt_pages", 3],
+      ["ppt_artifacts", 1],
+    ] as const) {
+      const [ownership] = await administration.unsafe<
+        Array<{ rows: number; developmentRows: number }>
+      >(`
+        SELECT count(*)::int AS rows,
+               count(*) FILTER (WHERE account_id = '${developmentAccountId}')::int
+                 AS "developmentRows"
+        FROM "${schemaName}".${table}
+      `);
+      expect(ownership).toEqual({ rows: expectedRows, developmentRows: expectedRows });
+    }
 
     await runtime.close();
     runtimes.length = 0;
