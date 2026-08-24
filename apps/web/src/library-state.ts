@@ -31,3 +31,11 @@ export function parseStatusLabel(status: BookParseStatus, errorCode: string | nu
   };
   return failures[errorCode ?? ""] ?? "解析失败";
 }
+
+export function coverStatusLabel(status: BookParseStatus, errorCode: string | null) {
+  if (status === "processing") return "解析中";
+  if (status === "ready_pages") return "页面模式";
+  if (status === "ready_text") return "已就绪";
+  if (errorCode === "PDF_INVALID") return "已损坏";
+  return "解析失败";
+}

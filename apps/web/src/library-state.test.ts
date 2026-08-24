@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorLabel,
+  coverStatusLabel,
   libraryViewState,
   parseStatusLabel,
   type LibraryLoadState,
@@ -42,5 +43,12 @@ describe("desktop library state", () => {
     expect(parseStatusLabel("ready_pages", null)).toBe("页面可用");
     expect(parseStatusLabel("failed", "PDF_ENCRYPTED")).toBe("PDF 已加密");
     expect(parseStatusLabel("failed", "PDF_INVALID")).toBe("文件已损坏");
+  });
+
+  it("uses compact visible cover status without losing the full accessible parse state", () => {
+    expect(coverStatusLabel("processing", null)).toBe("解析中");
+    expect(coverStatusLabel("ready_text", null)).toBe("已就绪");
+    expect(coverStatusLabel("ready_pages", null)).toBe("页面模式");
+    expect(coverStatusLabel("failed", "PDF_INVALID")).toBe("已损坏");
   });
 });

@@ -8,6 +8,7 @@ import {
 import type { LibraryBookSummary, LibrarySnapshot } from "@selfalone/contracts";
 import {
   authorLabel,
+  coverStatusLabel,
   libraryViewState,
   parseStatusLabel,
   type LibraryLoadState,
@@ -98,12 +99,13 @@ function libraryGrid(books: LibraryBookSummary[]) {
     ${books.map((book) => {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
+      const coverStatus = coverStatusLabel(book.parseStatus, book.errorCode);
       return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
         <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
           <strong>${escapeHtml(book.title)}</strong>
           <em>${escapeHtml(author)}</em>
-          <b class="parse-badge">${escapeHtml(status)}</b>
+          <b class="parse-badge" aria-label="解析状态：${escapeHtml(status)}">${escapeHtml(coverStatus)}</b>
         </div>
         <div class="book-caption">
           <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
@@ -125,7 +127,7 @@ function renderLibrary() {
         <span>${icons.search}</span>
         <input id="book-query" name="query" type="search" value="${escapeHtml(libraryState.query)}" placeholder="搜索书名或作者" autocomplete="off" />
       </form>
-      <label class="import-button ${libraryUploading ? "busy" : ""}" for="book-import" aria-disabled="${libraryUploading}">
+      <label class="import-button ${libraryUploading ? "busy" : ""}" for="book-import" aria-label="导入书籍" title="导入书籍" aria-disabled="${libraryUploading}">
         ${icons.upload}<span>${libraryUploading ? "正在保存…" : "导入书籍"}</span>
         <input class="visually-hidden" id="book-import" type="file" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
       </label>
