@@ -96,14 +96,14 @@ function libraryStatePanel() {
   }
   if (view === "filtered_empty") {
     return `<section class="library-state">
-      <span class="empty-glyph">无</span><h2>没有找到“${escapeHtml(libraryState.query)}”</h2>
+      <span class="library-state-icon">${icons.search}</span><h2>没有找到“${escapeHtml(libraryState.query)}”</h2>
       <p>换一个书名或作者试试，书架内容不会被改动。</p>
       <button id="clear-search" class="quiet-button" type="button">清除搜索</button>
     </section>`;
   }
   if (view === "empty") {
     return `<section class="library-state empty">
-      <span class="empty-glyph">书</span><h2>把第一本书放进来</h2>
+      <span class="library-state-icon">${icons.book}</span><h2>把第一本书放进来</h2>
       <p>支持 EPUB、TXT 和 PDF；文件会保存到你的账户，再在这里显示解析结果。</p>
       <label class="primary-button state-import" for="book-import">${icons.upload}导入书籍</label>
     </section>`;

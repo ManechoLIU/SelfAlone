@@ -73,4 +73,16 @@ describe("library binding visual contract", () => {
     expect(styles).toContain("width: 44px; height: 44px;");
     expect(styles).toContain("fill: none; stroke: currentColor;");
   });
+
+  it("uses the shared SVG icon set for empty library states", async () => {
+    const [styles, main] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(mainPath, "utf8"),
+    ]);
+
+    expect(main).toContain('class="library-state-icon">${icons.search}');
+    expect(main).toContain('class="library-state-icon">${icons.book}');
+    expect(main).not.toContain('class="empty-glyph"');
+    expect(styles).not.toContain(".empty-glyph");
+  });
 });
