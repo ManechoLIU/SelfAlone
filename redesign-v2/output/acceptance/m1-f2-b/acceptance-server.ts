@@ -16,40 +16,20 @@ await administration.unsafe(`CREATE SCHEMA "${schema}"`);
 const databaseUrl = new URL(baseDatabaseUrl);
 databaseUrl.searchParams.set("options", `-csearch_path=${schema}`);
 const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-m1-f2-b-"));
+const reader = await createTextReaderRuntime({
+  databaseUrl: databaseUrl.toString(),
+  objectDirectory,
+  extractTextBook,
+});
 const library = await createLibraryRuntime({
   databaseUrl: databaseUrl.toString(),
   objectDirectory,
   parseDelayMs: 0,
+  onTextReady: (accountId, bookId) => reader.publishTextBook(accountId, bookId),
 });
 await administration.unsafe(`
   INSERT INTO "${schema}".accounts (id, created_at)
   VALUES ('account-a', now()), ('account-b', now())
-`);
-await administration.unsafe(`
-  CREATE TABLE "${schema}".book_sections (
-    account_id text NOT NULL,
-    book_id text NOT NULL,
-    file_version integer NOT NULL,
-    section_id text NOT NULL,
-    section_order integer NOT NULL,
-    title text NOT NULL,
-    body text NOT NULL,
-    PRIMARY KEY (account_id, book_id, file_version, section_id),
-    UNIQUE (account_id, book_id, file_version, section_order),
-    FOREIGN KEY (account_id, book_id) REFERENCES "${schema}".books(account_id, id),
-    FOREIGN KEY (account_id, book_id, file_version)
-      REFERENCES "${schema}".book_files(account_id, book_id, version)
-  );
-  CREATE TABLE "${schema}".reading_positions (
-    account_id text NOT NULL,
-    book_id text NOT NULL,
-    locator jsonb NOT NULL,
-    background text NOT NULL CHECK (background IN ('light', 'dark')),
-    version integer NOT NULL CHECK (version > 0),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (account_id, book_id),
-    FOREIGN KEY (account_id, book_id) REFERENCES "${schema}".books(account_id, id)
-  );
 `);
 
 function storedZip(entries: Record<string, string>) {
@@ -128,20 +108,15 @@ async function importReady(filename: string, bytes: Buffer) {
 const txtBook = await importReady("夜航手记.txt", txtBytes);
 const epubBook = await importReady("雨后山亭.epub", epubBytes);
 const emptyBook = await importReady("暂未发布正文.txt", Buffer.from("第一章\n正文等待发布。"));
+await administration.unsafe(`
+  DELETE FROM "${schema}".book_sections
+  WHERE account_id = 'account-a' AND book_id = '${emptyBook.id}'
+`);
 const privateBook = await library.importBook("account-b", "另一个账户.txt", Buffer.from("第一章\n不可跨账户读取。"));
 for (let attempt = 0; attempt < 80; attempt += 1) {
   if ((await library.getBook("account-b", privateBook.id)).parseStatus === "ready_text") break;
   await new Promise((resolve) => setTimeout(resolve, 10));
 }
-
-const reader = await createTextReaderRuntime({
-  databaseUrl: databaseUrl.toString(),
-  objectDirectory,
-  extractTextBook,
-});
-await reader.publishTextBook("account-a", txtBook.id);
-await reader.publishTextBook("account-a", epubBook.id);
-await reader.publishTextBook("account-b", privateBook.id);
 
 const app = createApp({
   readiness: async () => (await library.ready()) && (await reader.ready()),

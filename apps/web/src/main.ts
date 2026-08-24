@@ -5,7 +5,7 @@ import {
   type OutlineItem,
   type WorkspaceSnapshot,
 } from "./app-state";
-import type { LibraryBookSummary, LibrarySnapshot } from "@selfalone/contracts";
+import type { LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
 import {
   authorLabel,
   bindLibrarySearchInteractions,
@@ -13,10 +13,13 @@ import {
   createLibraryPollingScheduler,
   createLatestLibraryRequest,
   libraryViewState,
+  libraryBookHref,
   parseStatusLabel,
+  readingBookIdFromHash,
   type LibraryLoadState,
 } from "./library-state";
 import { coverAssetForBook } from "./library-cover";
+import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { icons } from "./ui/icons";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
@@ -115,7 +118,10 @@ function libraryGrid(books: LibraryBookSummary[]) {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
       const coverStatus = coverStatusLabel(book.parseStatus, book.errorCode);
-      return `<article class="book-item ${book.parseStatus}" aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
+      const href = libraryBookHref(book);
+      const tag = href ? "a" : "article";
+      const target = href ? ` href="${href}"` : "";
+      return `<${tag} class="book-item ${book.parseStatus}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
         <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
           <strong>${escapeHtml(book.title)}</strong>
@@ -125,7 +131,7 @@ function libraryGrid(books: LibraryBookSummary[]) {
         <div class="book-caption">
           <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
         </div>
-      </article>`;
+      </${tag}>`;
     }).join("")}
   </section>`;
 }
@@ -647,9 +653,40 @@ function render() {
   bindInteractions();
 }
 
+let activeTextReader: ReturnType<typeof mountTextReader> | null = null;
+
+async function openTextReader(bookId: string) {
+  app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
+  const api = createTextReaderApi(bookId);
+  try {
+    const reading = await api.loadReading();
+    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    const prefetchedApi = {
+      ...api,
+      loadReading: async () => reading as TextReading,
+    };
+    activeTextReader = mountTextReader(app, {
+      bookId,
+      api: prefetchedApi,
+      cacheScope: {
+        accountId: "account-development-local",
+        bookId,
+        fileVersion: reading.fileVersion,
+      },
+    });
+  } catch {
+    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    activeTextReader = mountTextReader(app, { bookId, api });
+  }
+}
+
+window.addEventListener("beforeunload", () => activeTextReader?.destroy());
 window.addEventListener("hashchange", () => window.location.reload());
 if (!window.location.hash) window.history.replaceState(null, "", "#/library");
-if (window.location.hash === "#/library") {
+const readingBookId = readingBookIdFromHash(window.location.hash);
+if (readingBookId) {
+  void openTextReader(readingBookId);
+} else if (window.location.hash === "#/library") {
   renderLibrary();
   void loadLibrary("", "initial");
 } else {

@@ -195,4 +195,56 @@ describe("M1-F2-A local library runtime", () => {
     );
     expect(count?.count).toBe(0);
   });
+
+  it("keeps a text book processing until its readable sections are published", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-"));
+    objectDirectories.push(objectDirectory);
+    let releasePublisher = () => {};
+    const publisherGate = new Promise<void>((resolve) => {
+      releasePublisher = resolve;
+    });
+    let markPublisherStarted = () => {};
+    const publisherStarted = new Promise<void>((resolve) => {
+      markPublisherStarted = resolve;
+    });
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+      onTextReady: async () => {
+        markPublisherStarted();
+        await publisherGate;
+      },
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at) VALUES ('account-a', now())
+    `);
+
+    try {
+      const imported = await runtime.importBook(
+        "account-a",
+        "等待发布.txt",
+        Buffer.from("第一章\n章节必须先发布。"),
+      );
+      await publisherStarted;
+
+      expect((await runtime.getBook("account-a", imported.id)).parseStatus).toBe("processing");
+
+      releasePublisher();
+      const ready = await eventually(
+        () => runtime.getBook("account-a", imported.id),
+        (book) => book.parseStatus === "ready_text",
+      );
+      expect(ready.parseStatus).toBe("ready_text");
+    } finally {
+      releasePublisher();
+    }
+  });
 });

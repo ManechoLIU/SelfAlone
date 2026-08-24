@@ -1,6 +1,6 @@
 # M1-F2-B EPUB/TXT 文本阅读验收收据
 
-基线：`main@44b81ea`；范围分支：`codex/m1-f2-b`。本目录只保存该工作包的真实 Case 启动入口、浏览器截图与集成接缝，不替代 SPEC、DESIGN、TECHNICAL 或任务台账。
+原始实现基线：`main@44b81ea`；范围分支：`codex/m1-f2-b`；实现候选止于 `804f952`。本目录保存该工作包的真实 Case、浏览器截图与 main 集成收据，不替代 SPEC、DESIGN、TECHNICAL 或任务台账。
 
 ## 真实 Case
 
@@ -28,6 +28,9 @@
 | `09-load-failure-native-1440x844.jpg` | 失败态、非颜色提示、重新载入与禁用阅读工具 |
 | `10-txt-responsive-768x844.jpg` | 768×844 响应式断点，80px 私有左栏与无横向溢出 |
 | `11-refresh-restored-txt-dark-native-1440x844.jpg` | TXT 末章与深色背景刷新恢复 |
+| `12-main-integration-library-1440x900-dpr2.png` | main 共享接缝候选的真实书架，两本真实导入书均为可聚焦阅读链接；SHA-256 `1a447438bc93864727e32d3ba042095f557fc0b88195a082c5a67a62dfabf77c` |
+| `13-main-integration-epub-dark-focus-1440x900-dpr2.png` | main 真实 EPUB 深色专注态；全局 rail 与非阅读操作退出视觉和可访问树；SHA-256 `62d00eff1765aa4223e201375a4db1ae1fbb2f8ac9be60518c50800b18eedeae` |
+| `14-main-integration-txt-1440x900-dpr2.png` | main 真实 TXT 浅色普通态，标题去重、作者回退与共享外壳恢复；SHA-256 `2754b659bf7a18d86de153a19408f2a9cef0c5f1f8a0bd3ed800aeb5a974a511` |
 
 真实浏览器额外检查：
 
@@ -46,6 +49,8 @@
 
 follow-up 在 2026-08-25 再用未设 viewport override 的真实 Chrome（`1440×900`、`devicePixelRatio=2`）复验 Selection：选中 EPUB 的“第一章”并滚动至 `scrollTop=773.5` 后，以真实鼠标切换 dark→light，选区、Range、复制按钮、“和老己聊聊”、按钮焦点和 `scrollTop` 全部不变，light 山水 opacity 为 `.34`；随后进入并退出专注阅读，两次仍保持同一 Selection 与 `scrollTop=773.5`。成功复制提示在 2.4 秒后清空但选区继续保留；拒绝复制提示在 3.1 秒后仍保留，选区、复制按钮与对话入口仍可用，console warning/error 为 0。该轮没有用 viewport override 冒充原生 `1440×844`。
 
+总控 main 集成候选另以隔离 PostgreSQL schema、独立对象目录、Server `4315` 与 Web `4395` 从真实书架入口复验：真实 TXT 与真实 EPUB 均经 `202 → processing → ready_text`，只有章节发布完成后才暴露为可阅读；书架点击进入真实路由，EPUB 目录跳转产生 `scrollTop=92`，浅→深保存后刷新仍为 `is-dark`，专注态只保留目录 / 背景 / 退出三个 `46×44px` 控件。返回书架再进入 TXT 成功，`1440×900 @ DPR2 / scale1` 全程 document 横向溢出为 0，Chrome console warning/error 为 0。截图 12–14 均来自本次 main 集成候选，不冒充缺失的精确 `1440×844` 或原生 200%。
+
 原有 11 个截图经 `file` 核验均为 JPEG/JFIF，现已只改扩展名为 `.jpg` 并同步本表，没有重编码或重拍；像素尺寸仍为十张 `1440×844` 与一张 `768×844`。
 
 原生 200%：当前 Chrome 控制接口发送浏览器原生放大快捷键后，`innerWidth/devicePixelRatio` 仍为 `1440/2`，未能证明缩放生效。因此本候选明确登记为未完成浏览器证据；旧的 CSS `zoom:2` 截图和 query 已删除，不用 override 或 CSS zoom 冒充原生 200%。
@@ -61,12 +66,10 @@ API_TARGET=http://127.0.0.1:3001 apps/web/node_modules/.bin/vite --config apps/w
 
 打开 `http://127.0.0.1:4174/redesign-v2/output/acceptance/m1-f2-b/index.html?book=epub`。可用 query：`book=txt|empty|private|missing`、`delay=2000`、`saveFail=1`、`select=1`、`clipboardFail=1`、`loadFail=1`、`cache=light|dark`、`seedAccount=account-b`、`seedVersion=2`、`storageDenied=1`、`noScope=1`、`leave=1`。
 
-## 总控集成接缝
+## 总控 main 集成收据
 
-当前范围禁止修改共享入口、contracts 与迁移；总控集成时需完成以下精确连接：
-
-1. 由总控在 `packages/domain/src/index.ts` 导出 `extractTextBook`，并在 Worker/导入解析成功后调用 `TextReaderRuntime.publishTextBook(accountId, bookId)`；不要另建 locator 或文件版本语义。
-2. 将 `registerTextReaderRoutes(app, runtime, resolveAccountId)` 接入 `apps/server/src/app.ts`；三条路由固定为 `GET /api/v1/books/:bookId/reading`、`GET /content/sections`、`PUT /position`。
-3. contracts 复用冻结的 `TextLocator={kind:"text",fileVersion,sectionId,offset}`；将本模块的结构相同本地类型换为共享导入即可。
-4. 迁移需建 `book_sections(account_id,book_id,file_version,section_id,section_order,title,body)` 和 `reading_positions(account_id,book_id,locator,background,version,updated_at)`；`book_sections` 必须同时有 `(account_id,book_id)` 与 `(account_id,book_id,file_version)` 复合 owner 外键，唯一顺序为 `(account_id,book_id,file_version,section_order)`；`reading_positions` 主键为 `(account_id,book_id)` 并引用 owner 复合键。
-5. 在 `apps/web/src/main.ts` 的书籍阅读路由挂载 `mountTextReader(root,{bookId})`，离开路由时调用 `destroy()`；共享 `styles.css` 不需复制本模块样式。
+- `packages/contracts` 现只定义一份 `TextLocator / PdfLocator / ReadingLocator`、浅 / 深背景、文本阅读响应与位置写入结构；domain、Server 与 Web 已改为共享类型。
+- `book_sections` 同时使用 `(account_id,book_id)` 与 `(account_id,book_id,file_version)` 复合外键；`reading_positions` 按 owner + book 唯一并使用递增版本。集成测试证明 TXT 导入、章节发布、位置保存及服务重启恢复。
+- 导入链只在 `TextReaderRuntime.publishTextBook` 完成后把书籍从 `processing` 升为 `ready_text`；发布失败关闭为书籍失败，不留下“可阅读但无章节”的短暂窗口。
+- Server 组合入口已注册 `/reading`、`/content/sections`、`/position`；Web 仅把 `ready_text` 卡片变成阅读链接，预取当前 `fileVersion` 后再提供完整 cache scope 并挂载阅读器，页面卸载时销毁控制器。
+- 原生 Chrome 200% 与同 revision 无 override `1440×844` 仍是完整视觉 `DONE` 门；PDF 页面一致性留在 M1-F2-C，不由本次文本集成冒充完成。

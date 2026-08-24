@@ -3,16 +3,15 @@ import { resolve, sep } from "node:path";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import postgres, { type Sql } from "postgres";
 import { z } from "zod";
+import type {
+  ReaderBackground,
+  SaveTextPositionRequest,
+  TextLocator,
+  TextReaderSection,
+} from "@selfalone/contracts";
 import { developmentAccountId } from "./account-migration";
 
-export type TextLocator = {
-  kind: "text";
-  fileVersion: number;
-  sectionId: string;
-  offset: number;
-};
-
-export type ReaderBackground = "light" | "dark";
+export type { ReaderBackground, TextLocator } from "@selfalone/contracts";
 
 type ExtractedTextBook = {
   format: "epub" | "txt";
@@ -45,12 +44,7 @@ type FileRow = {
   author: string | null;
 };
 
-type SectionRow = {
-  sectionId: string;
-  title: string;
-  order: number;
-  text: string;
-};
+type SectionRow = TextReaderSection;
 
 type PositionRow = {
   locator: TextLocator;
@@ -87,7 +81,11 @@ export class TextReaderRuntime {
     }
   }
 
-  private async currentFile(accountId: string, bookId: string): Promise<FileRow> {
+  private async currentFile(
+    accountId: string,
+    bookId: string,
+    allowProcessing = false,
+  ): Promise<FileRow> {
     const [file] = await this.sql<Array<FileRow>>`
       SELECT file.account_id AS "accountId", file.book_id AS "bookId",
              file.object_key AS "objectKey", file.original_filename AS "originalFilename",
@@ -100,14 +98,16 @@ export class TextReaderRuntime {
       LIMIT 1
     `;
     if (!file) throw new Error("BOOK_NOT_FOUND");
-    if ((file.format !== "epub" && file.format !== "txt") || file.parseStatus !== "ready_text") {
+    const readableStatus = file.parseStatus === "ready_text"
+      || (allowProcessing && file.parseStatus === "processing");
+    if ((file.format !== "epub" && file.format !== "txt") || !readableStatus) {
       throw new Error("TEXT_CONTENT_UNAVAILABLE");
     }
     return file;
   }
 
   async publishTextBook(accountId: string, bookId: string) {
-    const file = await this.currentFile(accountId, bookId);
+    const file = await this.currentFile(accountId, bookId, true);
     const root = resolve(this.objectDirectory);
     const objectPath = resolve(root, ...file.objectKey.split("/"));
     if (objectPath !== root && !objectPath.startsWith(`${root}${sep}`)) throw new Error("OBJECT_KEY_INVALID");
@@ -185,7 +185,7 @@ export class TextReaderRuntime {
   async savePosition(
     accountId: string,
     bookId: string,
-    input: { expectedVersion: number; locator: TextLocator; background: ReaderBackground },
+    input: SaveTextPositionRequest,
   ) {
     const parsed = positionSchema.parse(input);
     return this.sql.begin(async (transaction) => {

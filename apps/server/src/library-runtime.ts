@@ -39,6 +39,7 @@ export class LibraryRuntime {
     private readonly sql: Sql,
     private readonly objectDirectory: string,
     private readonly parseDelayMs: number,
+    private readonly onTextReady?: (accountId: string, bookId: string) => Promise<unknown>,
   ) {}
 
   async initialize() {
@@ -78,6 +79,34 @@ export class LibraryRuntime {
         version integer NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now(),
         UNIQUE (account_id, book_id, version),
+        FOREIGN KEY (account_id, book_id) REFERENCES books(account_id, id)
+      )
+    `;
+    await this.sql`
+      CREATE TABLE IF NOT EXISTS book_sections (
+        account_id text NOT NULL,
+        book_id text NOT NULL,
+        file_version integer NOT NULL,
+        section_id text NOT NULL,
+        section_order integer NOT NULL,
+        title text NOT NULL,
+        body text NOT NULL,
+        PRIMARY KEY (account_id, book_id, file_version, section_id),
+        UNIQUE (account_id, book_id, file_version, section_order),
+        FOREIGN KEY (account_id, book_id) REFERENCES books(account_id, id),
+        FOREIGN KEY (account_id, book_id, file_version)
+          REFERENCES book_files(account_id, book_id, version)
+      )
+    `;
+    await this.sql`
+      CREATE TABLE IF NOT EXISTS reading_positions (
+        account_id text NOT NULL,
+        book_id text NOT NULL,
+        locator jsonb NOT NULL,
+        background text NOT NULL CHECK (background IN ('light', 'dark')),
+        version integer NOT NULL CHECK (version > 0),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (account_id, book_id),
         FOREIGN KEY (account_id, book_id) REFERENCES books(account_id, id)
       )
     `;
@@ -203,15 +232,33 @@ export class LibraryRuntime {
     if (this.parseDelayMs > 0) await delay(this.parseDelayMs);
     const bytes = await readFile(join(this.objectDirectory, ...file.objectKey.split("/")));
     const result = inspectImportedBook({ filename: file.originalFilename, bytes });
+    let publicationError = "";
+    if (result.parseStatus === "ready_text" && this.onTextReady) {
+      try {
+        await this.onTextReady(file.accountId, file.bookId);
+      } catch (error) {
+        publicationError = error instanceof Error ? error.message : "TEXT_PARSE_FAILED";
+      }
+    }
     await this.sql.begin(async (transaction) => {
-      await transaction`
-        UPDATE books
-        SET title = ${result.title}, author = ${result.author},
-            parse_status = ${result.parseStatus}, parse_error_code = ${result.errorCode},
-            section_count = ${result.sectionCount}, page_count = ${result.pageCount}
-        WHERE id = ${file.bookId} AND account_id = ${file.accountId}
-          AND parse_status = 'processing'
-      `;
+      if (result.parseStatus === "ready_text" && this.onTextReady && !publicationError) {
+        await transaction`
+          UPDATE books
+          SET parse_status = 'ready_text', parse_error_code = NULL
+          WHERE id = ${file.bookId} AND account_id = ${file.accountId}
+            AND parse_status = 'processing'
+        `;
+      } else {
+        await transaction`
+          UPDATE books
+          SET title = ${result.title}, author = ${result.author},
+              parse_status = ${publicationError ? "failed" : result.parseStatus},
+              parse_error_code = ${publicationError || result.errorCode},
+              section_count = ${result.sectionCount}, page_count = ${result.pageCount}
+          WHERE id = ${file.bookId} AND account_id = ${file.accountId}
+            AND parse_status = 'processing'
+        `;
+      }
       await transaction`
         UPDATE book_files
         SET parse_result = ${transaction.json(result)}
@@ -230,9 +277,15 @@ export async function createLibraryRuntime(options: {
   databaseUrl: string;
   objectDirectory: string;
   parseDelayMs?: number;
+  onTextReady?: (accountId: string, bookId: string) => Promise<unknown>;
 }) {
   const sql = postgres(options.databaseUrl, { max: 4 });
-  const runtime = new LibraryRuntime(sql, options.objectDirectory, options.parseDelayMs ?? 20);
+  const runtime = new LibraryRuntime(
+    sql,
+    options.objectDirectory,
+    options.parseDelayMs ?? 20,
+    options.onTextReady,
+  );
   await runtime.initialize();
   return runtime;
 }

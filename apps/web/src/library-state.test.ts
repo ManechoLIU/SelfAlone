@@ -55,4 +55,19 @@ describe("desktop library state", () => {
     expect(coverStatusLabel("ready_pages", null)).toBe("页面模式");
     expect(coverStatusLabel("failed", "PDF_INVALID")).toBe("已损坏");
   });
+
+  it("opens only ready text books and safely resolves their reading route", async () => {
+    const module = await import("./library-state") as typeof import("./library-state") & {
+      libraryBookHref(book: LibraryLoadState["books"][number]): string | null;
+      readingBookIdFromHash(hash: string): string | null;
+    };
+
+    expect(typeof module.libraryBookHref).toBe("function");
+    expect(module.libraryBookHref(normal.books[0]!)).toBe("#/reading/book-1");
+    expect(module.libraryBookHref({ ...normal.books[0]!, parseStatus: "processing" })).toBeNull();
+    expect(module.libraryBookHref({ ...normal.books[0]!, parseStatus: "ready_pages" })).toBeNull();
+    expect(module.readingBookIdFromHash("#/reading/book%20one")).toBe("book one");
+    expect(module.readingBookIdFromHash("#/reading/%E0%A4%A")).toBeNull();
+    expect(module.readingBookIdFromHash("#/library")).toBeNull();
+  });
 });

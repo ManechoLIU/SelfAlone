@@ -139,3 +139,19 @@ export function coverStatusLabel(status: BookParseStatus, errorCode: string | nu
   if (errorCode === "PDF_INVALID") return "已损坏";
   return "解析失败";
 }
+
+export function libraryBookHref(book: LibraryBookSummary) {
+  return book.parseStatus === "ready_text"
+    ? `#/reading/${encodeURIComponent(book.id)}`
+    : null;
+}
+
+export function readingBookIdFromHash(hash: string) {
+  const match = hash.match(/^#\/reading\/([^/?#]+)$/);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}

@@ -4,11 +4,13 @@ import { z } from "zod";
 import { developmentAccountId } from "./account-migration";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
+import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
   library?: LibraryRuntime;
   m0?: M0Runtime;
+  textReader?: TextReaderRuntime;
 };
 
 export function createApp(dependencies: AppDependencies) {
@@ -63,6 +65,10 @@ export function createApp(dependencies: AppDependencies) {
         await library.importBook(accountId(request.headers), filename, request.body),
       );
     });
+  }
+
+  if (dependencies.textReader) {
+    registerTextReaderRoutes(app, dependencies.textReader);
   }
 
   if (dependencies.m0) {

@@ -4,6 +4,8 @@ import { createApp } from "./app";
 import { createLibraryRuntime } from "./library-runtime";
 import { createM0Runtime } from "./m0-runtime";
 import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
+import { createTextReaderRuntime } from "./text-reader";
+import { extractTextBook } from "@selfalone/domain";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const databaseUrl =
@@ -21,20 +23,29 @@ const port = Number(process.env.PORT ?? 4100);
 
 assertDevelopmentAdapterAllowed(process.env.APP_ENV);
 const runtime = await createM0Runtime({ databaseUrl, artifactDirectory });
+const textReader = await createTextReaderRuntime({
+  databaseUrl,
+  objectDirectory: bookObjectDirectory,
+  extractTextBook,
+});
 const library = await createLibraryRuntime({
   databaseUrl,
   objectDirectory: bookObjectDirectory,
   parseDelayMs: Number(process.env.BOOK_PARSE_DELAY_MS ?? 20),
+  onTextReady: (accountId, bookId) => textReader.publishTextBook(accountId, bookId),
 });
 const app = createApp({
-  readiness: async () => (await runtime.ready()) && (await library.ready()),
+  readiness: async () =>
+    (await runtime.ready()) && (await library.ready()) && (await textReader.ready()),
   library,
   m0: runtime,
+  textReader,
 });
 
 const shutdown = async () => {
   await app.close();
   await library.close();
+  await textReader.close();
   await runtime.close();
   process.exit(0);
 };

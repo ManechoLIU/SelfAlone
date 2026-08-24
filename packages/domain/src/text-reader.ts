@@ -1,12 +1,8 @@
 import { posix } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import type { TextLocator } from "@selfalone/contracts";
 
-export type TextLocator = {
-  kind: "text";
-  fileVersion: number;
-  sectionId: string;
-  offset: number;
-};
+export type { TextLocator } from "@selfalone/contracts";
 
 export type TextSection = {
   sectionId: string;

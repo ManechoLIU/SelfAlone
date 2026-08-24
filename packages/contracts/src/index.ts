@@ -31,3 +31,53 @@ export type LibraryBookSummary = {
 export type LibrarySnapshot = {
   books: LibraryBookSummary[];
 };
+
+export type TextLocator = {
+  kind: "text";
+  fileVersion: number;
+  sectionId: string;
+  offset: number;
+};
+
+export type PdfLocator = {
+  kind: "pdf";
+  fileVersion: number;
+  pageNumber: number;
+};
+
+export type ReadingLocator = TextLocator | PdfLocator;
+
+export type ReaderBackground = "light" | "dark";
+
+export type ReadingPosition<TLocator extends ReadingLocator = ReadingLocator> = {
+  locator: TLocator;
+  background: ReaderBackground;
+  version: number;
+};
+
+export type TextReaderSection = {
+  sectionId: string;
+  title: string;
+  order: number;
+  text: string;
+};
+
+export type TextReading = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  contentMode: "text";
+  fileVersion: number;
+  position: ReadingPosition<TextLocator> | null;
+};
+
+export type TextReaderSections = {
+  fileVersion: number;
+  sections: TextReaderSection[];
+};
+
+export type SaveTextPositionRequest = {
+  expectedVersion: number;
+  locator: TextLocator;
+  background: ReaderBackground;
+};

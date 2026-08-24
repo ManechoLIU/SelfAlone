@@ -1,31 +1,19 @@
-export type TextLocator = {
-  kind: "text";
-  fileVersion: number;
-  sectionId: string;
-  offset: number;
-};
+import type {
+  ReadingPosition,
+  ReaderBackground,
+  SaveTextPositionRequest,
+  TextLocator,
+  TextReaderSection,
+  TextReaderSections,
+  TextReading,
+} from "@selfalone/contracts";
 
-export type ReaderBackground = "light" | "dark";
-
-export type TextReaderSection = {
-  sectionId: string;
-  title: string;
-  order: number;
-  text: string;
-};
-
-export type TextReading = {
-  bookId: string;
-  title: string;
-  author: string | null;
-  contentMode: "text";
-  fileVersion: number;
-  position: {
-    locator: TextLocator;
-    background: ReaderBackground;
-    version: number;
-  } | null;
-};
+export type {
+  ReaderBackground,
+  TextLocator,
+  TextReaderSection,
+  TextReading,
+} from "@selfalone/contracts";
 
 export type PendingReaderSave = {
   locator: TextLocator;
@@ -48,12 +36,8 @@ export type TextReaderSnapshot = {
 
 export type TextReaderApi = {
   loadReading(): Promise<TextReading>;
-  loadSections(): Promise<{ fileVersion: number; sections: TextReaderSection[] }>;
-  savePosition(input: PendingReaderSave & { expectedVersion: number }): Promise<{
-    locator: TextLocator;
-    background: ReaderBackground;
-    version: number;
-  }>;
+  loadSections(): Promise<TextReaderSections>;
+  savePosition(input: SaveTextPositionRequest): Promise<ReadingPosition<TextLocator>>;
 };
 
 export const READER_SCROLL_SAVE_DELAY_MS = 280;
