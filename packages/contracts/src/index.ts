@@ -32,6 +32,11 @@ export type LibrarySnapshot = {
   books: LibraryBookSummary[];
 };
 
+/** Account ownership is resolved from the authenticated session, never inferred from a resource. */
+export type AccountOwner = {
+  accountId: string;
+};
+
 export type TextLocator = {
   kind: "text";
   fileVersion: number;
@@ -158,6 +163,7 @@ export type TextAnnotationSaveErrorCode =
 export type TextAnnotationErrorCode =
   | TextAnnotationSaveErrorCode
   | "VALIDATION_FAILED"
+  | "ACCOUNT_REQUIRED"
   | "ACCOUNT_FORBIDDEN"
   | "BOOK_NOT_FOUND"
   | "TEXT_CONTENT_UNAVAILABLE"

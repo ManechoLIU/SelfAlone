@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { createReadStream } from "node:fs";
 import { z } from "zod";
-import { developmentAccountId } from "./account-migration";
+import { resolveAccountOwner } from "./account-owner";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
@@ -21,10 +21,7 @@ type AppDependencies = {
   >;
 };
 
-export function resolveAccountId(headers: Record<string, unknown>) {
-  const value = headers["x-selfalone-account"];
-  return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
-}
+export const resolveAccountId = resolveAccountOwner;
 
 export function createApp(dependencies: AppDependencies) {
   const app = Fastify({ logger: false });
@@ -170,6 +167,9 @@ export function createApp(dependencies: AppDependencies) {
     }
     if (message === "ACCOUNT_FORBIDDEN") {
       return reply.code(403).send({ code: message });
+    }
+    if (message === "ACCOUNT_REQUIRED") {
+      return reply.code(401).send({ code: message });
     }
     if (
       [

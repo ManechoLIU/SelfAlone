@@ -9,7 +9,7 @@ import type {
   TextLocator,
   TextReaderSection,
 } from "@selfalone/contracts";
-import { developmentAccountId } from "./account-migration";
+import { resolveAccountOwner } from "./account-owner";
 
 export type { ReaderBackground, TextLocator } from "@selfalone/contracts";
 
@@ -245,6 +245,13 @@ export class TextReaderRuntime {
   ) {
     const parsed = positionSchema.parse(input);
     return this.sql.begin(async (transaction) => {
+      const [book] = await transaction<Array<{ id: string }>>`
+        SELECT id
+        FROM books
+        WHERE account_id = ${accountId} AND id = ${bookId}
+        FOR UPDATE
+      `;
+      if (!book) throw new Error("BOOK_NOT_FOUND");
       const [file] = await transaction<Array<{ fileVersion: number }>>`
         SELECT version AS "fileVersion"
         FROM book_files
@@ -307,6 +314,8 @@ function sendReaderError(error: unknown, reply: FastifyReply) {
   }
   const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
   if (code === "STALE_VERSION") return reply.code(409).send({ code });
+  if (code === "ACCOUNT_REQUIRED") return reply.code(401).send({ code });
+  if (code === "ACCOUNT_FORBIDDEN") return reply.code(403).send({ code });
   if (code.endsWith("_NOT_FOUND")) return reply.code(404).send({ code });
   if (code === "TEXT_CONTENT_UNAVAILABLE") return reply.code(409).send({ code });
   return reply.code(500).send({ code: "INTERNAL_ERROR" });
@@ -315,10 +324,7 @@ function sendReaderError(error: unknown, reply: FastifyReply) {
 export function registerTextReaderRoutes(
   app: FastifyInstance,
   runtime: TextReaderRuntime,
-  resolveAccountId = (headers: Record<string, unknown>) => {
-    const value = headers["x-selfalone-account"];
-    return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
-  },
+  resolveAccountId = resolveAccountOwner,
 ) {
   const parametersSchema = z.object({ bookId: z.string().min(1).max(256) });
   app.get("/api/v1/books/:bookId/reading", async (request, reply) => {

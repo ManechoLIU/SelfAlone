@@ -8,6 +8,7 @@ import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
 import { createTextReaderRuntime } from "./text-reader";
 import { createTextAnnotationRuntime } from "./text-annotation-runtime";
 import { migrateTextAnnotationSchema } from "./text-annotation-migration";
+import { migrateOwnerContractSchema } from "./owner-migration";
 import { extractTextBook } from "@selfalone/domain";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -37,6 +38,12 @@ const library = await createLibraryRuntime({
   parseDelayMs: Number(process.env.BOOK_PARSE_DELAY_MS ?? 20),
   textPublisher: textReader,
 });
+const ownerMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateOwnerContractSchema(ownerMigrationDatabase);
+} finally {
+  await ownerMigrationDatabase.end();
+}
 const migrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateTextAnnotationSchema(migrationDatabase);
