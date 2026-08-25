@@ -33,6 +33,19 @@ function activeStage(screen: WorkspaceScreen) {
   return 3;
 }
 
+function taskPanelTitle(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
+  const task = workspace.task;
+  const total = task?.totalPages ?? workspace.outline.length;
+  const current = Math.min((task?.completedPages ?? 0) + 1, Math.max(total, 1));
+  if (screen === "requirements") return "范围与需求";
+  if (screen === "outline") return "大纲";
+  if (screen === "template") return "选择模板";
+  if (screen === "completed") return `已生成${task?.completedPages ?? total}页`;
+  if (screen === "failed") return `生成在第${current}/${Math.max(total, 1)}页中断`;
+  if (screen === "stopped") return `生成在第${current}/${Math.max(total, 1)}页停止`;
+  return `正在生成第${current}/${Math.max(total, 1)}页`;
+}
+
 function renderStageSteps(screen: WorkspaceScreen) {
   const activeIndex = activeStage(screen);
   return `<ol class="desktop-stage-steps" aria-label="PPT 生成进度">
@@ -52,88 +65,27 @@ function renderScopeSummary(workspace: WorkspaceSnapshot) {
     </dl>`;
 }
 
-function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, selectedTemplate: string) {
-  const selected = templates.find((template) => template.id === selectedTemplate) ?? templates[0];
-  const task = workspace.task;
-  const progress = task ? taskProgressLabel(task) : `${workspace.outline.length ? workspace.outline.length : 0} 页`;
-  const body = screen === "requirements"
-    ? `
-        <div class="desktop-confirmed-scope">
-          <p>已确认范围</p>
-          ${renderScopeSummary(workspace)}
-        </div>
-        <div class="desktop-scope-fields">
-          <label for="scope-purpose">用途<select id="scope-purpose" name="purpose" disabled aria-disabled="true" aria-label="用途（暂不可用）"><option>本地示例暂不可用</option></select></label>
-          <label for="scope-audience">受众<select id="scope-audience" name="audience" disabled aria-disabled="true" aria-label="受众（暂不可用）"><option>本地示例暂不可用</option></select></label>
-          <label for="scope-pages">页数范围<select id="scope-pages" name="pages" disabled aria-disabled="true" aria-label="页数范围（暂不可用）"><option>本地示例暂不可用</option></select></label>
-        </div>
-        <p class="desktop-scope-note">用途、受众和页数暂不可用，不会进入本地示例提交与结果；本次只读取下方要求。</p>
-        <button class="desktop-primary-button" type="submit" form="requirements-form">生成示例大纲${icons.arrow}</button>`
-    : screen === "outline"
-      ? `
-        <div class="desktop-confirmed-scope">
-          <p>已确认范围</p>
-          ${renderScopeSummary(workspace)}
-        </div>
-        <p class="desktop-task-helper">逐页调整标题与正文，保存后进入模板选择。</p>`
-      : screen === "template"
-        ? `
-          <div class="desktop-confirmed-scope">
-            <p>当前选择</p>
-            <strong class="desktop-selected-template">${escapeHtml(selected.name)}</strong>
-            <span>${escapeHtml(selected.note)}</span>
-          </div>
-          <p class="desktop-task-helper">模板只影响版式，生成后标题与正文仍可在 PowerPoint 或 WPS 中编辑。</p>`
-        : `
-          <div class="desktop-task-status ${screen === "failed" ? "failed" : screen === "completed" ? "completed" : "running"}">
-            <strong>${screen === "completed" ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</strong>
-            <span>${escapeHtml(progress)}</span>
-          </div>
-          ${renderScopeSummary(workspace)}`;
-
-  return `<section class="desktop-task-panel-inner">
-    <header class="desktop-task-header">
-      <p>当前任务</p>
-      <h2>范围与需求</h2>
-    </header>
-    ${renderStageSteps(screen)}
-    <div class="desktop-task-body">${body}</div>
-  </section>`;
-}
-
-function renderRequirementsMain(workspace: WorkspaceSnapshot, busy: boolean) {
-  return `<section class="conversation-content requirements-content" aria-labelledby="conversation-title">
-    <section class="conversation-thread">
-      <article class="assistant-message desktop-message">
-        <p>帮我把《${escapeHtml(workspace.book.title)}》的读书笔记整理成一份读书会分享 PPT。</p>
-        <time>当前会话</time>
-      </article>
-      <article class="assistant-message desktop-message desktop-message-question">
-        <div class="desktop-message-author"><img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" /><strong>这次想重点覆盖哪些内容？</strong></div>
-        <time>范围与需求</time>
-        <div class="desktop-selection-summary"><span>已选择：全书 · 包含个人笔记</span><strong>已确认</strong></div>
-        <p class="desktop-message-note">已同步到右侧范围与需求。</p>
-      </article>
-    </section>
-    <form id="requirements-form" class="desktop-composer">
-      <img class="desktop-conversation-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="老己坐姿持书" />
-      <label for="requirements">生成要求 · 继续补充</label>
-      <textarea id="requirements" name="requirements" rows="3" required placeholder="补充用途、受众或希望保留的观点">${escapeHtml(workspace.draft.requirements)}</textarea>
-      <div class="desktop-composer-actions">
-        <span>生成后仍可修改大纲</span>
-        <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
-      </div>
-    </form>
-  </section>`;
-}
-
-function renderOutlineMain(workspace: WorkspaceSnapshot, busy: boolean) {
-  return `<section class="conversation-content outline-content" aria-labelledby="outline-title">
-    <section class="conversation-heading">
+function renderRequirementsWorkspace(workspace: WorkspaceSnapshot) {
+  return `
+    <div class="desktop-confirmed-scope">
       <p>已确认范围</p>
-      <h2 id="outline-title">先看结构，再开始生成</h2>
-      <span>每一页都可以直接修改。确认后，老己再把它变成演示文稿。</span>
-    </section>
+      ${renderScopeSummary(workspace)}
+    </div>
+    <div class="desktop-scope-fields">
+      <label for="scope-purpose">用途<select id="scope-purpose" name="purpose" disabled aria-disabled="true" aria-label="用途（暂不可用）"><option>本地示例暂不可用</option></select></label>
+      <label for="scope-audience">受众<select id="scope-audience" name="audience" disabled aria-disabled="true" aria-label="受众（暂不可用）"><option>本地示例暂不可用</option></select></label>
+      <label for="scope-pages">页数范围<select id="scope-pages" name="pages" disabled aria-disabled="true" aria-label="页数范围（暂不可用）"><option>本地示例暂不可用</option></select></label>
+    </div>
+    <p class="desktop-scope-note">用途、受众和页数暂不可用，不会进入本地示例提交与结果；本次只读取下方要求。</p>
+    <button class="desktop-primary-button" type="submit" form="requirements-form">生成示例大纲${icons.arrow}</button>`;
+}
+
+function renderOutlineWorkspace(workspace: WorkspaceSnapshot, busy: boolean) {
+  return `
+    <div class="desktop-task-stage-copy">
+      <strong>大纲已生成</strong>
+      <span>逐页调整标题与正文，保存后进入模板选择。</span>
+    </div>
     <form id="outline-form" class="desktop-outline-form">
       <div class="desktop-outline-document">
         ${workspace.outline.map((page, index) => `
@@ -147,17 +99,16 @@ function renderOutlineMain(workspace: WorkspaceSnapshot, busy: boolean) {
         <span>共 ${workspace.outline.length} 页 · 文字可编辑</span>
         <button class="desktop-primary-button" type="submit" ${busy ? "disabled" : ""}>确认大纲${icons.arrow}</button>
       </div>
-    </form>
-  </section>`;
+    </form>`;
 }
 
-function renderTemplateMain(workspace: WorkspaceSnapshot, busy: boolean, selectedTemplate: string) {
-  return `<section class="conversation-content template-content" aria-labelledby="template-title">
-    <section class="conversation-heading">
-      <p>大纲已确认</p>
-      <h2 id="template-title">选一个与你的表达气质相近的版式</h2>
+function renderTemplateWorkspace(workspace: WorkspaceSnapshot, busy: boolean, selectedTemplate: string) {
+  const selected = templates.find((template) => template.id === selectedTemplate) ?? templates[0];
+  return `
+    <div class="desktop-task-stage-copy">
+      <strong>大纲已确认</strong>
       <span>首个闭环提供三种本地模板；生成的是可编辑 PPTX。</span>
-    </section>
+    </div>
     <div class="desktop-template-grid" role="radiogroup" aria-label="演示文稿模板">
       ${templates.map((template, index) => `
         <button type="button" class="desktop-template-card ${selectedTemplate === template.id ? "selected" : ""}" data-template="${template.id}" role="radio" aria-checked="${selectedTemplate === template.id}">
@@ -167,10 +118,9 @@ function renderTemplateMain(workspace: WorkspaceSnapshot, busy: boolean, selecte
         </button>`).join("")}
     </div>
     <div class="desktop-form-action">
-      <span>已选择「${escapeHtml(templates.find((template) => template.id === selectedTemplate)?.name ?? templates[0].name)}」</span>
+      <span>已选择「${escapeHtml(selected.name)}」</span>
       <button id="submit-task" class="desktop-primary-button" type="button" ${busy ? "disabled" : ""}>开始生成${icons.arrow}</button>
-    </div>
-  </section>`;
+    </div>`;
 }
 
 function taskErrorLabel(error: string | undefined) {
@@ -179,7 +129,7 @@ function taskErrorLabel(error: string | undefined) {
   return `生成未完成（${escapeHtml(error)}），已保留当前任务内容。`;
 }
 
-function renderGenerationMain(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
+function renderGenerationWorkspace(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
   const task = workspace.task;
   const completed = task?.completedPages ?? 0;
   const total = task?.totalPages ?? workspace.outline.length;
@@ -198,12 +148,15 @@ function renderGenerationMain(workspace: WorkspaceSnapshot, screen: WorkspaceScr
     })
     .join("");
 
-  return `<section class="conversation-content generation-content" aria-labelledby="generation-title">
-    <section class="conversation-heading generation-heading">
-      <p>${isDone ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</p>
-      <h2 id="generation-title">${isDone ? "你的读书分享已经可以下载" : "老己正在把大纲变成演示文稿"}</h2>
+  return `
+    <div class="desktop-task-stage-copy">
+      <strong>${isDone ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</strong>
       <span>${isDone ? "文件为原生 16:9 PPTX，标题和正文可继续编辑。" : "页面会逐张完成；刷新后会从已保存进度恢复。"}</span>
-    </section>
+    </div>
+    <div class="desktop-task-status ${screen === "failed" ? "failed" : screen === "completed" ? "completed" : "running"}">
+      <strong>${isDone ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</strong>
+      <span>${task ? escapeHtml(taskProgressLabel(task)) : `${workspace.outline.length} 页`}</span>
+    </div>
     <section class="desktop-waterfall" aria-live="polite">${pages || `<p class="desktop-empty-generation">等待任务状态…</p>`}</section>
     <div class="desktop-generation-actions">
       ${isDone && task?.artifactId
@@ -214,22 +167,108 @@ function renderGenerationMain(workspace: WorkspaceSnapshot, screen: WorkspaceScr
             ? `<span class="desktop-retained-copy">已保留需求、大纲和已完成页面。</span>`
             : `<button id="refresh-workspace" class="desktop-secondary-button" type="button">刷新状态</button>`}
       <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
-    </div>
+    </div>`;
+}
+
+function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean, selectedTemplate: string) {
+  const body = screen === "requirements"
+    ? renderRequirementsWorkspace(workspace)
+    : screen === "outline"
+      ? renderOutlineWorkspace(workspace, busy)
+      : screen === "template"
+        ? renderTemplateWorkspace(workspace, busy, selectedTemplate)
+        : renderGenerationWorkspace(workspace, screen);
+  const title = taskPanelTitle(workspace, screen);
+  const eyebrow = screen === "requirements" ? "当前任务" : "制作 PPT";
+
+  return `<section class="desktop-task-panel-inner" data-current-stage="${screen}" data-stage-title="${title}">
+    <header class="desktop-task-header">
+      <p>${eyebrow}</p>
+      <h2>${title}</h2>
+    </header>
+    ${renderStageSteps(screen)}
+    <div class="desktop-task-body">${body}</div>
+  </section>`;
+}
+
+function renderRequirementsThread(workspace: WorkspaceSnapshot) {
+  return `<article class="assistant-message desktop-message">
+      <p>帮我把《${escapeHtml(workspace.book.title)}》的读书笔记整理成一份读书会分享 PPT。</p>
+      <time>当前会话</time>
+    </article>
+    <article class="assistant-message desktop-message desktop-message-question">
+      <div class="desktop-message-author"><img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" /><strong>这次想重点覆盖哪些内容？</strong></div>
+      <time>范围与需求</time>
+      <div class="desktop-selection-summary"><span>已选择：全书 · 包含个人笔记</span><strong>已确认</strong></div>
+      <p class="desktop-message-note">已同步到右侧范围与需求。</p>
+    </article>`;
+}
+
+function renderStageThread(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
+  const copy = screen === "outline"
+    ? ["范围已确认，接下来编辑大纲。", "大纲内容已移到右侧工作区，可逐页调整。"]
+    : screen === "template"
+      ? ["大纲已确认，接下来选择版式。", "模板选择已移到右侧工作区，中心保留会话上下文。"]
+      : screen === "completed"
+        ? ["演示文稿已生成。", "已完成页面和下载入口保留在右侧工作区。"]
+        : screen === "failed"
+          ? ["这次生成没有完成。", "已保留需求、大纲和已完成页面；失败页、错误信息和重试入口在右侧工作区。"]
+          : screen === "stopped"
+            ? ["生成已停止。", "已保存进度保留在右侧工作区，可刷新后继续查看。"]
+            : ["正在生成演示文稿。", "生成进度保留在右侧工作区，中心继续显示会话。"];
+  return `<article class="assistant-message desktop-message">
+      <p>《${escapeHtml(workspace.book.title)}》读书分享</p>
+      <time>当前会话 · ${stageLabels[activeStage(screen)]}</time>
+    </article>
+    <article class="assistant-message desktop-message desktop-message-question">
+      <div class="desktop-message-author"><img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" /><strong>${copy[0]}</strong></div>
+      <p class="desktop-message-note">${copy[1]}</p>
+    </article>`;
+}
+
+function renderStageSummary(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
+  const summary = screen === "outline"
+    ? `已确认范围 · ${workspace.outline.length} 页大纲`
+    : screen === "template"
+      ? "大纲已确认 · 模板选择在右侧工作区"
+      : screen === "completed"
+        ? "生成完成 · 已保留下载与已完成页面"
+        : screen === "failed"
+          ? "生成失败 · 已保留当前任务内容"
+          : screen === "stopped"
+            ? "生成已停止 · 已保留当前任务内容"
+            : "生成中 · 进度在右侧工作区实时保留";
+  return `<aside class="desktop-stage-summary" aria-label="当前阶段摘要"><strong>${summary}</strong><span>右侧工作区只显示当前阶段的完整内容。</span></aside>`;
+}
+
+function renderConversationComposer(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean) {
+  const readOnly = screen !== "requirements";
+  return `<form id="requirements-form" class="desktop-composer" aria-busy="${busy}">
+      <img class="desktop-conversation-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="老己坐姿持书" />
+      <label for="requirements">生成要求 · 继续补充</label>
+      <textarea id="requirements" name="requirements" rows="3" required ${readOnly ? "readonly aria-readonly=\"true\"" : ""} placeholder="补充用途、受众或希望保留的观点">${escapeHtml(workspace.draft.requirements)}</textarea>
+      <div class="desktop-composer-actions">
+        <span>${readOnly ? "当前阶段内容请在右侧工作区查看" : "生成后仍可修改大纲"}</span>
+        <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
+      </div>
+    </form>`;
+}
+
+function renderConversationMain(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean) {
+  const thread = screen === "requirements"
+    ? renderRequirementsThread(workspace)
+    : renderStageThread(workspace, screen);
+  return `<section class="conversation-content ${screen}-content" aria-label="会话内容">
+    <section class="conversation-thread">${thread}</section>
+    ${renderStageSummary(workspace, screen)}
+    ${renderConversationComposer(workspace, screen, busy)}
   </section>`;
 }
 
 export function renderConversationView(options: ConversationViewOptions): ConversationViewResult {
   const screen = resolveScreen(options.workspace);
-  const main = screen === "requirements"
-    ? renderRequirementsMain(options.workspace, options.busy)
-    : screen === "outline"
-      ? renderOutlineMain(options.workspace, options.busy)
-      : screen === "template"
-        ? renderTemplateMain(options.workspace, options.busy, options.selectedTemplate)
-        : renderGenerationMain(options.workspace, screen);
-
   return {
-    main,
-    taskPanel: renderTaskPanel(options.workspace, screen, options.selectedTemplate),
+    main: renderConversationMain(options.workspace, screen, options.busy),
+    taskPanel: renderTaskPanel(options.workspace, screen, options.busy, options.selectedTemplate),
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveScreen, taskProgressLabel, withDraftRequirements, type WorkspaceSnapshot } from "./app-state";
+import { resolveScreen, taskProgressLabel, withDraftOutline, withDraftRequirements, type WorkspaceSnapshot } from "./app-state";
 
 const workspace: WorkspaceSnapshot = {
   book: { id: "book-1", title: "长安的荔枝", sourceLabel: "开发种子书" },
@@ -50,5 +50,12 @@ describe("M0 workspace screen", () => {
 
     expect(retained.draft.requirements).toBe("离线时仍要保留这段输入");
     expect(workspace.draft.requirements).toBe("");
+  });
+
+  it("keeps unsaved outline edits isolated from the server snapshot", () => {
+    const retained = withDraftOutline(workspace, [{ title: "离线保留", body: "重连前不丢失" }]);
+
+    expect(retained.outline).toEqual([{ title: "离线保留", body: "重连前不丢失" }]);
+    expect(workspace.outline).toEqual([]);
   });
 });

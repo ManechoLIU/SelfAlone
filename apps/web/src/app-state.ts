@@ -65,3 +65,10 @@ export function withDraftRequirements(workspace: WorkspaceSnapshot, requirements
     draft: { ...workspace.draft, requirements },
   };
 }
+
+export function withDraftOutline(workspace: WorkspaceSnapshot, outline: OutlineItem[]): WorkspaceSnapshot {
+  return {
+    ...workspace,
+    outline: outline.map((page) => ({ ...page })),
+  };
+}

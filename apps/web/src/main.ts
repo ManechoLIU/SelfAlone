@@ -2,6 +2,7 @@ import "./styles.css";
 import {
   resolveScreen,
   taskProgressLabel,
+  withDraftOutline,
   withDraftRequirements,
   type OutlineItem,
   type WorkspaceSnapshot,
@@ -39,6 +40,8 @@ let pollingTimer: number | undefined;
 let workspaceRequestInFlight = false;
 let draftRequirements = "";
 let draftRequirementsDirty = false;
+let draftOutline: OutlineItem[] = [];
+let draftOutlineDirty = false;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -333,13 +336,18 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 async function loadWorkspace() {
-  if (workspaceRequestInFlight) return;
+  if (workspaceRequestInFlight) return false;
   workspaceRequestInFlight = true;
+  let loaded = false;
   try {
     const snapshot = await requestJson<WorkspaceSnapshot>("/api/v1/workspace");
     workspace = snapshot;
+    loaded = true;
     if (!draftRequirementsDirty) {
       draftRequirements = snapshot.draft.requirements;
+    }
+    if (!draftOutlineDirty) {
+      draftOutline = snapshot.outline.map((page) => ({ ...page }));
     }
     if (snapshot.draft.templateId) {
       selectedTemplate = snapshot.draft.templateId;
@@ -352,6 +360,7 @@ async function loadWorkspace() {
     render();
     updatePolling();
   }
+  return loaded;
 }
 
 function updatePolling() {
@@ -405,8 +414,15 @@ function renderShell(content: string, taskPanel = "") {
 }
 
 function renderWorkspaceSnapshot() {
-  if (!workspace || !draftRequirementsDirty) return workspace;
-  return withDraftRequirements(workspace, draftRequirements);
+  if (!workspace) return workspace;
+  let snapshot = workspace;
+  if (draftRequirementsDirty) {
+    snapshot = withDraftRequirements(snapshot, draftRequirements);
+  }
+  if (draftOutlineDirty) {
+    snapshot = withDraftOutline(snapshot, draftOutline);
+  }
+  return snapshot;
 }
 
 function renderLoading() {
@@ -441,7 +457,6 @@ function bindInteractions() {
           requirements: form.get("requirements"),
         }),
       });
-      draftRequirementsDirty = false;
     });
   });
 
@@ -450,7 +465,20 @@ function bindInteractions() {
     draftRequirementsDirty = true;
   });
 
-  document.querySelector<HTMLFormElement>("#outline-form")?.addEventListener("submit", async (event) => {
+  const outlineForm = document.querySelector<HTMLFormElement>("#outline-form");
+  const captureOutlineDraft = (form: HTMLFormElement) => {
+    if (!workspace) return;
+    const formData = new FormData(form);
+    draftOutline = workspace.outline.map((_page, index) => ({
+      title: String(formData.get(`title-${index}`) ?? "").trim(),
+      body: String(formData.get(`body-${index}`) ?? "").trim(),
+    }));
+    draftOutlineDirty = true;
+  };
+  outlineForm?.addEventListener("input", (event) => {
+    captureOutlineDraft(event.currentTarget as HTMLFormElement);
+  });
+  outlineForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!workspace) return;
     const form = new FormData(event.currentTarget as HTMLFormElement);
@@ -458,6 +486,8 @@ function bindInteractions() {
       title: String(form.get(`title-${index}`) ?? "").trim(),
       body: String(form.get(`body-${index}`) ?? "").trim(),
     }));
+    draftOutline = outline;
+    draftOutlineDirty = true;
     await act(async () => {
       await requestJson(`/api/v1/ppt-drafts/${workspace?.draft.id}/outline`, {
         method: "PUT",
@@ -510,7 +540,11 @@ async function act(action: () => Promise<void>) {
   render();
   try {
     await action();
-    await loadWorkspace();
+    const loaded = await loadWorkspace();
+    if (loaded) {
+      draftRequirementsDirty = false;
+      draftOutlineDirty = false;
+    }
   } catch (error) {
     errorMessage = error instanceof Error && error.message === "STALE_VERSION"
       ? "页面状态已经更新，正在为你恢复最新进度。"
