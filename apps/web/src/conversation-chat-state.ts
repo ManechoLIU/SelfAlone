@@ -38,6 +38,15 @@ export type ConversationChatSendResult =
       retainedDraft: { text: string; attachments: readonly string[] };
     };
 
+export type ConversationRouteKind = "chat" | "workspace";
+
+export function classifyConversationRoute(hash: string): ConversationRouteKind {
+  const [route, query = ""] = hash.slice(1).split("?");
+  if (route !== "/conversation") return "workspace";
+  const parameters = new URLSearchParams(query);
+  return parameters.has("stage") || parameters.has("book") ? "workspace" : "chat";
+}
+
 export function createConversationChatState(conversationId: string): ConversationChatState {
   return {
     conversationId,

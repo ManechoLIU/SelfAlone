@@ -50,7 +50,7 @@ import { coverAssetForBook } from "./library-cover";
 import { createConversationChatClient } from "./conversation-chat-client";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView } from "./conversation-chat-view";
-import type { ConversationChatSession } from "./conversation-chat-state";
+import { classifyConversationRoute, type ConversationChatSession } from "./conversation-chat-state";
 import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
@@ -143,6 +143,10 @@ function readStageViewFromHash(): WorkspaceScreen | null {
 
 function isConversationRoute() {
   return window.location.hash.slice(1).split("?")[0] === "/conversation";
+}
+
+function isLegacyConversationRoute() {
+  return isConversationRoute() && classifyConversationRoute(window.location.hash) === "workspace";
 }
 
 function isAuthRoute() {
@@ -1151,7 +1155,7 @@ async function loadWorkspace() {
     }
   } finally {
     workspaceRequestInFlight = false;
-    if (isConversationRoute()) render();
+    if (isLegacyConversationRoute()) render();
     updatePolling();
   }
   return loaded;
@@ -1162,7 +1166,7 @@ function updatePolling() {
     window.clearInterval(pollingTimer);
     pollingTimer = undefined;
   }
-  if (isConversationRoute() && workspace && !errorMessage && resolveScreen(workspace) === "generating") {
+  if (isLegacyConversationRoute() && workspace && !errorMessage && resolveScreen(workspace) === "generating") {
     pollingTimer = window.setInterval(loadWorkspace, 450);
   }
 }
@@ -1484,7 +1488,8 @@ function renderRoute() {
   bookPptIntentTitle = bookPptIntentTitleFromHash(window.location.hash);
   const readingBookId = readingBookIdFromHash(window.location.hash);
   const bookDetailId = bookDetailIdFromHash(window.location.hash);
-  if (!isConversationRoute()) destroyConversationChat();
+  const legacyConversationRoute = isLegacyConversationRoute();
+  if (!isConversationRoute() || legacyConversationRoute) destroyConversationChat();
   if (bookDetailId) {
     destroyTextReader();
     void openTextReader(bookDetailId, navigationId, true);
@@ -1514,10 +1519,24 @@ function renderRoute() {
     return;
   }
   destroyTextReader();
-  if (conversationChatSession) {
-    renderConversationChat(conversationChatSession);
+  if (!legacyConversationRoute) {
+    stageView = null;
+    lastConversationStage = null;
+    if (conversationChatSession) {
+      renderConversationChat(conversationChatSession);
+    } else {
+      void loadConversationChat(navigationId);
+    }
+    return;
+  }
+  stageView = readStageViewFromHash();
+  lastConversationStage = stageView;
+  if (!workspace) {
+    renderLoading();
+    void loadWorkspace();
   } else {
-    void loadConversationChat(navigationId);
+    render();
+    updatePolling();
   }
 }
 

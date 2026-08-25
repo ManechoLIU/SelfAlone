@@ -3,11 +3,18 @@ import {
   applyConversationSendResult,
   applyConversationSnapshot,
   beginConversationSend,
+  classifyConversationRoute,
   createConversationChatState,
   updateConversationDraft,
 } from "./conversation-chat-state";
 
 describe("conversation chat state", () => {
+  it("keeps stage and book handoff hashes on the legacy workspace route", () => {
+    expect(classifyConversationRoute("#/conversation")).toBe("chat");
+    expect(classifyConversationRoute("#/conversation?stage=requirements")).toBe("workspace");
+    expect(classifyConversationRoute("#/conversation?stage=outline&book=book-1&bookTitle=书")).toBe("workspace");
+  });
+
   it("retains input across a failed send and restores server history", () => {
     const initial = createConversationChatState("conversation-a");
     const drafted = updateConversationDraft(initial, "这段输入要留下");
