@@ -149,6 +149,28 @@ describe("M1-F2-B desktop text reader state", () => {
   });
 });
 describe("M1-F2-B desktop text reader view", () => {
+  it("constrains the 768px toolbar grid and flex actions to the reading viewport", () => {
+    const css = readFileSync(new URL("./text-reader.css", import.meta.url), "utf8");
+    const narrowToolbar = css.match(
+      /@media \(max-width: 840px\)\s*\{[\s\S]*?\.text-reader-toolbar\s*\{([\s\S]*?)\}/,
+    )?.[1] ?? "";
+    const toolbar = css.match(/\.text-reader-toolbar\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+    const heading = css.match(/\.text-reader-heading\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+    const headingStrong = css.match(/\.text-reader-heading strong\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+    const actions = css.match(/\.text-reader-actions\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+
+    // At 768px the reader rail consumes 80px, leaving a 688px main viewport.
+    // The title track must be allowed to shrink and the action flex row must
+    // be allowed to wrap inside the toolbar instead of growing its scroll area.
+    expect(narrowToolbar).toMatch(/grid-template-columns:\s*44px\s+minmax\(0,\s*1fr\)\s+minmax\(0,\s*auto\)/);
+    expect(toolbar).toMatch(/min-width:\s*0/);
+    expect(heading).toMatch(/min-width:\s*0/);
+    expect(headingStrong).toMatch(/display:\s*block/);
+    expect(actions).toMatch(/min-width:\s*0/);
+    expect(actions).toMatch(/flex-wrap:\s*wrap/);
+    expect(actions).toMatch(/max-width:\s*100%/);
+  });
+
   it("uses a private light/dark shell and falls closed to light without trusted cache", () => {
     const dark = renderTextReader(snapshot);
     const light = renderTextReader({ ...snapshot, background: "light" });
