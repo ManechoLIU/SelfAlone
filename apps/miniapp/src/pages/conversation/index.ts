@@ -23,6 +23,7 @@ import {
 
 type ConversationData = {
   drawerOpen: boolean;
+  drawerConversations: DrawerConversation[];
   draft: string;
   canSend: boolean;
   boundaryMessage: string;
@@ -44,6 +45,12 @@ type ConversationData = {
   messageAnchor: string;
 };
 
+type DrawerConversation = {
+  id: string;
+  title: string;
+  current?: boolean;
+};
+
 type ConversationImagePicker = {
   chooseMedia?: (options: {
     count: number;
@@ -63,6 +70,19 @@ type ConversationImagePicker = {
 
 const defaultSelectionOptions = selectionOptionsFor(defaultSelectionIds);
 
+const DEVELOPMENT_LONG_LIST_SIZE = 18;
+
+function createDevelopmentLongConversationList(): DrawerConversation[] {
+  return Array.from({ length: DEVELOPMENT_LONG_LIST_SIZE }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    return {
+      id: `development-long-${number}`,
+      title: `会话 ${number}`,
+      current: index === 0,
+    };
+  });
+}
+
 function conversationMessageAnchor(messageId: string) {
   return `conversation-message-${messageId}`;
 }
@@ -70,6 +90,7 @@ function conversationMessageAnchor(messageId: string) {
 Page<ConversationData>({
   data: {
     drawerOpen: false,
+    drawerConversations: [] as DrawerConversation[],
     draft: "",
     canSend: false,
     boundaryMessage: "",
@@ -91,11 +112,16 @@ Page<ConversationData>({
     messageAnchor: "",
   },
 
-  onLoad(options: { developmentSendFailure?: string } = {}) {
+  onLoad(options: { developmentSendFailure?: string; developmentLongList?: string } = {}) {
     this.isUnloaded = false;
     const app = getApp<MiniappApp>();
+    const longListEnabled = app.globalData.developmentAdapter
+      && options.developmentLongList === "1";
     this.developmentSendFailure = app.globalData.developmentAdapter
       && options.developmentSendFailure === "1";
+    this.setData({
+      drawerConversations: longListEnabled ? createDevelopmentLongConversationList() : [],
+    });
     this.conversationStore = createConversationLocalStore(
       wxStorage,
       app.globalData.developmentAdapter,

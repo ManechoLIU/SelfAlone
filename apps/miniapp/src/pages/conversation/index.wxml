@@ -87,7 +87,7 @@
   </view>
 </view>
 
-<nav-drawer open="{{drawerOpen}}" current="conversation" viewport-style="{{viewportStyle}}" keyboard-open="{{keyboardOpen}}" bind:close="closeDrawer"></nav-drawer>
+<nav-drawer open="{{drawerOpen}}" current="conversation" viewport-style="{{viewportStyle}}" keyboard-open="{{keyboardOpen}}" conversations="{{drawerConversations}}" bind:close="closeDrawer"></nav-drawer>
 
 <view wx:if="{{selectionSheetOpen}}" class="selection-layer">
   <view class="selection-mask" bindtap="closeSelection"></view>

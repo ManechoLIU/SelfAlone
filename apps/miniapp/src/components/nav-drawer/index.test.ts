@@ -61,6 +61,15 @@ describe("miniapp navigation drawer visual contract", () => {
     expect(drawerWxss).toContain("calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 18px)");
   });
 
+  it("gives a long list an explicit flex viewport above the fixed destinations", () => {
+    const conversationRule = drawerWxss.match(/\.drawer-conversations\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(conversationRule).toMatch(/(?:^|\n)\s*height: 0;/);
+    expect(conversationRule).toContain("flex: 1");
+    expect(drawerWxss).toContain(".drawer-conversations {\n  position: relative;\n  z-index: 1;");
+    expect(drawerWxss).toContain(".drawer-nav {\n  position: relative;\n  z-index: 2;");
+  });
+
   it("uses an explicit disabled class that the WXSS parser supports", () => {
     expect(drawerWxml).toContain("{{item.disabled ? 'drawer-conversation--disabled' : ''}}");
     const disabledRule = drawerWxss.match(/\.drawer-conversation--disabled\s*\{([^}]*)\}/)?.[1] ?? "";

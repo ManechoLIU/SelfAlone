@@ -276,6 +276,28 @@ describe("conversation normal shell contract", () => {
     expect(productionPage.developmentSendFailure).toBe(false);
   });
 
+  it("keeps the deterministic long drawer list behind the development adapter", () => {
+    const developmentPage = createPage();
+    developmentPage.onLoad({ developmentLongList: "1" });
+
+    expect(developmentPage.data.drawerConversations).toHaveLength(18);
+    expect(developmentPage.data.drawerConversations[0]).toMatchObject({
+      id: "development-long-01",
+      current: true,
+    });
+    expect(developmentPage.data.drawerConversations[17]).toMatchObject({
+      id: "development-long-18",
+      current: false,
+    });
+    expect(new Set(developmentPage.data.drawerConversations.map((item: { id: string }) => item.id)).size).toBe(18);
+
+    developmentAdapter = false;
+    const productionPage = createPage();
+    productionPage.onLoad({ developmentLongList: "1" });
+    expect(productionPage.data.drawerConversations).toEqual([]);
+    expect(conversationWxml).toContain('conversations="{{drawerConversations}}"');
+  });
+
   it("renders the local message stream and in-place retry affordance", () => {
     expect(conversationWxml).toContain('wx:for="{{messages}}"');
     expect(conversationWxml).toContain('bindtap="retrySend"');
