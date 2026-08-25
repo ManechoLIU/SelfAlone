@@ -7,6 +7,7 @@ import {
 } from "./conversation-chat-directory";
 
 const mainSource = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
+const desktopStylesCss = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
 const session = {
   id: "conversation-a",
@@ -29,6 +30,13 @@ describe("conversation chat directory", () => {
     expect(html).toContain('data-conversation-id="conversation-a"');
     expect(html).toContain("讨论长安的故事");
     expect(html).not.toContain("暂不可用");
+  });
+
+  it("keeps the conversation search keyboard focus visibly celadon", () => {
+    const focusRule = desktopStylesCss.match(/\.desktop-conversation-search input:focus-visible \{[^}]+\}/)?.[0] ?? "";
+
+    expect(focusRule).toContain("outline: 3px solid rgba(77, 125, 107, 0.28);");
+    expect(focusRule).toContain("outline-offset: 2px;");
   });
 
   it("keeps the one-line free quota bar hidden after claim and recoverable on failure", () => {
