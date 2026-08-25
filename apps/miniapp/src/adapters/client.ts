@@ -4,6 +4,8 @@ import type { DraftStage, TaskStatus } from "../core/ppt-state";
 
 export type DevelopmentState = "normal" | "empty" | "failed" | "loading" | "filtered-empty";
 export type ReadingBackground = "light" | "dark";
+export type BookListOptions = { query?: string; state?: DevelopmentState };
+export type LocalBookFile = { path: string; name: string };
 
 export type ReadingPosition = {
   sectionId: string;
@@ -79,20 +81,44 @@ export type PptWorkspace = {
 export interface MiniappClient {
   readonly kind: "development" | "unavailable";
   readonly development: boolean;
-  listBooks(state?: DevelopmentState): Promise<BookSummary[]>;
+  listBooks(options?: BookListOptions | DevelopmentState): Promise<BookSummary[]>;
+  importBook(file: LocalBookFile): Promise<BookSummary>;
   getBook(bookId: string, state?: DevelopmentState): Promise<BookDetail>;
   savePosition(bookId: string, input: Omit<ReadingPosition, "version"> & { expectedVersion: number }): Promise<ReadingPosition>;
   getPptWorkspace(bookId?: string, state?: DevelopmentState): Promise<PptWorkspace>;
   savePptWorkspace(workspace: PptWorkspace): Promise<PptWorkspace>;
 }
 
+export type ClientBoundaryErrorCode =
+  | "CLIENT_ADAPTER_UNAVAILABLE"
+  | "CLIENT_CAPABILITY_UNAVAILABLE"
+  | "DEVELOPMENT_STATE_FAILURE"
+  | "HTTP_REQUEST_FAILED"
+  | "INVALID_LIBRARY_RESPONSE"
+  | "UNSUPPORTED_BOOK_FORMAT";
+
 export class ClientBoundaryError extends Error {
-  constructor(readonly code: "CLIENT_ADAPTER_UNAVAILABLE" | "DEVELOPMENT_STATE_FAILURE") {
-    super(code === "CLIENT_ADAPTER_UNAVAILABLE"
+  constructor(readonly code: ClientBoundaryErrorCode, message?: string) {
+    super(message ?? (code === "CLIENT_ADAPTER_UNAVAILABLE"
       ? "真实客户端接口尚未进入当前主线"
-      : "开发适配器模拟了可恢复失败");
+      : code === "CLIENT_CAPABILITY_UNAVAILABLE"
+        ? "当前客户端能力尚未接入"
+        : code === "DEVELOPMENT_STATE_FAILURE"
+          ? "开发适配器模拟了可恢复失败"
+          : code === "UNSUPPORTED_BOOK_FORMAT"
+            ? "仅支持 EPUB、TXT 或 PDF 文件"
+            : code === "INVALID_LIBRARY_RESPONSE"
+              ? "书架响应无法识别"
+              : "书架请求失败"));
     this.name = "ClientBoundaryError";
   }
+}
+
+export function normalizeBookListOptions(
+  input?: BookListOptions | DevelopmentState,
+): Required<BookListOptions> {
+  if (typeof input === "string") return { query: "", state: input };
+  return { query: input?.query ?? "", state: input?.state ?? "normal" };
 }
 
 export function parseDevelopmentState(

@@ -1,6 +1,6 @@
 import type { BookSummary } from "../core/library-state";
-import type { MiniappClient, BookDetail, DevelopmentState, PptWorkspace, ReadingPosition } from "./client";
-import { ClientBoundaryError } from "./client";
+import type { MiniappClient, BookDetail, BookListOptions, DevelopmentState, LocalBookFile, PptWorkspace, ReadingPosition } from "./client";
+import { ClientBoundaryError, normalizeBookListOptions } from "./client";
 
 const books: BookSummary[] = [
   {
@@ -108,8 +108,17 @@ export class DevelopmentClient implements MiniappClient {
   private readonly positions = new Map<string, ReadingPosition>();
   private workspace = developmentWorkspace();
 
-  listBooks(state: DevelopmentState = "normal") {
-    return applyState(state, state === "empty" ? [] : books.map((book) => ({ ...book })));
+  listBooks(input: BookListOptions | DevelopmentState = "normal") {
+    const { query, state } = normalizeBookListOptions(input);
+    const result = state === "empty" ? [] : books
+      .filter((book) => !query || [book.title, book.author ?? "", book.sourceLabel]
+        .some((value) => value.toLocaleLowerCase().includes(query.toLocaleLowerCase())))
+      .map((book) => ({ ...book }));
+    return applyState(state, result);
+  }
+
+  importBook(_file: LocalBookFile): Promise<BookSummary> {
+    return Promise.reject(new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "开发适配器不会伪造文件上传"));
   }
 
   getBook(bookId: string, state: DevelopmentState = "normal") {

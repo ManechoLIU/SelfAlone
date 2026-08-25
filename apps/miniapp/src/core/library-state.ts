@@ -8,12 +8,19 @@ export type BookSummary = {
   progress: number;
   coverUrl?: string;
   coverVariant: number;
+  parseStatus?: "processing" | "ready_text" | "ready_pages" | "failed";
+  errorCode?: string;
+  sectionCount?: number;
+  pageCount?: number;
+  createdAt?: string;
 };
 
 export type LibraryState = {
   phase: "loading" | "ready" | "failed";
   books: BookSummary[];
   query: string;
+  /** True when the server has already applied query filtering. */
+  queryApplied?: boolean;
   error?: string;
 };
 
@@ -29,6 +36,7 @@ export function presentLibrary(state: LibraryState): LibraryPresentation {
   if (state.phase === "failed") return { kind: "failed", message: state.error ?? "书架加载失败" };
   const query = state.query.trim().toLocaleLowerCase();
   if (!query) return state.books.length ? { kind: "content", books: state.books } : { kind: "empty" };
+  if (state.queryApplied) return state.books.length ? { kind: "content", books: state.books } : { kind: "filtered-empty" };
   const books = state.books.filter((book) =>
     [book.title, book.author ?? "", book.sourceLabel]
       .some((value) => value.toLocaleLowerCase().includes(query))

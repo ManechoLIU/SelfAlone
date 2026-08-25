@@ -24,4 +24,22 @@ describe("unified library states", () => {
     expect(preserveLibraryOnFailure({ books, query: "甲" }, "刷新失败")).toEqual({ phase: "ready", books, query: "甲", notice: "刷新失败" });
     expect(preserveLibraryOnFailure({ books: [], query: "" }, "服务不可用")).toEqual({ phase: "failed", books: [], query: "", error: "服务不可用" });
   });
+
+  it("trusts a server-filtered result instead of filtering it a second time on the client", () => {
+    const serverResult: BookSummary = {
+      ...books[0]!,
+      title: "由服务端标题索引命中的书",
+    };
+    expect(presentLibrary({
+      phase: "ready",
+      books: [serverResult],
+      query: "关键词",
+      queryApplied: true,
+    })).toEqual({ kind: "content", books: [serverResult] });
+  });
+
+  it("keeps the active query for a server-filtered empty result", () => {
+    expect(presentLibrary({ phase: "ready", books: [], query: "未命中", queryApplied: true }))
+      .toEqual({ kind: "filtered-empty" });
+  });
 });

@@ -1,4 +1,4 @@
-import type { MiniappClient } from "./client";
+import type { MiniappClient, BookListOptions, LocalBookFile } from "./client";
 import { ClientBoundaryError } from "./client";
 import { DevelopmentClient } from "./development";
 
@@ -8,7 +8,8 @@ class UnavailableClient implements MiniappClient {
   private unavailable(): Promise<never> {
     return Promise.reject(new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE"));
   }
-  listBooks(): Promise<never> { return this.unavailable(); }
+  listBooks(_options?: BookListOptions | string): Promise<never> { return this.unavailable(); }
+  importBook(_file: LocalBookFile): Promise<never> { return this.unavailable(); }
   getBook(): Promise<never> { return this.unavailable(); }
   savePosition(): Promise<never> { return this.unavailable(); }
   getPptWorkspace(): Promise<never> { return this.unavailable(); }
