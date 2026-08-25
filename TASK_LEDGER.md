@@ -10,7 +10,7 @@
 - 台账自适应：当前以“建设按可独立验收功能闭环、验收按真实业务 Case”作为默认粒度，不冻结现有行数或顺序。若频繁等待、重复回写、机械项没有独立验收价值，或台账维护成本已经超过执行收益，执行任务应主动合并、重排或精简条目；若风险、返工面、事实冲突或下一步不清楚，则主动拆细。普通结构调整无需询问用户，但必须保留真实依赖、活动项负责人 / 写入边界、验收证据、恢复点、下一步与授权门，且不得借调整台账改变产品范围或把未完成项标为 `DONE`。
 - 唯一主线：本地 `main`；本轮治理链已纳入主线，后续只从 `main` 当前 HEAD 续接并在开始前重验。其他工作树保持只读，不作为开发目录或当前功能证据。
 - 当前执行波次：`CONTROL-RESET-1`；三条互斥工作流并行：`M1-F2-D-TEXT` 仅写文本标注私有 domain / server / 验收文件，`M1-UX-SYSTEM-AUDIT` 全程只读，`M2-F0-A-H3` 仅写 `apps/miniapp/**` 且排除锁文件。共享 contracts / schema / Server / Web 入口和台账由项目总控顺序集成。
-- 当前活动项：只读全项目审计 `/root/project_completion_audit`；文本笔记实现 `/root/reading_text_notes`（`d4b2@263d3e2`）；非作者 UI/UX 任务 `01a03500-6fc0-73f1-8d7a-5ea4b886f793`；小程序实现 `/root/miniapp_h3_resume`（`f312@91934f1`，既有未暂存 `pnpm-lock.yaml` 禁止触碰）。
+- 当前活动项：只读全项目审计 `/root/project_completion_audit`；文本笔记实现 `/root/reading_text_notes`（`d4b2@263d3e2`）；非作者 UI/UX 任务 `01a03652-a5d4-76c1-b0fa-ff9303243664`（`27df@b38ed4d`，detached / clean）；小程序实现 `/root/miniapp_h3_resume`（`f312@91934f1`，既有未暂存 `pnpm-lock.yaml` 禁止触碰）。
 - 协调下一动作：总控先收审计矩阵与 UI/UX brief，冻结文本标注共享 contracts / schema / API 接缝，再允许唯一 Web 实现者接入；小程序候选独立完成无凭证证据门。每个局部 Goal / 工作包关闭后，只要仍有安全 `READY` 项就立即切换并调度下一 Goal；只有全部剩余项都有已登记真实阻塞 / 授权门，或已有负责人正在执行时才可 idle，并须记录原因。
 - 当前授权边界：已获本地连续开发、验证合格后合并回本地 `main`，以及最多 20 次外部图片生成调用额度；额度只按实际发生的调用计数，预登记不扣减。每次调用必须记录模型 / 提供方、次数或张数、尺寸、用途、输出目录与累计余额，生成物先为 `CANDIDATE`，只有实装和真实浏览器对照通过后才能升级。产品或视觉事实源发生无法消解的实质冲突、重大功能 / 信息架构 / 核心流程变化、大范围返工选择，以及超出 20 次额度、其他付费或外部服务与凭证、push、PR、发布、部署、删除及其他难恢复动作仍须单独确认；远端 push 不是完成条件。
 
@@ -22,7 +22,7 @@
 - 统一通道：向 `codex://threads/01a034b4-a73d-7ce2-8531-51585826e6d3` 提交工作包 ID、仓库 / 工作树 / 分支 / 基线与 HEAD、精确 status / diff、目标与非目标、测试命令与结果、真实业务 Case、浏览器或 Computer Use 证据、非作者审查、阻塞、下一步、提交 / 集成状态、授权需求；有图片生成时另附提供方 / 模型、实际调用次数与张数、尺寸、用途、输出目录、哈希 / 透明度、候选结论和累计余额。
 - 紧急恢复例外：只有不立即写入就会丢失恢复点、误触授权边界或造成并行覆盖时，开发任务才可临时写台账；必须同时说明原因、精确 diff、恢复点和未走专职通道的理由，并交本任务复核。未经复核不得据此升级状态或称 `DONE`。
 - 当前交接：`47b4` 的未提交 `TASK_LEDGER.md` diff 已只读核对；其中与 `main` 重复的自适应规则不重复吸收，状态和证据按当前仓库、实现任务正式交接与文件元数据重写。原 diff 保留在该工作树，禁止覆盖或擅自提交。
-- 长期 UI/UX 审查：任务 `01a03500-6fc0-73f1-8d7a-5ea4b886f793` 是项目总控按需唤醒的独立非作者审查主体，只负责真实端截图、绑定参考对照、审美 / UX / 可访问性结论、修正 brief 与候选复验；不承担设计实现或事实源写入。视觉实现始终交给明确范围任务，同一候选由该审查任务复验后再由总控裁决。
+- 当前 UI/UX 审查：原任务 `01a03500-6fc0-73f1-8d7a-5ea4b886f793` 的登记 cwd `782b` 已不存在，无法证明可访问有效快照，已停止采用并归档；替代任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 固定在真实存在且 clean 的 `/Users/echoman/.codex/worktrees/27df/SelfAlone@b38ed4d`，只负责真实端截图、绑定参考对照、审美 / UX / 可访问性结论、修正 brief 与候选复验，不承担设计实现或事实源 / 台账写入。截图入口必须由 `27df` 的隔离 Server / Vite 进入真实 Chrome，并随证据记录 URL、端口、revision、DPR / zoom / viewport；未产出本轮新鲜截图和可执行 brief 前不得称视觉审查已完成。
 
 ## 2. 路线图与父级功能组（模块级导航，非执行项）
 
@@ -50,7 +50,7 @@
 | `M1-F2-A` | `DONE` / 项目总控 | 本地 EPUB / TXT / PDF 导入、账户归属、解析状态、元信息、动态封面与桌面统一书架完整闭环；不实现正文阅读 | 无当前阻塞；产品、API、视觉或批准资产变化时才重开 | main 已独占集成；原实施 / 审查任务回收，台账仍只由总控写 | 真实三类文件、搜索乱序 / 恢复、双导入、处理 / 失败 / 五态、对比度、键盘、断点、200% 等价矩阵、右山 / 03 同屏、无溢出与非作者复验 | `ed2cec6 → 38f9ec3 → 16ab946 + 91aab08 + 86a8fb1`；main Chrome 11 本、`1440×900 @ DPR2 / scale1`、console 0、overflow 0，截图 SHA-256 `4114405d…9988720` |
 | `M1-F2-BC-S1` | `DONE` / 项目总控 | 冻结文本 / PDF 共用的文件版本、稳定定位、阅读位置、API、schema 与模块接缝；不实现阅读 UI | 生产 PDF 渲染依赖仍是 C 完整页面能力的授权门，不阻塞 B 或 C 的安全首包 | `packages/contracts`、迁移、`app.ts` / `index.ts`、共享 Web 入口 / 样式与 Worker 注册只由总控写 | `fileVersion`、文本 `sectionId + offset`、PDF `pageNumber`、复合 owner 外键、条件更新 / `STALE_VERSION`、缓存版本互不混用 | `44b81ea` 已写入 `TECHNICAL.md` 5.1.1；B / C 已从该提交分开释放 |
 | `M1-F2-B` | `VERIFY` / 项目总控 | EPUB / TXT 正文、目录、复制、全书位置、专注模式和浅 / 深阅读背景的桌面阅读闭环 | 实现、共享接缝、发布原子性与专注交互均无代码阻塞；仅同 revision 原生 200% 和无 override `1440×844` 证据阻塞完整视觉 `DONE`，PDF 一致性留给 C | main 已集成 `804f952 → e971ace → ed04dd4 → 08ff046`；原实施 / 审查任务已归档，后续证据复验不改源码 | 主线真实 TXT / EPUB 从导入、章节、位置到重启恢复；故障注入回滚半发布；独立复审通过。`pnpm verify` 22 文件 / 106 项、typecheck / build / diff check 通过 | main 恢复点 `08ff046`；待真实 Chrome 两项证据后恢复原 UI/UX 任务裁决 `DONE` |
-| `M1-F2-B-UX1` | `DONE / FOCUS PASS` / 原审查任务已复用 | 浅 / 深阅读私有侧栏、无固定桌宠、首帧、焦点、滚动、TXT、复制反馈与完整专注可聚焦集合的非作者合同已闭合；不实现 | 固定 `804f952` 的专注合同已通过；PDF 页面一致性只锁视觉合同、不冒充当前实现，父项 B 的原生 200% / 精确视口门继续保留 | 原任务 `01a03500-6fc0-73f1-8d7a-5ea4b886f793` 当前只读执行新的 `M1-UX-SYSTEM-AUDIT`，不重开已通过的 focus 结论 | 浅 / 深专注中 rail / toolbar 从视觉、命中、Tab 与 AX tree 退出；三控件、Selection / Range、scrollTop、Esc 恢复、console / overflow 均通过 | 允许集成 `804f952`；完整视觉 verdict 为 `VERIFY`，缺失证据仍保留 |
+| `M1-F2-B-UX1` | `DONE / FOCUS PASS` / 历史审查结论 | 浅 / 深阅读私有侧栏、无固定桌宠、首帧、焦点、滚动、TXT、复制反馈与完整专注可聚焦集合的非作者合同已闭合；不实现 | 固定 `804f952` 的专注合同已通过；PDF 页面一致性只锁视觉合同、不冒充当前实现，父项 B 的原生 200% / 精确视口门继续保留 | 当前系统级审查由有效任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 在 `27df@b38ed4d` 执行，不重开已通过的 focus 结论 | 浅 / 深专注中 rail / toolbar 从视觉、命中、Tab 与 AX tree 退出；三控件、Selection / Range、scrollTop、Esc 恢复、console / overflow 均通过 | 允许集成 `804f952`；完整视觉 verdict 为 `VERIFY`，缺失证据仍保留 |
 | `M1-F2-C` | `ACTIVE / VERIFY`（安全首包已集成）/ 项目总控 + 后续待分配 | 文本型 / 图片型 PDF 页面阅读的解析 / 渲染、安全、缓存、恢复与页锚点基础；不 OCR、不伪造正文 | `7856a7a + 059b0ec` 已以 `d7e5ee6 + 589a22b` 合入；真实页面渲染仍需生产依赖、许可证和 Worker 资源授权，不能称 C 完成 | 已集成的 `pdf-reader*` 与 C 证据作为恢复点；共享 contracts / schema / app / Worker / Web 仍由总控在后续包分配单一写入者 | 安全首包覆盖真实样本元数据、部分页失败、过期租约重启、缓存键隔离、旧版本拒绝和异常租约释放；完整门另需 owner / fencing、持久化恢复、续租 / 超时 / 取消、真实渲染、DB / API / Web 与浏览器 | 非作者修复复审 `PASS`；main 定向 3 文件 / 17 项、`pnpm verify` 16 文件 / 67 项通过。`pdfjs-dist@6.2.108` + `@napi-rs/canvas@1.0.8` 仅为待授权推荐 |
 | `M1-F2-D` | `ACTIVE` / 项目总控 | 正文标注、想法、手工老己笔记、引用到会话、书籍详情和作品入口父闭环；不含 AI 整理笔记 | 按文本、PDF、入口真实依赖拆分；子项未全部通过前父项不得 `DONE` | 总控独占共享 contracts / schema / route / entry；子项互斥写入 | 文本 / PDF 均能可靠回原文，笔记持久化与 owner 隔离，详情 / 作品入口和五类状态通过 | `D-TEXT` 已启动；`D-PDF` 等 C，`D-ENTRY` READY，引用到会话等 F3B 真实会话合同 |
 | `M1-F2-D-TEXT` | `ACTIVE` / `/root/reading_text_notes` | EPUB / TXT 可靠 locator 上的划线、想法与无标题手工老己笔记 CRUD；保存失败保留草稿 | B 文本定位已可用；UI 可见实现等待 `M1-UX-SYSTEM-AUDIT` brief，不依赖 PDF | `d4b2` 只写 `text-annotation*` 私有 domain / server 与 `m1-f2-d-text` 验收；不得写共享入口、Web、事实源、锁文件或台账 | TDD、真实 PostgreSQL、真实 EPUB / TXT、账户 / fileVersion 隔离、刷新恢复、失败保留、范围提交；总控集成后再做真实 Chrome 与非作者复验 | 基线 `263d3e2`；先交安全首包和共享接缝，不得把未接 Web 的候选称完整闭环 |
@@ -142,7 +142,7 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | --- | --- | --- | --- |
 | `AUDIT-ALL-1` | `ACTIVE` / `/root/project_completion_audit` | 全程只读 main@`263d3e2` | 输出全路线真实完成度分类、证据、缺口、依赖、返工面和数量统计 |
 | `M1-F2-D-TEXT` | `ACTIVE` / `/root/reading_text_notes` | `d4b2` 的 `text-annotation*` 私有 domain / server / 验收文件 | 真实持久化安全首包范围提交或精确共享阻塞；不接 Web、不写共享文件 |
-| `M1-UX-SYSTEM-AUDIT` | `ACTIVE` / `01a03500-6fc0-73f1-8d7a-5ea4b886f793` | 真实 Chrome 只读审查 | 给出读书 / 对话统一组件与交互 brief、截图和验收 Case；不实施 |
+| `M1-UX-SYSTEM-AUDIT` | `ACTIVE` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | `/Users/echoman/.codex/worktrees/27df/SelfAlone@b38ed4d`；真实 Chrome 只读审查，仓库零写入 | 从固定快照的隔离 Server / Vite 捕获新鲜读书 / 对话页面，回传 URL / 端口 / revision / 截图、统一组件与交互 brief、文件边界和验收 Case；若真实 Chrome 控制或运行依赖不可用则给精确可复现阻塞并停止，不以旧图 / 静态代码代替 |
 | `M2-F0-A-H3` | `ACTIVE` / `/root/miniapp_h3_resume` | `f312` 的 `apps/miniapp/**`，排除 `pnpm-lock.yaml` | 无凭证 H3 修复与 DevTools / 等价证据范围提交；凭证、键盘、字体或资产门如实保留 |
 
 ## 6. 候选与共享环境证据
