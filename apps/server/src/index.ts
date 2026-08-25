@@ -5,6 +5,10 @@ import { createApp } from "./app";
 import { createAccountSettingsRuntime } from "./account-settings";
 import { migrateAccountSettingsSchema } from "./account-settings-migration";
 import { createAuthRuntime } from "./auth-runtime";
+import {
+  createBookPresentationService,
+  PostgresBookPresentationRepository,
+} from "./book-presentation";
 import { createLibraryRuntime } from "./library-runtime";
 import { createM0Runtime } from "./m0-runtime";
 import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
@@ -52,6 +56,10 @@ try {
 }
 const accountSettings = await createAccountSettingsRuntime({ databaseUrl });
 const runtime = await createM0Runtime({ databaseUrl, artifactDirectory });
+const bookPresentationDatabase = postgres(databaseUrl, { max: 2 });
+const bookPresentation = createBookPresentationService(
+  new PostgresBookPresentationRepository(bookPresentationDatabase),
+);
 const textReader = await createTextReaderRuntime({
   databaseUrl,
   objectDirectory: bookObjectDirectory,
@@ -109,6 +117,7 @@ const app = createApp({
     && (await textReader.ready())
     && (await textAnnotations.ready()),
   library,
+  bookPresentation,
   auth,
   m0: runtime,
   textReader,
@@ -126,6 +135,7 @@ const shutdown = async () => {
   await runtime.close();
   await accountSettings.close();
   await auth.close();
+  await bookPresentationDatabase.end({ timeout: 2 });
   await conversationSql.end();
   await trialQuotaSql.end();
   process.exit(0);

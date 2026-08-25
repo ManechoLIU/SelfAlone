@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
 import { registerAccountSettingsRoutes, type AccountSettingsService } from "./account-settings-routes";
 import type { AuthRuntime } from "./auth-runtime";
+import type { BookPresentationService } from "./book-presentation";
 import { registerConversationRoutes, type ConversationRouteRuntime } from "./conversation-routes";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
@@ -18,6 +19,7 @@ type AppDependencies = {
   readiness: () => Promise<boolean>;
   auth?: AuthRuntime;
   library?: LibraryRuntime;
+  bookPresentation?: Pick<BookPresentationService, "getBookPresentation">;
   m0?: M0Runtime;
   textReader?: TextReaderRuntime;
   textAnnotations?: Pick<
@@ -160,6 +162,16 @@ export function createApp(dependencies: AppDependencies) {
       if (!Buffer.isBuffer(request.body)) throw new Error("BOOK_FILE_REQUIRED");
       return reply.code(202).send(
         await library.importBook(resolveAccountId(request.headers), filename, request.body),
+      );
+    });
+  }
+
+  if (dependencies.bookPresentation) {
+    app.get("/api/v1/books/:id/presentation", async (request) => {
+      const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
+      return dependencies.bookPresentation!.getBookPresentation(
+        resolveAccountId(request.headers),
+        parameters.id,
       );
     });
   }

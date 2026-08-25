@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createApp } from "./app";
 import {
   createBookPresentationService,
   type BookPresentationBookRecord,
@@ -147,5 +148,41 @@ describe("book-scoped presentation service", () => {
     }));
 
     await expect(service.getBookPresentation("account-a", "book-a")).rejects.toThrow("INVALID_PRESENTATION_STATUS");
+  });
+});
+
+describe("book-scoped presentation route", () => {
+  it("uses the requested book and session account instead of the legacy workspace", async () => {
+    const snapshot = {
+      book,
+      state: "empty" as const,
+      current: null,
+      history: [],
+    };
+    const getBookPresentation = vi.fn(async () => snapshot);
+    const app = createApp({
+      readiness: async () => true,
+      bookPresentation: { getBookPresentation },
+    });
+
+    try {
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/books/book-a/presentation",
+        headers: { "x-selfalone-account": "account-a" },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual(snapshot);
+      expect(getBookPresentation).toHaveBeenCalledWith("account-a", "book-a");
+
+      const unauthenticated = await app.inject({
+        method: "GET",
+        url: "/api/v1/books/book-a/presentation",
+      });
+      expect(unauthenticated.statusCode).toBe(401);
+      expect(unauthenticated.json()).toEqual({ code: "ACCOUNT_REQUIRED" });
+    } finally {
+      await app.close();
+    }
   });
 });
