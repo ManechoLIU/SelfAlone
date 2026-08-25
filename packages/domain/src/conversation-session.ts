@@ -1,0 +1,253 @@
+export type ConversationRunKind = "response" | "task";
+export type ConversationRunStatus = "running" | "stopped" | "failed" | "completed";
+export type ConversationTaskStatus = ConversationRunStatus;
+
+export type ConversationDraft = {
+  text: string;
+  attachments: readonly string[];
+};
+
+export type ConversationContextEntry = {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
+  requestId?: string;
+};
+
+export type ConversationWork = {
+  id: string;
+  taskId: string;
+  kind: string;
+  metadata?: Readonly<Record<string, unknown>>;
+};
+
+export type ConversationRun = {
+  requestId: string;
+  kind: ConversationRunKind;
+  status: "running";
+  startedRevision: number;
+  taskId?: string;
+};
+
+export type ConversationTask = {
+  id: string;
+  requestId: string;
+  status: ConversationTaskStatus;
+};
+
+export type ConversationSessionState = {
+  id: string;
+  revision: number;
+  draft: ConversationDraft | null;
+  context: readonly ConversationContextEntry[];
+  activeRun: ConversationRun | null;
+  tasks: readonly ConversationTask[];
+  works: readonly ConversationWork[];
+  deleted: boolean;
+};
+
+export type ConversationStateErrorCode =
+  | "CONVERSATION_BUSY"
+  | "INVALID_TASK_ID"
+  | "SESSION_DELETED"
+  | "STALE_REQUEST"
+  | "STALE_REVISION"
+  | "TASK_ALREADY_STARTED"
+  | "TASK_NOT_FOUND"
+  | "WORK_ALREADY_RECORDED";
+
+export class ConversationStateError extends Error {
+  readonly code: ConversationStateErrorCode;
+
+  constructor(code: ConversationStateErrorCode) {
+    super(code);
+    this.name = "ConversationStateError";
+    this.code = code;
+  }
+}
+
+export function createConversationSession(
+  id: string,
+  initial: Pick<ConversationSessionState, "draft" | "context"> = {
+    draft: null,
+    context: [],
+  },
+): ConversationSessionState {
+  return {
+    id,
+    revision: 0,
+    draft: cloneDraft(initial.draft),
+    context: initial.context.map(cloneContextEntry),
+    activeRun: null,
+    tasks: [],
+    works: [],
+    deleted: false,
+  };
+}
+
+export function updateConversationDraft(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  draft: ConversationDraft | null,
+): ConversationSessionState {
+  assertWritable(session);
+  assertRevision(session, expectedRevision);
+  return nextState(session, { draft: cloneDraft(draft) });
+}
+
+export function appendConversationContext(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  entry: ConversationContextEntry,
+): ConversationSessionState {
+  assertWritable(session);
+  assertRevision(session, expectedRevision);
+  return nextState(session, { context: [...session.context, cloneContextEntry(entry)] });
+}
+
+export function startConversationRun(
+  session: ConversationSessionState,
+  input: {
+    expectedRevision: number;
+    requestId: string;
+    kind: ConversationRunKind;
+    taskId?: string;
+  },
+): ConversationSessionState {
+  assertWritable(session);
+  assertRevision(session, input.expectedRevision);
+  if (session.activeRun) throw new ConversationStateError("CONVERSATION_BUSY");
+
+  const taskId = input.kind === "task" ? input.taskId : undefined;
+  if (input.kind === "task" && !taskId) {
+    throw new ConversationStateError("INVALID_TASK_ID");
+  }
+  if (taskId && session.tasks.some((task) => task.id === taskId)) {
+    throw new ConversationStateError("TASK_ALREADY_STARTED");
+  }
+
+  const activeRun: ConversationRun = {
+    requestId: input.requestId,
+    kind: input.kind,
+    status: "running",
+    startedRevision: session.revision + 1,
+    ...(taskId ? { taskId } : {}),
+  };
+  const tasks = taskId
+    ? [...session.tasks, { id: taskId, requestId: input.requestId, status: "running" as const }]
+    : session.tasks;
+  return nextState(session, { activeRun, tasks });
+}
+
+export function recordConversationWork(
+  session: ConversationSessionState,
+  input: {
+    taskId: string;
+    requestId: string;
+    work: Omit<ConversationWork, "taskId">;
+  },
+): ConversationSessionState {
+  const activeRun = session.activeRun;
+  if (
+    !activeRun
+    || activeRun.kind !== "task"
+    || activeRun.taskId !== input.taskId
+    || activeRun.requestId !== input.requestId
+  ) {
+    throw new ConversationStateError("STALE_REQUEST");
+  }
+  if (!session.tasks.some((task) => task.id === input.taskId)) {
+    throw new ConversationStateError("TASK_NOT_FOUND");
+  }
+  if (session.works.some((work) => work.id === input.work.id)) {
+    throw new ConversationStateError("WORK_ALREADY_RECORDED");
+  }
+
+  return nextState(session, {
+    works: [
+      ...session.works,
+      {
+        ...input.work,
+        ...(input.work.metadata ? { metadata: { ...input.work.metadata } } : {}),
+        taskId: input.taskId,
+      },
+    ],
+  });
+}
+
+export function settleConversationRun(
+  session: ConversationSessionState,
+  input: {
+    requestId: string;
+    status: Exclude<ConversationRunStatus, "running">;
+    contextEntry?: ConversationContextEntry;
+  },
+): ConversationSessionState {
+  const activeRun = session.activeRun;
+  if (!activeRun || activeRun.requestId !== input.requestId) {
+    throw new ConversationStateError("STALE_REQUEST");
+  }
+
+  const tasks = activeRun.taskId
+    ? session.tasks.map((task) =>
+      task.id === activeRun.taskId ? { ...task, status: input.status } : task,
+    )
+    : session.tasks;
+  const context = input.contextEntry
+    ? [...session.context, cloneContextEntry({ ...input.contextEntry, requestId: input.requestId })]
+    : session.context;
+  return nextState(session, { activeRun: null, tasks, context });
+}
+
+export function deleteConversationSession(
+  session: ConversationSessionState,
+  expectedRevision: number,
+): ConversationSessionState {
+  assertWritable(session);
+  assertRevision(session, expectedRevision);
+  return nextState(session, { draft: null, deleted: true });
+}
+
+export function isConversationSendLocked(session: ConversationSessionState): boolean {
+  return session.activeRun?.status === "running";
+}
+
+function assertWritable(session: ConversationSessionState) {
+  if (session.deleted) throw new ConversationStateError("SESSION_DELETED");
+}
+
+function assertRevision(session: ConversationSessionState, expectedRevision: number) {
+  if (session.revision !== expectedRevision) {
+    throw new ConversationStateError("STALE_REVISION");
+  }
+}
+
+function nextState(
+  session: ConversationSessionState,
+  patch: Partial<ConversationSessionState>,
+): ConversationSessionState {
+  return {
+    ...session,
+    ...patch,
+    revision: session.revision + 1,
+    draft: cloneDraft(patch.draft !== undefined ? patch.draft : session.draft),
+    context: patch.context ? patch.context.map(cloneContextEntry) : session.context.map(cloneContextEntry),
+    tasks: patch.tasks ? patch.tasks.map((task) => ({ ...task })) : session.tasks.map((task) => ({ ...task })),
+    works: patch.works ? patch.works.map(cloneWork) : session.works.map(cloneWork),
+    activeRun: patch.activeRun ? { ...patch.activeRun } : patch.activeRun === null ? null : session.activeRun
+      ? { ...session.activeRun }
+      : null,
+  };
+}
+
+function cloneDraft(draft: ConversationDraft | null): ConversationDraft | null {
+  return draft ? { ...draft, attachments: [...draft.attachments] } : null;
+}
+
+function cloneContextEntry(entry: ConversationContextEntry): ConversationContextEntry {
+  return { ...entry };
+}
+
+function cloneWork(work: ConversationWork): ConversationWork {
+  return work.metadata ? { ...work, metadata: { ...work.metadata } } : { ...work };
+}

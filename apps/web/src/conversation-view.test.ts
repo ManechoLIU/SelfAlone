@@ -55,7 +55,7 @@ describe("conversation-view", () => {
         screen: "requirements",
         workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },
         title: "范围与需求",
-        marker: "desktop-scope-fields",
+        marker: "desktop-confirmed-scope",
       },
       {
         screen: "outline",
@@ -250,7 +250,7 @@ describe("conversation-view", () => {
       selectedTemplate: "qingci-study",
     });
 
-    expect(view.main).toContain("范围与需求 · 生成示例大纲在右侧工作区");
+    expect(view.main).toContain("范围与需求 · 生成大纲在右侧工作区");
     expect(view.main).not.toContain("生成中 · 进度在右侧工作区实时保留");
   });
 
@@ -289,7 +289,7 @@ describe("conversation-view", () => {
     expect(html).toContain('class="desktop-conversation-list"');
   });
 
-  it("makes the development boundary explicit on the requirements screen", () => {
+  it("does not render demo-only unavailable controls in the task workspace", () => {
     const view = renderConversationView({
       workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },
       busy: false,
@@ -299,10 +299,10 @@ describe("conversation-view", () => {
     expect(view.main).toContain("生成要求");
     expect(view.main).toContain('src="/mascot/laoji-mascot-seated-reading-transparent-v1.png"');
     expect(view.taskPanel).toContain("范围与需求");
-    expect(view.taskPanel).toContain("生成示例大纲");
-    expect(view.taskPanel).toContain("用途、受众和页数暂不可用");
-    expect(view.taskPanel.match(/<select[^>]+disabled/g)).toHaveLength(3);
-    expect(view.main).toContain("本地演示 · 不调用 AI");
+    expect(view.taskPanel).toContain("生成大纲");
+    expect(view.taskPanel).not.toContain("暂不可用");
+    expect(view.taskPanel).not.toContain("disabled");
+    expect(view.main).not.toContain("本地演示 · 不调用 AI");
   });
 
   it("leaves the desktop shell with one main landmark", () => {

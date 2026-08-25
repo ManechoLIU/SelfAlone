@@ -12,7 +12,19 @@ import { createTextReaderRuntime } from "./text-reader";
 import { createTextAnnotationRuntime } from "./text-annotation-runtime";
 import { migrateTextAnnotationSchema } from "./text-annotation-migration";
 import { migrateOwnerContractSchema } from "./owner-migration";
+import { migrateConversationSchema } from "./conversation-migration";
+import { ConversationStore } from "./conversation-store";
 import { extractTextBook } from "@selfalone/domain";
+import {
+  appendConversationContext,
+  createConversationSession,
+  deleteConversationSession,
+  isConversationSendLocked,
+  recordConversationWork,
+  settleConversationRun,
+  startConversationRun,
+  updateConversationDraft,
+} from "@selfalone/domain";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const databaseUrl =
@@ -62,6 +74,23 @@ try {
   await migrationDatabase.end();
 }
 const textAnnotations = await createTextAnnotationRuntime({ databaseUrl });
+const conversationMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateConversationSchema(conversationMigrationDatabase);
+} finally {
+  await conversationMigrationDatabase.end();
+}
+const conversationSql = postgres(databaseUrl, { max: 4 });
+const conversation = new ConversationStore(conversationSql, {
+  createSession: createConversationSession,
+  updateDraft: updateConversationDraft,
+  appendContext: appendConversationContext,
+  startRun: startConversationRun,
+  recordWork: recordConversationWork,
+  settleRun: settleConversationRun,
+  deleteSession: deleteConversationSession,
+  isSendLocked: isConversationSendLocked,
+});
 const app = createApp({
   readiness: async () =>
     (await auth.ready())
@@ -75,6 +104,7 @@ const app = createApp({
   textReader,
   textAnnotations,
   accountSettings: accountSettings,
+  conversation,
 });
 
 const shutdown = async () => {
@@ -85,6 +115,7 @@ const shutdown = async () => {
   await runtime.close();
   await accountSettings.close();
   await auth.close();
+  await conversationSql.end();
   process.exit(0);
 };
 

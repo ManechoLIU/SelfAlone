@@ -4,6 +4,13 @@ import {
   type WorkspaceScreen,
   type WorkspaceSnapshot,
 } from "./app-state";
+export {
+  mountConversationChatView,
+  renderConversationChatView,
+  type ConversationChatMountOptions,
+  type ConversationChatViewOptions,
+  type ConversationChatViewResult,
+} from "./conversation-chat-view";
 import { escapeHtml } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
 
@@ -77,18 +84,12 @@ function renderRevisionNotice(workspace: WorkspaceSnapshot) {
 function renderRequirementsWorkspace(workspace: WorkspaceSnapshot, localStageView: boolean) {
   const action = localStageView
     ? `<button class="desktop-primary-button" type="submit" form="requirements-form" data-stage-forward="outline">保存范围并继续${icons.arrow}</button>`
-    : `<button class="desktop-primary-button" type="submit" form="requirements-form" data-stage-forward="outline">生成示例大纲${icons.arrow}</button>`;
+    : `<button class="desktop-primary-button" type="submit" form="requirements-form" data-stage-forward="outline">生成大纲${icons.arrow}</button>`;
   return `
     <div class="desktop-confirmed-scope">
       <p>已确认范围</p>
       ${renderScopeSummary(workspace)}
     </div>
-    <div class="desktop-scope-fields">
-      <label for="scope-purpose">用途<select id="scope-purpose" name="purpose" disabled aria-disabled="true" aria-label="用途（暂不可用）"><option>本地示例暂不可用</option></select></label>
-      <label for="scope-audience">受众<select id="scope-audience" name="audience" disabled aria-disabled="true" aria-label="受众（暂不可用）"><option>本地示例暂不可用</option></select></label>
-      <label for="scope-pages">页数范围<select id="scope-pages" name="pages" disabled aria-disabled="true" aria-label="页数范围（暂不可用）"><option>本地示例暂不可用</option></select></label>
-    </div>
-    <p class="desktop-scope-note">用途、受众和页数暂不可用，不会进入本地示例提交与结果；本次只读取下方要求。</p>
     ${renderRevisionNotice(workspace)}
     ${localStageView ? `<p class="desktop-local-stage-note">当前回到前序阶段；提交后会写入老己服务，后续阶段需要重新确认。</p>` : ""}
     ${action}`;
@@ -203,7 +204,6 @@ function renderGenerationWorkspace(workspace: WorkspaceSnapshot, screen: Workspa
           : screen === "failed"
             ? `<span class="desktop-retained-copy">已保留需求、大纲和已完成页面。</span>`
             : `<button id="refresh-workspace" class="desktop-secondary-button" type="button">刷新状态</button>`}
-      <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
     </div>`;
 }
 
@@ -265,7 +265,7 @@ function renderStageThread(workspace: WorkspaceSnapshot, screen: WorkspaceScreen
 
 function renderStageSummary(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
   const summary = screen === "requirements"
-    ? "范围与需求 · 生成示例大纲在右侧工作区"
+    ? "范围与需求 · 生成大纲在右侧工作区"
     : screen === "outline"
     ? `已确认范围 · ${workspace.outline.length} 页大纲`
     : screen === "template"
@@ -299,7 +299,6 @@ function renderConversationComposer(workspace: WorkspaceSnapshot, screen: Worksp
       <div class="desktop-composer-actions">
         <span>${helper}</span>
         ${saveAction}
-        <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
       </div>
     </form>`;
 }

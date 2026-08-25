@@ -47,6 +47,10 @@ import {
   type LibraryLoadState,
 } from "./library-state";
 import { coverAssetForBook } from "./library-cover";
+import { createConversationChatClient } from "./conversation-chat-client";
+import { createConversationChatController } from "./conversation-chat-controller";
+import { mountConversationChatView } from "./conversation-chat-view";
+import type { ConversationChatSession } from "./conversation-chat-state";
 import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
@@ -69,6 +73,7 @@ import {
 const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
 const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
 const conversationScrollStorageKey = "selfalone:m1:conversation-scroll";
+const conversationChatClient = createConversationChatClient();
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -100,6 +105,10 @@ let conversationScrollTop = 0;
 let taskScrollTop = 0;
 let conversationFocusKey: string | null = null;
 let routeRenderFrame: number | undefined;
+let conversationChatSession: ConversationChatSession | null = null;
+let conversationChatRequestInFlight = false;
+let conversationChatCleanup: (() => void) | null = null;
+let conversationChatError = "";
 let settingsState: SettingsState = createSettingsState();
 let settingsRequestInFlight = false;
 let lastSettingsFocusField: string | null = null;
@@ -594,6 +603,90 @@ function conversationHref() {
   return bookPptIntentId
     ? bookPptIntentHashForStage(bookPptIntentId, stage, bookPptIntentTitle ?? undefined)
     : conversationHash(stage);
+}
+
+function destroyConversationChat() {
+  conversationChatCleanup?.();
+  conversationChatCleanup = null;
+  conversationChatSession = null;
+}
+
+function renderConversationChatList(session: ConversationChatSession | null) {
+  const item = session
+    ? `<a class="desktop-conversation-item active" href="#/conversation" aria-current="page">
+        <span class="desktop-conversation-item-icon">${icons.chat}</span>
+        <span class="desktop-conversation-item-copy"><strong>老己对话</strong><small>当前会话</small></span>
+      </a>`
+    : `<p class="desktop-list-empty">正在恢复最近对话…</p>`;
+  return `<aside class="desktop-conversation-list" aria-label="最近对话">
+    <h2>最近对话</h2>
+    <nav class="desktop-conversation-items" aria-label="会话列表">${item}</nav>
+  </aside>`;
+}
+
+function renderConversationChatShell(content: string, session: ConversationChatSession | null) {
+  return `<div class="desktop-app-shell" data-active-section="conversation">
+    ${renderDesktopRail({ activeSection: "conversation", conversationHref: "#/conversation" })}
+    ${renderConversationChatList(session)}
+    <main class="desktop-conversation-main">
+      <header class="desktop-conversation-header">
+        <div class="desktop-current-title"><h1>老己对话</h1><span>当前会话</span></div>
+      </header>
+      <div class="desktop-conversation-scroll">${content}</div>
+    </main>
+  </div>`;
+}
+
+function renderConversationChatLoading() {
+  app.innerHTML = renderConversationChatShell(`
+    <section class="conversation-chat-entry-state" aria-live="polite">
+      <p>正在恢复当前对话…</p>
+    </section>`, null);
+}
+
+function renderConversationChatError() {
+  app.innerHTML = renderConversationChatShell(`
+    <section class="conversation-chat-entry-state conversation-chat-entry-state-error" role="alert">
+      <h1>暂时无法打开对话</h1>
+      <p>${escapeHtml(conversationChatError || "老己服务暂时没有响应。")}</p>
+      <button id="reconnect-conversation" class="desktop-reconnect" type="button">重新连接</button>
+    </section>`, conversationChatSession);
+  document.querySelector<HTMLButtonElement>("#reconnect-conversation")?.addEventListener("click", () => {
+    void loadConversationChat(routeGeneration);
+  });
+}
+
+function renderConversationChat(session: ConversationChatSession) {
+  conversationChatCleanup?.();
+  conversationChatSession = session;
+  app.innerHTML = renderConversationChatShell(`<div id="conversation-chat-main-mount"></div>`, session);
+  const mainMount = document.querySelector<HTMLElement>("#conversation-chat-main-mount");
+  if (!mainMount) return;
+  const controller = createConversationChatController({
+    conversationId: session.id,
+    client: conversationChatClient,
+  });
+  conversationChatCleanup = mountConversationChatView(mainMount, null, controller, { title: "老己对话" });
+}
+
+async function loadConversationChat(navigationId: number) {
+  if (conversationChatRequestInFlight) return;
+  conversationChatRequestInFlight = true;
+  conversationChatError = "";
+  renderConversationChatLoading();
+  try {
+    const sessions = await conversationChatClient.listSessions();
+    const session = sessions[0] ?? await conversationChatClient.createSession();
+    if (navigationId !== routeGeneration || !isConversationRoute()) return;
+    conversationChatError = "";
+    renderConversationChat(session);
+  } catch (error) {
+    if (navigationId !== routeGeneration || !isConversationRoute()) return;
+    conversationChatError = error instanceof Error ? error.message : "CONVERSATION_REQUEST_FAILED";
+    renderConversationChatError();
+  } finally {
+    conversationChatRequestInFlight = false;
+  }
 }
 
 function focusKeyForElement(element: Element | null) {
@@ -1391,6 +1484,7 @@ function renderRoute() {
   bookPptIntentTitle = bookPptIntentTitleFromHash(window.location.hash);
   const readingBookId = readingBookIdFromHash(window.location.hash);
   const bookDetailId = bookDetailIdFromHash(window.location.hash);
+  if (!isConversationRoute()) destroyConversationChat();
   if (bookDetailId) {
     destroyTextReader();
     void openTextReader(bookDetailId, navigationId, true);
@@ -1419,15 +1513,11 @@ function renderRoute() {
     if (libraryState.loading) void loadLibrary("", "initial");
     return;
   }
-  stageView = readStageViewFromHash();
-  lastConversationStage = stageView;
   destroyTextReader();
-  if (!workspace) {
-    renderLoading();
-    void loadWorkspace();
+  if (conversationChatSession) {
+    renderConversationChat(conversationChatSession);
   } else {
-    render();
-    updatePolling();
+    void loadConversationChat(navigationId);
   }
 }
 
@@ -1441,6 +1531,7 @@ function scheduleRouteRender() {
 
 window.addEventListener("beforeunload", () => {
   persistConversationScroll();
+  destroyConversationChat();
   destroyTextReader();
 });
 window.addEventListener("keydown", handleAuthDialogKeydown);

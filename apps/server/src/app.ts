@@ -4,6 +4,7 @@ import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
 import { registerAccountSettingsRoutes, type AccountSettingsService } from "./account-settings-routes";
 import type { AuthRuntime } from "./auth-runtime";
+import { registerConversationRoutes, type ConversationRouteRuntime } from "./conversation-routes";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
@@ -23,6 +24,7 @@ type AppDependencies = {
     "list" | "createHighlight" | "updateHighlight" | "deleteHighlight" | "createNote" | "updateNote" | "deleteNote"
   >;
   accountSettings?: AccountSettingsService;
+  conversation?: ConversationRouteRuntime;
 };
 
 export const resolveAccountId = resolveAccountOwner;
@@ -170,6 +172,10 @@ export function createApp(dependencies: AppDependencies) {
 
   if (dependencies.accountSettings) {
     registerAccountSettingsRoutes(app, dependencies.accountSettings, resolveAccountId);
+  }
+
+  if (dependencies.conversation) {
+    registerConversationRoutes(app, dependencies.conversation, resolveAccountId);
   }
 
   if (dependencies.m0) {

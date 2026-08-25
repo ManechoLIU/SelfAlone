@@ -4,3 +4,4 @@ export * from "./book-import";
 export * from "./ppt-state";
 export * from "./text-reader";
 export * from "./text-annotation";
+export * from "./conversation-session";
