@@ -34,7 +34,12 @@ export type ConversationSendResult =
     };
 
 export class ConversationStoreError extends Error {
-  constructor(readonly code: "SESSION_NOT_FOUND" | "STALE_REVISION" | "INVALID_MESSAGE") {
+  constructor(readonly code:
+    | "SESSION_NOT_FOUND"
+    | "STALE_REVISION"
+    | "INVALID_MESSAGE"
+    | "CONVERSATION_BUSY"
+    | "REQUEST_ID_CONFLICT") {
     super(code);
     this.name = "ConversationStoreError";
   }
@@ -143,15 +148,42 @@ export class ConversationStore {
     const current = await this.getSession(input.accountId, input.conversationId);
     if (!current) throw new ConversationStoreError("SESSION_NOT_FOUND");
 
+    const requestHistory = findRequestHistory(current, input.requestId);
+    if (requestHistory.hasRequest) {
+      if (
+        requestHistory.userEntries.length === 0
+        || requestHistory.userEntries.some((entry) => entry.text !== input.text)
+      ) {
+        throw new ConversationStoreError("REQUEST_ID_CONFLICT");
+      }
+      const completedEntry = requestHistory.assistantEntries.at(-1);
+      if (completedEntry) {
+        return {
+          status: "completed",
+          session: cloneConversationSession(current),
+          reply: completedEntry.text,
+        };
+      }
+      if (current.activeRun) throw new ConversationStoreError("CONVERSATION_BUSY");
+    } else if (current.activeRun) {
+      throw new ConversationStoreError("CONVERSATION_BUSY");
+    }
+
     const draft = { text: input.text, attachments: [] as const };
+    let userEntry: ConversationRuntimeContextEntry | null = null;
     let running: ConversationRuntimeSession;
     try {
       const withDraft = this.#domain.updateDraft(current, current.revision, draft);
-      const withUser = this.#domain.appendContext(withDraft, withDraft.revision, {
-        id: `${input.requestId}:user`,
-        role: "user",
-        text: input.text,
-      });
+      let withUser = withDraft;
+      if (requestHistory.userEntries.length === 0) {
+        userEntry = {
+          id: `${input.requestId}:user`,
+          role: "user",
+          text: input.text,
+          requestId: input.requestId,
+        };
+        withUser = this.#domain.appendContext(withDraft, withDraft.revision, userEntry);
+      }
       running = this.#domain.startRun(withUser, {
         expectedRevision: withUser.revision,
         requestId: input.requestId,
@@ -165,7 +197,7 @@ export class ConversationStore {
       input.accountId,
       running,
       current.revision,
-      [messageRecord(input.accountId, input.conversationId, running.context.at(-1)!)],
+      userEntry ? [messageRecord(input.accountId, input.conversationId, userEntry)] : [],
     );
     if (initialSave === "stale") throw new ConversationStoreError("STALE_REVISION");
 
@@ -248,6 +280,22 @@ function messageRecord(
   return { ...entry, accountId, conversationId };
 }
 
+function findRequestHistory(
+  session: ConversationRuntimeSession,
+  requestId: string,
+) {
+  const entries = session.context.filter((entry) =>
+    entry.requestId === requestId
+    || entry.id === `${requestId}:user`
+    || entry.id === `${requestId}:assistant`,
+  );
+  return {
+    hasRequest: entries.length > 0,
+    userEntries: entries.filter((entry) => entry.role === "user"),
+    assistantEntries: entries.filter((entry) => entry.role === "assistant"),
+  };
+}
+
 function parseSession(row: ConversationRow): ConversationRuntimeSession {
   const state = typeof row.state === "string" ? JSON.parse(row.state) : row.state;
   if (!state || typeof state !== "object") throw new Error("CONVERSATION_STATE_INVALID");
@@ -262,6 +310,7 @@ function mapStateError(error: unknown): Error {
   if (error && typeof error === "object" && "code" in error) {
     const code = (error as { code: unknown }).code;
     if (code === "STALE_REVISION") return new ConversationStoreError("STALE_REVISION");
+    if (code === "CONVERSATION_BUSY") return new ConversationStoreError("CONVERSATION_BUSY");
   }
   return error instanceof Error ? error : new Error("CONVERSATION_STATE_FAILED");
 }

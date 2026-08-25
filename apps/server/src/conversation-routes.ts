@@ -78,7 +78,7 @@ function sendConversationError(error: unknown, reply: FastifyReply) {
   if (code === "ACCOUNT_REQUIRED") return reply.code(401).send({ code });
   if (code === "ACCOUNT_FORBIDDEN") return reply.code(403).send({ code });
   if (code === "SESSION_NOT_FOUND") return reply.code(404).send({ code: "CONVERSATION_NOT_FOUND" });
-  if (code === "CONVERSATION_BUSY" || code === "STALE_REVISION") {
+  if (code === "CONVERSATION_BUSY" || code === "STALE_REVISION" || code === "REQUEST_ID_CONFLICT") {
     return reply.code(409).send({ code });
   }
   if (code === "INVALID_MESSAGE" || code.endsWith("_REQUIRED")) {

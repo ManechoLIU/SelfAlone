@@ -86,4 +86,25 @@ describe("conversation chat state", () => {
     expect(refreshed.status).toBe("idle");
     expect(refreshed.draft).toBe("这段输入要留下");
   });
+
+  it("restores the persisted request id with a retained draft", () => {
+    const hydrated = applyConversationSnapshot(createConversationChatState("conversation-a"), {
+      id: "conversation-a",
+      revision: 3,
+      draft: { text: "失败后继续", attachments: [] },
+      context: [{
+        id: "request-retry:user",
+        role: "user",
+        text: "失败后继续",
+        requestId: "request-retry",
+      }],
+      activeRun: null,
+      tasks: [],
+      works: [],
+      deleted: false,
+    });
+
+    expect(hydrated.retryRequestId).toBe("request-retry");
+    expect(hydrated.retryText).toBe("失败后继续");
+  });
 });

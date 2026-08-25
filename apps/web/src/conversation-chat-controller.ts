@@ -84,7 +84,9 @@ export function createConversationChatController(
       const text = state.draft;
       if (!text.trim()) return undefined;
 
-      const id = requestId();
+      const id = state.retryRequestId && state.retryText === text
+        ? state.retryRequestId
+        : requestId();
       publish(beginConversationSend(state, id));
       try {
         const result = await options.client.sendText(options.conversationId, {

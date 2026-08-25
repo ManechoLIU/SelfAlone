@@ -95,6 +95,73 @@ describe("conversation chat controller", () => {
     });
   });
 
+  it("reuses a failed request id only while the retained draft is unchanged", async () => {
+    const requestIds: string[] = [];
+    const client = {
+      async getSession() {
+        return session();
+      },
+      async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+        requestIds.push(`${input.requestId}:${input.text}`);
+        throw new Error("network unavailable");
+      },
+    };
+    let nextRequestId = 0;
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `request-${++nextRequestId}`,
+    });
+
+    controller.setDraft("第一次输入");
+    await controller.send();
+    controller.setDraft("修改后的输入");
+    await controller.send();
+    await controller.send();
+
+    expect(requestIds).toEqual([
+      "request-1:第一次输入",
+      "request-2:修改后的输入",
+      "request-2:修改后的输入",
+    ]);
+  });
+
+  it("allocates a fresh request id when the user re-enters text after completion", async () => {
+    const requestIds: string[] = [];
+    const client = {
+      async getSession() {
+        return session();
+      },
+      async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+        requestIds.push(`${input.requestId}:${input.text}`);
+        return {
+          status: "completed",
+          session: session({
+            revision: requestIds.length + 1,
+            context: [
+              { id: `${input.requestId}:user`, role: "user", text: input.text, requestId: input.requestId },
+              { id: `${input.requestId}:assistant`, role: "assistant", text: "已收到。", requestId: input.requestId },
+            ],
+          }),
+          reply: "已收到。",
+        };
+      },
+    };
+    let nextRequestId = 0;
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `request-${++nextRequestId}`,
+    });
+
+    controller.setDraft("同一段话");
+    await controller.send();
+    controller.setDraft("同一段话");
+    await controller.send();
+
+    expect(requestIds).toEqual(["request-1:同一段话", "request-2:同一段话"]);
+  });
+
   it("does not issue a second request while a send is in flight", async () => {
     let resolveSend: ((result: ConversationChatSendResult) => void) | undefined;
     let sendCount = 0;

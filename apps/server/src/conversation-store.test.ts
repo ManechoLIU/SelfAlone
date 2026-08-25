@@ -60,7 +60,7 @@ describe("conversation store", () => {
     const refreshedStore = new ConversationStore(setup.sql, domainStateMachine);
     const refreshed = await refreshedStore.getSession("account-a", "conversation-a");
     expect(refreshed?.context).toEqual([
-      { id: "request-a-1:user", role: "user", text: "请记住这一段" },
+      { id: "request-a-1:user", role: "user", text: "请记住这一段", requestId: "request-a-1" },
       {
         id: "request-a-1:assistant",
         role: "assistant",
@@ -98,6 +98,125 @@ describe("conversation store", () => {
       "conversation-a",
     );
     expect(refreshed?.draft).toEqual({ text: "这段输入不能丢", attachments: [] });
+  });
+
+  it("reuses one persisted user entry across a failure then same-request retry", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_retry");
+    let responderCalls = 0;
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      respond: async () => {
+        responderCalls += 1;
+        if (responderCalls <= 2) throw new Error("LOCAL_REPLY_FAILED");
+        return "重试后完成";
+      },
+    });
+    await store.createSession("account-a", "conversation-a");
+
+    const first = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-retry",
+      text: "需要重试",
+    });
+    const second = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-retry",
+      text: "需要重试",
+    });
+    const third = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-retry",
+      text: "需要重试",
+    });
+
+    expect(first.status).toBe("failed");
+    expect(second.status).toBe("failed");
+    expect(third).toMatchObject({ status: "completed", reply: "重试后完成" });
+    if (third.status !== "completed") throw new Error("expected completed retry");
+    expect(third.session.context.filter((entry) => entry.id === "request-retry:user")).toHaveLength(1);
+    expect(third.session.context.filter((entry) => entry.id === "request-retry:assistant")).toHaveLength(1);
+    expect(responderCalls).toBe(3);
+
+    const [messageCount] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+    expect(messageCount?.count).toBe(2);
+  });
+
+  it("replays a completed request without a second response or message group", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_replay");
+    let responderCalls = 0;
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      respond: async () => {
+        responderCalls += 1;
+        return "只生成一次";
+      },
+    });
+    await store.createSession("account-a", "conversation-a");
+
+    const first = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-replay",
+      text: "响应可能丢失",
+    });
+    const replay = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-replay",
+      text: "响应可能丢失",
+    });
+
+    expect(first.status).toBe("completed");
+    expect(replay).toMatchObject({ status: "completed", reply: "只生成一次" });
+    if (replay.status !== "completed") throw new Error("expected completed replay");
+    if (first.status !== "completed") throw new Error("expected initial completed send");
+    expect(replay.session.revision).toBe(first.session.revision);
+    expect(replay.session.context).toHaveLength(2);
+    expect(responderCalls).toBe(1);
+
+    const [messageCount] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+    expect(messageCount?.count).toBe(2);
+
+    const fresh = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-fresh",
+      text: "响应可能丢失",
+    });
+    expect(fresh.status).toBe("completed");
+    expect(responderCalls).toBe(2);
+    if (fresh.status !== "completed") throw new Error("expected fresh completed send");
+    expect(fresh.session.context.filter((entry) => entry.role === "user")).toHaveLength(2);
+    expect(fresh.session.context.filter((entry) => entry.role === "assistant")).toHaveLength(2);
+  });
+
+  it("fails closed when a request id is reused with different text", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_conflict");
+    const store = new ConversationStore(setup.sql, domainStateMachine);
+    await store.createSession("account-a", "conversation-a");
+
+    await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-conflict",
+      text: "原始内容",
+    });
+
+    await expect(store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-conflict",
+      text: "篡改内容",
+    })).rejects.toMatchObject({ code: "REQUEST_ID_CONFLICT" });
   });
 
   it("does not expose one account's conversation to another account", async () => {

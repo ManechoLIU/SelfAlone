@@ -20,6 +20,8 @@ export type ConversationChatState = {
   conversationId: string;
   revision: number | null;
   draft: string;
+  retryRequestId: string | null;
+  retryText: string | null;
   messages: readonly ConversationChatMessage[];
   status: "idle" | "sending" | "error";
   errorCode: string | null;
@@ -92,6 +94,8 @@ export function createConversationChatState(conversationId: string): Conversatio
     conversationId,
     revision: null,
     draft: "",
+    retryRequestId: null,
+    retryText: null,
     messages: [],
     status: "idle",
     errorCode: null,
@@ -102,29 +106,56 @@ export function updateConversationDraft(
   state: ConversationChatState,
   draft: string,
 ): ConversationChatState {
-  return { ...state, draft, errorCode: null };
+  const canRetrySameRequest = state.retryRequestId !== null && state.retryText === draft;
+  return {
+    ...state,
+    draft,
+    retryRequestId: canRetrySameRequest ? state.retryRequestId : null,
+    retryText: canRetrySameRequest ? state.retryText : null,
+    errorCode: null,
+  };
 }
 
 export function beginConversationSend(
   state: ConversationChatState,
-  _requestId: string,
+  requestId: string,
 ): ConversationChatState {
-  return { ...state, status: "sending", errorCode: null };
+  return {
+    ...state,
+    retryRequestId: requestId,
+    retryText: state.draft,
+    status: "sending",
+    errorCode: null,
+  };
 }
 
 export function applyConversationSnapshot(
   state: ConversationChatState,
   session: ConversationChatSession,
 ): ConversationChatState {
+  const retryEntry = session.draft
+    ? [...session.context].reverse().find((entry) => entry.role === "user" && entry.text === session.draft?.text)
+    : undefined;
+  const retryRequestId = retryEntry ? requestIdForContextEntry(retryEntry) : null;
   return {
     ...state,
     conversationId: session.id,
     revision: session.revision,
     draft: session.draft?.text ?? "",
+    retryRequestId,
+    retryText: retryRequestId ? session.draft?.text ?? null : null,
     messages: session.context.map((entry) => ({ ...entry })),
     status: "idle",
     errorCode: null,
   };
+}
+
+function requestIdForContextEntry(entry: ConversationChatMessage) {
+  if (entry.requestId) return entry.requestId;
+  const suffix = ":user";
+  return entry.role === "user" && entry.id.endsWith(suffix)
+    ? entry.id.slice(0, -suffix.length)
+    : null;
 }
 
 export function applyConversationSendResult(
@@ -136,6 +167,8 @@ export function applyConversationSendResult(
     conversationId: result.session.id,
     revision: result.session.revision,
     draft: result.status === "completed" ? "" : result.retainedDraft.text,
+    retryRequestId: result.status === "completed" ? null : state.retryRequestId,
+    retryText: result.status === "completed" ? null : state.retryText,
     messages: result.session.context.map((entry) => ({ ...entry })),
     status: result.status === "completed" ? "idle" : "error",
     errorCode: result.status === "completed" ? null : result.errorCode,
