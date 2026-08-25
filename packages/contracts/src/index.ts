@@ -184,3 +184,29 @@ export type TextAnnotationErrorCode =
   | "INTERNAL_ERROR";
 
 export type TextAnnotationError = { code: TextAnnotationErrorCode };
+
+export type AuthAccount = {
+  id: string;
+  email: string;
+};
+
+export type EmailAuthCredentials = {
+  email: string;
+  password: string;
+};
+
+export type RegisterEmailRequest = EmailAuthCredentials;
+export type LoginEmailRequest = EmailAuthCredentials;
+
+export type AuthAccountResponse = {
+  account: AuthAccount;
+};
+
+export type AuthErrorCode =
+  | "AUTH_REQUIRED"
+  | "INVALID_CREDENTIALS"
+  | "INVALID_EMAIL"
+  | "INVALID_PASSWORD"
+  | "EMAIL_ALREADY_REGISTERED"
+  | "INVALID_REQUEST"
+  | "INTERNAL_ERROR";

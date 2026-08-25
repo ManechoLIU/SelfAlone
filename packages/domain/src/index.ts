@@ -1,4 +1,5 @@
 export * from "./account-identity";
+export * from "./auth";
 export * from "./book-import";
 export * from "./ppt-state";
 export * from "./text-reader";

@@ -13,6 +13,7 @@
     "@selfalone/contracts": "workspace:*",
     "@selfalone/domain": "workspace:*",
     "@selfalone/presentation-adapter": "workspace:*",
+    "argon2": "^0.45.1",
     "fastify": "latest",
     "postgres": "latest",
     "zod": "latest"

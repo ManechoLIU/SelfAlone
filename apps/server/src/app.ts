@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { createReadStream } from "node:fs";
 import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
+import type { AuthRuntime } from "./auth-runtime";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
@@ -12,6 +13,7 @@ import {
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
+  auth?: AuthRuntime;
   library?: LibraryRuntime;
   m0?: M0Runtime;
   textReader?: TextReaderRuntime;
@@ -22,6 +24,37 @@ type AppDependencies = {
 };
 
 export const resolveAccountId = resolveAccountOwner;
+
+const sessionCookieName = "selfalone_session";
+
+function readSessionCookie(cookieHeader: string | undefined) {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...valueParts] = part.trim().split("=");
+    if (name !== sessionCookieName) continue;
+    try {
+      return decodeURIComponent(valueParts.join("="));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function sessionCookie(token: string, secure: boolean) {
+  return `${sessionCookieName}=${encodeURIComponent(token)}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+function clearSessionCookie(secure: boolean) {
+  return `${sessionCookieName}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+}
+
+function isPublicPath(url: string) {
+  const path = url.split("?", 1)[0];
+  return path.startsWith("/api/v1/health/")
+    || path.startsWith("/api/v1/auth/")
+    || path === "/api/v1/account";
+}
 
 export function createApp(dependencies: AppDependencies) {
   const app = Fastify({ logger: false });
@@ -41,6 +74,56 @@ export function createApp(dependencies: AppDependencies) {
     }
     return { status: "ready" };
   });
+
+  if (dependencies.auth) {
+    const auth = dependencies.auth;
+    const emailCredentials = z.object({
+      email: z.string(),
+      password: z.string(),
+    });
+    const secureCookie = auth.isProductionEnvironment();
+
+    app.addHook("preHandler", async (request) => {
+      if (isPublicPath(request.url)) return;
+      const account = await auth.getAccount(readSessionCookie(request.headers.cookie));
+      if (!account) throw new Error("AUTH_REQUIRED");
+      // Existing resource runtimes accept a session-neutral owner resolver. The
+      // value is injected only after a valid HttpOnly session is verified.
+      (request.headers as Record<string, unknown>)["x-selfalone-account"] = account.id;
+    });
+
+    app.post("/api/v1/auth/email/register", async (request, reply) => {
+      const body = emailCredentials.parse(request.body);
+      const result = await auth.register(body.email, body.password);
+      reply.header("set-cookie", sessionCookie(result.sessionToken, secureCookie));
+      return reply.code(201).send({ account: result.account });
+    });
+
+    app.post("/api/v1/auth/email/login", async (request, reply) => {
+      const body = emailCredentials.parse(request.body);
+      const result = await auth.login(body.email, body.password);
+      reply.header("set-cookie", sessionCookie(result.sessionToken, secureCookie));
+      return reply.code(200).send({ account: result.account });
+    });
+
+    app.post("/api/v1/auth/refresh", async (request, reply) => {
+      const result = await auth.refresh(readSessionCookie(request.headers.cookie));
+      reply.header("set-cookie", sessionCookie(result.sessionToken, secureCookie));
+      return reply.code(200).send({ account: result.account });
+    });
+
+    app.post("/api/v1/auth/logout", async (request, reply) => {
+      await auth.logout(readSessionCookie(request.headers.cookie));
+      reply.header("set-cookie", clearSessionCookie(secureCookie));
+      return reply.code(204).send();
+    });
+
+    app.get("/api/v1/account", async (request, reply) => {
+      const account = await auth.getAccount(readSessionCookie(request.headers.cookie));
+      if (!account) throw new Error("AUTH_REQUIRED");
+      return reply.send({ account });
+    });
+  }
 
   if (dependencies.library) {
     const library = dependencies.library;
@@ -170,6 +253,15 @@ export function createApp(dependencies: AppDependencies) {
     }
     if (message === "ACCOUNT_REQUIRED") {
       return reply.code(401).send({ code: message });
+    }
+    if (message === "AUTH_REQUIRED" || message === "INVALID_CREDENTIALS") {
+      return reply.code(401).send({ code: message });
+    }
+    if (message === "EMAIL_ALREADY_REGISTERED") {
+      return reply.code(409).send({ code: message });
+    }
+    if (message === "INVALID_EMAIL" || message === "INVALID_PASSWORD") {
+      return reply.code(400).send({ code: message });
     }
     if (
       [

@@ -2,6 +2,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { createApp } from "./app";
+import { createAuthRuntime } from "./auth-runtime";
 import { createLibraryRuntime } from "./library-runtime";
 import { createM0Runtime } from "./m0-runtime";
 import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
@@ -26,6 +27,7 @@ const bookObjectDirectory = resolve(
 const port = Number(process.env.PORT ?? 4100);
 
 assertDevelopmentAdapterAllowed(process.env.APP_ENV);
+const auth = await createAuthRuntime({ databaseUrl, appEnv: process.env.APP_ENV });
 const runtime = await createM0Runtime({ databaseUrl, artifactDirectory });
 const textReader = await createTextReaderRuntime({
   databaseUrl,
@@ -53,11 +55,13 @@ try {
 const textAnnotations = await createTextAnnotationRuntime({ databaseUrl });
 const app = createApp({
   readiness: async () =>
-    (await runtime.ready())
+    (await auth.ready())
+    && (await runtime.ready())
     && (await library.ready())
     && (await textReader.ready())
     && (await textAnnotations.ready()),
   library,
+  auth,
   m0: runtime,
   textReader,
   textAnnotations,
@@ -69,6 +73,7 @@ const shutdown = async () => {
   await library.close();
   await textReader.close();
   await runtime.close();
+  await auth.close();
   process.exit(0);
 };
 
