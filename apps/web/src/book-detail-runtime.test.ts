@@ -96,10 +96,15 @@ describe("book detail presentation runtime", () => {
     const mismatched = createBookDetailPptRuntime({
       fetcher: async () => response({ book: { id: "book-other", title: "别的书", sourceLabel: "本地" }, state: "normal", current: null, history: [] }),
     });
-    await expect(mismatched.load("book-a")).resolves.toEqual({ state: "empty", works: [] });
+    await expect(mismatched.load("book-a", previous)).resolves.toMatchObject({
+      state: "failed",
+      works: previous,
+      error: "PPT 作品暂时没有载入，请稍后重试。",
+    });
   });
 
-  it("does not infer a work book when the response omits its book scope", async () => {
+  it("fails closed and retains prior works when the response omits its book scope", async () => {
+    const previous = [{ id: "task-old", title: "旧作品", status: "completed" as const }];
     const runtime = createBookDetailPptRuntime({
       fetcher: async () => response({
         book,
@@ -109,9 +114,28 @@ describe("book detail presentation runtime", () => {
       }),
     });
 
-    await expect(runtime.load("book-a")).resolves.toMatchObject({
+    await expect(runtime.load("book-a", previous)).resolves.toMatchObject({
       state: "failed",
-      works: [],
+      works: previous,
+      error: "PPT 作品暂时没有载入，请稍后重试。",
+    });
+  });
+
+  it("fails closed and retains prior works when the response omits its book title", async () => {
+    const previous = [{ id: "task-old", title: "旧作品", status: "completed" as const }];
+    const runtime = createBookDetailPptRuntime({
+      fetcher: async () => response({
+        book: { id: "book-a" },
+        state: "empty",
+        current: null,
+        history: [],
+      }),
+    });
+
+    await expect(runtime.load("book-a", previous)).resolves.toMatchObject({
+      state: "failed",
+      works: previous,
+      error: "PPT 作品暂时没有载入，请稍后重试。",
     });
   });
 });

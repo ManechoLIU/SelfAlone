@@ -52,7 +52,7 @@ describe("book-scoped presentation service", () => {
   it("keeps the failed current task and completed history visible", async () => {
     const service = createBookPresentationService(repository({
       listTasks: async () => [
-        task({ id: "task-old", version: 1, artifactId: "artifact-old" }),
+        task({ id: "task-old", version: 1, artifactId: "artifact-old", stale: true }),
         task({ id: "task-failed", version: 2, status: "failed", error: "PRESENTATION_GENERATION_FAILED" }),
       ],
     }));
@@ -72,7 +72,7 @@ describe("book-scoped presentation service", () => {
   it("returns the latest non-stale task as current and older tasks as history", async () => {
     const service = createBookPresentationService(repository({
       listTasks: async () => [
-        task({ id: "task-old", version: 1, artifactId: "artifact-old" }),
+        task({ id: "task-old", version: 1, artifactId: "artifact-old", stale: true }),
         task({ id: "task-current", version: 2, status: "running", completedPages: 1, totalPages: 3 }),
       ],
     }));
@@ -87,7 +87,7 @@ describe("book-scoped presentation service", () => {
         completedPages: 1,
         totalPages: 3,
       },
-      history: [{ id: "task-old", status: "completed", artifactId: "artifact-old", stale: false }],
+      history: [{ id: "task-old", status: "completed", artifactId: "artifact-old", stale: true }],
     });
   });
 
@@ -107,6 +107,28 @@ describe("book-scoped presentation service", () => {
         { id: "task-stale-completed", status: "completed", stale: true },
       ],
     });
+  });
+
+  it("fails closed when two drafts have the same latest version", async () => {
+    const service = createBookPresentationService(repository({
+      listTasks: async () => [
+        task({ id: "task-draft-a", draftId: "draft-a", version: 2 }),
+        task({ id: "task-draft-b", draftId: "draft-b", version: 2 }),
+      ],
+    }));
+
+    await expect(service.getBookPresentation("account-a", "book-a")).rejects.toThrow("BOOK_PRESENTATION_AMBIGUOUS");
+  });
+
+  it("fails closed when two drafts have different latest versions", async () => {
+    const service = createBookPresentationService(repository({
+      listTasks: async () => [
+        task({ id: "task-draft-a", draftId: "draft-a", version: 4 }),
+        task({ id: "task-draft-b", draftId: "draft-b", version: 1 }),
+      ],
+    }));
+
+    await expect(service.getBookPresentation("account-a", "book-a")).rejects.toThrow("BOOK_PRESENTATION_AMBIGUOUS");
   });
 
   it("fails closed for an unknown book or a task returned for another book", async () => {

@@ -99,7 +99,7 @@ export function createBookDetailPptRuntime(options: BookDetailPptRuntimeOptions 
         const responseBookId = typeof payload.book?.id === "string" ? payload.book.id : "";
         const responseBookTitle = typeof payload.book?.title === "string" ? payload.book.title.trim() : "";
         if (!responseBookId || responseBookId !== bookId || !responseBookTitle) {
-          return { state: "empty", works: [] };
+          return failedSnapshot(previousWorks);
         }
 
         const historyWorks = payload.history

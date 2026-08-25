@@ -202,8 +202,12 @@ export class BookPresentationService {
       .slice()
       .sort((left, right) => right.version - left.version || right.id.localeCompare(left.id))
       .map((task) => toWork(task, book.title.trim()));
-    const currentIndex = works.findIndex((work) => !work.stale);
-    const current = currentIndex === -1 ? null : works[currentIndex];
+    const currentCandidates = works.filter((work) => !work.stale);
+    if (currentCandidates.length > 1) {
+      throw new Error("BOOK_PRESENTATION_AMBIGUOUS");
+    }
+    const current = currentCandidates[0] ?? null;
+    const currentIndex = current ? works.indexOf(current) : -1;
 
     return {
       book,
