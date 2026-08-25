@@ -63,6 +63,20 @@ export function detailFocusIndex(input: {
   return null;
 }
 
+const detailFocusableSelector = "button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]";
+
+export function detailFocusableElements(panel: HTMLElement) {
+  return [...panel.querySelectorAll<HTMLElement>(detailFocusableSelector)].filter((element) => {
+    if (element.tabIndex < 0) return false;
+    if (element.closest("[hidden], [inert], [aria-hidden=\"true\"]")) return false;
+    if (typeof window !== "undefined") {
+      const style = window.getComputedStyle(element);
+      if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
+    }
+    return element.getClientRects().length > 0;
+  });
+}
+
 export function createTextAnnotationKeyboardBinding(
   target: Pick<EventTarget, "addEventListener" | "removeEventListener">,
   onEscape: (event: KeyboardEvent) => void,
@@ -291,14 +305,11 @@ export function createTextAnnotationController(options: {
     else window.setTimeout(focus, 0);
   };
 
-  const detailFocusableSelector = "button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])";
-
   const trapDetailFocus = (event: KeyboardEvent) => {
     if (!currentRoot) return;
     const panel = currentRoot.querySelector<HTMLElement>("[data-book-detail-panel]");
     if (!panel) return;
-    const focusable = [...panel.querySelectorAll<HTMLElement>(detailFocusableSelector)]
-      .filter((element) => !element.closest("[hidden]") && element.getAttribute("aria-hidden") !== "true");
+    const focusable = detailFocusableElements(panel);
     if (!focusable.length) {
       event.preventDefault();
       panel.focus({ preventScroll: true });
@@ -307,7 +318,12 @@ export function createTextAnnotationController(options: {
     const active = document.activeElement as HTMLElement | null;
     if (!panel.contains(active)) {
       event.preventDefault();
-      focusable[0]?.focus({ preventScroll: true });
+      const nextIndex = detailFocusIndex({
+        focusableCount: focusable.length,
+        activeIndex: -1,
+        shiftKey: event.shiftKey,
+      });
+      focusable[nextIndex ?? 0]?.focus({ preventScroll: true });
       return;
     }
     const index = active ? focusable.indexOf(active) : -1;

@@ -4,6 +4,7 @@ import {
   createTextAnnotationApi,
   createTextAnnotationKeyboardBinding,
   detailFocusIndex,
+  detailFocusableElements,
   requestTextAnnotationChatHandoff,
   type TextAnnotationRequestError,
 } from "./text-annotation";
@@ -32,6 +33,37 @@ const annotationSnapshot: TextAnnotationSnapshot = {
 };
 
 describe("desktop text annotation API", () => {
+  it("keeps only visible, non-negative, non-inert detail controls in the focus trap", () => {
+    const makeElement = (input: {
+      tabIndex: number;
+      hidden?: boolean;
+      inert?: boolean;
+      ariaHidden?: boolean;
+      visible?: boolean;
+    }) => {
+      const element = {
+        tabIndex: input.tabIndex,
+        hidden: Boolean(input.hidden),
+        inert: Boolean(input.inert),
+        getAttribute: (name: string) => name === "aria-hidden" && input.ariaHidden ? "true" : null,
+        closest: () => input.hidden || input.inert || input.ariaHidden ? element : null,
+        getClientRects: () => input.visible === false ? [] : [{}],
+      } as unknown as HTMLElement;
+      return element;
+    };
+    const visible = makeElement({ tabIndex: 0 });
+    const negative = makeElement({ tabIndex: -1 });
+    const hidden = makeElement({ tabIndex: 0, hidden: true });
+    const inert = makeElement({ tabIndex: 0, inert: true });
+    const ariaHidden = makeElement({ tabIndex: 0, ariaHidden: true });
+    const invisible = makeElement({ tabIndex: 0, visible: false });
+    const panel = {
+      querySelectorAll: () => [visible, negative, hidden, inert, ariaHidden, invisible],
+    } as unknown as HTMLElement;
+
+    expect(detailFocusableElements(panel)).toEqual([visible]);
+  });
+
   it("keeps forward and reverse tabbing inside the detail modal when focus has no listed index", () => {
     expect(detailFocusIndex({ focusableCount: 3, activeIndex: -1, shiftKey: false })).toBe(0);
     expect(detailFocusIndex({ focusableCount: 3, activeIndex: -1, shiftKey: true })).toBe(2);
