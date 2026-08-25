@@ -10,7 +10,7 @@
     <view></view>
   </view>
 
-  <scroll-view class="message-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+  <scroll-view class="message-scroll" scroll-y enhanced show-scrollbar="{{false}}" scroll-into-view="{{messageAnchor}}">
     <view class="assistant-message">
       <image class="assistant-avatar" src="/assets/avatar/laoji-avatar.png" mode="aspectFill" aria-hidden="true"></image>
       <view class="assistant-bubble">
@@ -32,11 +32,36 @@
       <button wx:if="{{pptIntent.phase === 'requirements-ready'}}" class="primary-button task-entry" bindtap="openPptStage">进入 PPT 工作区</button>
     </view>
 
+    <block wx:for="{{messages}}" wx:key="id">
+      <view wx:if="{{item.role === 'user'}}" id="conversation-message-{{item.id}}" class="user-message">
+        <view class="user-bubble">
+          <view wx:if="{{item.attachments.length}}" class="message-attachments">
+            <block wx:for="{{item.attachments}}" wx:key="*this">
+              <image class="message-attachment" src="{{item}}" mode="aspectFill" aria-label="已发送图片"></image>
+            </block>
+          </view>
+          <text wx:if="{{item.text}}" class="message-text">{{item.text}}</text>
+          <view wx:if="{{item.status === 'sending'}}" class="message-status">发送中…</view>
+          <view wx:if="{{item.status === 'failed'}}" class="message-status is-failed">未发送</view>
+        </view>
+      </view>
+      <view wx:if="{{item.role === 'assistant'}}" id="conversation-message-{{item.id}}" class="assistant-message">
+        <image class="assistant-avatar" src="/assets/avatar/laoji-avatar.png" mode="aspectFill" aria-hidden="true"></image>
+        <view class="assistant-bubble">
+          <view class="assistant-name">老己</view>
+          <text class="message-text">{{item.text}}</text>
+        </view>
+      </view>
+    </block>
+
     <view class="message-spacer"></view>
   </scroll-view>
 
   <view class="composer-area">
-    <view wx:if="{{boundaryMessage}}" class="composer-error" role="alert">{{boundaryMessage}}</view>
+    <view wx:if="{{boundaryMessage}}" class="composer-error" role="alert">
+      <text class="composer-error__message">{{boundaryMessage}}</text>
+      <button wx:if="{{sendStatus === 'failed'}}" class="composer-retry" bindtap="retrySend" disabled="{{sending}}">再试一次</button>
+    </view>
     <view class="composer">
       <image class="composer-mascot" src="/assets/mascot/laoji-prone-reading.png" mode="aspectFit" aria-hidden="true"></image>
       <view wx:if="{{attachments.length}}" class="attachment-strip">
@@ -50,11 +75,11 @@
         </block>
       </view>
       <view class="composer-row">
-        <button class="composer-icon" bindtap="chooseImage" aria-label="选择图片">
+        <button class="composer-icon" bindtap="chooseImage" disabled="{{sending}}" aria-label="选择图片">
           <image src="/assets/icons/image.svg" mode="aspectFit" aria-hidden="true"></image>
         </button>
-        <textarea class="composer-input" value="{{draft}}" bindinput="onDraftInput" auto-height adjust-position="{{false}}" cursor-spacing="12" maxlength="-1" placeholder="想聊点什么…" aria-label="消息输入"></textarea>
-        <button class="composer-send" bindtap="sendDraft" disabled="{{!canSend}}" aria-label="发送消息">
+        <textarea class="composer-input" value="{{draft}}" bindinput="onDraftInput" disabled="{{sending}}" auto-height adjust-position="{{false}}" cursor-spacing="12" maxlength="-1" placeholder="想聊点什么…" aria-label="消息输入"></textarea>
+        <button class="composer-send" bindtap="sendDraft" disabled="{{!canSend || sending}}" aria-label="{{sending ? '发送中' : '发送消息'}}">
           <image src="/assets/icons/send.svg" mode="aspectFit" aria-hidden="true"></image>
         </button>
       </view>

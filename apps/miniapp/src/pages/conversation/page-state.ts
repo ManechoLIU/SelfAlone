@@ -5,6 +5,21 @@ export type ConversationScopeOption = {
 };
 type ScopeId = ConversationScopeOption["id"];
 
+export type ConversationMessage = {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  attachments: string[];
+  status: "sending" | "failed" | "sent";
+  replyTo?: string;
+};
+
+export type ConversationPendingSend = {
+  id: string;
+  draft: string;
+  attachmentPaths: string[];
+};
+
 export type ConversationLocalState = {
   version: 1;
   conversationId: string;
@@ -14,6 +29,8 @@ export type ConversationLocalState = {
   selectionDraftIds: string[];
   confirmedSelectionIds: string[];
   selectionSheetOpen: boolean;
+  messages: ConversationMessage[];
+  pendingSend: ConversationPendingSend | null;
 };
 
 export type ConversationStateStorage = {
@@ -44,6 +61,40 @@ function validAttachmentPaths(value: unknown): string[] {
     .slice(0, 4);
 }
 
+function validMessage(value: unknown): ConversationMessage | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<ConversationMessage>;
+  if (typeof candidate.id !== "string" || !candidate.id) return null;
+  if (candidate.role !== "user" && candidate.role !== "assistant") return null;
+  if (candidate.status !== "sending" && candidate.status !== "failed" && candidate.status !== "sent") return null;
+  if (typeof candidate.text !== "string") return null;
+  return {
+    id: candidate.id,
+    role: candidate.role,
+    text: candidate.text,
+    attachments: validAttachmentPaths(candidate.attachments),
+    status: candidate.status,
+    ...(typeof candidate.replyTo === "string" && candidate.replyTo ? { replyTo: candidate.replyTo } : {}),
+  };
+}
+
+function validMessages(value: unknown): ConversationMessage[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(validMessage).filter((message): message is ConversationMessage => message !== null).slice(-100);
+}
+
+function validPendingSend(value: unknown): ConversationPendingSend | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<ConversationPendingSend>;
+  if (typeof candidate.id !== "string" || !candidate.id) return null;
+  if (typeof candidate.draft !== "string") return null;
+  return {
+    id: candidate.id,
+    draft: candidate.draft,
+    attachmentPaths: validAttachmentPaths(candidate.attachmentPaths),
+  };
+}
+
 function isConversationLocalState(value: unknown): value is ConversationLocalState {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ConversationLocalState>;
@@ -54,7 +105,11 @@ function isConversationLocalState(value: unknown): value is ConversationLocalSta
     && Array.isArray(candidate.attachmentPaths)
     && Array.isArray(candidate.selectionDraftIds)
     && Array.isArray(candidate.confirmedSelectionIds)
-    && typeof candidate.selectionSheetOpen === "boolean";
+    && typeof candidate.selectionSheetOpen === "boolean"
+    && (candidate.messages === undefined || Array.isArray(candidate.messages))
+    && (candidate.pendingSend === undefined
+      || candidate.pendingSend === null
+      || typeof candidate.pendingSend === "object");
 }
 
 export function createConversationLocalStore(
@@ -71,6 +126,8 @@ export function createConversationLocalStore(
         attachmentPaths: validAttachmentPaths(saved.attachmentPaths),
         selectionDraftIds: validScopeIds(saved.selectionDraftIds),
         confirmedSelectionIds: validScopeIds(saved.confirmedSelectionIds),
+        messages: validMessages(saved.messages),
+        pendingSend: validPendingSend(saved.pendingSend),
       };
     },
     save(state: ConversationLocalState) {
@@ -84,9 +141,90 @@ export function createConversationLocalStore(
         selectionDraftIds: validScopeIds(state.selectionDraftIds),
         confirmedSelectionIds: validScopeIds(state.confirmedSelectionIds),
         selectionSheetOpen: state.selectionSheetOpen,
+        messages: validMessages(state.messages),
+        pendingSend: validPendingSend(state.pendingSend),
       } satisfies ConversationLocalState);
     },
   };
+}
+
+export function nextConversationSendId(messages: readonly ConversationMessage[]): string {
+  const largest = messages.reduce((max, message) => {
+    const match = message.id.match(/^conversation-send-(\d+)$/);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  return `conversation-send-${largest + 1}`;
+}
+
+export function startConversationSend(
+  messages: readonly ConversationMessage[],
+  pendingSend: ConversationPendingSend | null,
+  draft: string,
+  attachmentPaths: readonly string[],
+) {
+  const pending: ConversationPendingSend = {
+    id: pendingSend?.id ?? nextConversationSendId(messages),
+    draft: draft.trim(),
+    attachmentPaths: validAttachmentPaths(attachmentPaths),
+  };
+  const userMessage: ConversationMessage = {
+    id: pending.id,
+    role: "user",
+    text: pending.draft,
+    attachments: [...pending.attachmentPaths],
+    status: "sending",
+  };
+  const existingIndex = messages.findIndex((message) => message.id === pending.id && message.role === "user");
+  const nextMessages = [...messages];
+  if (existingIndex >= 0) nextMessages[existingIndex] = userMessage;
+  else nextMessages.push(userMessage);
+  return { pendingSend: pending, messages: nextMessages };
+}
+
+export function failConversationSend(
+  messages: readonly ConversationMessage[],
+  pendingId: string,
+): ConversationMessage[] {
+  return messages.map((message) => message.id === pendingId && message.role === "user"
+    ? { ...message, status: "failed" }
+    : message);
+}
+
+export function completeConversationSend(
+  messages: readonly ConversationMessage[],
+  pendingSend: ConversationPendingSend,
+  reply: string,
+): ConversationMessage[] {
+  const completedUser: ConversationMessage = {
+    id: pendingSend.id,
+    role: "user",
+    text: pendingSend.draft,
+    attachments: [...pendingSend.attachmentPaths],
+    status: "sent",
+  };
+  const nextMessages = [...messages];
+  const existingIndex = nextMessages.findIndex((message) => message.id === pendingSend.id && message.role === "user");
+  if (existingIndex >= 0) nextMessages[existingIndex] = completedUser;
+  else nextMessages.push(completedUser);
+
+  if (nextMessages.some((message) => message.role === "assistant" && message.replyTo === pendingSend.id)) {
+    return nextMessages;
+  }
+  nextMessages.push({
+    id: `${pendingSend.id}-reply`,
+    role: "assistant",
+    text: reply,
+    attachments: [],
+    status: "sent",
+    replyTo: pendingSend.id,
+  });
+  return nextMessages;
+}
+
+export function developmentConversationReply(pendingSend: ConversationPendingSend): string {
+  return pendingSend.draft.trim()
+    ? "我收到这条消息了，我们可以继续聊下去。"
+    : "图片已经收到，你可以继续补充想聊的内容。";
 }
 
 export function selectionOptionsFor(selectedIds: readonly string[]): ConversationScopeOption[] {

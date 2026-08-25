@@ -4,14 +4,20 @@ import { createViewportTracker, viewportPresentation } from "../../core/viewport
 import { wxStorage } from "../../platform";
 import {
   canConfirmSelection,
+  completeConversationSend,
   createConversationLocalStore,
   defaultSelectionIds,
+  developmentConversationReply,
   developmentConversationId,
+  failConversationSend,
   preserveConversationFailure,
   selectionOptionsFor,
   selectionSummary,
+  startConversationSend,
   toggleSelectionId,
   type ConversationLocalState,
+  type ConversationMessage,
+  type ConversationPendingSend,
   type ConversationScopeOption,
 } from "./page-state";
 
@@ -31,6 +37,11 @@ type ConversationData = {
   canConfirmSelection: boolean;
   selectionError: string;
   attachments: string[];
+  messages: ConversationMessage[];
+  pendingSend: ConversationPendingSend | null;
+  sending: boolean;
+  sendStatus: "idle" | "sending" | "failed";
+  messageAnchor: string;
 };
 
 type ConversationImagePicker = {
@@ -52,6 +63,10 @@ type ConversationImagePicker = {
 
 const defaultSelectionOptions = selectionOptionsFor(defaultSelectionIds);
 
+function conversationMessageAnchor(messageId: string) {
+  return `conversation-message-${messageId}`;
+}
+
 Page<ConversationData>({
   data: {
     drawerOpen: false,
@@ -69,6 +84,11 @@ Page<ConversationData>({
     canConfirmSelection: true,
     selectionError: "",
     attachments: [],
+    messages: [],
+    pendingSend: null,
+    sending: false,
+    sendStatus: "idle",
+    messageAnchor: "",
   },
 
   onLoad() {
@@ -114,11 +134,21 @@ Page<ConversationData>({
       && (savedForIntent ? savedForIntent.selectionSheetOpen : true);
     const draft = saved?.draft ?? this.data.draft;
     const attachments = saved?.attachmentPaths ?? this.data.attachments;
+    const pendingSend = saved?.pendingSend ?? null;
+    const restoredMessages = saved?.messages ?? [];
+    const messages = pendingSend
+      ? failConversationSend(restoredMessages, pendingSend.id)
+      : restoredMessages;
 
     this.setData({
       draft,
       canSend: Boolean(draft.trim() || attachments.length),
       attachments,
+      messages,
+      pendingSend,
+      sending: false,
+      sendStatus: pendingSend ? "failed" : "idle",
+      messageAnchor: messages.length ? conversationMessageAnchor(messages[messages.length - 1].id) : "",
       pptIntent,
       selectionSheetOpen,
       selectionDraftIds,
@@ -127,7 +157,7 @@ Page<ConversationData>({
       selectionSummary: selectionSummary(confirmedSelectionIds),
       canConfirmSelection: canConfirmSelection(selectionDraftIds),
       selectionError: "",
-      boundaryMessage: "",
+      boundaryMessage: pendingSend ? "这次没有发出去，内容还在这里。可以再试一次。" : "",
     });
     this.persistLocalState();
   },
@@ -139,6 +169,7 @@ Page<ConversationData>({
   noop() {},
 
   onDraftInput(event: MiniappEvent<{ value: string }>) {
+    if (this.data.sending) return;
     const draft = event.detail.value;
     this.setData({
       draft,
@@ -221,6 +252,7 @@ Page<ConversationData>({
   },
 
   chooseImage() {
+    if (this.data.sending) return;
     const remaining = Math.max(0, 4 - this.data.attachments.length);
     if (!remaining) {
       this.showFailure("图片已达到上限，当前输入仍保留。");
@@ -256,6 +288,7 @@ Page<ConversationData>({
   },
 
   removeAttachment(event: MiniappEvent) {
+    if (this.data.sending) return;
     const index = Number(event.currentTarget.dataset.index);
     if (!Number.isInteger(index) || index < 0 || index >= this.data.attachments.length) return;
     const attachments = this.data.attachments.filter((_: string, itemIndex: number) => itemIndex !== index);
@@ -267,20 +300,96 @@ Page<ConversationData>({
   },
 
   sendDraft() {
+    if (this.data.sending) return;
     if (!this.data.draft.trim() && !this.data.attachments.length) return;
-    this.showFailure("暂时无法发送，输入内容已保留。");
+    this.beginSend();
+  },
+
+  retrySend() {
+    if (this.data.sending || !this.data.pendingSend) return;
+    this.beginSend();
+  },
+
+  beginSend() {
+    const next = startConversationSend(
+      this.data.messages,
+      this.data.pendingSend,
+      this.data.draft,
+      this.data.attachments,
+    );
+    const pendingSend = next.pendingSend;
+    this.setData({
+      messages: next.messages,
+      pendingSend,
+      sending: true,
+      sendStatus: "sending",
+      canSend: false,
+      boundaryMessage: "",
+      messageAnchor: conversationMessageAnchor(pendingSend.id),
+    }, () => this.persistLocalState());
+
+    void this.performDevelopmentSend(pendingSend)
+      .then((reply: string) => this.completeSend(pendingSend, reply))
+      .catch(() => this.failSend(pendingSend));
+  },
+
+  performDevelopmentSend(pendingSend: ConversationPendingSend): Promise<string> {
+    const app = getApp<MiniappApp>();
+    const shouldFail = !app.globalData.developmentAdapter || this.developmentSendFailure === true;
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (shouldFail) {
+          reject(new Error("CONVERSATION_SEND_UNAVAILABLE"));
+          return;
+        }
+        resolve(developmentConversationReply(pendingSend));
+      }, 0);
+    });
+  },
+
+  completeSend(pendingSend: ConversationPendingSend, reply: string) {
+    if (this.isUnloaded || !this.data.sending || this.data.pendingSend?.id !== pendingSend.id) return;
+    const messages = completeConversationSend(this.data.messages, pendingSend, reply);
+    const lastMessage = messages[messages.length - 1];
+    this.setData({
+      messages,
+      pendingSend: null,
+      sending: false,
+      sendStatus: "idle",
+      draft: "",
+      attachments: [],
+      canSend: false,
+      boundaryMessage: "",
+      messageAnchor: lastMessage ? conversationMessageAnchor(lastMessage.id) : "",
+    }, () => this.persistLocalState());
+  },
+
+  failSend(pendingSend: ConversationPendingSend) {
+    if (this.isUnloaded || !this.data.sending || this.data.pendingSend?.id !== pendingSend.id) return;
+    const messages = failConversationSend(this.data.messages, pendingSend.id);
+    this.setData({
+      messages,
+      sending: false,
+      sendStatus: "failed",
+      canSend: Boolean(this.data.draft.trim() || this.data.attachments.length),
+      boundaryMessage: "这次没有发出去，内容还在这里。可以再试一次。",
+      messageAnchor: conversationMessageAnchor(pendingSend.id),
+    }, () => this.persistLocalState());
   },
 
   showFailure(message: string) {
+    if (this.data.sending) return;
     const preserved = preserveConversationFailure(this.data, message);
     this.setData({
       ...preserved,
+      sendStatus: "idle",
       selectionOptions: selectionOptionsFor(preserved.selectionDraftIds),
       canConfirmSelection: canConfirmSelection(preserved.selectionDraftIds),
     }, () => this.persistLocalState());
   },
 
   addAttachments(paths: string[]) {
+    if (this.data.sending) return;
     const attachments = [...this.data.attachments, ...paths].filter(Boolean).slice(0, 4);
     if (!attachments.length) {
       this.showFailure("图片未能加入，当前输入仍保留。");
@@ -304,6 +413,8 @@ Page<ConversationData>({
       selectionDraftIds: this.data.selectionDraftIds,
       confirmedSelectionIds: this.data.confirmedSelectionIds,
       selectionSheetOpen: this.data.selectionSheetOpen,
+      messages: this.data.messages,
+      pendingSend: this.data.pendingSend,
     };
     this.conversationStore.save(state);
   },

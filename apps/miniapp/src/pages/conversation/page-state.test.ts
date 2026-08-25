@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   canConfirmSelection,
+  completeConversationSend,
   createConversationLocalStore,
+  developmentConversationReply,
   developmentConversationId,
+  failConversationSend,
   preserveConversationFailure,
   selectionOptionsFor,
   selectionSummary,
+  startConversationSend,
   toggleSelectionId,
 } from "./page-state";
 
@@ -37,6 +41,8 @@ describe("conversation selection and local recovery state", () => {
       selectionDraftIds: ["full-book", "notes"],
       confirmedSelectionIds: ["full-book"],
       selectionSheetOpen: false,
+      messages: [],
+      pendingSend: null,
     });
 
     expect(store.restore()).toEqual({
@@ -48,6 +54,8 @@ describe("conversation selection and local recovery state", () => {
       selectionDraftIds: ["full-book", "notes"],
       confirmedSelectionIds: ["full-book"],
       selectionSheetOpen: false,
+      messages: [],
+      pendingSend: null,
     });
   });
 
@@ -64,5 +72,45 @@ describe("conversation selection and local recovery state", () => {
       confirmedSelectionIds: ["full-book"],
       boundaryMessage: "暂时无法发送",
     });
+  });
+
+  it("uses one pending id and one assistant reply when a send is retried", () => {
+    const started = startConversationSend([], null, "保留这句话", ["wxfile://one"]);
+    const failed = failConversationSend(started.messages, started.pendingSend.id);
+    const retried = startConversationSend(
+      failed,
+      started.pendingSend,
+      "保留这句话",
+      ["wxfile://one"],
+    );
+    const completed = completeConversationSend(
+      retried.messages,
+      retried.pendingSend,
+      developmentConversationReply(retried.pendingSend),
+    );
+    const completedAgain = completeConversationSend(
+      completed,
+      retried.pendingSend,
+      developmentConversationReply(retried.pendingSend),
+    );
+
+    expect(retried.pendingSend.id).toBe(started.pendingSend.id);
+    expect(retried.messages).toHaveLength(1);
+    expect(completed).toHaveLength(2);
+    expect(completed[0]).toMatchObject({ id: started.pendingSend.id, status: "sent" });
+    expect(completed[1]).toMatchObject({
+      role: "assistant",
+      replyTo: started.pendingSend.id,
+      text: "我收到这条消息了，我们可以继续聊下去。",
+    });
+    expect(completedAgain).toEqual(completed);
+  });
+
+  it("keeps attachment-only replies neutral about image contents", () => {
+    expect(developmentConversationReply({
+      id: "conversation-send-1",
+      draft: "",
+      attachmentPaths: ["wxfile://one"],
+    })).toBe("图片已经收到，你可以继续补充想聊的内容。");
   });
 });

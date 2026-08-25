@@ -29,6 +29,12 @@ function createPage(): ConversationPageHarness {
   };
 }
 
+async function settleLocalSend() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 beforeAll(async () => {
   storedIntent = {
     version: 1,
@@ -231,5 +237,167 @@ describe("conversation normal shell contract", () => {
       selectionDraftIds: ["full-book", "notes"],
       boundaryMessage: "暂时无法发送",
     });
+  });
+
+  it("locks the composer before sending a text draft", () => {
+    const page = createPage();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "先把这句话送出去" }, currentTarget: { dataset: {} } });
+
+    page.sendDraft();
+
+    expect(page.data.sending).toBe(true);
+  });
+
+  it("keeps the sending state across one async turn so the lock can render", async () => {
+    const page = createPage();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "让发送状态先显示" }, currentTarget: { dataset: {} } });
+
+    page.sendDraft();
+    await Promise.resolve();
+
+    expect(page.data.sending).toBe(true);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await settleLocalSend();
+  });
+
+  it("renders the local message stream and in-place retry affordance", () => {
+    expect(conversationWxml).toContain('wx:for="{{messages}}"');
+    expect(conversationWxml).toContain('bindtap="retrySend"');
+    expect(conversationWxml).toContain('disabled="{{!canSend || sending}}"');
+    expect(conversationWxml).toContain('scroll-into-view="{{messageAnchor}}"');
+    expect(conversationWxml).toContain('id="conversation-message-{{item.id}}"');
+  });
+
+  it("keeps sent messages single-column and the retry target touchable", () => {
+    const userMessageBlock = conversationWxss.match(/\.user-message\s*\{([^}]*)\}/)?.[1] ?? "";
+    const retryBlock = conversationWxss.match(/\.composer-retry\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(userMessageBlock).toMatch(/display:\s*flex/);
+    expect(userMessageBlock).toMatch(/justify-content:\s*flex-end/);
+    expect(conversationWxss).toMatch(/\.message-attachments\s*\{[^}]*display:\s*flex/);
+    expect(retryBlock).toMatch(/min-height:\s*44px/);
+  });
+
+  it("commits one user message and one local reply before clearing the composer", async () => {
+    const page = createPage();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "这条消息要留下记录" }, currentTarget: { dataset: {} } });
+
+    page.sendDraft();
+    page.sendDraft();
+    expect(page.data).toMatchObject({ sending: true, draft: "这条消息要留下记录" });
+    expect(page.data.messages).toHaveLength(1);
+
+    await settleLocalSend();
+
+    expect(page.data).toMatchObject({
+      sending: false,
+      draft: "",
+      attachments: [],
+      pendingSend: null,
+    });
+    expect(page.data.messages).toHaveLength(2);
+    expect(page.data.messages[0]).toMatchObject({ role: "user", status: "sent", text: "这条消息要留下记录" });
+    expect(page.data.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "我收到这条消息了，我们可以继续聊下去。",
+    });
+    expect(page.data.messageAnchor).toBe("conversation-message-conversation-send-1-reply");
+  });
+
+  it("preserves a failed send and retries the same pending message without duplication", async () => {
+    const page = createPage();
+    page.developmentSendFailure = true;
+    page.onShow();
+    page.onDraftInput({ detail: { value: "这次发送要重试" }, currentTarget: { dataset: {} } });
+    page.addAttachments(["wxfile://retry-image"]);
+
+    page.sendDraft();
+    const pendingId = page.data.pendingSend.id;
+    await settleLocalSend();
+
+    expect(page.data).toMatchObject({
+      sending: false,
+      sendStatus: "failed",
+      draft: "这次发送要重试",
+      attachments: ["wxfile://retry-image"],
+      boundaryMessage: "这次没有发出去，内容还在这里。可以再试一次。",
+    });
+    expect(page.data.messages).toHaveLength(1);
+    expect(page.data.messages[0]).toMatchObject({ id: pendingId, status: "failed" });
+
+    const recovered = createPage();
+    recovered.onShow();
+    expect(recovered.data).toMatchObject({
+      sendStatus: "failed",
+      messageAnchor: `conversation-message-${pendingId}`,
+    });
+    expect(recovered.data.messages[0]).toMatchObject({ id: pendingId, status: "failed" });
+
+    page.developmentSendFailure = false;
+    page.retrySend();
+    await settleLocalSend();
+
+    expect(page.data.messages).toHaveLength(2);
+    expect(page.data.messages[0]).toMatchObject({ id: pendingId, status: "sent" });
+    expect(page.data.messages[1]).toMatchObject({ replyTo: pendingId });
+    expect(page.data.pendingSend).toBeNull();
+  });
+
+  it("restores committed messages without generating another reply", async () => {
+    const page = createPage();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "刷新后仍要看到" }, currentTarget: { dataset: {} } });
+    page.sendDraft();
+    await settleLocalSend();
+
+    const refreshed = createPage();
+    refreshed.onShow();
+    expect(refreshed.data.messages).toHaveLength(2);
+    expect(refreshed.data.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "我收到这条消息了，我们可以继续聊下去。",
+    });
+    refreshed.onShow();
+    expect(refreshed.data.messages).toHaveLength(2);
+  });
+
+  it("keeps the existing image picker and removal path available", () => {
+    const page = createPage();
+    page.onShow();
+    const wxWithPicker = wx as unknown as {
+      chooseImage?: (options: { success?: (result: { tempFilePaths?: string[] }) => void }) => void;
+    };
+    wxWithPicker.chooseImage = (options) => options.success?.({ tempFilePaths: ["wxfile://picked"] });
+
+    page.chooseImage();
+    expect(page.data.attachments).toEqual(["wxfile://picked"]);
+    page.removeAttachment({ currentTarget: { dataset: { index: 0 } }, detail: {} });
+    expect(page.data.attachments).toEqual([]);
+
+    delete wxWithPicker.chooseImage;
+  });
+
+  it("sends an attachment-only draft while preserving remove behavior", async () => {
+    const page = createPage();
+    page.onShow();
+    page.addAttachments(["wxfile://first", "wxfile://second"]);
+    page.removeAttachment({ currentTarget: { dataset: { index: 1 } }, detail: {} });
+
+    expect(page.data.attachments).toEqual(["wxfile://first"]);
+    page.sendDraft();
+    expect(page.data.messages[0]).toMatchObject({
+      role: "user",
+      attachments: ["wxfile://first"],
+      status: "sending",
+    });
+    await settleLocalSend();
+
+    expect(page.data.messages[1]).toMatchObject({
+      role: "assistant",
+      text: "图片已经收到，你可以继续补充想聊的内容。",
+    });
+    expect(page.data.attachments).toEqual([]);
   });
 });
