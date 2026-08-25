@@ -59,10 +59,17 @@ describe("desktop library state", () => {
   it("opens only ready text books and safely resolves their reading route", async () => {
     const module = await import("./library-state") as typeof import("./library-state") & {
       libraryBookHref(book: LibraryLoadState["books"][number]): string | null;
+      libraryBookDetailHref(book: LibraryLoadState["books"][number]): string | null;
+      bookDetailIdFromHash(hash: string): string | null;
       readingBookIdFromHash(hash: string): string | null;
     };
 
     expect(typeof module.libraryBookHref).toBe("function");
+    expect(typeof module.libraryBookDetailHref).toBe("function");
+    expect(module.libraryBookDetailHref(normal.books[0]!)).toBe("#/book/book-1");
+    expect(module.bookDetailIdFromHash("#/book/book%20one")).toBe("book one");
+    expect(module.bookDetailIdFromHash("#/book/%E0%A4%A")).toBeNull();
+    expect(module.bookDetailIdFromHash("#/library")).toBeNull();
     expect(module.libraryBookHref(normal.books[0]!)).toBe("#/reading/book-1");
     expect(module.libraryBookHref({ ...normal.books[0]!, parseStatus: "processing" })).toBeNull();
     expect(module.libraryBookHref({ ...normal.books[0]!, parseStatus: "ready_pages" })).toBeNull();

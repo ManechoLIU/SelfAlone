@@ -5,6 +5,7 @@ import {
   textReaderViewState,
   type TextReaderSnapshot,
 } from "./text-reader-state";
+import type { TextHighlight } from "@selfalone/contracts";
 
 const readerIcons = {
   back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
@@ -22,7 +23,6 @@ function escapeHtml(value: string) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
 function renderDirectory(snapshot: TextReaderSnapshot) {
   if (!snapshot.directoryOpen) return "";
   const sections = filterTextReaderSections(snapshot.sections, snapshot.query);
@@ -72,14 +72,45 @@ function renderState(snapshot: TextReaderSnapshot) {
     </section>`;
   }
 
+  const highlights = snapshot.highlights ?? [];
   return `<article class="text-reader-document" aria-label="《${escapeHtml(snapshot.reading?.title ?? "书籍")}》正文">
     ${snapshot.sections.map((section) => `<section class="text-reader-section" data-section-id="${escapeHtml(section.sectionId)}" aria-labelledby="reader-title-${section.order}">
       <header><span>第 ${section.order + 1} 节</span><h2 id="reader-title-${section.order}">${escapeHtml(section.title)}</h2></header>
       <div class="text-reader-prose">
-        ${textReaderParagraphs(section).map((paragraph) => `<p data-reader-paragraph data-section-id="${escapeHtml(section.sectionId)}" data-offset="${paragraph.offset}">${escapeHtml(paragraph.text).replaceAll("\n", "<br />")}</p>`).join("")}
+        ${textReaderParagraphs(section).map((paragraph) => `<p data-reader-paragraph data-section-id="${escapeHtml(section.sectionId)}" data-offset="${paragraph.offset}">${renderHighlightedParagraph(paragraph.text, paragraph.offset, section.sectionId, highlights)}</p>`).join("")}
       </div>
     </section>`).join("")}
   </article>`;
+}
+
+function renderHighlightedParagraph(
+  text: string,
+  paragraphOffset: number,
+  sectionId: string,
+  highlights: TextHighlight[],
+) {
+  const ranges = highlights
+    .filter((highlight) => highlight.locator.sectionId === sectionId)
+    .map((highlight) => ({
+      id: highlight.id,
+      start: Math.max(0, highlight.locator.offset - paragraphOffset),
+      end: Math.min(text.length, highlight.endOffset - paragraphOffset),
+    }))
+    .filter((range) => range.end > range.start && range.start < text.length && range.end > 0)
+    .sort((left, right) => left.start - right.start || right.end - left.end);
+  if (!ranges.length) return escapeHtml(text).replaceAll("\n", "<br />");
+  const parts: string[] = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    const start = Math.max(cursor, range.start);
+    const end = Math.max(start, range.end);
+    if (start > cursor) parts.push(escapeHtml(text.slice(cursor, start)).replaceAll("\n", "<br />"));
+    if (end > start) parts.push(`<mark data-annotation-highlight-id="${escapeHtml(range.id)}">${escapeHtml(text.slice(start, end)).replaceAll("\n", "<br />")}</mark>`);
+    cursor = Math.max(cursor, end);
+    if (cursor >= text.length) break;
+  }
+  if (cursor < text.length) parts.push(escapeHtml(text.slice(cursor)).replaceAll("\n", "<br />"));
+  return parts.join("");
 }
 
 export function renderTextReader(snapshot: TextReaderSnapshot) {
@@ -112,12 +143,15 @@ export function renderTextReader(snapshot: TextReaderSnapshot) {
           <button class="text-reader-icon" type="button" data-reader-background aria-label="切换阅读背景" aria-pressed="${background === "dark"}"${unavailable}>${readerIcons.background}</button>
           <button class="text-reader-icon text-reader-copy" type="button" data-reader-copy aria-label="复制所选正文" disabled>${readerIcons.copy}<span>复制所选</span></button>
           <a class="text-reader-selected-chat" data-reader-chat href="#/conversation" aria-label="把所选正文交给老己" hidden>${icons.chat}<span>和老己聊聊</span></a>
+          <button class="text-reader-icon" type="button" data-reader-book-detail aria-label="打开划线与笔记">${icons.file}<span>划线与笔记</span></button>
           <button class="text-reader-icon" type="button" data-reader-focus aria-label="${focusLabel}" aria-pressed="${snapshot.focusMode}"${unavailable}>${readerIcons.focus}</button>
         </div>
       </header>
       <div class="text-reader-save-status${snapshot.saveError ? " is-error" : ""}" aria-live="polite">${saveStatus}</div>
       <div class="text-reader-canvas">${renderState(snapshot)}</div>
       <div class="text-reader-copy-status" aria-live="polite">${snapshot.copied ? "已复制所选正文" : ""}</div>
+      <div data-text-annotation-root></div>
+      <div data-book-detail-host hidden aria-hidden="true"></div>
     </main>
     ${renderDirectory(snapshot)}
   </div>`;
