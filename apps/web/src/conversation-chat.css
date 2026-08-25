@@ -92,6 +92,7 @@
 .conversation-chat-trial-action:disabled { opacity: .62; cursor: wait; }
 .conversation-chat-trial-action:focus-visible { outline: 3px solid rgba(13, 106, 87, .28); outline-offset: 3px; }
 .conversation-chat-trial-error { color: #9a4737; font-size: 12px; }
+.conversation-chat-trial-success-message { margin-left: auto; color: #2f6d57; font-size: 12px; font-weight: 650; }
 
 .conversation-chat-view {
   height: 100%;

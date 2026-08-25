@@ -125,6 +125,8 @@ let conversationChatDirectoryViewState: ConversationChatDirectoryViewState = { l
 let conversationChatDirectoryRequest = 0;
 let conversationChatQuota: TrialQuotaStatus | null = null;
 let conversationChatQuotaViewState: ConversationChatQuotaViewState = { phase: "loading" };
+let conversationChatQuotaDismissTimer: number | undefined;
+let conversationChatDirectoryRetry: (() => void) | null = null;
 let conversationChatCleanup: (() => void) | null = null;
 let conversationChatError = "";
 let settingsState: SettingsState = createSettingsState();
@@ -630,21 +632,22 @@ function conversationHref() {
 function destroyConversationChat() {
   conversationChatCleanup?.();
   conversationChatCleanup = null;
+  if (conversationChatQuotaDismissTimer !== undefined) {
+    window.clearTimeout(conversationChatQuotaDismissTimer);
+    conversationChatQuotaDismissTimer = undefined;
+  }
   conversationChatSession = null;
   conversationChatSessions = [];
   conversationChatSearchQuery = "";
   conversationChatDirectoryViewState = { loading: true };
   conversationChatDirectoryRequest += 1;
+  conversationChatDirectoryRetry = null;
   conversationChatQuota = null;
   conversationChatQuotaViewState = { phase: "loading" };
 }
 
 function renderConversationChatList(session: ConversationChatSession | null) {
-  const sessions = conversationChatSessions.length
-    ? conversationChatSessions
-    : session
-      ? [session]
-      : [];
+  const sessions = conversationChatSessions;
   return renderConversationChatDirectory(
     sessions,
     session?.id ?? conversationChatSession?.id ?? null,
@@ -697,6 +700,7 @@ function renderConversationChatError() {
 function renderConversationChat(session: ConversationChatSession) {
   conversationChatCleanup?.();
   conversationChatSession = session;
+  conversationChatDirectoryRetry = null;
   conversationChatSessions = [
     session,
     ...conversationChatSessions.filter((candidate) => candidate.id !== session.id),
@@ -738,6 +742,15 @@ function bindConversationChatDirectory() {
       void openConversationSession(id);
     });
   });
+  document.querySelector<HTMLButtonElement>("[data-conversation-directory-retry]")?.addEventListener("click", () => {
+    conversationChatDirectoryRetry?.();
+  });
+}
+
+function renderConversationChatDirectoryActionError(message: string, retry: () => void) {
+  conversationChatDirectoryViewState = { loading: false, error: message, retry: true };
+  conversationChatDirectoryRetry = retry;
+  replaceConversationChatDirectory();
 }
 
 async function createNewConversation() {
@@ -748,16 +761,19 @@ async function createNewConversation() {
     const session = await conversationChatClient.createSession();
     conversationChatSearchQuery = "";
     conversationChatDirectoryViewState = { loading: false };
+    conversationChatDirectoryRetry = null;
     renderConversationChat(session);
-  } catch (error) {
-    conversationChatError = error instanceof Error ? error.message : "CONVERSATION_CREATE_FAILED";
-    renderConversationChatError();
+  } catch {
+    renderConversationChatDirectoryActionError("新建对话失败，请重试", () => {
+      void createNewConversation();
+    });
   }
 }
 
 async function searchConversationDirectory(query: string) {
   const requestId = ++conversationChatDirectoryRequest;
   conversationChatSearchQuery = query.trim();
+  conversationChatDirectoryRetry = null;
   conversationChatDirectoryViewState = { loading: true };
   replaceConversationChatDirectory();
   try {
@@ -765,6 +781,7 @@ async function searchConversationDirectory(query: string) {
     if (requestId !== conversationChatDirectoryRequest || !isConversationRoute()) return;
     conversationChatSessions = sessions;
     conversationChatDirectoryViewState = { loading: false };
+    conversationChatDirectoryRetry = null;
     replaceConversationChatDirectory();
   } catch (error) {
     if (requestId !== conversationChatDirectoryRequest || !isConversationRoute()) return;
@@ -784,11 +801,13 @@ async function openConversationSession(conversationId: string) {
     const session = await conversationChatClient.getSession(conversationId);
     if (requestId !== conversationChatDirectoryRequest || !isConversationRoute()) return;
     conversationChatDirectoryViewState = { loading: false };
+    conversationChatDirectoryRetry = null;
     renderConversationChat(session);
-  } catch (error) {
+  } catch {
     if (requestId !== conversationChatDirectoryRequest || !isConversationRoute()) return;
-    conversationChatError = error instanceof Error ? error.message : "CONVERSATION_OPEN_FAILED";
-    renderConversationChatError();
+    renderConversationChatDirectoryActionError("打开对话失败，请重试", () => {
+      void openConversationSession(conversationId);
+    });
   }
 }
 
@@ -806,6 +825,10 @@ function bindConversationChatQuota() {
 }
 
 async function loadConversationTrialQuota(navigationId: number) {
+  if (conversationChatQuotaDismissTimer !== undefined) {
+    window.clearTimeout(conversationChatQuotaDismissTimer);
+    conversationChatQuotaDismissTimer = undefined;
+  }
   try {
     const status = await conversationChatClient.getTrialQuota();
     if (navigationId !== routeGeneration || !isConversationRoute()) return;
@@ -820,11 +843,23 @@ async function loadConversationTrialQuota(navigationId: number) {
 }
 
 async function claimConversationTrialQuota() {
+  if (conversationChatQuotaDismissTimer !== undefined) {
+    window.clearTimeout(conversationChatQuotaDismissTimer);
+    conversationChatQuotaDismissTimer = undefined;
+  }
   conversationChatQuotaViewState = { phase: "claiming" };
   renderConversationChatQuotaHost();
   try {
     conversationChatQuota = await conversationChatClient.claimTrialQuota();
-    conversationChatQuotaViewState = { phase: "claimed" };
+    conversationChatQuotaViewState = { phase: "success" };
+    renderConversationChatQuotaHost();
+    conversationChatQuotaDismissTimer = window.setTimeout(() => {
+      conversationChatQuotaDismissTimer = undefined;
+      if (conversationChatQuotaViewState.phase !== "success") return;
+      conversationChatQuotaViewState = { phase: "claimed" };
+      renderConversationChatQuotaHost();
+    }, 1200);
+    return;
   } catch {
     conversationChatQuotaViewState = { phase: "error", error: "领取失败，请稍后重试" };
   }

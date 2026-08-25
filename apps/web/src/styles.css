@@ -495,6 +495,27 @@ body { overflow-x: hidden; }
 .desktop-conversation-item-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
 .desktop-conversation-item-copy small { color: var(--desktop-muted); font-size: 12px; line-height: 1.4; }
 .desktop-list-empty { margin: 24px 6px; color: var(--desktop-muted); font-size: 13px; }
+.desktop-conversation-directory-error {
+  display: grid;
+  gap: 10px;
+  margin: 12px 6px 14px;
+  color: #9a4737;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.desktop-conversation-directory-retry {
+  width: fit-content;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #c8d8d1;
+  border-radius: 7px;
+  color: var(--desktop-celadon-dark);
+  background: #f2f7f4;
+  cursor: pointer;
+  font-size: 13px;
+}
+.desktop-conversation-directory-retry:hover { background: #e4f0ea; }
+.desktop-conversation-directory-retry:focus-visible { outline: 3px solid rgba(77,125,107,.28); outline-offset: 2px; }
 .desktop-current-conversation { display: none; }
 .desktop-conversation-main { display: grid; grid-template-rows: 84px minmax(0,1fr); overflow: hidden; background: #f1f1ef; }
 .desktop-conversation-header {
