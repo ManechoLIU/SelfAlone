@@ -10,7 +10,7 @@
 - 台账自适应：当前以“建设按可独立验收功能闭环、验收按真实业务 Case”作为默认粒度，不冻结现有行数或顺序。若频繁等待、重复回写、机械项没有独立验收价值，或台账维护成本已经超过执行收益，执行任务应主动合并、重排或精简条目；若风险、返工面、事实冲突或下一步不清楚，则主动拆细。普通结构调整无需询问用户，但必须保留真实依赖、活动项负责人 / 写入边界、验收证据、恢复点、下一步与授权门，且不得借调整台账改变产品范围或把未完成项标为 `DONE`。
 - 唯一主线：本地 `main`；本轮治理链已纳入主线，后续只从 `main` 当前 HEAD 续接并在开始前重验。其他工作树保持只读，不作为开发目录或当前功能证据。
 - 当前执行波次：`CONTROL-RESET-1`；Web 阶段整改候选 `0e18846` 已冻结且范围审查通过，正在原非作者四阶段终验；D-TEXT 共享接缝已合入 main@`f85d86c`，用户可见 Web 入口待 Web shell 终验 / 集成后释放；小程序 `d4f587c` 只保留 reader-short 局部恢复点，430×932 的早期出屏判断已证实为开发者工具画布裁切假象，但用户更新的回顶 / 重进恢复规则尚未实现，整体仍为六页与共享层 `FAIL / SYSTEM REWORK`。`f312` 继续独占 `apps/miniapp/**`；台账仍由项目总控独占。
-- 当前活动项：`01a03652-a5d4-76c1-b0fa-ff9303243664` 正在 `6afd@0e18846` 做 Web FINAL-VISUAL-VERIFY，随后回传小程序 swipe-hint brief；D-TEXT Web 入口等待 Web shell 所有权释放。既有小程序实现任务 `01a034e4-12d5-7b31-9104-4d7431c12110` 已从 idle 恢复为 `ACTIVE`，执行 turn `01a036cb-242b-7903-8775-89d3d0af75d1` 固定 `f312@d4f587c`，首组处理 viewport / safe-area / 键盘几何及 conversation / nav-drawer；透明山亭、真实 PPT 模板 / 预览与 swipe 精确视觉参数仍是局部门。f312 既有未暂存 `project.config.json` 与 `pnpm-lock.yaml` 禁止触碰。
+- 当前活动项：`01a03652-a5d4-76c1-b0fa-ff9303243664` 正在 `6afd@0e18846` 做 Web FINAL-VISUAL-VERIFY，随后回传小程序 swipe-hint brief；D-TEXT Web 入口等待 Web shell 所有权释放。小程序任务 `01a034e4-12d5-7b31-9104-4d7431c12110` 保持 `ACTIVE`：`f312@d4f587c` 的 viewport / safe-area / 键盘几何已接入 conversation 与 nav-drawer，首组测试 / 构建和 390×844 DevTools 基线通过，继续下一确定性组。透明山亭、真实 PPT 模板 / 预览与 swipe 精确视觉参数仍是局部门；f312 既有未暂存 `project.config.json` 与 `pnpm-lock.yaml` 禁止触碰。
 - 协调下一动作：Web 候选逐阶段终验通过后由总控集成 / main 复验并立即释放 D-TEXT Web 唯一入口写入者；若失败则只返修精确 P1。小程序收 UI/UX 阈值 / 滞回 brief 后，由 f312 顺序修共享几何、键盘高风险面、reader 提示和六页 / 抽屉 / 面板；冻结后按四宽四高、状态 / 安全区 / 键盘矩阵复验。正式山亭与 PPT 预览资产未登记前保持局部阻塞。
 - 当前授权边界：已获本地连续开发、验证合格后合并回本地 `main`，以及最多 20 次外部图片生成调用额度；额度只按实际发生的调用计数，预登记不扣减。每次调用必须记录模型 / 提供方、次数或张数、尺寸、用途、输出目录与累计余额，生成物先为 `CANDIDATE`，只有实装和真实浏览器对照通过后才能升级。产品或视觉事实源发生无法消解的实质冲突、重大功能 / 信息架构 / 核心流程变化、大范围返工选择，以及超出 20 次额度、其他付费或外部服务与凭证、push、PR、发布、部署、删除及其他难恢复动作仍须单独确认；远端 push 不是完成条件。
 
@@ -133,7 +133,7 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | --- | --- | --- | --- | --- |
 | `M2-R0` 候选复用审计 | `DONE` / 项目总控 | 以 `42d85fe → 925bbc1` 为只读代码种子，按当前连续滚动与视觉逐模块选择性复用，不继承旧工作树 | `6f5c@925bbc1` 只读；旧“连续滚动应废弃”结论失效 | HEAD / status、19 项测试和主线缺口证据已保留；F0-A 已在隔离 `f312` 从 `ff4767b` 重建，后续以其真实 diff / H3 为准 |
 | `M2-UX-CONTRACT-ALL` | `DONE / DESIGN-READY BRIEF / IDLE-FINAL` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 对 `f312@d90d0fb` 的实际六路由、`nav-drawer`、底部面板和键盘层完成一次完整只读合同审查；不写实现 | Stable `2.02.2608040`、基础库 `3.17.1`、touristappid；接受 390×844 / 320×568 / 430×932 新鲜证据并明确 360、键盘实显、完整五态与冻结候选矩阵仍待终验 | 逐页采用点 / 排除项、派生、Token / 几何 / 资产、状态 / 视口 / 安全区 / 键盘、owner、Case 与 covered / uncovered 已回传；过期“五背景”结论已撤销，主线 `b45a7a8` 保持浅 / 深两态并同步新增合同。待冻结候选后复用原任务做最终复验 |
-| `M2-F0-A` 原生运行壳与客户端状态 | `FAIL / SYSTEM REWORK / ACTIVE / H3 BLOCKED` / `01a034e4-12d5-7b31-9104-4d7431c12110` | 六页、抽屉、共享输入 / 键盘层、底部面板与客户端五态；未就绪服务走显式开发适配器 | 实现 turn `01a036cb-242b-7903-8775-89d3d0af75d1` 已回 ACK：固定 `f312@d4f587c`，首组写入 viewport-state、conversation、nav-drawer 及必要的类型 / app 样式，先建立四宽四高、安全区、键盘覆盖不重复扣减、44px 与无横溢红灯。`d4f587c` 仍只证明 reader-short 局部修正 | 首组以测试 / typecheck / build、真实 DevTools 截图和 geometry metrics 冻结；swipe 数值 / 资产等待 UI/UX。游客 console、软件键盘、系统字体、透明山亭及真实 PPT 预览继续阻塞对应门，锁文件禁止触碰 |
+| `M2-F0-A` 原生运行壳与客户端状态 | `FAIL / SYSTEM REWORK / ACTIVE / H3 BLOCKED` / `01a034e4-12d5-7b31-9104-4d7431c12110` | 六页、抽屉、共享输入 / 键盘层、底部面板与客户端五态；未就绪服务走显式开发适配器 | `f312@d4f587c` 首组已完成共享 viewport / keyboard tracker 并接入 conversation + nav-drawer；红灯从模块缺失与 9 项合同失败转绿，miniapp typecheck、8 文件 / 43 项、build 通过。真实 DevTools 390×844、安全区 47 / 34、keyboard 0、无可见横溢；软件键盘未弹出，不能冒充键盘门通过 | 继续下一确定性组并逐步扩至六页 / drawer / 面板矩阵；swipe 数值 / 资产等待 UI/UX。游客 console、软件键盘、系统字体、透明山亭及真实 PPT 预览继续阻塞对应门，锁文件禁止触碰 |
 | `M2-F4-A` 真实书架 / 导入接入 | `READY` / F0-A 集成后同端下一包 | 将运行壳接入真实书籍摘要、搜索、导入与解析状态 | A 已以 `38f9ec3` 合入；F0-A 虽已提交候选但仍在集成修正，为避免同写 `apps/miniapp/**`，等待其合入 main 并复验，共享 contracts / lockfile 由总控集成 | 真实 EPUB / TXT / PDF、五类状态、开发者工具与账户隔离 |
 | `M2-F4-B` 连续正文 / 笔记 / 恢复接入 | `PENDING` / 后续小程序任务 | 自然连续纵向滚动正文、目录 / 设置 / 操作层、笔记和跨端位置恢复 | B / C / D / E 分别提供正文、PDF、笔记与 owner / 恢复契约；不强制分页或整页吸附 | 真实内容、刷新 / 重开恢复；360 / 390 / 430 与不同高度下验证长正文、动态字号、输入法、底部安全区、弹层和连续滚动无跳位 / 横向溢出；开发者工具、真机与非作者 UI/UX 复验 |
 
@@ -176,8 +176,8 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | `M1-WEB-SHELL-01` | `VERIFY / FINAL-VISUAL` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 固定 `6afd@0e18846`，parent `1727f95`；14 个文件只含授权 Web shell / conversation / state / main / styles / 测试与本包证据，作者工作树 clean | 作者定向 14 项、全仓 24 文件 / 118 项、typecheck / build / diff-check 通过；单一 DOM、动态标题、768 下移与断网保留大纲草稿已有 Chrome 候选证据。原非作者须逐阶段 / 四宽度 / 恢复 / AX 终验，当前禁止合并 |
 | `M2-UX-CONTRACT-ALL` | `DONE / DESIGN-READY BRIEF` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 已只读覆盖 `f312@d90d0fb` 六页、抽屉和面板 / 键盘态；不与 `f312` 抢写 | 逐包卡与完整 covered / uncovered 已接受，过期“五背景”已撤销；主线事实源提交 `b45a7a8`。后续仅在冻结候选返回时复用该任务做 FINAL-VISUAL-VERIFY |
 | `M2-F0-A-READER-SHORT` | `FAIL / SUPERSEDED BY SYSTEM REWORK` / `/root/miniapp_h3_repair` | `f312@d4f587c` 只作 reader-short 恢复点；不单独合并 | 430×932 完整画布已证提示可见，撤销早期出屏判断；旧永久 dismissed 行为仍与最新规则冲突，修复并纳入全端矩阵前不得升级 |
-| `M2-F0-A-SCREEN-ADAPT-ALL` | `ACTIVE / DESIGN-BRIEF PARTIAL` / UI/UX + `01a034e4-12d5-7b31-9104-4d7431c12110` | 既有 f312 任务顺序独占 `apps/miniapp/**` 六页、drawer、输入 / 键盘与底部面板；台账只读，既有 `project.config.json` / 锁文件 diff 禁止触碰 | 实现任务已回 cwd / branch / HEAD / status、首组文件、红灯与停止条件；当前先写 `viewport-state*`、conversation、nav-drawer、必要 `types/wx.d.ts` / `app.wxss`。首组通过测试 / typecheck / build并产出真实 DevTools 截图与几何后冻结；swipe 阈值与资产等待 UI/UX |
-| `M2-F0-A-H3-REWORK` | `ACTIVE / H3 BLOCKED` / `01a034e4-12d5-7b31-9104-4d7431c12110` | 与系统适配共用同一 f312 writer，先做不涉及视觉裁决的 H3；既有 `project.config.json` / 锁文件禁止触碰 | 首组处理窗口缩短与键盘覆盖不重复扣减、安全区、面板可用高度、44px 和横溢机械门；游客 console、软件键盘 / 字体、凭证化环境保持真实外部门，不因构建通过降低 H3 总门 |
+| `M2-F0-A-SCREEN-ADAPT-ALL` | `ACTIVE / DESIGN-BRIEF PARTIAL` / UI/UX + `01a034e4-12d5-7b31-9104-4d7431c12110` | 既有 f312 任务顺序独占 `apps/miniapp/**` 六页、drawer、输入 / 键盘与底部面板；台账只读，既有 `project.config.json` / 锁文件 diff 禁止触碰 | 首组 viewport / keyboard tracker、conversation、nav-drawer 已转绿：typecheck、8 文件 / 43 项、build、390×844 DevTools geometry 与无可见横溢通过；截图 `apps/miniapp/visual-qa/current-390-conversation-viewport-baseline.png`。继续下一确定性组，完整矩阵前不冻结 |
+| `M2-F0-A-H3-REWORK` | `ACTIVE / H3 BLOCKED` / `01a034e4-12d5-7b31-9104-4d7431c12110` | 与系统适配共用同一 f312 writer，先做不涉及视觉裁决的 H3；既有 `project.config.json` / 锁文件禁止触碰 | 已证明窗口缩短与键盘覆盖不重复扣减的状态合同，真实 390×844 安全区几何通过；模拟器未弹软件键盘，因此软件键盘 / 字体、游客 console 与凭证化环境仍为真实外部门，不因首组变绿降低 H3 总门 |
 
 ## 6. 候选与共享环境证据
 
@@ -220,7 +220,7 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | `M1-F2-A` 书架闭环 | `DONE(function) / FAIL(visual)` | main 功能回退点 `86a8fb1` 保留；最新 UI/UX 已重开 03 视觉门，旧 PASS 不再覆盖进度语义 / 密度 / 工程文案缺口 |
 | `M1-F2-BC-S1` 共享接缝 | `DONE` | `44b81ea`；文本 / PDF 定位、文件版本、位置并发、API / schema 与单写入边界已冻结，生产 PDF 渲染依赖仍由 C 首包给出授权建议 |
 | `M1-F2-B-UX1` 阅读视觉 / 交互 brief | `DONE / FOCUS PASS` | `804f952` 已通过历史非作者最终复验并进入 main；父项 B 的完整视觉仍等待原生 200% 与同 revision 精确无 override `1440×844`，后续由有效任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 复验 |
-| `M2-F0-A` 原生运行壳 | `FAIL / SYSTEM REWORK / H3 BLOCKED` | `d4f587c` 只作局部恢复点；全小程序六页、抽屉、输入 / 键盘与面板进入同一系统整改，真实四宽四高和状态矩阵、凭证化 clean console、山亭 / PPT 资产门通过前不合并 |
+| `M2-F0-A` 原生运行壳 | `FAIL / SYSTEM REWORK / ACTIVE / H3 BLOCKED` | `d4f587c` 首组 viewport / keyboard、conversation / nav-drawer 已有测试、构建与 390×844 DevTools 恢复点；全小程序六页、抽屉、输入 / 键盘与面板的真实四宽四高和状态矩阵、凭证化 clean console、山亭 / PPT 资产门通过前不合并 |
 | 项目总控与台账写入权 | `ACTIVE` | 任务 `01a034b4-a73d-7ce2-8531-51585826e6d3` 负责持续总控并独占台账写入；执行任务通过统一通道交证据，紧急恢复例外须复核 |
 
 - 当前外部授权门：验证合格后的本地 `main` 合并已授权；远端 push、PR、发布、部署、真实邮件 / 微信 / 文本模型 / 微信读书 / 联网 / Presenton 付费调用和小程序审核均未授权。外部图片生成仅限已授权的 20 次总额度并受上表逐次记录约束。
