@@ -91,9 +91,11 @@ Page<ConversationData>({
     messageAnchor: "",
   },
 
-  onLoad() {
+  onLoad(options: { developmentSendFailure?: string } = {}) {
     this.isUnloaded = false;
     const app = getApp<MiniappApp>();
+    this.developmentSendFailure = app.globalData.developmentAdapter
+      && options.developmentSendFailure === "1";
     this.conversationStore = createConversationLocalStore(
       wxStorage,
       app.globalData.developmentAdapter,

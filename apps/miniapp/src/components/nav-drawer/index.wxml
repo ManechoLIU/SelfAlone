@@ -47,7 +47,7 @@
         <button
           wx:for="{{visibleConversations}}"
           wx:key="id"
-          class="drawer-conversation {{item.current ? 'drawer-conversation--current' : ''}}"
+          class="drawer-conversation {{item.current ? 'drawer-conversation--current' : ''}} {{item.disabled ? 'drawer-conversation--disabled' : ''}}"
           data-id="{{item.id}}"
           data-target="{{item.target || 'conversation'}}"
           bindtap="navigate"

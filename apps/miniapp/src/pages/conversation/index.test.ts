@@ -12,6 +12,7 @@ type ConversationPageHarness = {
 let pageDefinition: ConversationPageHarness;
 let storedIntent: PptConversationIntent | null;
 let storedConversationState: unknown;
+let developmentAdapter = true;
 let intentStore: {
   restore: ReturnType<typeof vi.fn>;
   confirm: ReturnType<typeof vi.fn>;
@@ -58,7 +59,7 @@ beforeAll(async () => {
   vi.stubGlobal("Page", (definition: ConversationPageHarness) => { pageDefinition = definition; });
   vi.stubGlobal("getApp", () => ({
     globalData: {
-      developmentAdapter: true,
+      developmentAdapter,
       session: { kind: "development" },
       sessionStore: { restore: () => ({ kind: "development" }) },
       pptIntentStore: intentStore,
@@ -67,6 +68,7 @@ beforeAll(async () => {
   vi.stubGlobal("wx", {
     navigateTo: vi.fn(),
     reLaunch: vi.fn(),
+    getSystemInfoSync: vi.fn(() => ({ windowWidth: 390, windowHeight: 844 })),
     getStorageSync: vi.fn(() => storedConversationState),
     setStorageSync: vi.fn((_key: string, value: unknown) => { storedConversationState = value; }),
     removeStorageSync: vi.fn(),
@@ -81,6 +83,7 @@ afterAll(() => {
 beforeEach(() => {
   storedIntent = storedIntent ? { ...storedIntent, phase: "awaiting-confirmation" } : storedIntent;
   storedConversationState = undefined;
+  developmentAdapter = true;
   intentStore.confirm.mockClear();
   intentStore.workspaceUrl.mockClear();
   (wx as unknown as { navigateTo: ReturnType<typeof vi.fn> }).navigateTo.mockClear();
@@ -262,6 +265,17 @@ describe("conversation normal shell contract", () => {
     await settleLocalSend();
   });
 
+  it("accepts the development failure query only for a development adapter page", () => {
+    const developmentPage = createPage();
+    developmentPage.onLoad({ developmentSendFailure: "1" });
+    expect(developmentPage.developmentSendFailure).toBe(true);
+
+    developmentAdapter = false;
+    const productionPage = createPage();
+    productionPage.onLoad({ developmentSendFailure: "1" });
+    expect(productionPage.developmentSendFailure).toBe(false);
+  });
+
   it("renders the local message stream and in-place retry affordance", () => {
     expect(conversationWxml).toContain('wx:for="{{messages}}"');
     expect(conversationWxml).toContain('bindtap="retrySend"');
@@ -308,7 +322,7 @@ describe("conversation normal shell contract", () => {
 
   it("preserves a failed send and retries the same pending message without duplication", async () => {
     const page = createPage();
-    page.developmentSendFailure = true;
+    page.onLoad({ developmentSendFailure: "1" });
     page.onShow();
     page.onDraftInput({ detail: { value: "这次发送要重试" }, currentTarget: { dataset: {} } });
     page.addAttachments(["wxfile://retry-image"]);

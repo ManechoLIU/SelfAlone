@@ -170,7 +170,7 @@
 .drawer-conversation__trail { flex: none; min-width: 44px; text-align: right; }
 .drawer-conversation__state { color: #174c3f; font-size: 12px; line-height: 18px; font-weight: 600; }
 .drawer-conversation__updated { color: #68766f; font-size: 12px; line-height: 18px; }
-.drawer-conversation[disabled] { opacity: .52; }
+.drawer-conversation--disabled { opacity: .52; }
 
 .drawer-state {
   min-height: 120px;

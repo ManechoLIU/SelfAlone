@@ -61,6 +61,13 @@ describe("miniapp navigation drawer visual contract", () => {
     expect(drawerWxss).toContain("calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 18px)");
   });
 
+  it("uses an explicit disabled class that the WXSS parser supports", () => {
+    expect(drawerWxml).toContain("{{item.disabled ? 'drawer-conversation--disabled' : ''}}");
+    const disabledRule = drawerWxss.match(/\.drawer-conversation--disabled\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(disabledRule).toMatch(/opacity:\s*\.52/);
+    expect(drawerWxss).not.toMatch(/\.drawer-conversation\[disabled\]/);
+  });
+
   it("keeps visible focus semantics and disables motion displacement when requested", () => {
     expect(drawerWxml).toContain('aria-label="搜索会话"');
     expect(drawerWxml).toContain('aria-label="关闭主导航"');
