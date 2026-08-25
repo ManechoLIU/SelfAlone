@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TextAnnotationApi } from "./text-annotation-state";
+import type { BookDetailPptRuntime } from "./book-detail-runtime";
 import { bookDetailPptIntentHref, bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash, createBookDetailModel } from "./book-detail-state";
 
 const note = {
@@ -41,6 +42,29 @@ describe("private book detail notes state", () => {
     expect(model.snapshot.activeTab).toBe("highlights");
     model.setActiveTab("notes");
     expect(model.snapshot.activeTab).toBe("notes");
+  });
+
+  it("loads persisted PPT state alongside annotations and retains old works on failure", async () => {
+    const runtime: BookDetailPptRuntime = {
+      load: async (_bookId, previousWorks) => previousWorks?.length
+        ? { state: "failed", works: previousWorks, error: "PPT 暂时不可用" }
+        : {
+            state: "normal",
+            works: [{ id: "task-1", title: "《book-1》读书分享", status: "completed" }],
+          },
+    };
+    const model = createBookDetailModel("book-1", api(), {}, runtime);
+    await model.load();
+    expect(model.snapshot).toMatchObject({
+      pptState: "normal",
+      pptWorks: [{ id: "task-1", status: "completed" }],
+    });
+    await model.load();
+    expect(model.snapshot).toMatchObject({
+      pptState: "failed",
+      pptError: "PPT 暂时不可用",
+      pptWorks: [{ id: "task-1", status: "completed" }],
+    });
   });
 
   it("creates a titleless note, edits it, and deletes it through the real API contract", async () => {

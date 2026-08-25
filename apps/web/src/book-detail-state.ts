@@ -1,6 +1,7 @@
 import type { TextAnnotationSource, TextHighlight, TextNote } from "@selfalone/contracts";
 import { coverAssetForBook } from "./library-cover";
 import type { TextAnnotationApi } from "./text-annotation-state";
+import { createBookDetailPptRuntime, type BookDetailPptRuntime } from "./book-detail-runtime";
 
 export type BookDetailDraft = {
   mode: "create" | "edit";
@@ -13,12 +14,25 @@ export type BookDetailDraft = {
 
 export type BookDetailTab = "highlights" | "notes" | "ppt";
 
+export type BookDetailPptWork = {
+  id: string;
+  title: string;
+  status: "generating" | "completed";
+  dateLabel?: string;
+  downloadHref?: string;
+  previewSrc?: string;
+};
+
+export type BookDetailPptState = "normal" | "loading" | "empty" | "filtered-empty" | "failed";
+
 export type BookDetailSnapshot = {
   open: boolean;
   loading: boolean;
   error: string;
   title: string;
   author: string;
+  sourceLabel?: string;
+  description?: string;
   readingHref?: string;
   coverSrc?: string;
   pptHref?: string;
@@ -26,6 +40,10 @@ export type BookDetailSnapshot = {
   activeTab: BookDetailTab;
   highlights: TextHighlight[];
   notes: TextNote[];
+  pptWorks?: BookDetailPptWork[];
+  pptState?: BookDetailPptState;
+  pptQuery?: string;
+  pptError?: string;
   draft: BookDetailDraft | null;
   saveError: string;
   deleteError: string;
@@ -70,8 +88,14 @@ function isStaleVersionError(error: unknown) {
 export function createBookDetailModel(
   bookId: string,
   api: TextAnnotationApi,
-  book: { title?: string; author?: string | null; coverSrc?: string; pptHref?: string } = {},
+  book: { title?: string; author?: string | null; sourceLabel?: string; description?: string; coverSrc?: string; pptHref?: string } = {},
+  pptRuntime?: BookDetailPptRuntime,
 ) {
+  const resolvedPptRuntime = pptRuntime ?? (
+    typeof window !== "undefined" && typeof fetch === "function"
+      ? createBookDetailPptRuntime()
+      : undefined
+  );
   const refreshLatestNote = async (draft: BookDetailDraft) => {
     try {
       const list = await api.list();
@@ -101,6 +125,8 @@ export function createBookDetailModel(
       error: "",
       title: book.title ?? "书籍详情",
       author: book.author?.trim() || "作者未知",
+      sourceLabel: book.sourceLabel ?? "本地",
+      description: book.description,
       readingHref: `#/reading/${encodeURIComponent(bookId)}`,
       coverSrc: book.coverSrc ?? coverAssetForBook(bookId),
       pptHref: book.pptHref ?? bookDetailPptIntentHref(bookId, book.title),
@@ -113,7 +139,12 @@ export function createBookDetailModel(
       deleteError: "",
     } as BookDetailSnapshot,
     async load() {
+      const previousPptWorks = model.snapshot.pptWorks ?? [];
       model.snapshot = { ...model.snapshot, loading: true, error: "" };
+      if (resolvedPptRuntime) {
+        model.snapshot = { ...model.snapshot, pptState: "loading", pptError: "" };
+      }
+      let annotationError: unknown;
       try {
         const list = await api.list();
         model.snapshot = {
@@ -126,7 +157,28 @@ export function createBookDetailModel(
         };
       } catch (error) {
         model.snapshot = { ...model.snapshot, loading: false, error: "书籍内容暂时没有载入，请重试。" };
-        throw error;
+        annotationError = error;
+      }
+      if (resolvedPptRuntime) {
+        try {
+          const ppt = await resolvedPptRuntime.load(bookId, previousPptWorks);
+          model.snapshot = {
+            ...model.snapshot,
+            pptWorks: ppt.works,
+            pptState: ppt.state,
+            pptError: ppt.error ?? "",
+          };
+        } catch {
+          model.snapshot = {
+            ...model.snapshot,
+            pptWorks: previousPptWorks,
+            pptState: "failed",
+            pptError: "PPT 作品暂时没有载入，请稍后重试。",
+          };
+        }
+      }
+      if (annotationError) {
+        throw annotationError;
       }
     },
     setOpen(open: boolean) {

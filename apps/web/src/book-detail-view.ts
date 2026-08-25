@@ -1,6 +1,8 @@
 import type { TextHighlight, TextNote } from "@selfalone/contracts";
-import type { BookDetailSnapshot } from "./book-detail-state";
+import type { BookDetailPptWork, BookDetailSnapshot } from "./book-detail-state";
 import { icons } from "./ui/icons";
+
+const moreIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 6a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 6a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/></svg>`;
 
 function escapeHtml(value: string) {
   return value
@@ -25,16 +27,16 @@ function sourceMeta(source: TextNote["source"] | TextHighlight) {
 function renderHighlight(highlight: TextHighlight) {
   return `<article class="book-detail-highlight-row" data-highlight-id="${escapeHtml(highlight.id)}">
     <blockquote>${escapeHtml(highlight.quote)}</blockquote>
-    <div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div>
     ${highlight.thought ? `<p class="book-detail-thought">${escapeHtml(highlight.thought)}</p>` : `<p class="book-detail-muted">还没有写下想法</p>`}
+    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div><span class="book-detail-row-kind">划线</span></div>
   </article>`;
 }
 
 function renderNote(note: TextNote) {
   return `<article class="book-detail-note-row" data-note-id="${escapeHtml(note.id)}">
-    ${note.source ? `<blockquote>${escapeHtml(note.source.quote)}</blockquote><div class="book-detail-row-meta"><span>${sourceMeta(note.source)}</span><time datetime="${escapeHtml(note.createdAt)}">${dateLabel(note.createdAt)}</time></div>` : `<div class="book-detail-row-meta"><span>独立记录</span><time datetime="${escapeHtml(note.createdAt)}">${dateLabel(note.createdAt)}</time></div>`}
+    ${note.source ? `<blockquote>${escapeHtml(note.source.quote)}</blockquote>` : ""}
     <p class="book-detail-note-body">${escapeHtml(note.body).replaceAll("\n", "<br />")}</p>
-    <div class="book-detail-row-actions"><button type="button" data-book-detail-edit-note="${escapeHtml(note.id)}">编辑</button><button type="button" data-book-detail-delete-note="${escapeHtml(note.id)}">删除</button></div>
+    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(note.source)}</span><time datetime="${escapeHtml(note.createdAt)}">${dateLabel(note.createdAt)}</time></div><div class="book-detail-row-actions"><details class="book-detail-row-menu" data-book-detail-note-menu><summary aria-label="打开笔记操作" tabindex="0">${moreIcon}<span class="visually-hidden">打开笔记操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-edit-note="${escapeHtml(note.id)}">编辑</button><button type="button" role="menuitem" data-book-detail-delete-note="${escapeHtml(note.id)}">删除</button></div></details></div></div>
   </article>`;
 }
 
@@ -47,6 +49,44 @@ function renderDraft(snapshot: BookDetailSnapshot) {
     ${snapshot.saveError ? `<div class="book-detail-save-error" role="alert">${escapeHtml(snapshot.saveError)} <button type="button" data-book-detail-retry>重试保存</button></div>` : ""}
     <div class="book-detail-editor-actions"><button type="button" data-book-detail-cancel>取消</button><button class="book-detail-primary" type="submit">保存笔记</button></div>
   </form>`;
+}
+
+function pptWorkStatus(work: BookDetailPptWork) {
+  return work.status === "generating" ? "生成中" : (work.dateLabel?.trim() || "已完成");
+}
+
+function renderPptWork(work: BookDetailPptWork) {
+  const preview = work.previewSrc
+    ? `<img src="${escapeHtml(work.previewSrc)}" alt="" />`
+    : `<div class="book-detail-ppt-preview-placeholder" aria-hidden="true"></div>`;
+  const download = work.downloadHref && work.status === "completed"
+    ? `<a class="book-detail-ppt-download" href="${escapeHtml(work.downloadHref)}" aria-label="下载 ${escapeHtml(work.title)} PPTX">下载${icons.file}</a>`
+    : "";
+  return `<article class="book-detail-ppt-work is-${work.status}" data-book-detail-ppt-work="${escapeHtml(work.id)}">
+    <div class="book-detail-ppt-preview">${preview}<span class="book-detail-ppt-status">${pptWorkStatus(work)}</span></div>
+    <div class="book-detail-ppt-work-footer"><div><strong>${escapeHtml(work.title)}</strong><span>${escapeHtml(work.status === "generating" ? "正在整理页面" : (work.dateLabel?.trim() || "已完成"))}</span></div>${download}</div>
+  </article>`;
+}
+
+function renderPptPanel(snapshot: BookDetailSnapshot) {
+  const state = snapshot.pptState ?? (snapshot.pptWorks?.length ? "normal" : "empty");
+  if (state === "loading") {
+    return `<div class="book-detail-ppt-state is-loading" role="status" aria-busy="true"><div class="book-detail-ppt-skeleton-grid" aria-hidden="true"><i></i><i></i></div><span>正在载入 PPT 作品…</span></div>`;
+  }
+  if (state === "failed") {
+    const retainedWorks = snapshot.pptWorks?.length
+      ? `<div class="book-detail-ppt-grid" data-book-detail-ppt-retained>${snapshot.pptWorks.map(renderPptWork).join("")}</div>`
+      : "";
+    return `<div class="book-detail-ppt-state is-error" role="alert"><strong>PPT 作品暂时没有载入</strong><span>${escapeHtml(snapshot.pptError || "请稍后重试，已生成的作品不会受到影响。")}</span><button type="button" data-book-detail-ppt-reload data-book-detail-reload>重新载入</button></div>${retainedWorks}`;
+  }
+  if (state === "filtered-empty") {
+    return `<div class="book-detail-ppt-state" role="status"><strong>没有找到匹配的作品</strong><span>清除“${escapeHtml(snapshot.pptQuery || "")}”后可查看全部作品。</span></div>`;
+  }
+  const works = snapshot.pptWorks ?? [];
+  if (state === "empty" || works.length === 0) {
+    return `<div class="book-detail-ppt-state" role="status"><strong>还没有 PPT 作品</strong><span>完成制作后，作品会回到这里。</span></div>`;
+  }
+  return `<div class="book-detail-ppt-grid">${works.map(renderPptWork).join("")}</div>`;
 }
 
 export function renderBookDetail(snapshot: BookDetailSnapshot) {
@@ -72,11 +112,10 @@ export function renderBookDetail(snapshot: BookDetailSnapshot) {
       <button type="button" class="book-detail-close" data-book-detail-close aria-label="返回正文">×</button>
       <div class="book-detail-book-context">
         ${cover}
-        <div><span class="book-detail-kicker">读书</span><h1 id="book-detail-heading">《${escapeHtml(snapshot.title)}》</h1><p>${escapeHtml(snapshot.author)}</p></div>
+        <div class="book-detail-book-copy"><h1 id="book-detail-heading">《${escapeHtml(snapshot.title)}》</h1><p class="book-detail-book-meta"><span>${escapeHtml(snapshot.author)}</span><span aria-hidden="true">·</span><span>${escapeHtml(snapshot.sourceLabel?.trim() || "本地")}</span></p>${snapshot.description?.trim() ? `<p class="book-detail-description">${escapeHtml(snapshot.description.trim())}</p>` : ""}</div>
       </div>
       <div class="book-detail-header-actions">
         ${pptCta}
-        ${snapshot.draft ? `<button type="button" class="book-detail-secondary" data-book-detail-cancel>收起编辑</button>` : `<button type="button" class="book-detail-primary" data-book-detail-new-note>新建笔记</button>`}
       </div>
     </header>
     <nav class="book-detail-tabs" aria-label="书籍内容入口">
@@ -86,11 +125,12 @@ export function renderBookDetail(snapshot: BookDetailSnapshot) {
         <button type="button" role="tab" id="book-detail-tab-notes" data-book-detail-tab="notes" aria-controls="book-detail-panel-notes" aria-selected="${String(notesSelected)}" tabindex="${notesSelected ? "0" : "-1"}">老己笔记</button>
         <button type="button" role="tab" id="book-detail-tab-ppt" data-book-detail-tab="ppt" aria-controls="book-detail-panel-ppt" aria-selected="${String(pptSelected)}" tabindex="${pptSelected ? "0" : "-1"}">PPT作品</button>
       </div>
+      <div class="book-detail-tab-actions">${notesSelected ? (snapshot.draft ? `<button type="button" class="book-detail-secondary" data-book-detail-cancel>收起编辑</button>` : `<button type="button" class="book-detail-primary" data-book-detail-new-note>新建笔记</button>`) : ""}</div>
     </nav>
     <div class="book-detail-flow">
-      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-highlights" role="tabpanel" aria-labelledby="book-detail-tab-highlights"${highlightsSelected ? "" : " hidden"}><h2 id="book-detail-highlights-title">划线与想法</h2>${snapshot.highlights.length ? snapshot.highlights.map(renderHighlight).join("") : `<p class="book-detail-empty">还没有划线，回到正文选中一句话就能留下它。</p>`}</section>
-      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-notes" role="tabpanel" aria-labelledby="book-detail-tab-notes"${notesSelected ? "" : " hidden"}><h2 id="book-detail-notes-title">老己笔记</h2>${renderDraft(snapshot)}${snapshot.notes.length ? snapshot.notes.map(renderNote).join("") : `<p class="book-detail-empty">还没有老己笔记。</p>`}</section>
-      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-ppt" role="tabpanel" aria-labelledby="book-detail-tab-ppt"${pptSelected ? "" : " hidden"}><h2 id="book-detail-ppt-title">PPT作品</h2><div class="book-detail-ppt-empty"><p class="book-detail-empty">还没有 PPT 作品。</p><span>完成制作后，作品会回到这里。</span>${pptCta}</div></section>
+      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-highlights" role="tabpanel" aria-label="划线与想法"${highlightsSelected ? "" : " hidden"}>${snapshot.highlights.length ? snapshot.highlights.map(renderHighlight).join("") : `<p class="book-detail-empty">还没有划线，回到正文选中一句话就能留下它。</p>`}</section>
+      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-notes" role="tabpanel" aria-label="老己笔记"${notesSelected ? "" : " hidden"}>${renderDraft(snapshot)}${snapshot.notes.length ? snapshot.notes.map(renderNote).join("") : `<p class="book-detail-empty">还没有老己笔记。</p>`}</section>
+      <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-ppt" role="tabpanel" aria-label="PPT作品"${pptSelected ? "" : " hidden"}>${renderPptPanel(snapshot)}</section>
       ${snapshot.deleteError ? `<p class="book-detail-save-error" role="alert">${escapeHtml(snapshot.deleteError)}</p>` : ""}
     </div>
   </section>`;
