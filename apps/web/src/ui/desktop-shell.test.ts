@@ -1,8 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { renderDesktopAppShell } from "./desktop-shell";
+import { renderDesktopAppShell, renderDesktopRail } from "./desktop-shell";
 
 describe("DesktopAppShell", () => {
+  it("renders conversation and library with the same rail DOM and only changes active state", () => {
+    const conversation = renderDesktopRail({ activeSection: "conversation", conversationHref: "#/conversation?stage=outline" });
+    const library = renderDesktopRail({ activeSection: "library", conversationHref: "#/conversation?stage=outline" });
+    const normalizeActiveState = (html: string) => html
+      .replaceAll('class="desktop-nav-link active"', 'class="desktop-nav-link"')
+      .replaceAll('class="desktop-nav-link "', 'class="desktop-nav-link"')
+      .replaceAll(' aria-current="page"', "");
+
+    expect(normalizeActiveState(conversation)).toBe(normalizeActiveState(library));
+    expect(conversation).toContain('class="desktop-nav-link active" href="#/conversation?stage=outline"');
+    expect(library).toContain('class="desktop-nav-link active" href="#/library"');
+    expect(conversation).toContain('aria-current="page"');
+    expect(library).toContain('aria-current="page"');
+    expect(conversation).not.toContain("library-rail");
+    expect(library).not.toContain("library-rail");
+  });
+
   it("keeps the four-zone conversation hierarchy and semantic first-level navigation", () => {
     const html = renderDesktopAppShell({
       activeSection: "conversation",
@@ -68,7 +85,8 @@ describe("DesktopAppShell", () => {
   it("uses the compact column widths at the exact 1024px boundary", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
-    expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*--desktop-rail-width:\s*92px[^}]*--desktop-list-width:\s*196px[^}]*--desktop-task-width:\s*320px/);
+    expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell, \.library-shell\s*\{[^}]*--desktop-rail-width:\s*92px/);
+    expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*--desktop-list-width:\s*196px[^}]*--desktop-task-width:\s*320px/);
     expect(styles).toMatch(/\.desktop-conversation-main,\s*\.conversation-content,\s*\.conversation-thread,\s*\.desktop-message,\s*\.desktop-composer\s*\{[^}]*box-sizing:\s*border-box/);
   });
 

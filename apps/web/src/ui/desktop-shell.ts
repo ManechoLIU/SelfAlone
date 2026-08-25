@@ -19,6 +19,11 @@ export type DesktopAppShellOptions = {
   connectionError?: string;
 };
 
+export type DesktopRailOptions = {
+  activeSection: DesktopSection;
+  conversationHref?: string;
+};
+
 export function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -37,7 +42,8 @@ const navItems: Array<
   { id: "settings", label: "设置", icon: icons.settings, available: false },
 ];
 
-function renderRail(activeSection: DesktopSection, conversationHref: string) {
+export function renderDesktopRail(options: DesktopRailOptions) {
+  const conversationHref = options.conversationHref ?? "#/conversation";
   return `
     <aside class="desktop-rail" aria-label="主导航">
       <a class="desktop-brand" href="${conversationHref}" aria-label="老己，对话首页">
@@ -47,7 +53,7 @@ function renderRail(activeSection: DesktopSection, conversationHref: string) {
       <nav class="desktop-primary-nav" aria-label="一级导航">
         ${navItems.map((item) => item.available
           ? `
-          <a class="desktop-nav-link ${activeSection === item.id ? "active" : ""}" href="${item.id === "conversation" ? conversationHref : item.href}" aria-label="${item.label}"${activeSection === item.id ? ' aria-current="page"' : ""}>
+          <a class="desktop-nav-link ${options.activeSection === item.id ? "active" : ""}" href="${item.id === "conversation" ? conversationHref : item.href}" aria-label="${item.label}"${options.activeSection === item.id ? ' aria-current="page"' : ""}>
             ${item.icon}<span>${item.label}</span>
           </a>`
           : `
@@ -118,7 +124,7 @@ export function renderDesktopAppShell(options: DesktopAppShellOptions) {
   const conversationHref = options.conversationHref ?? "#/conversation";
   return `
     <div class="desktop-app-shell" data-active-section="${options.activeSection}">
-      ${renderRail(options.activeSection, conversationHref)}
+      ${renderDesktopRail({ activeSection: options.activeSection, conversationHref })}
       ${renderConversationList(options.conversationList, options.currentConversation, conversationHref)}
       <main class="desktop-conversation-main">
         ${renderHeader(options.currentConversation)}

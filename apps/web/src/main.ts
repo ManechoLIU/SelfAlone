@@ -32,7 +32,7 @@ import {
 import { coverAssetForBook } from "./library-cover";
 import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
-import { renderDesktopAppShell } from "./ui/desktop-shell";
+import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
 
 const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
@@ -241,18 +241,8 @@ function readCachedWorkspace(): WorkspaceSnapshot | null {
 function libraryShell(content: string) {
   const conversationRoute = conversationHref();
   return `
-    <div class="library-shell">
-      <aside class="library-rail" aria-label="主导航">
-        <a class="library-brand" href="${conversationRoute}" aria-label="老己，对话首页">
-          <img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="" />
-          <strong>老己</strong>
-        </a>
-        <nav class="library-nav">
-          <a href="${conversationRoute}">${icons.chat}<span>对话</span></a>
-          <a class="active" href="#/library" aria-current="page">${icons.book}<span>读书</span></a>
-          <span class="disabled-nav" aria-disabled="true">${icons.settings}<span>设置</span></span>
-        </nav>
-      </aside>
+    <div class="library-shell" data-active-section="library">
+      ${renderDesktopRail({ activeSection: "library", conversationHref: conversationRoute })}
       <main class="library-main">${content}</main>
       <div class="library-companion">
         <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />

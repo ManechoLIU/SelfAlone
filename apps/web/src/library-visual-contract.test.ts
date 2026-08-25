@@ -12,10 +12,31 @@ const rightSceneryPath = new URL(
 );
 
 describe("library binding visual contract", () => {
+  it("renders the library with the same desktop rail DOM as conversation", async () => {
+    const main = await readFile(mainPath, "utf8");
+
+    expect(main).toMatch(/import \{ renderDesktopAppShell, renderDesktopRail \} from "\.\/ui\/desktop-shell";/);
+    expect(main).toContain('renderDesktopRail({ activeSection: "library", conversationHref: conversationRoute })');
+    expect(main).not.toContain('class="library-rail"');
+    expect(main).not.toContain('class="library-brand"');
+    expect(main).not.toContain('class="library-nav"');
+    expect(main).not.toContain('class="disabled-nav"');
+  });
+
+  it("uses one shared desktop rail token and responsive width for both routes", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+
+    expect(styles).toMatch(/\.desktop-app-shell,\s*\.library-shell\s*\{[\s\S]*--desktop-rail-width:\s*164px;/);
+    expect(styles).toMatch(/\.desktop-app-shell,\s*\.library-shell\s*\{[\s\S]*--desktop-celadon-dark:\s*#174c3f;/);
+    expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell,\s*\.library-shell\s*\{[^}]*--desktop-rail-width:\s*92px/);
+    expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-app-shell,\s*\.library-shell\s*\{[^}]*--desktop-rail-width:\s*72px/);
+  });
+
   it("scopes the library visual tokens without changing the legacy workspace", async () => {
     const styles = await readFile(stylesPath, "utf8");
     const rootRule = styles.match(/:root\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const shellRule = styles.match(/\.library-shell\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const sharedRule = styles.match(/\.desktop-app-shell,\s*\.library-shell\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const shellRule = styles.match(/\.library-shell\s*\{\n  --ink:([\s\S]*?)\n\}/)?.[1] ?? "";
 
     expect(rootRule).toContain("--ink: #183c31;");
     expect(rootRule).toContain("--ink-soft: #455d54;");
@@ -27,15 +48,19 @@ describe("library binding visual contract", () => {
     expect(rootRule).toContain("--surface: #ffffff;");
     expect(rootRule).toContain("--canvas: #f4f8f6;");
 
-    expect(shellRule).toContain("--ink: #21312d;");
-    expect(shellRule).toContain("--ink-soft: #5b6b65;");
-    expect(shellRule).toContain("--muted: #5b6b65;");
-    expect(shellRule).toContain("--accent: #0d6a57;");
-    expect(shellRule).toContain("--accent-strong: #174c3f;");
+    expect(sharedRule).toContain("--desktop-ink: #21312d;");
+    expect(sharedRule).toContain("--desktop-muted: #5f6f69;");
+    expect(sharedRule).toContain("--desktop-celadon: #0d6a57;");
+    expect(sharedRule).toContain("--desktop-celadon-dark: #174c3f;");
+    expect(sharedRule).toContain("--desktop-line: #cbd8d3;");
+    expect(shellRule).toContain("--ink-soft: var(--desktop-muted);");
+    expect(shellRule).toContain("--muted: var(--desktop-muted);");
+    expect(shellRule).toContain("--accent: var(--desktop-celadon);");
+    expect(shellRule).toContain("--accent-strong: var(--desktop-celadon-dark);");
     expect(shellRule).toContain("--accent-pale: #d9eae3;");
-    expect(shellRule).toContain("--line: #cbd8d3;");
+    expect(shellRule).toContain("--line: var(--desktop-line);");
     expect(shellRule).toContain("--surface: #f8faf6;");
-    expect(shellRule).toContain("--canvas: #f1f1ef;");
+    expect(shellRule).toContain("--canvas: var(--desktop-paper);");
   });
 
   it("uses the approved transparent rail scenery over the authoritative shell colors", async () => {
@@ -44,10 +69,9 @@ describe("library binding visual contract", () => {
       readFile(designPath, "utf8"),
       readFile(webDesignPath, "utf8"),
     ]);
-    const shellRule = styles.match(/\.library-shell\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const railRule = styles.match(/\.library-rail\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const sceneryRule = styles.match(/\.library-rail::before\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const narrowRule = styles.match(/@media \(max-width: 900px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const shellRule = styles.match(/\.library-shell\s*\{\n  --ink:([\s\S]*?)\n\}/)?.[1] ?? "";
+    const railRule = styles.match(/\.desktop-rail\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const sceneryRule = styles.match(/\.desktop-rail-scenery\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
 
     expect(design).toContain("| `nav-surface` | `#E7EAE8` |");
     expect(design).toContain("| `desktop-canvas` | `#F1F1EF` |");
@@ -56,16 +80,14 @@ describe("library binding visual contract", () => {
     expect(webDesign).toContain("assets/backgrounds/desktop-left-rail-vintage-transparent-v2.png");
     expect(webDesign).toContain("可见圆面约 `38px`");
     expect(webDesign).toContain("封面外缘不加描边，只保留一层轻阴影");
-    expect(shellRule).toContain("--library-rail: 184px;");
-    expect(shellRule).toContain("background: #f1f1ef;");
-    expect(railRule).toContain("background-color: #e7eae8;");
+    expect(shellRule).toContain("--canvas: var(--desktop-paper);");
+    expect(railRule).toContain("background: #e7eae8;");
     expect(railRule).not.toContain("background-image:");
     expect(sceneryRule).toContain('background: url("/backgrounds/desktop-left-rail-vintage-transparent-v2.png") center bottom / 100% auto no-repeat;');
     expect(sceneryRule).toContain("bottom: -1px;");
-    expect(sceneryRule).toContain("width: 128%;");
-    expect(sceneryRule).toContain("opacity: .50;");
-    expect(sceneryRule).toContain("mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.7) 7%, #000 15%, #000 100%);");
-    expect(narrowRule).toContain(".library-rail::before { opacity: .36; }");
+    expect(sceneryRule).toContain("width: 122%;");
+    expect(sceneryRule).toContain("opacity: .44;");
+    expect(sceneryRule).toContain("mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.62) 18%, #000 38%, #000 100%);");
     expect(styles).not.toContain("desktop-left-rail-landscape-transparent-v4-preview");
     expect(styles).not.toContain("desktop-left-rail-landscape-approved-v1");
   });
@@ -141,7 +163,7 @@ describe("library binding visual contract", () => {
   it("keeps the selected navigation state distinct from the rail", async () => {
     const styles = await readFile(stylesPath, "utf8");
 
-    expect(styles).toContain(".library-nav a.active { color: #174c3f; background: #d4e5dc;");
+    expect(styles).toContain(".desktop-nav-link.active { color: var(--desktop-celadon-dark); background: #d9eae3;");
   });
 
   it("keeps a compact visible chat bubble on a 44px shoulder-aligned target", async () => {
