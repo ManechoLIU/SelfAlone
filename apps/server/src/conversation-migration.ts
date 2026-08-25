@@ -26,6 +26,7 @@ export async function migrateConversationSchema(sql: Sql) {
       FOR UPDATE
     `;
     if (applied) {
+      await ensureOwnerScopedMessagePrimaryKey(transaction);
       await backfillLegacyConversationState(transaction);
       return;
     }
@@ -53,14 +54,14 @@ export async function migrateConversationSchema(sql: Sql) {
 
     await transaction`
       CREATE TABLE IF NOT EXISTS messages (
-        id text PRIMARY KEY,
+        id text NOT NULL,
         account_id text NOT NULL,
         conversation_id text NOT NULL,
         role text NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
         text text NOT NULL,
         request_id text,
         created_at timestamptz NOT NULL DEFAULT now(),
-        UNIQUE (account_id, conversation_id, id)
+        PRIMARY KEY (account_id, conversation_id, id)
       )
     `;
     await transaction`
@@ -84,6 +85,7 @@ export async function migrateConversationSchema(sql: Sql) {
       END
       $migration$;
     `);
+    await ensureOwnerScopedMessagePrimaryKey(transaction);
     await transaction`
       CREATE INDEX IF NOT EXISTS conversations_account_updated_idx
       ON conversations (account_id, updated_at DESC, id)
@@ -93,6 +95,42 @@ export async function migrateConversationSchema(sql: Sql) {
       INSERT INTO schema_migrations (name) VALUES (${conversationMigrationName})
     `;
   });
+}
+
+async function ensureOwnerScopedMessagePrimaryKey(transaction: TransactionSql) {
+  await transaction.unsafe(`
+    DO $migration$
+    DECLARE
+      existing_primary_key text;
+    BEGIN
+      IF to_regclass('messages') IS NULL THEN
+        RETURN;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'messages'::regclass
+          AND contype = 'p'
+          AND pg_get_constraintdef(oid) = 'PRIMARY KEY (account_id, conversation_id, id)'
+      ) THEN
+        SELECT conname
+        INTO existing_primary_key
+        FROM pg_constraint
+        WHERE conrelid = 'messages'::regclass AND contype = 'p'
+        LIMIT 1;
+
+        IF existing_primary_key IS NOT NULL THEN
+          EXECUTE format('ALTER TABLE messages DROP CONSTRAINT %I', existing_primary_key);
+        END IF;
+
+        ALTER TABLE messages
+          ADD CONSTRAINT messages_account_conversation_id_pkey
+          PRIMARY KEY (account_id, conversation_id, id);
+      END IF;
+    END
+    $migration$;
+  `);
 }
 
 async function backfillLegacyConversationState(transaction: TransactionSql) {

@@ -128,7 +128,6 @@ let conversationChatQuotaViewState: ConversationChatQuotaViewState = { phase: "l
 let conversationChatQuotaDismissTimer: number | undefined;
 let conversationChatDirectoryRetry: (() => void) | null = null;
 let conversationChatCleanup: (() => void) | null = null;
-let conversationChatError = "";
 let settingsState: SettingsState = createSettingsState();
 let settingsRequestInFlight = false;
 let lastSettingsFocusField: string | null = null;
@@ -687,7 +686,7 @@ function renderConversationChatError() {
   app.innerHTML = renderConversationChatShell(`
     <section class="conversation-chat-entry-state conversation-chat-entry-state-error" role="alert">
       <h1>暂时无法打开对话</h1>
-      <p>${escapeHtml(conversationChatError || "老己服务暂时没有响应。")}</p>
+      <p>老己服务暂时无法连接，当前会话和输入已保留，请稍后重试。</p>
       <button id="reconnect-conversation" class="desktop-reconnect" type="button">重新连接</button>
     </section>`, conversationChatSession);
   bindConversationChatDirectory();
@@ -787,7 +786,7 @@ async function searchConversationDirectory(query: string) {
     if (requestId !== conversationChatDirectoryRequest || !isConversationRoute()) return;
     conversationChatDirectoryViewState = {
       loading: false,
-      error: error instanceof Error ? error.message : "搜索对话失败，请稍后重试",
+      error: "搜索对话失败，请重试",
     };
     replaceConversationChatDirectory();
   }
@@ -870,12 +869,10 @@ async function loadConversationChat(navigationId: number) {
   const loadPlan = conversationChatLoadCoordinator.request(navigationId);
   if (loadPlan !== "start") {
     if (loadPlan === "pending" && navigationId === routeGeneration && isConversationRoute()) {
-      conversationChatError = "";
       renderConversationChatLoading();
     }
     return;
   }
-  conversationChatError = "";
   renderConversationChatLoading();
   let loadOutcome: "success" | "failure" = "success";
   try {
@@ -887,13 +884,11 @@ async function loadConversationChat(navigationId: number) {
     conversationChatDirectoryViewState = { loading: false };
     conversationChatQuota = null;
     conversationChatQuotaViewState = { phase: "loading" };
-    conversationChatError = "";
     renderConversationChat(session);
     void loadConversationTrialQuota(navigationId);
-  } catch (error) {
+  } catch {
     loadOutcome = "failure";
     if (navigationId !== routeGeneration || !isConversationRoute()) return;
-    conversationChatError = error instanceof Error ? error.message : "CONVERSATION_REQUEST_FAILED";
     renderConversationChatError();
   } finally {
     const nextNavigationId = conversationChatLoadCoordinator.settle(

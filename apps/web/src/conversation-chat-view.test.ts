@@ -5,6 +5,7 @@ import { createConversationChatController } from "./conversation-chat-controller
 import { mountConversationChatView, renderConversationChatView } from "./conversation-chat-view";
 
 const conversationChatCss = readFileSync(new URL("./conversation-chat.css", import.meta.url), "utf8");
+const mainSource = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 
 class FakeTextArea {
   value = "";
@@ -92,9 +93,15 @@ describe("conversation chat view", () => {
     expect(rendered.main).toContain("来自真实状态的提问");
     expect(rendered.main).toContain("来自确定性运行时的回复");
     expect(rendered.main).toContain("发送失败，输入仍保留");
+    expect(rendered.main).not.toContain("CONVERSATION_REPLY_FAILED");
     expect(rendered.main).toContain('value="失败后保留"');
     expect(rendered.taskPanel).toBe("");
     expect(rendered.main).not.toContain("示例");
+  });
+
+  it("uses fixed understandable copy for initial load failures", () => {
+    expect(mainSource).toContain("老己服务暂时无法连接，当前会话和输入已保留，请稍后重试。");
+    expect(mainSource).not.toContain("conversationChatError = error instanceof Error ? error.message : \"CONVERSATION_REQUEST_FAILED\"");
   });
 
   it("does not rebuild the composer DOM for consecutive input events", () => {

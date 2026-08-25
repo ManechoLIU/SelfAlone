@@ -24,7 +24,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
   const hasDraft = state.draft.trim().length > 0;
   const statusLabel = isSending ? "正在发送" : state.status === "error" ? "需要重试" : "空闲";
   const statusNotice = state.status === "error"
-    ? `<p class="conversation-chat-status conversation-chat-status-error" role="alert">发送失败，输入仍保留${state.errorCode ? `（${escapeHtml(state.errorCode)}）` : ""}</p>`
+    ? `<p class="conversation-chat-status conversation-chat-status-error" role="alert">发送失败，输入仍保留，请重试</p>`
     : isSending
       ? `<p class="conversation-chat-status" role="status">正在发送…</p>`
       : `<p class="conversation-chat-status" role="status">就绪</p>`;

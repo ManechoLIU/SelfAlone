@@ -219,6 +219,52 @@ describe("conversation store", () => {
     })).rejects.toMatchObject({ code: "REQUEST_ID_CONFLICT" });
   });
 
+  it("allows the same request id for two accounts and keeps retries account-scoped", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_request_owner");
+    const store = new ConversationStore(setup.sql, domainStateMachine);
+    await store.createSession("account-a", "conversation-a");
+    await store.createSession("account-b", "conversation-b");
+
+    const firstA = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "shared-request",
+      text: "账户 A 的消息",
+    });
+    const firstB = await store.sendText({
+      accountId: "account-b",
+      conversationId: "conversation-b",
+      requestId: "shared-request",
+      text: "账户 B 的消息",
+    });
+    const retryA = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "shared-request",
+      text: "账户 A 的消息",
+    });
+    const retryB = await store.sendText({
+      accountId: "account-b",
+      conversationId: "conversation-b",
+      requestId: "shared-request",
+      text: "账户 B 的消息",
+    });
+
+    expect(firstA.status).toBe("completed");
+    expect(firstB.status).toBe("completed");
+    expect(retryA).toMatchObject({ status: "completed", reply: "我先记下：账户 A 的消息" });
+    expect(retryB).toMatchObject({ status: "completed", reply: "我先记下：账户 B 的消息" });
+    const rows = await setup.sql<{ accountId: string; conversationId: string; id: string }[]>`
+      SELECT account_id AS "accountId", conversation_id AS "conversationId", id
+      FROM messages
+      WHERE request_id = 'shared-request'
+      ORDER BY account_id, conversation_id, id
+    `;
+    expect(rows).toHaveLength(4);
+    expect(new Set(rows.map((row) => row.accountId))).toEqual(new Set(["account-a", "account-b"]));
+    expect(new Set(rows.map((row) => row.conversationId))).toEqual(new Set(["conversation-a", "conversation-b"]));
+  });
+
   it("does not expose one account's conversation to another account", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_owner");
     const store = new ConversationStore(setup.sql, domainStateMachine);
