@@ -99,30 +99,28 @@ export function settingsDraftStorageKey(accountId: string) {
 }
 
 export function serializeSettingsDraft(draft: SettingsDraft) {
-  return JSON.stringify({ version: 1, ...draft });
+  return JSON.stringify({ version: 2, email: draft.email });
 }
 
 export function parseSettingsDraft(value: string | null): SettingsDraft | null {
   if (!value) return null;
   try {
     const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== "object" || !("version" in parsed) || parsed.version !== 1) {
-      return null;
-    }
-    const record = parsed as Record<string, unknown>;
     if (
-      typeof record.email !== "string"
-      || typeof record.currentPassword !== "string"
-      || typeof record.newPassword !== "string"
-      || typeof record.confirmPassword !== "string"
+      !parsed
+      || typeof parsed !== "object"
+      || !("version" in parsed)
+      || (parsed.version !== 1 && parsed.version !== 2)
     ) {
       return null;
     }
+    const record = parsed as Record<string, unknown>;
+    if (typeof record.email !== "string") return null;
     return {
       email: record.email,
-      currentPassword: record.currentPassword,
-      newPassword: record.newPassword,
-      confirmPassword: record.confirmPassword,
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
     };
   } catch {
     return null;

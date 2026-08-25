@@ -164,11 +164,11 @@ function settingsMutation(
   return { kind, phase, error };
 }
 
-function persistSettingsDraft() {
-  const accountId = settingsState.overview?.account.id;
+function persistSettingsDraft(state: SettingsState = settingsState) {
+  const accountId = state.overview?.account.id;
   if (!accountId) return;
   try {
-    window.localStorage.setItem(settingsDraftStorageKey(accountId), serializeSettingsDraft(settingsState.draft));
+    window.localStorage.setItem(settingsDraftStorageKey(accountId), serializeSettingsDraft(state.draft));
   } catch {
     // Keep the in-memory draft when browser storage is unavailable.
   }
@@ -179,7 +179,10 @@ function restoreSettingsDraft(state: SettingsState) {
   if (!accountId) return state;
   try {
     const recovered = parseSettingsDraft(window.localStorage.getItem(settingsDraftStorageKey(accountId)));
-    return recovered ? { ...state, draft: recovered } : state;
+    if (!recovered) return state;
+    const restored = { ...state, draft: recovered };
+    persistSettingsDraft(restored);
+    return restored;
   } catch {
     return state;
   }

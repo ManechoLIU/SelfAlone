@@ -56,15 +56,40 @@ describe("desktop settings state", () => {
     });
   });
 
-  it("round-trips refresh-safe drafts and ignores malformed storage", () => {
+  it("serializes only the non-sensitive email and restores blank password fields", () => {
     const draft: SettingsDraft = {
       email: "new@example.com",
       currentPassword: "当前密码",
       newPassword: "新密码",
       confirmPassword: "新密码",
     };
+    const serialized = serializeSettingsDraft(draft);
     expect(settingsDraftStorageKey("account-1")).toBe("selfalone:m1:settings-draft:account-1");
-    expect(parseSettingsDraft(serializeSettingsDraft(draft))).toEqual(draft);
+    expect(JSON.parse(serialized)).toEqual({ version: 2, email: "new@example.com" });
+    expect(serialized).not.toContain("currentPassword");
+    expect(serialized).not.toContain("newPassword");
+    expect(serialized).not.toContain("confirmPassword");
+    expect(parseSettingsDraft(serialized)).toEqual({
+      email: "new@example.com",
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+  });
+
+  it("sanitizes legacy version-one drafts instead of restoring passwords", () => {
+    expect(parseSettingsDraft(JSON.stringify({
+      version: 1,
+      email: "legacy@example.com",
+      currentPassword: "旧当前密码",
+      newPassword: "旧新密码",
+      confirmPassword: "旧新密码",
+    }))).toEqual({
+      email: "legacy@example.com",
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
     expect(parseSettingsDraft('{"version":1,"email":7}')).toBeNull();
   });
 
