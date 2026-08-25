@@ -245,6 +245,13 @@ export class TextReaderRuntime {
   ) {
     const parsed = positionSchema.parse(input);
     return this.sql.begin(async (transaction) => {
+      const [book] = await transaction<Array<{ id: string }>>`
+        SELECT id
+        FROM books
+        WHERE account_id = ${accountId} AND id = ${bookId}
+        FOR UPDATE
+      `;
+      if (!book) throw new Error("BOOK_NOT_FOUND");
       const [file] = await transaction<Array<{ fileVersion: number }>>`
         SELECT version AS "fileVersion"
         FROM book_files

@@ -160,6 +160,7 @@ describe("real PostgreSQL owner/version chain", () => {
   const readers: TextReaderRuntime[] = [];
   const annotations: TextAnnotationRuntime[] = [];
   const apps: Array<ReturnType<typeof createApp>> = [];
+  const auxiliaryDatabases: Sql[] = [];
   const objectDirectories: string[] = [];
 
   afterEach(async () => {
@@ -167,6 +168,7 @@ describe("real PostgreSQL owner/version chain", () => {
     await Promise.all(annotations.splice(0).map((annotation) => annotation.close()));
     await Promise.all(libraries.splice(0).map((library) => library.close()));
     await Promise.all(readers.splice(0).map((reader) => reader.close()));
+    await Promise.all(auxiliaryDatabases.splice(0).map((database) => database.end()));
     await Promise.all(
       databases.splice(0).map(async ({ administration, schema }) => {
         await administration.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
@@ -346,41 +348,74 @@ describe("real PostgreSQL owner/version chain", () => {
     });
     expect(hiddenAnnotations.statusCode).toBe(404);
 
-    await administration.unsafe(`
-      INSERT INTO "${schema}".book_files (
-        id, account_id, book_id, object_key, original_filename, byte_size, sha256, version
-      ) VALUES (
-        'file-${importedA.id}-v2', 'account-a', '${importedA.id}',
-        'account-a/${importedA.id}/original/2/original.txt', '甲书-v2.txt', 1, 'v2', 2
-      );
-      INSERT INTO "${schema}".book_sections (
-        account_id, book_id, file_version, section_id, section_order, title, body
-      ) VALUES ('account-a', '${importedA.id}', 2, 'txt:v2', 0, '第二版', '新版本正文');
-      UPDATE "${schema}".books
-      SET parse_status = 'ready_text', section_count = 1
-      WHERE account_id = 'account-a' AND id = '${importedA.id}';
-    `);
+    const [positionBeforePublish] = await administration.unsafe<Array<{ locator: unknown; version: number }>>(
+      `SELECT locator, version FROM "${schema}".reading_positions
+       WHERE account_id = 'account-a' AND book_id = '${importedA.id}'`,
+    );
+    expect(positionBeforePublish?.version).toBe(2);
 
-    const stalePosition = await app.inject({
-      method: "PUT",
-      url: `/api/v1/books/${importedA.id}/position`,
-      headers: {
-        "content-type": "application/json",
-        "x-selfalone-account": "account-a",
-      },
-      payload: {
-        expectedVersion: 2,
-        locator: { kind: "text", fileVersion: 1, sectionId, offset: 0 },
-        background: "light",
-      },
+    const publisher = postgres(databaseUrl, { max: 1 });
+    auxiliaryDatabases.push(publisher);
+    let oldPositionWrite: Promise<Awaited<ReturnType<typeof app.inject>>> | undefined;
+    let oldPositionWriteSettled = false;
+    await publisher.begin(async (transaction) => {
+      await transaction`
+        SELECT id
+        FROM books
+        WHERE account_id = 'account-a' AND id = ${importedA.id}
+        FOR UPDATE
+      `;
+      const pendingPositionWrite = app.inject({
+        method: "PUT",
+        url: `/api/v1/books/${importedA.id}/position`,
+        headers: {
+          "content-type": "application/json",
+          "x-selfalone-account": "account-a",
+        },
+        payload: {
+          expectedVersion: 2,
+          locator: { kind: "text", fileVersion: 1, sectionId, offset: 0 },
+          background: "light",
+        },
+      }).then((response) => {
+        oldPositionWriteSettled = true;
+        return response;
+      });
+      oldPositionWrite = pendingPositionWrite;
+      const raceState = await Promise.race([
+        pendingPositionWrite.then(() => "settled" as const),
+        new Promise<"blocked">((resolve) => setTimeout(() => resolve("blocked"), 250)),
+      ]);
+      expect(raceState).toBe("blocked");
+      await transaction`
+        INSERT INTO book_files (
+          id, account_id, book_id, object_key, original_filename, byte_size, sha256, version
+        ) VALUES (
+          ${`file-${importedA.id}-v2`}, 'account-a', ${importedA.id},
+          ${`account-a/${importedA.id}/original/2/original.txt`}, '甲书-v2.txt', 1, 'v2', 2
+        )
+      `;
+      await transaction`
+        INSERT INTO book_sections (
+          account_id, book_id, file_version, section_id, section_order, title, body
+        ) VALUES ('account-a', ${importedA.id}, 2, 'txt:v2', 0, '第二版', '新版本正文')
+      `;
+      await transaction`
+        UPDATE books
+        SET parse_status = 'ready_text', section_count = 1
+        WHERE account_id = 'account-a' AND id = ${importedA.id}
+      `;
     });
+    expect(oldPositionWrite).toBeDefined();
+    const stalePosition = await oldPositionWrite!;
+    expect(oldPositionWriteSettled).toBe(true);
     expect(stalePosition.statusCode).toBe(409);
     expect(stalePosition.json()).toEqual({ code: "STALE_VERSION" });
     const [storedPosition] = await administration.unsafe<Array<{ locator: unknown; version: number }>>(
       `SELECT locator, version FROM "${schema}".reading_positions
        WHERE account_id = 'account-a' AND book_id = '${importedA.id}'`,
     );
-    expect(storedPosition?.version).toBe(2);
+    expect(storedPosition).toEqual(positionBeforePublish);
 
     const staleHighlight = await app.inject({
       method: "POST",
