@@ -1,0 +1,158 @@
+.conversation-selection {
+  width: min(100%, 760px);
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+  color: var(--desktop-ink, #21312d);
+}
+
+.conversation-selection-question {
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--desktop-line, #cbd8d3);
+  border-radius: 12px;
+  background: var(--desktop-paper-strong, #fff);
+  box-shadow: 0 8px 24px rgba(42, 76, 63, .04);
+}
+
+.conversation-selection-question.is-readonly {
+  background: rgba(248, 250, 246, .72);
+}
+
+.conversation-selection-prompt {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--desktop-celadon-dark, #174c3f);
+  font: 600 16px/1.65 "Songti SC", "STSong", serif;
+}
+
+.conversation-selection-pending {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.conversation-selection-options {
+  display: grid;
+  gap: 8px;
+}
+
+.conversation-selection-option {
+  min-width: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--desktop-line, #cbd8d3);
+  border-radius: 8px;
+  background: var(--desktop-paper, #f8faf6);
+  color: var(--desktop-ink, #21312d);
+  cursor: pointer;
+  font: 400 14px/1.5 "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  text-align: left;
+}
+
+.conversation-selection-option:hover { border-color: #3f8b75; }
+
+.conversation-selection-option.is-selected {
+  border-color: var(--desktop-celadon, #0d6a57);
+  background: var(--desktop-user-wash, #e7f1ec);
+}
+
+.conversation-selection-option:disabled,
+.conversation-selection-confirm:disabled { cursor: wait; opacity: .6; }
+
+.conversation-selection-option:focus-visible,
+.conversation-selection-confirm:focus-visible,
+.conversation-selection-free-input:focus-visible {
+  outline: 3px solid rgba(13, 106, 87, .28);
+  outline-offset: 3px;
+}
+
+.conversation-selection-option-mark {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--desktop-celadon, #0d6a57);
+}
+
+.conversation-selection-option-mark svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.conversation-selection-free-label { display: block; }
+
+.conversation-selection-free-input {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--desktop-line, #cbd8d3);
+  border-radius: 8px;
+  background: var(--desktop-paper, #f8faf6);
+  color: var(--desktop-ink, #21312d);
+  font: 400 15px/1.72 "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+}
+
+.conversation-selection-confirm {
+  min-width: 88px;
+  min-height: 44px;
+  justify-self: end;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--desktop-celadon, #0d6a57);
+  color: #fff;
+  cursor: pointer;
+  font: 600 14px/1.4 "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+}
+
+.conversation-selection-confirm:hover { background: var(--desktop-celadon-dark, #174c3f); }
+
+.conversation-selection-readonly {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  color: var(--desktop-muted, #5f6f69);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.conversation-selection-readonly-label { font-weight: 650; }
+.conversation-selection-readonly-value { overflow-wrap: anywhere; }
+.conversation-selection-status,
+.conversation-selection-error { margin: 0; font-size: 12px; line-height: 1.6; }
+.conversation-selection-status { color: var(--desktop-muted, #5f6f69); }
+.conversation-selection-error { color: #9a4737; }
+
+@media (max-width: 1024px) {
+  .conversation-selection-question { padding-left: 14px; padding-right: 14px; }
+}
+
+@media (max-width: 768px) {
+  .conversation-selection { width: 100%; gap: 14px; }
+  .conversation-selection-question { padding: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-selection *,
+  .conversation-selection *::before,
+  .conversation-selection *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
