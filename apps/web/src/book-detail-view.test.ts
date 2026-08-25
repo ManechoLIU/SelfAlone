@@ -113,4 +113,31 @@ describe("private book detail notes view", () => {
     expect(html).toContain("保留这段输入");
     expect(html).toContain("data-book-detail-retry");
   });
+
+  it("renders the real cover, PPT handoff, and truthful empty works tab", () => {
+    const html = renderBookDetail({
+      open: true,
+      loading: false,
+      error: "",
+      title: "雨后山亭",
+      author: "林野",
+      readingHref: "#/reading/book-1",
+      coverSrc: "/book-covers/local-default-celadon-ink-v1.png",
+      pptHref: "#/conversation?stage=requirements&book=book-1",
+      fileVersion: 2,
+      activeTab: "ppt" as never,
+      highlights: [],
+      notes: [],
+      draft: null,
+      saveError: "",
+      deleteError: "",
+    });
+    expect(html).toContain('data-book-detail-cover');
+    expect(html).toContain('src="/book-covers/local-default-celadon-ink-v1.png"');
+    expect(html).toContain('data-book-detail-ppt-cta');
+    expect(html).toContain('href="#/conversation?stage=requirements&amp;book=book-1"');
+    expect(html).toContain('data-book-detail-tab="ppt"');
+    expect(html).toContain('id="book-detail-panel-ppt"');
+    expect(html).toContain("还没有 PPT 作品");
+  });
 });

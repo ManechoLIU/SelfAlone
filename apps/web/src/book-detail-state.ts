@@ -1,4 +1,5 @@
 import type { TextAnnotationSource, TextHighlight, TextNote } from "@selfalone/contracts";
+import { coverAssetForBook } from "./library-cover";
 import type { TextAnnotationApi } from "./text-annotation-state";
 
 export type BookDetailDraft = {
@@ -10,7 +11,7 @@ export type BookDetailDraft = {
   idempotencyKey: string | null;
 };
 
-export type BookDetailTab = "highlights" | "notes";
+export type BookDetailTab = "highlights" | "notes" | "ppt";
 
 export type BookDetailSnapshot = {
   open: boolean;
@@ -19,6 +20,8 @@ export type BookDetailSnapshot = {
   title: string;
   author: string;
   readingHref?: string;
+  coverSrc?: string;
+  pptHref?: string;
   fileVersion: number | null;
   activeTab: BookDetailTab;
   highlights: TextHighlight[];
@@ -27,6 +30,32 @@ export type BookDetailSnapshot = {
   saveError: string;
   deleteError: string;
 };
+
+export function bookPptIntentHashForStage(bookId: string, stage: string | null = "requirements", title?: string) {
+  const query = new URLSearchParams();
+  if (stage) query.set("stage", stage);
+  query.set("book", bookId);
+  if (title?.trim()) query.set("bookTitle", title.trim());
+  return `#/conversation?${query.toString()}`;
+}
+
+export function bookDetailPptIntentHref(bookId: string, title?: string) {
+  return bookPptIntentHashForStage(bookId, "requirements", title);
+}
+
+export function bookPptIntentFromHash(hash: string) {
+  const [route, query = ""] = hash.slice(1).split("?");
+  if (route !== "/conversation") return null;
+  const bookId = new URLSearchParams(query).get("book");
+  return bookId?.trim() ? bookId : null;
+}
+
+export function bookPptIntentTitleFromHash(hash: string) {
+  const [route, query = ""] = hash.slice(1).split("?");
+  if (route !== "/conversation") return null;
+  const title = new URLSearchParams(query).get("bookTitle");
+  return title?.trim() ? title : null;
+}
 
 function idempotencyKey() {
   const randomUuid = globalThis.crypto?.randomUUID;
@@ -41,7 +70,7 @@ function isStaleVersionError(error: unknown) {
 export function createBookDetailModel(
   bookId: string,
   api: TextAnnotationApi,
-  book: { title?: string; author?: string | null } = {},
+  book: { title?: string; author?: string | null; coverSrc?: string; pptHref?: string } = {},
 ) {
   const refreshLatestNote = async (draft: BookDetailDraft) => {
     try {
@@ -73,6 +102,8 @@ export function createBookDetailModel(
       title: book.title ?? "书籍详情",
       author: book.author?.trim() || "作者未知",
       readingHref: `#/reading/${encodeURIComponent(bookId)}`,
+      coverSrc: book.coverSrc ?? coverAssetForBook(bookId),
+      pptHref: book.pptHref ?? bookDetailPptIntentHref(bookId, book.title),
       fileVersion: null,
       activeTab: "highlights",
       highlights: [],

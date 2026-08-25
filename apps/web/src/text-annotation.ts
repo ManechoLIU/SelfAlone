@@ -15,7 +15,7 @@ import type {
 } from "@selfalone/contracts";
 import "./text-annotation.css";
 import "./book-detail.css";
-import { createBookDetailModel } from "./book-detail-state";
+import { bookDetailPptIntentHref, createBookDetailModel } from "./book-detail-state";
 import { renderBookDetail } from "./book-detail-view";
 import {
   createTextAnnotationSourceFromOffsets,
@@ -49,6 +49,18 @@ export function clearTextAnnotationSelection(
 ) {
   nativeSelection?.removeAllRanges();
   clearModelSelection();
+}
+
+export function detailFocusIndex(input: {
+  focusableCount: number;
+  activeIndex: number;
+  shiftKey: boolean;
+}) {
+  if (input.focusableCount <= 0) return null;
+  if (input.activeIndex < 0) return input.shiftKey ? input.focusableCount - 1 : 0;
+  if (input.shiftKey && input.activeIndex <= 0) return input.focusableCount - 1;
+  if (!input.shiftKey && input.activeIndex >= input.focusableCount - 1) return 0;
+  return null;
 }
 
 export function createTextAnnotationKeyboardBinding(
@@ -299,12 +311,14 @@ export function createTextAnnotationController(options: {
       return;
     }
     const index = active ? focusable.indexOf(active) : -1;
-    if (event.shiftKey && index <= 0) {
+    const nextIndex = detailFocusIndex({
+      focusableCount: focusable.length,
+      activeIndex: index,
+      shiftKey: event.shiftKey,
+    });
+    if (nextIndex !== null) {
       event.preventDefault();
-      focusable.at(-1)?.focus({ preventScroll: true });
-    } else if (!event.shiftKey && index === focusable.length - 1) {
-      event.preventDefault();
-      focusable[0]?.focus({ preventScroll: true });
+      focusable[nextIndex]?.focus({ preventScroll: true });
     }
   };
 
@@ -399,6 +413,7 @@ export function createTextAnnotationController(options: {
       ...details.snapshot,
       title: reading.title,
       author: reading.author?.trim() || "作者未知",
+      pptHref: bookDetailPptIntentHref(options.bookId, reading.title),
     };
   };
 
@@ -539,7 +554,7 @@ export function createTextAnnotationController(options: {
     root.querySelectorAll<HTMLButtonElement>("[data-book-detail-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         const tab = button.dataset.bookDetailTab;
-        if (tab !== "highlights" && tab !== "notes") return;
+        if (tab !== "highlights" && tab !== "notes" && tab !== "ppt") return;
         details.setActiveTab(tab);
         rerender(`[data-book-detail-tab="${tab}"]`);
       });
@@ -555,7 +570,7 @@ export function createTextAnnotationController(options: {
             : (currentIndex + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
         const next = tabs[nextIndex];
         const tab = next?.dataset.bookDetailTab;
-        if (next && (tab === "highlights" || tab === "notes")) {
+        if (next && (tab === "highlights" || tab === "notes" || tab === "ppt")) {
           details.setActiveTab(tab);
           rerender(`[data-book-detail-tab="${tab}"]`);
         }

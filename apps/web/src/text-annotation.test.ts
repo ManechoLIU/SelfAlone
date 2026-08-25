@@ -3,6 +3,7 @@ import {
   clearTextAnnotationSelection,
   createTextAnnotationApi,
   createTextAnnotationKeyboardBinding,
+  detailFocusIndex,
   requestTextAnnotationChatHandoff,
   type TextAnnotationRequestError,
 } from "./text-annotation";
@@ -31,6 +32,11 @@ const annotationSnapshot: TextAnnotationSnapshot = {
 };
 
 describe("desktop text annotation API", () => {
+  it("keeps forward and reverse tabbing inside the detail modal when focus has no listed index", () => {
+    expect(detailFocusIndex({ focusableCount: 3, activeIndex: -1, shiftKey: false })).toBe(0);
+    expect(detailFocusIndex({ focusableCount: 3, activeIndex: -1, shiftKey: true })).toBe(2);
+  });
+
   it("clears both the browser range and model selection after a successful action", () => {
     let rangeClears = 0;
     let modelClears = 0;

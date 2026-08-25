@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TextAnnotationApi } from "./text-annotation-state";
-import { createBookDetailModel } from "./book-detail-state";
+import { bookDetailPptIntentHref, bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash, createBookDetailModel } from "./book-detail-state";
 
 const note = {
   id: "note-1",
@@ -26,6 +26,16 @@ function api(overrides: Partial<TextAnnotationApi> = {}): TextAnnotationApi {
 }
 
 describe("private book detail notes state", () => {
+  it("creates a recoverable book-scoped PPT handoff for the shared conversation route", () => {
+    const href = bookDetailPptIntentHref("book/one");
+    expect(href).toBe("#/conversation?stage=requirements&book=book%2Fone");
+    expect(bookPptIntentHashForStage("book/one", "outline")).toBe("#/conversation?stage=outline&book=book%2Fone");
+    expect(bookPptIntentFromHash(href)).toBe("book/one");
+    const titledHref = bookDetailPptIntentHref("book/one", "真实书名");
+    expect(bookPptIntentTitleFromHash(titledHref)).toBe("真实书名");
+    expect(bookPptIntentFromHash("#/conversation?stage=requirements")).toBeNull();
+  });
+
   it("switches from highlights to notes without stacking both panels", async () => {
     const model = createBookDetailModel("book-1", api());
     expect(model.snapshot.activeTab).toBe("highlights");

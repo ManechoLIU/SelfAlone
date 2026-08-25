@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./book-detail.css";
 import {
   conversationHash,
   outlineDraftStorageKey,
@@ -16,6 +17,7 @@ import {
   type WorkspaceScreen,
   type WorkspaceSnapshot,
 } from "./app-state";
+import { bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash } from "./book-detail-state";
 import type { LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
 import {
   authorLabel,
@@ -59,6 +61,8 @@ let draftOutlineDirty = false;
 let outlineDraftStatus: "local" | undefined;
 let stageView: WorkspaceScreen | null = readStageViewFromHash();
 let lastConversationStage: WorkspaceScreen | null = stageView;
+let bookPptIntentId: string | null = bookPptIntentFromHash(window.location.hash);
+let bookPptIntentTitle: string | null = bookPptIntentTitleFromHash(window.location.hash);
 let routeGeneration = 0;
 let conversationScrollTop = 0;
 let taskScrollTop = 0;
@@ -98,7 +102,10 @@ function isConversationRoute() {
 }
 
 function conversationHref() {
-  return conversationHash(stageView ?? lastConversationStage);
+  const stage = stageView ?? lastConversationStage;
+  return bookPptIntentId
+    ? bookPptIntentHashForStage(bookPptIntentId, stage, bookPptIntentTitle ?? undefined)
+    : conversationHash(stage);
 }
 
 function focusKeyForElement(element: Element | null) {
@@ -157,7 +164,7 @@ function setStageView(next: WorkspaceScreen) {
   persistConversationScroll();
   stageView = next;
   lastConversationStage = next;
-  window.history.pushState(null, "", conversationHash(next));
+  window.history.pushState(null, "", conversationHref());
   render();
 }
 
@@ -165,7 +172,7 @@ function clearStageView() {
   stageView = null;
   lastConversationStage = null;
   if (window.location.hash.includes("?stage=")) {
-    window.history.replaceState(null, "", conversationHash());
+    window.history.replaceState(null, "", conversationHref());
   }
 }
 
@@ -606,6 +613,17 @@ function conversationList() {
     : [];
 }
 
+function renderBookPptIntentNotice() {
+  if (!bookPptIntentId) return "";
+  const book = libraryState.unfilteredBooks.find((candidate) => candidate.id === bookPptIntentId);
+  const title = bookPptIntentTitle
+    ? `《${escapeHtml(bookPptIntentTitle)}》`
+    : book
+      ? `《${escapeHtml(book.title)}》`
+      : "这本书";
+  return `<aside class="book-ppt-intent" data-book-ppt-intent data-book-id="${escapeHtml(bookPptIntentId)}" role="status"><strong>${title}制作 PPT</strong><span>已从书籍详情带入本次意图；请在当前会话确认范围后再开始制作。</span></aside>`;
+}
+
 function renderShell(content: string, taskPanel = "") {
   return renderDesktopAppShell({
     activeSection: "conversation",
@@ -615,7 +633,7 @@ function renderShell(content: string, taskPanel = "") {
       meta: conversationMeta(),
     },
     conversationList: conversationList(),
-    mainContent: content,
+    mainContent: `${renderBookPptIntentNotice()}${content}`,
     taskPanel,
     connectionError: errorMessage || undefined,
   });
@@ -864,6 +882,8 @@ function renderRoute() {
   if (!window.location.hash) {
     window.history.replaceState(null, "", "#/library");
   }
+  bookPptIntentId = bookPptIntentFromHash(window.location.hash);
+  bookPptIntentTitle = bookPptIntentTitleFromHash(window.location.hash);
   const readingBookId = readingBookIdFromHash(window.location.hash);
   const bookDetailId = bookDetailIdFromHash(window.location.hash);
   if (bookDetailId) {
