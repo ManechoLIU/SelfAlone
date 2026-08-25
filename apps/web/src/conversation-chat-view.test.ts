@@ -104,6 +104,10 @@ describe("conversation chat view", () => {
     expect(mainSource).not.toContain("conversationChatError = error instanceof Error ? error.message : \"CONVERSATION_REQUEST_FAILED\"");
   });
 
+  it("removes the task workspace track from normal conversation chat", () => {
+    expect(mainSource).toContain('<div class="desktop-app-shell" data-active-section="conversation" style="--desktop-task-width: 0px;">');
+  });
+
   it("does not rebuild the composer DOM for consecutive input events", () => {
     const controller = createConversationChatController({
       conversationId: "conversation-a",

@@ -656,7 +656,7 @@ function renderConversationChatList(session: ConversationChatSession | null) {
 }
 
 function renderConversationChatShell(content: string, session: ConversationChatSession | null) {
-  return `<div class="desktop-app-shell" data-active-section="conversation">
+  return `<div class="desktop-app-shell" data-active-section="conversation" style="--desktop-task-width: 0px;">
     ${renderDesktopRail({ activeSection: "conversation", conversationHref: "#/conversation" })}
     ${renderConversationChatList(session)}
     <main class="desktop-conversation-main">
