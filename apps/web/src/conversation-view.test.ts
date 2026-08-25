@@ -230,6 +230,17 @@ describe("conversation-view", () => {
     expect(stopped.main).toContain("保存修改要求");
   });
 
+  it("locks generation requirements with the exact stop-then-edit copy", () => {
+    const generating = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "running", completedPages: 1 } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(generating.main).toContain("停止生成后可修改要求");
+    expect(generating.main).toContain('aria-readonly="true"');
+  });
+
   it("keeps the requirements summary aligned with the current stage", () => {
     const view = renderConversationView({
       workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },

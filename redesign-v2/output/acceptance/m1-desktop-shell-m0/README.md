@@ -10,7 +10,20 @@ Status: `CANDIDATE — waiting for non-author UI/UX re-verification`
 - Reference: `redesign-v2/design-reference/02-conversation-and-scope.png`
 - Reference SHA256: `d84ffbae4a483be35c4c9c32192c05aa6e1ae111c966c6ee01599bcb28fd94f6`
 
-## Current WIP first corrected capture
+## Current rework evidence (candidate, not PASS)
+
+- Source revision: `47db65bfb49cc702528f966b7aa1b3a1686397b5` plus the current scoped working tree; the follow-up candidate commit is reported with this receipt.
+- Real Chrome URL: `http://127.0.0.1:4174/#/conversation?stage=outline`; browser zoom `1`.
+- CSS viewport / DPR / physical viewport: default `1440 × 844` / `2` / `2880 × 1688`; explicit `1200 × 844`, `1024 × 844`, and `768 × 844` / `1` / matching physical pixels.
+- Four-zone bounds at default 1440: rail `0..164`, list `164..436`, center `436..996`, task `996..1440`; at 1024 the compact bounds are rail `0..92`, list `92..288`, center `288..704`, task `704..1024`.
+- Real Chrome matrix: requirements, outline, template, generating, failed, and completed each rendered one task panel, zero complete-stage markers in the center, `document.scrollWidth - innerWidth = 0`, and composer bottom `820px` at all four tested widths. At 768 the recent list was `display:none`, the single task panel started at `y=844`, and the composer remained `y=642.5..820` in the first viewport.
+- Generating rendered `停止生成后可修改要求` with `textarea.readOnly === true`; every width kept `本地演示 · 不调用 AI` visible.
+- API-blocked reload at 768 kept the center-only alert and the composer at `y=642.5..820`; the alert measured `x=86..754`, `y=96..158` inside the center main (`x=72..768`) and did not cover the task row. `overflow = 0`.
+- 768 AX/keyboard spot check exposed `老己，对话首页`, `对话`, `读书`, and `设置（暂不可用）`; settings had no `href`, `aria-disabled="true"`, and a coordinate activation left the URL unchanged. The brand-to-chat-to-reading-to-settings Tab sequence was observed from the real Chrome locators.
+- Same-origin route case at 1200: `#/conversation?stage=outline → #/library → back` retained one conversation shell, stage `outline`, unsaved title `路由往返未提交标题`, task scroll `128px`, and focus `title-0`; refresh and forward/back retained the same values. API-blocked reload retained `断网缓存未提交标题`, the center alert, and the conversation shell.
+- Browser console `error`/`warn` logs were empty after the matrix and route/offline checks. Historical screenshots below reference earlier revisions and are not evidence for this rework.
+
+## Historical first corrected capture (excluded from current rework)
 
 - Capture source: real Chrome tab screenshot after a fresh navigation to the WIP
 - State: `outline`; right h2 `大纲`; active step `大纲`; complete outline controls only in the task panel

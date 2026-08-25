@@ -65,12 +65,29 @@ describe("DesktopAppShell", () => {
     expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*height:\s*auto/);
   });
 
+  it("uses the compact column widths at the exact 1024px boundary", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*--desktop-rail-width:\s*92px[^}]*--desktop-list-width:\s*196px[^}]*--desktop-task-width:\s*320px/);
+    expect(styles).toMatch(/\.desktop-conversation-main,\s*\.conversation-content,\s*\.conversation-thread,\s*\.desktop-message,\s*\.desktop-composer\s*\{[^}]*box-sizing:\s*border-box/);
+  });
+
   it("reuses the reader's Qingci paper-card language for conversation messages", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*padding:\s*19px\s+22px/);
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*border-radius:\s*5px\s+18px\s+18px\s+18px/);
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*background:\s*rgba\(255,255,255,\.82\)/);
+    expect(styles).toMatch(/--desktop-paper:\s*#f1f1ef/);
+    expect(styles).toMatch(/--desktop-ink:\s*#21312d/);
+    expect(styles).toMatch(/--desktop-muted:\s*#5f6f69/);
+    expect(styles).toMatch(/--desktop-celadon:\s*#0d6a57/);
+    expect(styles).toMatch(/--desktop-line:\s*#cbd8d3/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*padding:\s*14px\s+16px/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*border-radius:\s*12px/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*background:\s*var\(--desktop-paper-strong\)/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*box-shadow:\s*0 8px 24px rgba\(42,76,63,\.04\)/);
+    expect(styles).toMatch(/\.desktop-message-user\s*\{[^}]*background:\s*var\(--desktop-user-wash\)/);
+    expect(styles).toMatch(/\.desktop-message-question\s*\{[^}]*background:\s*var\(--desktop-paper-strong\)/);
+    expect(styles).toMatch(/\.desktop-composer\s*\{[^}]*padding:\s*12px\s+14px/);
+    expect(styles).toMatch(/\.desktop-stage-summary\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/);
   });
 
   it("uses a two-column 16:9 template grid when the task panel has room", () => {
@@ -79,5 +96,13 @@ describe("DesktopAppShell", () => {
     expect(styles).toMatch(/\.desktop-task-panel \.desktop-template-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
     expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-task-panel \.desktop-template-grid\s*\{[^}]*grid-template-columns:\s*1fr/);
     expect(styles).toMatch(/\.desktop-slide-skeleton\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*9/);
+  });
+
+  it("keeps a connection banner in the center without pushing the short viewport composer below the fold", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.desktop-conversation-scroll:has\(> \.desktop-connection-banner\)\s*\{[^}]*position:\s*relative/);
+    expect(styles).toMatch(/\.desktop-conversation-scroll:has\(> \.desktop-connection-banner\) > \.desktop-connection-banner\s*\{[^}]*position:\s*absolute/);
+    expect(styles).toMatch(/\.desktop-conversation-scroll:has\(> \.desktop-connection-banner\) > \.conversation-content\s*\{[^}]*padding-top:\s*92px/);
   });
 });

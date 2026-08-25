@@ -351,9 +351,10 @@ body { overflow-x: hidden; }
   --desktop-line: #cbd8d3;
   --desktop-celadon: #0d6a57;
   --desktop-celadon-dark: #174c3f;
-  --desktop-paper: #f8faf6;
-  --desktop-paper-strong: #fff;
-  --desktop-card-line: #e4ece8;
+  --desktop-paper: #f1f1ef;
+  --desktop-paper-strong: #f6f8f4;
+  --desktop-user-wash: #e3eee8;
+  --desktop-card-line: #cbd8d3;
   min-height: 100vh;
   height: 100vh;
   display: grid;
@@ -367,6 +368,11 @@ body { overflow-x: hidden; }
 .desktop-conversation-list,
 .desktop-conversation-main,
 .desktop-task-panel { min-width: 0; min-height: 0; }
+.desktop-conversation-main,
+.conversation-content,
+.conversation-thread,
+.desktop-message,
+.desktop-composer { box-sizing: border-box; }
 .desktop-rail {
   position: relative;
   z-index: 1;
@@ -442,7 +448,7 @@ body { overflow-x: hidden; }
 .desktop-conversation-list {
   overflow: hidden;
   padding: 34px 16px 24px;
-  background: var(--desktop-paper);
+  background: var(--desktop-paper-strong);
   border-right: 1px solid rgba(203,216,211,.86);
 }
 .desktop-list-actions { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; align-items: center; }
@@ -522,7 +528,7 @@ body { overflow-x: hidden; }
   gap: 18px;
   padding: 0 28px;
   border-bottom: 1px solid rgba(203,216,211,.82);
-  background: rgba(255,255,255,.54);
+  background: rgba(246,248,244,.72);
 }
 .desktop-current-title { min-width: 0; }
 .desktop-current-title h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--desktop-ink); font: 600 22px/1.35 "Songti SC", "STSong", serif; }
@@ -546,6 +552,15 @@ body { overflow-x: hidden; }
   margin: 0 24px;
 }
 .desktop-connection-banner small { margin-left: auto; color: #96665a; font-size: 11px; }
+.desktop-conversation-scroll:has(> .desktop-connection-banner) { position: relative; }
+.desktop-conversation-scroll:has(> .desktop-connection-banner) > .desktop-connection-banner {
+  position: absolute;
+  top: 12px;
+  right: 24px;
+  left: 24px;
+  margin: 0;
+}
+.desktop-conversation-scroll:has(> .desktop-connection-banner) > .conversation-content { padding-top: 92px; }
 .desktop-reconnect, .desktop-secondary-button {
   min-height: 44px;
   padding: 0 14px;
@@ -557,7 +572,7 @@ body { overflow-x: hidden; }
   font-size: 13px;
   font-weight: 600;
 }
-.desktop-task-panel { overflow: auto; padding: 38px 32px 34px; background: #f3f5f5; border-left: 1px solid rgba(203,216,211,.82); }
+.desktop-task-panel { overflow: auto; padding: 38px 32px 34px; background: var(--desktop-paper); border-left: 1px solid rgba(203,216,211,.82); }
 .desktop-task-panel-inner { min-height: 100%; display: flex; flex-direction: column; }
 .desktop-task-header p, .conversation-heading p, .generation-heading p { margin: 0 0 10px; color: var(--desktop-celadon); font-size: 13px; font-weight: 650; letter-spacing: .06em; }
 .desktop-task-header h2 { margin: 0; color: var(--desktop-celadon-dark); font: 600 27px/1.25 "Songti SC", "STSong", serif; overflow-wrap: anywhere; }
@@ -578,7 +593,7 @@ body { overflow-x: hidden; }
 .desktop-scope-summary dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--desktop-ink); font-size: 14px; }
 .desktop-scope-fields { display: grid; gap: 18px; margin-top: 24px; }
 .desktop-scope-fields label { display: grid; gap: 8px; color: var(--desktop-ink); font-size: 14px; font-weight: 600; }
-.desktop-scope-fields select { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid #d4dfdb; border-radius: 8px; background: #fff; color: var(--desktop-ink); font-size: 14px; }
+.desktop-scope-fields select { width: 100%; min-height: 48px; padding: 0 14px; border: 1px solid var(--desktop-line); border-radius: 8px; background: var(--desktop-paper-strong); color: var(--desktop-ink); font-size: 14px; }
 .desktop-scope-note, .desktop-task-helper, .desktop-local-stage-note { margin: 16px 0 0; color: var(--desktop-muted); font-size: 12px; line-height: 1.65; }
 .desktop-revision-note { margin: 0 0 18px; padding: 10px 12px; border: 1px solid #e2c9a8; border-radius: 8px; background: #fff8ed; color: #795e3c; font-size: 12px; line-height: 1.6; }
 .desktop-local-draft-note { display: grid; gap: 5px; margin: 0 0 18px; padding: 11px 12px; border: 1px solid #c6ddd3; border-radius: 8px; background: #edf6f1; color: var(--desktop-muted); font-size: 12px; line-height: 1.55; }
@@ -599,27 +614,29 @@ body { overflow-x: hidden; }
 .desktop-task-loading p { margin: 0; font-size: 13px; }
 .desktop-task-loading h2 { margin: 0; color: var(--desktop-celadon-dark); font: 600 27px/1.25 "Songti SC", "STSong", serif; }
 .desktop-task-loading span { margin-top: 28px; font-size: 13px; }
-.conversation-content { min-height: 0; height: 100%; display: flex; flex-direction: column; padding: 36px 28px 28px; }
+.conversation-content { min-height: 0; height: 100%; display: flex; flex-direction: column; padding: 30px 28px 24px; }
 .conversation-thread { width: min(100%, 520px); margin: 18px auto 0; }
-.desktop-message { max-width: 460px; padding: 19px 22px; border: 1px solid var(--desktop-card-line); border-radius: 5px 18px 18px 18px; background: rgba(255,255,255,.82); box-shadow: 0 12px 32px rgba(42,76,63,.06); color: var(--ink-soft); }
-.desktop-message p { margin: 0; color: var(--ink-soft); font-size: 15px; line-height: 1.8; }
+.desktop-message { max-width: 460px; padding: 14px 16px; border: 1px solid var(--desktop-card-line); border-radius: 12px; background: var(--desktop-paper-strong); box-shadow: 0 8px 24px rgba(42,76,63,.04); color: var(--desktop-ink); }
+.desktop-message p { margin: 0; color: var(--desktop-ink); font-size: 15px; line-height: 1.65; }
 .desktop-message time { display: block; margin-top: 12px; color: #82918b; font-size: 11px; }
-.desktop-message-question { margin-top: 38px; margin-left: 20px; background: rgba(255,255,255,.78); }
+.desktop-message-user { background: var(--desktop-user-wash); }
+.desktop-message-question { margin-top: 28px; margin-left: 20px; background: var(--desktop-paper-strong); }
 .desktop-message-author { display: flex; align-items: center; gap: 12px; }
 .desktop-message-author img { width: 46px; height: 46px; flex: none; border-radius: 50%; object-fit: cover; background: #d9eae3; }
 .desktop-message-author strong { font-size: 15px; font-weight: 600; }
-.desktop-selection-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; padding: 14px 12px; border: 1px solid #e0e8e4; border-radius: 8px; background: #fbfcfa; color: var(--desktop-ink); font-size: 13px; }
+.desktop-selection-summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding: 12px; border: 1px solid var(--desktop-line); border-radius: 10px; background: var(--desktop-paper-strong); color: var(--desktop-ink); font-size: 13px; }
 .desktop-selection-summary strong { color: var(--desktop-celadon); font-size: 12px; white-space: nowrap; }
-.desktop-message-note { margin-top: 18px !important; color: var(--desktop-muted); font-size: 12px !important; }
-.desktop-composer { position: relative; width: min(100%, 520px); margin: auto auto 0; padding: 16px; border: 1px solid #d4dfdb; border-radius: 12px; background: rgba(255,255,255,.78); }
+.desktop-message-note { margin-top: 14px !important; color: var(--desktop-muted); font-size: 12px !important; }
+.desktop-composer { position: relative; width: min(100%, 520px); max-width: 100%; margin: auto auto 0; padding: 12px 14px; border: 1px solid var(--desktop-line); border-radius: 12px; background: var(--desktop-paper-strong); }
 .desktop-conversation-mascot { position: absolute; z-index: 1; top: -104px; right: 22px; width: 104px; height: 104px; object-fit: contain; pointer-events: none; }
 .desktop-composer label { display: block; margin-bottom: 10px; color: var(--desktop-muted); font-size: 13px; font-weight: 600; }
 .desktop-composer textarea { width: 100%; min-height: 88px; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--desktop-ink); font-size: 15px; line-height: 1.65; }
 .desktop-composer-actions, .desktop-form-action, .desktop-generation-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .desktop-composer-actions { padding-top: 12px; border-top: 1px solid #edf2ef; color: var(--desktop-muted); font-size: 12px; }
 .desktop-demo-note { color: #71837b; font-size: 11px; }
-.desktop-stage-summary { width: min(100%, 520px); display: grid; gap: 5px; margin: 26px auto 18px; padding: 13px 15px; border: 1px solid #dce5e1; border-radius: 9px; background: rgba(255,255,255,.58); color: var(--desktop-muted); font-size: 12px; line-height: 1.55; }
+.desktop-stage-summary { width: min(100%, 520px); display: block; margin: 14px auto 12px; padding: 0 2px; border: 0; border-radius: 0; background: transparent; color: var(--desktop-muted); font-size: 12px; line-height: 1.55; }
 .desktop-stage-summary strong { color: var(--desktop-ink); font-size: 13px; }
+.desktop-stage-summary span { display: inline; margin-left: 8px; }
 .conversation-heading { width: min(100%, 760px); margin: 4px auto 22px; }
 .conversation-heading h2 { margin: 0; color: var(--desktop-ink); font: 600 27px/1.3 "Songti SC", "STSong", serif; }
 .conversation-heading > span { display: block; margin-top: 9px; color: var(--desktop-muted); font-size: 13px; line-height: 1.65; }
@@ -691,13 +708,14 @@ body { overflow-x: hidden; }
   .desktop-task-panel { padding-left: 24px; padding-right: 24px; }
   .desktop-conversation-header { padding-left: 22px; padding-right: 22px; }
 }
-@media (max-width: 1023px) {
+@media (max-width: 1024px) {
   .desktop-app-shell { --desktop-rail-width: 92px; --desktop-list-width: 196px; --desktop-task-width: 320px; }
   .desktop-brand { justify-content: center; padding-left: 12px; padding-right: 12px; }
   .desktop-brand span, .desktop-nav-link span { display: none; }
   .desktop-brand img { width: 52px; height: 52px; }
   .desktop-nav-link { justify-content: center; padding-left: 0; padding-right: 0; }
   .desktop-connection-banner { margin-left: 14px; margin-right: 14px; }
+  .desktop-conversation-scroll:has(> .desktop-connection-banner) > .desktop-connection-banner { right: 14px; left: 14px; margin: 0; }
   .desktop-connection-banner small { display: none; }
   .desktop-task-panel { padding-left: 20px; padding-right: 20px; }
 }
@@ -730,5 +748,6 @@ body { overflow-x: hidden; }
   .desktop-form-action, .desktop-generation-actions { align-items: stretch; flex-direction: column; }
   .desktop-form-action .desktop-primary-button, .desktop-generation-actions .desktop-primary-button, .desktop-generation-actions .desktop-secondary-button { width: 100%; }
   .desktop-connection-banner { top: 0; margin-left: 16px; margin-right: 16px; flex-wrap: wrap; }
+  .desktop-conversation-scroll:has(> .desktop-connection-banner) > .desktop-connection-banner { right: 16px; left: 16px; margin: 0; }
   .desktop-reconnect { margin-left: auto; }
 }

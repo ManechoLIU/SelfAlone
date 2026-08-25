@@ -229,7 +229,7 @@ function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, 
 }
 
 function renderRequirementsThread(workspace: WorkspaceSnapshot) {
-  return `<article class="assistant-message desktop-message">
+  return `<article class="desktop-message desktop-message-user">
       <p>帮我把《${escapeHtml(workspace.book.title)}》的读书笔记整理成一份读书会分享 PPT。</p>
       <time>当前会话</time>
     </article>
@@ -284,9 +284,11 @@ function renderConversationComposer(workspace: WorkspaceSnapshot, screen: Worksp
   const canEditRequirements = screen === "requirements" || screen === "stopped";
   const helper = screen === "stopped"
     ? "停止后可修改要求"
-    : canEditRequirements
-      ? "生成后仍可修改大纲"
-      : "当前阶段内容请在右侧工作区查看";
+    : screen === "generating"
+      ? "停止生成后可修改要求"
+      : canEditRequirements
+        ? "生成后仍可修改大纲"
+        : "当前阶段内容请在右侧工作区查看";
   const saveAction = screen === "stopped"
     ? `<button class="desktop-secondary-button" type="submit" ${busy ? "disabled" : ""}>保存修改要求</button>`
     : "";
