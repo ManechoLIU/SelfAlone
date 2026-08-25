@@ -130,6 +130,18 @@ export class TextReaderRuntime {
     transaction: TransactionSql,
   ) {
     const { accountId, bookId, extracted } = prepared;
+    const [book] = await transaction<Array<{
+      id: string;
+      sectionCount: number;
+      title: string;
+      author: string | null;
+    }>>`
+      SELECT id, title, author, section_count AS "sectionCount"
+      FROM books
+      WHERE account_id = ${accountId} AND id = ${bookId}
+      FOR UPDATE
+    `;
+    if (!book) throw new Error("BOOK_NOT_FOUND");
     const [current] = await transaction<Array<{ fileVersion: number }>>`
       SELECT version AS "fileVersion"
       FROM book_files
@@ -139,11 +151,39 @@ export class TextReaderRuntime {
       FOR UPDATE
     `;
     if (current?.fileVersion !== extracted.fileVersion) throw new Error("STALE_VERSION");
-    await transaction`
-      DELETE FROM book_sections
+
+    const existing = await transaction<Array<{
+      sectionId: string;
+      order: number;
+      title: string;
+      text: string;
+    }>>`
+      SELECT section_id AS "sectionId", section_order AS "order", title, body AS text
+      FROM book_sections
       WHERE account_id = ${accountId} AND book_id = ${bookId}
         AND file_version = ${extracted.fileVersion}
+      ORDER BY section_order ASC
     `;
+    if (existing.length > 0 || extracted.sections.length === 0) {
+      if (
+        book.sectionCount !== existing.length
+        || book.title !== extracted.title
+        || book.author !== extracted.author
+      ) throw new Error("TEXT_PUBLICATION_CONFLICT");
+      const matches = existing.length === extracted.sections.length
+        && existing.every((stored, index) => {
+          const incoming = extracted.sections[index];
+          return incoming !== undefined
+            && stored.sectionId === incoming.sectionId
+            && stored.order === incoming.order
+            && stored.title === incoming.title
+            && stored.text === incoming.text;
+        });
+      if (!matches) throw new Error("TEXT_PUBLICATION_CONFLICT");
+      return { fileVersion: extracted.fileVersion, sectionCount: existing.length };
+    }
+    if (book.sectionCount !== 0) throw new Error("TEXT_PUBLICATION_CONFLICT");
+
     for (const section of extracted.sections) {
       await transaction`
         INSERT INTO book_sections (
