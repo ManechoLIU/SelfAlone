@@ -85,6 +85,8 @@
 
 `38-mobile-conversation-free-quota-unclaimed.png` 和 `39-mobile-text-model-configuration.png` 是 2026-08-23 用户明确认可并纳入的微信小程序页面参考，尺寸均为 `853×1844`，SHA-256 分别为 `ea5876adf8a5953c19ac105dfd251d5f77bf1d2417d71c35df5981f0b6a9fb7a`、`e74f589f85b9c8f9bf6654ef68bca8d5e6f5f87399a34a69744722f718b5ed17`。38 锁定一次性额度条的暖纸色、赭金图标与细边、墨绿按钮和其在会话首页顶部的位置；桌面 Web 只借鉴额度条组件，不继承小程序页头、消息流或输入区布局。39 锁定文本模型配置全屏次级页的层级、单一密文字段、显隐操作、底部唯一主操作与留白节奏；具体行为和状态继续以 `SPEC.md`、`DESIGN.md` 与端侧规范为准，两图都不是运行时整图或角色 / 图标资产。
 
+11、13、21、22 中共同出现的远山亭子只确认各页面的构图与低对比层级，不批准任何一张参考截图、桌面端 40 号资产、CSS 山形或临时 SVG 作为微信小程序运行时素材。抽屉、会话、登录或设置实际接入前，必须另行登记一份获批的微信小程序透明山亭运行时资产及 SHA-256；资产缺失只阻塞相应装饰层，不得用替代素材冒充视觉完成。
+
 ## 已确认运行时视觉资产
 
 2026-08-24 用户确认三张本地默认封面底图可共同用于桌面 Web 与微信小程序。正式文件位于 [`../assets/book-covers/`](../assets/book-covers/)：`local-default-celadon-ink-v1.png`、`local-default-amber-lamp-v1.png`、`local-default-indigo-sea-v1.png`，均为 `1024×1434` RGB PNG，SHA-256 依次为 `b7c79385b385b404155b89ca685e90ac5e2f6887d7cc10e71d7cc0fb3351eae8`、`dde0cec465fcf131cea06e55f1b22951cc23e2cec4be2774f61f246a2c9fa1d1`、`e539f0db602a10383e0ff86f7b2905708b5c959f5d1f0c4c3440322b61d42d52`。运行时按稳定书籍 ID 哈希固定选择底图并叠加真实书名、作者，不随机换图，也不再用临时 CSS 几何图形代替封面插画。
