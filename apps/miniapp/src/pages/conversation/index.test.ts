@@ -293,6 +293,14 @@ describe("conversation normal shell contract", () => {
     expect(retryBlock).toMatch(/min-height:\s*44px/);
   });
 
+  it("keeps the failed-send copy above the mascot without moving the composer", () => {
+    const errorBlock = conversationWxss.match(/\.composer-error\s*\{([^}]*)\}/)?.[1] ?? "";
+    const mascotBlock = conversationWxss.match(/\.composer-mascot\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(errorBlock).toMatch(/position:\s*relative/);
+    expect(errorBlock).toMatch(/z-index:\s*3/);
+    expect(mascotBlock).toMatch(/z-index:\s*2/);
+  });
+
   it("commits one user message and one local reply before clearing the composer", async () => {
     const page = createPage();
     page.onShow();
