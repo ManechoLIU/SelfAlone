@@ -16,15 +16,16 @@
 
 ### 1.1 项目总控、台账所有权与证据入口
 
-- 唯一持续项目总控：任务 `01a034b4-a73d-7ce2-8531-51585826e6d3` 以 `adaptive-delivery` 为持续运行合同，负责总目标、阶段、真实依赖、动态拆分、执行 / QA / 非作者审查调度、共享写入边界、新需求的证据对账与独立判断、候选集成、本地 `main` 复验和最终验收；不为每份文档或每个小问题创建独立管理 Agent。
+- 唯一持续项目总控：任务 `01a034b4-a73d-7ce2-8531-51585826e6d3` 的早期“仅管理台账”定位已由用户后续确认覆盖；当前以 `adaptive-delivery` 为持续运行合同，在独占台账写入之外负责总目标、需求影响扫描、阶段与真实依赖、动态拆分、执行 / QA / 非作者审查调度、设计前置门、共享契约与写入边界、候选集成、冲突处理、本地 `main` 复验和最终验收；实现继续交给边界互斥的执行者，不为每份文档或每个小问题创建独立管理 Agent。
 - 台账最终写入权：项目总控独占 `TASK_LEDGER.md` 写入、提交与状态裁决。开发、审查和素材任务原则上不得直接修改、提交或重排台账，只提交证据与建议，由项目总控独立核验后写入。
 - 文档治理：项目总控按根 `AGENTS.md` 的既有职责映射核对一致性，只把产品、视觉、技术、确认素材和协作规则留在各自事实源；台账只记录执行控制信息，不复制规则或制造平行文档。事实源需要改动时由对应执行范围的明确写入者完成，总控审查实际 diff，不按文档逐个新建管理 Agent。
 - 统一通道：向 `codex://threads/01a034b4-a73d-7ce2-8531-51585826e6d3` 提交工作包 ID、仓库 / 工作树 / 分支 / 基线与 HEAD、精确 status / diff、目标与非目标、测试命令与结果、真实业务 Case、浏览器或 Computer Use 证据、非作者审查、阻塞、下一步、提交 / 集成状态、授权需求；有图片生成时另附提供方 / 模型、实际调用次数与张数、尺寸、用途、输出目录、哈希 / 透明度、候选结论和累计余额。
 - 紧急恢复例外：只有不立即写入就会丢失恢复点、误触授权边界或造成并行覆盖时，开发任务才可临时写台账；必须同时说明原因、精确 diff、恢复点和未走专职通道的理由，并交本任务复核。未经复核不得据此升级状态或称 `DONE`。
 - 当前交接：`47b4` 的未提交 `TASK_LEDGER.md` diff 已只读核对；其中与 `main` 重复的自适应规则不重复吸收，状态和证据按当前仓库、实现任务正式交接与文件元数据重写。原 diff 保留在该工作树，禁止覆盖或擅自提交。
 - 当前 UI/UX 审查：替代任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 已在真实存在且 clean 的 `/Users/echoman/.codex/worktrees/27df/SelfAlone@b38ed4d` 完成书架、EPUB / TXT 与旧 M0 的真实 Chrome 首轮审查，结论均为 `FAIL`；证据目录共 `27` 张新鲜截图，位于 `/Users/echoman/.codex/visualizations/2026/08/25/01a03652-a5d4-76c1-b0fa-ff9303243664/selfalone-ui-audit-b38ed4d/`，`1440 / 1200 / 1024 / 768×844 @ 100% / DPR1` 只作自动化补充，不能替代 DPR2 终验。该任务保持非作者、仓库零写入并转为 idle，候选返回后复用其做真实端复验。
-- 视觉工作包释放门：任何 UI 写入者开工前必须取得 `DESIGN-READY` 证据，至少登记绑定参考路径 / SHA 与确认层级、采用点 / 排除项、最近语义组件派生、Token / 几何 / 密度、运行时资产、交互状态、宽高 / 安全区 / 键盘矩阵和禁止自由发挥项，并先取得当前包的非作者可执行 brief；缺任一项、缺 brief 或找不到可靠派生源时只允许非视觉工作继续，视觉实现保持 `BLOCKED`。具体规则仍只从 `DESIGN*` 与参考索引读取，本台账不复制。
-- 视觉验收门：第一个可运行界面出现后立即提交同状态真实端截图做早期比较，`FAIL` 即返修，不等待功能全部完成；冻结候选后再跑完整矩阵。收据必须同时记录 revision、URL / 端侧入口、viewport、zoom、DPR、截图物理像素和参考 SHA。开发者不得自审通过；非作者必须逐页 / 逐状态给覆盖清单、未覆盖项与 `PASS / FAIL`，测试 / build / HTTP 200 / 静态图 / 局部交互均不能替代。
+- 视觉工作包释放门：任何 UI 写入者开工前必须取得该包的 `DESIGN-READY` 收据，逐项登记绑定参考路径 / SHA / 确认层级与采用点 / 排除项、最近语义组件派生、Token / 几何 / 密度、正式运行时资产、页面 / 状态 / 宽高 / 安全区 / 键盘矩阵、禁止自由发挥项、文件所有权、首屏截图检查点和停止条件，并先取得非作者可执行 brief；缺任一项、缺 brief 或找不到可靠派生源时只允许非视觉工作继续，视觉实现保持 `BLOCKED`。具体规则仍只从 `DESIGN*` 与参考索引读取，本台账不复制。
+- 视觉验收门：取得 `DESIGN-READY` 后才能进入视觉 `ACTIVE`；第一个可运行界面立即进入 `EARLY-VISUAL-VERIFY`，提交同状态真实端截图，`FAIL` 即返修，不等待功能全部完成；冻结候选进入独立 `FINAL-VISUAL-VERIFY` 并跑完整矩阵。收据必须同时记录 revision、URL / 端侧入口、viewport、zoom、DPR、截图物理像素和参考 SHA。开发者不得自审通过；非作者报告若缺逐页 / 逐状态 `covered / uncovered`、实际参考与真实端候选或只给总体结论，总控拒收并补齐原系统包；测试 / build / HTTP 200 / 静态图 / 局部交互均不能替代。
+- 当前系统影响裁剪：小程序抽屉、会话输入 / 键盘、阅读操作层与内容面板均影响多个页面或共享组件，统一留在 `M2-UX-CONTRACT-ALL` 做系统影响扫描和合同，不按单条用户反馈继续拆局部视觉包；同一视觉根因再次影响两个及以上页面时回到该系统包重裁范围。`f312` 的非视觉 H3 修复不受此门阻塞，受影响视觉文件只由原唯一写入者在对应合同完成后顺序修改。
 - 当前绑定关系：`02-conversation-and-scope.png`（SHA-256 `d84ffbae4a483be35c4c9c32192c05aa6e1ae111c966c6ee01599bcb28fd94f6`）约束桌面对话及读书 / 设置 / PPT 的共享外壳；`03-reading-library.png`（SHA-256 `3cee650a3125fa337d8c0f2eddfe21c6b34d1856d7b45cb9abda939be303da98`）约束统一书架。首轮 brief 已确认旧 M0 / 对话与读书割裂、书架进度语义 / 密度、阅读稳定状态骨架及选区沉淀入口均 `FAIL`；A 仅保留功能 `DONE`，视觉门已重开。
 
 ### 1.2 全项目真实完成度首轮审计
@@ -131,10 +132,25 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | ID | 状态 / 负责人 | 当前可独立交付 | 写入边界 | 释放 / 验收门 |
 | --- | --- | --- | --- | --- |
 | `M2-R0` 候选复用审计 | `DONE` / 项目总控 | 以 `42d85fe → 925bbc1` 为只读代码种子，按当前连续滚动与视觉逐模块选择性复用，不继承旧工作树 | `6f5c@925bbc1` 只读；旧“连续滚动应废弃”结论失效 | HEAD / status、19 项测试和主线缺口证据已保留；F0-A 已在隔离 `f312` 从 `ff4767b` 重建，后续以其真实 diff / H3 为准 |
-| `M2-UX-CONTRACT-ALL` | `ACTIVE / DESIGN-READY PRECHECK` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 在任何后续小程序视觉实现前，一次审完 login / conversation / library / reader / ppt / settings、`nav-drawer` 与所有面板 / 键盘态；不写实现 | 复用现有非作者 UI/UX 任务，先完成当前 Web 复验再切换；审查只读，新增或变化的事实由总控按职责同步 `DESIGN-MINIAPP` / 参考索引 | 绑定参考 / SHA、派生与资产、320×568 / 360 / 390 / 430×短中长高、iOS / Android 安全区、键盘 / 长内容 / 字体 / reduced-motion、逐页五态 / 弹层 / 滚动 / 溢出覆盖清单与未覆盖项；产出后才释放视觉写入 |
+| `M2-UX-CONTRACT-ALL` | `ACTIVE / DESIGN-READY PRECHECK` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 对 `f312@d90d0fb` 的实际六路由、`nav-drawer`、底部面板和键盘层做一次完整只读合同审查；不写实现 | 真实微信开发者工具 Stable `2.02.2608040` 已打开同一 f312 项目；抽屉同状态首证已判 `FAIL`，其余页面 / 状态仍按下表为 `UNCOVERED`，新增或变化的事实由总控按职责同步 `DESIGN-MINIAPP` / 参考索引 | 绑定参考 / SHA、派生与资产、320×568 / 360 / 390 / 430×短中长高、iOS / Android 安全区、键盘 / 长内容 / 字体 / reduced-motion、逐页五态 / 弹层 / 滚动 / 溢出覆盖清单与未覆盖项；逐包 `DESIGN-READY` 后才释放视觉写入 |
 | `M2-F0-A` 原生运行壳与客户端状态 | `VERIFY / PARTIAL DESIGN-READY / H3 BLOCKED` / `/root/miniapp_h3_repair` | 原生小程序运行壳、登录 / 书架 / 连续阅读 / PPT 状态边界与五类状态；未就绪服务走显式开发适配器 | `d90d0fb` 已按真实 block 几何修复不等高定位并使空章节 fail closed；reader 短屏已取得聚焦 brief 并解锁，抽屉、会话 / 阅读趴宠及其余全端视觉仍等待完整 DESIGN-READY，trial / release 继续 fail-closed、不合并 | `f312` 由同一写入者先顺序实现 reader 短屏；其他视觉等待 `M2-UX-CONTRACT-ALL`。游客 console、软件键盘、系统字体和批准山水资产仍阻塞 H3，既有未暂存锁文件禁止触碰 |
 | `M2-F4-A` 真实书架 / 导入接入 | `READY` / F0-A 集成后同端下一包 | 将运行壳接入真实书籍摘要、搜索、导入与解析状态 | A 已以 `38f9ec3` 合入；F0-A 虽已提交候选但仍在集成修正，为避免同写 `apps/miniapp/**`，等待其合入 main 并复验，共享 contracts / lockfile 由总控集成 | 真实 EPUB / TXT / PDF、五类状态、开发者工具与账户隔离 |
 | `M2-F4-B` 连续正文 / 笔记 / 恢复接入 | `PENDING` / 后续小程序任务 | 自然连续纵向滚动正文、目录 / 设置 / 操作层、笔记和跨端位置恢复 | B / C / D / E 分别提供正文、PDF、笔记与 owner / 恢复契约；不强制分页或整页吸附 | 真实内容、刷新 / 重开恢复；360 / 390 / 430 与不同高度下验证长正文、动态字号、输入法、底部安全区、弹层和连续滚动无跳位 / 横向溢出；开发者工具、真机与非作者 UI/UX 复验 |
+
+### 4.1 `M2-UX-CONTRACT-ALL` 当前覆盖矩阵
+
+固定入口为 `f312@d90d0fb` 的 [`apps/miniapp/src/app.json`](/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp/src/app.json) 六条路由；以下矩阵是本包当前审查范围和真实覆盖状态，不代表对应业务闭环完成。
+
+| 页面 / 共享层 | 绑定参考（SHA-256） | 本轮必须覆盖 | 当前证据 / 结论 |
+| --- | --- | --- | --- |
+| `nav-drawer` | `11-mobile-conversation-drawer.png`（`9e764e60189845b6f46eb1181c97bbc622a363c067274ae479cfb7a15c68c36e`） | 打开 / 关闭、长会话、底部导航、iOS / Android 安全区、各宽高与命中 / 溢出 | `COVERED / FAIL`：真实 iPhone 12/13 Pro 打开态证明宽度 / 大圆角与顶部顺序成立，但纸白、无卡片列表、留白和贴底远山亭子缺失；证据 `01-drawer-live-iphone12.jpeg` |
+| `login` | `21-mobile-auth-login.png`（`3cda4b1cd6b5f1479b8a29c26dc66e403840d773122ce43d1690ed4db8bc6381`） | loading / 授权失败 / 正常、微信 / 邮箱主次、协议、键盘开关、安全区、长文案 | `UNCOVERED`；游客身份只阻塞真实授权结果，不阻塞开发适配器的页面 / 失败 / 键盘合同 |
+| `conversation` | `13`（`38569bae11f33492523b3546bed1d9a8e297a9be55a0cbdf23d44f7cf4117d5e`）、`30～32`（`5b231f018b55b535bca2659403d6e46c33e356f129ee4a85ab21fc55d5077728` / `bc286413ddbf0ecd87bde39793b7197e1abea0032891c13eb4356c751863127f` / `8bdb333b34314303fcf01ac37d91bdd80b05844490af64878daf18da1361b0fa`）、`38`（`ea5876adf8a5953c19ac105dfd251d5f77bf1d2417d71c35df5981f0b6a9fb7a`） | 五态、普通 / 范围选择 / 附件 / 免费额度、输入增长、键盘开关、趴宠可见下缘锚点、安全区 / 长内容 / 失败保留 | `PARTIAL`：正常页与抽屉打开态已捕获；输入、附件、键盘、趴宠、五态及额度仍 `UNCOVERED` |
+| `library` | `14-mobile-reading-library.png`（`3e80d4a9d64567c439ffab09b8e90d0444f0025a794a44e8d4100d69d7465212`） | loading / 真实空 / 筛选空 / 失败 / 正常、搜索 / 导入、2 / 3 列、长书名、四宽与安全区 / 溢出 | `UNCOVERED` |
+| `reader` | `15～17`（`82c09e3849e000dbe3b4a4cf796b1498e9de94efc323a933d1395903652537e3` / `dcaacd30403fabfd8d01d12704ea8b5ab40572ac299f1dd2685756242393df36` / `a847e81aad0d1935cb91586ea761fb8f1abfd6ad905f4f1c2b457056a12d9608`）、`18～20`（`2ddebcb614497d88efc79e0bf77197fc26192c5641ea2833d2a7a820cef8152f` / `23d078e390f6fc2b4422587b81b990f50154ca6e98535a94ccf65c418ec76077` / `e76a281751844095d080d8564980f13cc2d0ed7b9112dc3b842f6262b98b19cb`） | 介绍首屏 / 连续正文 / 操作层、浅深、短中长高、长标题 / 正文、内容三面板五态、趴宠与 44px 对话入口锚点、安全区 / 字体 / reduced-motion | `PARTIAL DESIGN-READY`：短屏介绍与首滑提示已取得 17 号聚焦 brief 并由唯一写入者实现；本轮新鲜 DevTools 捕获、操作层、内容面板和其余矩阵仍 `UNCOVERED` |
+| `ppt` | `23～29`（`053018567a03dcef79c0c70ba3e0b3d944aa0667694ecc3fd08e714267d84ef3` / `e3b115b90a53b1066ab469455d1e315eed19e1c666f1b08547d0efcf8e7bd11c` / `fb130b9de0aa9f33537ee9219ac01f677ef77a3816d0fd57a199867d1c9f7e74` / `13591782f4ae0ff98d80c3addecbab85ff79825cefb4b8ff61a2a5cde42d6046` / `7c604274a732769251b07f27308dfa66dbfaea16c94e1a79a1af2a7c787ca36b` / `fa5fdc4b6bc36986f268f22328b9178ebb3d1ab18ab035673c1f1fdaaa19c3f8` / `4ed985f4aadafa9769d9e732228cec7768e452de4d9d21598d54bf713e1dc960`） | 范围 / 大纲 / 编辑 / 模板 / 生成中 / 失败 / 完成、键盘、动态长度、吸底操作、安全区、失败保留与溢出 | `UNCOVERED` |
+| `settings` | `22`（`ce28f93874444d6877713576716b1395dff6752da36650d6a5792e293f657288`）、`39`（`e74f589f85b9c8f9bf6654ef68bca8d5e6f5f87399a34a69744722f718b5ed17`） | 总览五态、服务长状态、模型配置、凭证显隐 / 键盘、保存失败、安全区、长文案 / 溢出 | `UNCOVERED` |
+| 共享面板 / 键盘层 | `16`、`18～20`、`25`、`30～32`（SHA 同上） | 动态高度、遮罩、焦点 / 返回、键盘开关、输入 / 附件增长、底部安全区、系统字体、reduced-motion、横纵滚动与内容保留 | `UNCOVERED`；不得由任一页面静态截图替代共享层矩阵 |
 
 其余 M2 / M3 行仍是父级导航；完整业务验收不得提前。
 
@@ -158,7 +174,7 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | `M1-F2-D-TEXT-INTEGRATION` | `ACTIVE` / `/root/reading_notes_integration` | `/Users/echoman/.codex/worktrees/dint/SelfAlone`，`codex/m1-f2-d-text-integration@94056be` 起；独占 contracts / migration / publisher / domain export / app / Server，不写 Web / miniapp / 台账 | 同一候选关闭真实 `40P01`、同版本引用完整性、生产 migration / readiness、共享 DTO / routes 与真实并发测试；范围提交后独立复审，不得单独激活私有种子 |
 | `M1-UX-SYSTEM-AUDIT` | `DONE / FAIL BRIEF / IDLE-REVIEW` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | `/Users/echoman/.codex/worktrees/27df/SelfAlone@b38ed4d`；真实 Chrome 只读审查，仓库零写入 | 已输出 F01～F09、绑定参考 / SHA、页面分类、唯一推荐、文件所有权与验收 Case；DPR1 为自动化补充，不替代候选 DPR2 终验。等待新候选后再复验 |
 | `M1-WEB-SHELL-01` | `ACTIVE / EARLY FAIL REWORK` / `/root/desktop_shell_m0_fix` | `6afd` / `codex/m1-desktop-shell-m0@0969c33` 起；只写 `main.ts` / `styles.css` / `app-state.ts`、新 `ui/desktop-shell.ts` / `conversation-view.ts`、专属测试与证据 | 首个可运行 WIP 的四区框架与 768 无溢出保留；按非作者首报只修正式桌宠、演示模式 / CTA、失败条中栏边界、图标态名称与禁用设置，再以 768 首验和 1440 对照重交 |
-| `M2-UX-CONTRACT-ALL` | `ACTIVE / PRE-IMPLEMENTATION` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 全程只读六页、抽屉和面板 / 键盘态；不与 `f312` 抢写 | 输出逐页 DESIGN-READY 卡、完整视口 / 高度 / 安全区 / 键盘 / 五态覆盖与未覆盖项；事实源变化由总控另行同步 |
+| `M2-UX-CONTRACT-ALL` | `ACTIVE / PRE-IMPLEMENTATION` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | 全程只读 `f312@d90d0fb` 的六页、抽屉和面板 / 键盘态；不与 `f312` 抢写 | 已在真实微信开发者工具接受抽屉首证并判 `FAIL`；继续按 4.1 的 `covered / uncovered` 矩阵输出逐包 DESIGN-READY 卡。漏活动路由 / 关键状态、缺参考实看或只给总体结论时拒收；事实源变化由总控另行同步 |
 | `M2-F0-A-READER-SHORT` | `ACTIVE / DESIGN-READY` / `/root/miniapp_h3_repair` | `f312@d90d0fb` 之上只写 reader 页面 / 测试 / 本包证据；同一自然连续 scroll-view，不触碰其他页面视觉或锁文件 | 聚焦 brief 已登记参考 17 SHA、三档高度、内容安全降级、首滑提示状态 / reduced-motion 与 320×568 / 375×667 / 430×932 Case；首个可运行页面即开发者工具早期对照，冻结后交原 UI/UX 复验 |
 | `M2-F0-A-H3-REWORK` | `VERIFY / PARTIAL DESIGN-READY / H3 BLOCKED` / `/root/miniapp_h3_repair` | `f312@d90d0fb`；仅 `apps/miniapp/**`，既有 `pnpm-lock.yaml` diff 禁止触碰 | 非视觉定位 / 空章节候选已提交，reader 短屏已解锁；其余全端视觉仍等合同。凭证 console、键盘 / 字体和批准山水仍不得降门 |
 
