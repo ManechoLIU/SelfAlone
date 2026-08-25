@@ -39,7 +39,7 @@ const navItems: Array<
 > = [
   { id: "conversation", label: "对话", href: "#/conversation", icon: icons.chat, available: true },
   { id: "library", label: "读书", href: "#/library", icon: icons.book, available: true },
-  { id: "settings", label: "设置", icon: icons.settings, available: false },
+  { id: "settings", label: "设置", href: "#/settings", icon: icons.settings, available: true },
 ];
 
 export function renderDesktopRail(options: DesktopRailOptions) {

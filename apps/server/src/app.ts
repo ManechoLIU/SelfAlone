@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import { createReadStream } from "node:fs";
 import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
+import { registerAccountSettingsRoutes, type AccountSettingsService } from "./account-settings-routes";
 import type { AuthRuntime } from "./auth-runtime";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
@@ -21,6 +22,7 @@ type AppDependencies = {
     TextAnnotationService,
     "list" | "createHighlight" | "updateHighlight" | "deleteHighlight" | "createNote" | "updateNote" | "deleteNote"
   >;
+  accountSettings?: AccountSettingsService;
 };
 
 export const resolveAccountId = resolveAccountOwner;
@@ -53,6 +55,8 @@ function isPublicPath(url: string) {
   const path = url.split("?", 1)[0];
   return path.startsWith("/api/v1/health/")
     || path.startsWith("/api/v1/auth/")
+    || path === "/api/v1/settings/password-reset"
+    || path === "/api/v1/settings/password-reset/confirm"
     || path === "/api/v1/account";
 }
 
@@ -164,6 +168,10 @@ export function createApp(dependencies: AppDependencies) {
     registerTextAnnotationRoutes(app, dependencies.textAnnotations, resolveAccountId);
   }
 
+  if (dependencies.accountSettings) {
+    registerAccountSettingsRoutes(app, dependencies.accountSettings, resolveAccountId);
+  }
+
   if (dependencies.m0) {
     const m0 = dependencies.m0;
     const requirementsBody = z.object({
@@ -259,6 +267,12 @@ export function createApp(dependencies: AppDependencies) {
     }
     if (message === "EMAIL_ALREADY_REGISTERED") {
       return reply.code(409).send({ code: message });
+    }
+    if (message === "EMAIL_DELIVERY_UNAVAILABLE") {
+      return reply.code(503).send({ code: message });
+    }
+    if (message === "INVALID_EMAIL_TOKEN" || message === "REAUTHENTICATION_REQUIRED" || message === "EMAIL_UNCHANGED") {
+      return reply.code(400).send({ code: message });
     }
     if (message === "INVALID_EMAIL" || message === "INVALID_PASSWORD") {
       return reply.code(400).send({ code: message });

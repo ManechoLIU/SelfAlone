@@ -2,6 +2,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { createApp } from "./app";
+import { createAccountSettingsRuntime } from "./account-settings";
+import { migrateAccountSettingsSchema } from "./account-settings-migration";
 import { createAuthRuntime } from "./auth-runtime";
 import { createLibraryRuntime } from "./library-runtime";
 import { createM0Runtime } from "./m0-runtime";
@@ -28,6 +30,13 @@ const port = Number(process.env.PORT ?? 4100);
 
 assertDevelopmentAdapterAllowed(process.env.APP_ENV);
 const auth = await createAuthRuntime({ databaseUrl, appEnv: process.env.APP_ENV });
+const settingsMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateAccountSettingsSchema(settingsMigrationDatabase);
+} finally {
+  await settingsMigrationDatabase.end();
+}
+const accountSettings = await createAccountSettingsRuntime({ databaseUrl });
 const runtime = await createM0Runtime({ databaseUrl, artifactDirectory });
 const textReader = await createTextReaderRuntime({
   databaseUrl,
@@ -65,6 +74,7 @@ const app = createApp({
   m0: runtime,
   textReader,
   textAnnotations,
+  accountSettings: accountSettings,
 });
 
 const shutdown = async () => {
@@ -73,6 +83,7 @@ const shutdown = async () => {
   await library.close();
   await textReader.close();
   await runtime.close();
+  await accountSettings.close();
   await auth.close();
   process.exit(0);
 };

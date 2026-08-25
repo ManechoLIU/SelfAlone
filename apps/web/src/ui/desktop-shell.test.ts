@@ -3,6 +3,16 @@ import { readFileSync } from "node:fs";
 import { renderDesktopAppShell, renderDesktopRail } from "./desktop-shell";
 
 describe("DesktopAppShell", () => {
+  it("exposes settings as a real active first-level route", () => {
+    const settings = renderDesktopRail({ activeSection: "settings", conversationHref: "#/conversation" });
+
+    expect(settings).toContain('class="desktop-nav-link active" href="#/settings"');
+    expect(settings).toContain('aria-label="设置"');
+    expect(settings).toContain('aria-current="page"');
+    expect(settings).not.toContain("暂不可用");
+    expect(settings).not.toContain('aria-disabled="true"');
+  });
+
   it("renders conversation and library with the same rail DOM and only changes active state", () => {
     const conversation = renderDesktopRail({ activeSection: "conversation", conversationHref: "#/conversation?stage=outline" });
     const library = renderDesktopRail({ activeSection: "library", conversationHref: "#/conversation?stage=outline" });
@@ -37,11 +47,11 @@ describe("DesktopAppShell", () => {
     expect(html).toContain('class="desktop-task-panel"');
     expect(html).toContain('href="#/conversation"');
     expect(html).toContain('href="#/library"');
-    expect(html).not.toContain('href="#/settings"');
+    expect(html).toContain('href="#/settings"');
     expect(html).toContain('aria-label="对话"');
     expect(html).toContain('aria-label="读书"');
-    expect(html).toContain('<span class="desktop-nav-link desktop-nav-link-disabled" role="button" tabindex="0" aria-disabled="true" aria-label="设置（暂不可用）"');
-    expect(html).toContain('aria-disabled="true"');
+    expect(html).toContain('href="#/settings" aria-label="设置"');
+    expect(html).not.toContain('aria-disabled="true"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain("本地演示 · 不调用 AI");
     expect(html).toContain("新建对话 · 暂不可用");
@@ -54,8 +64,8 @@ describe("DesktopAppShell", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
     expect(conversation).toContain("<span>设置</span>");
+    expect(conversation).toContain('href="#/settings" aria-label="设置"');
     expect(conversation).not.toContain("设置 · 暂不可用");
-    expect(conversation).toContain('aria-label="设置（暂不可用）" title="设置暂不可用"');
     expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand\s*\{[^}]*gap:\s*8px[^}]*padding-left:\s*14px[^}]*padding-right:\s*14px/);
     expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand img\s*\{[^}]*width:\s*50px[^}]*height:\s*50px/);
     expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand span,\s*\.desktop-nav-link span\s*\{[^}]*white-space:\s*nowrap/);

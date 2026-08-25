@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./book-detail.css";
+import "./settings-page.css";
 import { ApiError, requestJson as requestAuthJson } from "./api";
 import {
   conversationHash,
@@ -50,6 +51,20 @@ import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
+import { renderSettingsPage } from "./settings-page";
+import {
+  createSettingsState,
+  parseSettingsDraft,
+  resolveSettingsOverview,
+  serializeSettingsDraft,
+  settingsDraftStorageKey,
+  settingsErrorMessage,
+  type SettingsMutation,
+  type SettingsMutationKind,
+  type SettingsMutationPhase,
+  type SettingsOverview,
+  type SettingsState,
+} from "./settings-state";
 
 const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
 const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
@@ -85,6 +100,8 @@ let conversationScrollTop = 0;
 let taskScrollTop = 0;
 let conversationFocusKey: string | null = null;
 let routeRenderFrame: number | undefined;
+let settingsState: SettingsState = createSettingsState();
+let settingsRequestInFlight = false;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -120,6 +137,263 @@ function isConversationRoute() {
 
 function isAuthRoute() {
   return window.location.hash.startsWith("#/auth");
+}
+
+function isSettingsRoute() {
+  return window.location.hash.startsWith("#/settings");
+}
+
+function settingsShell(content: string) {
+  return `<div class="settings-shell" data-active-section="settings">
+    ${renderDesktopRail({ activeSection: "settings", conversationHref: conversationHref() })}
+    <div class="settings-main">${content}</div>
+  </div>`;
+}
+
+function renderSettings() {
+  app.innerHTML = settingsShell(renderSettingsPage(settingsState));
+  bindSettingsInteractions();
+}
+
+function settingsMutation(
+  kind: SettingsMutationKind,
+  phase: SettingsMutationPhase,
+  error = "",
+): SettingsMutation {
+  return { kind, phase, error };
+}
+
+function persistSettingsDraft() {
+  const accountId = settingsState.overview?.account.id;
+  if (!accountId) return;
+  try {
+    window.localStorage.setItem(settingsDraftStorageKey(accountId), serializeSettingsDraft(settingsState.draft));
+  } catch {
+    // Keep the in-memory draft when browser storage is unavailable.
+  }
+}
+
+function restoreSettingsDraft(state: SettingsState) {
+  const accountId = state.overview?.account.id;
+  if (!accountId) return state;
+  try {
+    const recovered = parseSettingsDraft(window.localStorage.getItem(settingsDraftStorageKey(accountId)));
+    return recovered ? { ...state, draft: recovered } : state;
+  } catch {
+    return state;
+  }
+}
+
+async function loadSettings() {
+  if (settingsRequestInFlight || !isSettingsRoute()) return;
+  settingsRequestInFlight = true;
+  settingsState = { ...settingsState, phase: "loading", error: "" };
+  renderSettings();
+  try {
+    const overview = await requestAuthJson<SettingsOverview>("/api/v1/settings");
+    settingsState = restoreSettingsDraft(resolveSettingsOverview(settingsState, overview));
+  } catch {
+    settingsState = resolveSettingsOverview(settingsState, new Error("SETTINGS_LOAD_FAILED"));
+  } finally {
+    settingsRequestInFlight = false;
+    if (isSettingsRoute()) renderSettings();
+  }
+}
+
+function focusSettingsDialog() {
+  document.querySelector<HTMLButtonElement>('[data-settings-action="logout-confirm"]')?.focus();
+}
+
+function closeSettingsLogoutDialog() {
+  settingsState = {
+    ...settingsState,
+    logoutConfirmation: false,
+    mutation: settingsMutation("idle", "idle"),
+  };
+  renderSettings();
+  document.querySelector<HTMLButtonElement>('[data-settings-action="logout"]')?.focus();
+}
+
+async function confirmSettingsLogout() {
+  settingsState = {
+    ...settingsState,
+    mutation: settingsMutation("logout", "submitting"),
+  };
+  renderSettings();
+  try {
+    await requestAuthJson<unknown>("/api/v1/auth/logout", { method: "POST" });
+    authState = createAuthState("entry");
+    authRecoveryFinished = true;
+    settingsState = createSettingsState();
+    window.history.replaceState(null, "", authHash("entry"));
+    renderRoute();
+  } catch (error) {
+    const message = settingsErrorMessage(error instanceof ApiError ? error.code : "REQUEST_FAILED");
+    settingsState = {
+      ...settingsState,
+      logoutConfirmation: true,
+      mutation: settingsMutation("logout", "failed", message === "暂时无法保存设置，请稍后重试。"
+        ? "退出登录失败，当前页面和登录状态已保留，请稍后重试。"
+        : message),
+    };
+    if (isSettingsRoute()) {
+      renderSettings();
+      focusSettingsDialog();
+    }
+  }
+}
+
+async function submitSettingsForm(form: HTMLFormElement) {
+  if (!settingsState.overview || settingsState.mutation.phase === "submitting") return;
+  const formData = new FormData(form);
+  const draft = {
+    email: String(formData.get("email") ?? "").trim(),
+    currentPassword: String(formData.get("currentPassword") ?? ""),
+    newPassword: String(formData.get("newPassword") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
+  };
+  const currentEmail = settingsState.overview.account.email;
+  const emailChanged = draft.email !== currentEmail;
+  const passwordChanged = Boolean(draft.newPassword || draft.confirmPassword);
+  const mutationKind: SettingsMutationKind = emailChanged ? "change-email" : "change-password";
+
+  settingsState = {
+    ...settingsState,
+    draft,
+    accountError: "",
+    mutation: settingsMutation("idle", "idle"),
+  };
+  persistSettingsDraft();
+
+  const validationError = !emailChanged && !passwordChanged
+    ? "请输入要修改的邮箱或密码。"
+    : emailChanged && passwordChanged
+      ? "邮箱和密码请分别保存，避免一次提交产生部分修改。"
+      : !draft.currentPassword
+        ? "请输入当前密码后再保存修改。"
+        : passwordChanged && draft.newPassword.length < 8
+          ? "密码至少需要 8 位。"
+          : passwordChanged && draft.newPassword !== draft.confirmPassword
+            ? "两次输入的新密码不一致。"
+            : "";
+  if (validationError) {
+    settingsState = {
+      ...settingsState,
+      accountError: validationError,
+      mutation: settingsMutation(mutationKind, "failed", validationError),
+    };
+    renderSettings();
+    return;
+  }
+
+  settingsState = {
+    ...settingsState,
+    mutation: settingsMutation(mutationKind, "submitting"),
+  };
+  renderSettings();
+  try {
+    if (emailChanged) {
+      await requestAuthJson<unknown>("/api/v1/settings/email", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: draft.currentPassword, newEmail: draft.email }),
+      });
+    } else {
+      await requestAuthJson<unknown>("/api/v1/settings/password", {
+        method: "POST",
+        body: JSON.stringify({ currentPassword: draft.currentPassword, newPassword: draft.newPassword }),
+      });
+    }
+    settingsState = {
+      ...settingsState,
+      accountError: "",
+      draft: emailChanged
+        ? settingsState.draft
+        : { ...settingsState.draft, currentPassword: "", newPassword: "", confirmPassword: "" },
+      mutation: settingsMutation(mutationKind, "success"),
+    };
+    persistSettingsDraft();
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : "REQUEST_FAILED";
+    const message = settingsErrorMessage(code);
+    settingsState = {
+      ...settingsState,
+      accountError: message,
+      mutation: settingsMutation(mutationKind, "failed", message),
+    };
+    persistSettingsDraft();
+  }
+  if (isSettingsRoute()) renderSettings();
+}
+
+function bindSettingsInteractions() {
+  document.querySelectorAll<HTMLButtonElement>("[data-settings-action]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      const action = button.dataset.settingsAction;
+      if (action === "account") {
+        settingsState = {
+          ...settingsState,
+          view: "account",
+          accountError: "",
+          mutation: settingsMutation("idle", "idle"),
+        };
+        renderSettings();
+        document.querySelector<HTMLInputElement>("#settings-email")?.focus();
+      } else if (action === "back") {
+        settingsState = {
+          ...settingsState,
+          view: "overview",
+          accountError: "",
+          mutation: settingsMutation("idle", "idle"),
+        };
+        renderSettings();
+        document.querySelector<HTMLButtonElement>('[data-settings-action="account"]')?.focus();
+      } else if (action === "reload") {
+        void loadSettings();
+      } else if (action === "logout") {
+        settingsState = {
+          ...settingsState,
+          logoutConfirmation: true,
+          mutation: settingsMutation("logout", "idle"),
+        };
+        renderSettings();
+        focusSettingsDialog();
+      } else if (action === "logout-cancel") {
+        closeSettingsLogoutDialog();
+      } else if (action === "logout-confirm") {
+        event.preventDefault();
+        void confirmSettingsLogout();
+      }
+    });
+  });
+
+  document.querySelector<HTMLDivElement>("[data-settings-dialog-backdrop]")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeSettingsLogoutDialog();
+  });
+
+  const dialog = document.querySelector<HTMLElement>("[role=dialog][aria-labelledby=settings-logout-title]");
+  dialog?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSettingsLogoutDialog();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>("button:not([disabled])"));
+    if (!focusable.length) return;
+    const index = focusable.indexOf(document.activeElement as HTMLElement);
+    if (event.shiftKey && index === 0) {
+      event.preventDefault();
+      focusable[focusable.length - 1]?.focus();
+    } else if (!event.shiftKey && index === focusable.length - 1) {
+      event.preventDefault();
+      focusable[0]?.focus();
+    }
+  });
+
+  document.querySelector<HTMLFormElement>("[data-settings-account-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitSettingsForm(event.currentTarget as HTMLFormElement);
+  });
 }
 
 function renderAuth() {
@@ -1102,6 +1376,12 @@ function renderRoute() {
     destroyTextReader();
     renderLibrary();
     if (libraryState.loading) void loadLibrary("", "initial");
+    return;
+  }
+  if (isSettingsRoute()) {
+    destroyTextReader();
+    renderSettings();
+    if (settingsState.phase === "loading" && !settingsRequestInFlight) void loadSettings();
     return;
   }
   if (!isConversationRoute()) {
