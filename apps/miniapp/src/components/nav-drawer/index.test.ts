@@ -109,14 +109,14 @@ describe("miniapp navigation drawer visual contract", () => {
   });
 
   it("keeps scenery below the current conversation on short screens", () => {
-    const shortScreenRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
-    expect(shortScreenRule).toContain("height: 56px");
+    const shortScreenRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{[\s\S]*?\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(shortScreenRule).toContain("height: 72px");
   });
 
   it("shrinks scenery progressively before the short drawer content band", () => {
     const regularRule = drawerWxss.match(/\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
     const compactRule = drawerWxss.match(/@media \(max-height: 700px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
-    const shortRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const shortRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{[\s\S]*?\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
     const readHeight = (rule: string) => Number(rule.match(/height:\s*(\d+)px/)?.[1] ?? NaN);
 
     const regularHeight = readHeight(regularRule);
@@ -126,6 +126,22 @@ describe("miniapp navigation drawer visual contract", () => {
     expect(regularHeight).toBe(140);
     expect(compactHeight).toBeLessThan(regularHeight);
     expect(shortHeight).toBeLessThan(compactHeight);
+  });
+
+  it("keeps the compact short-screen rhythm above the bottom navigation", () => {
+    const shortMediaStart = drawerWxss.indexOf("@media (max-height: 600px)");
+    const shortMedia = shortMediaStart >= 0 ? drawerWxss.slice(shortMediaStart) : "";
+    const shortSlot = shortMedia.match(/\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const bottomOffset = Number(shortSlot.match(/bottom:\s*calc\([^+]+\+\s*(\d+)px\)/)?.[1] ?? NaN);
+    const compactTouchHeights = [...shortMedia.matchAll(/min-height:\s*(\d+)px/g)].map((match) => Number(match[1]));
+
+    expect(bottomOffset).toBeGreaterThanOrEqual(154);
+    expect(shortMedia).toContain(".drawer-panel");
+    expect(shortMedia).toContain(".drawer-new");
+    expect(shortMedia).toContain(".drawer-search");
+    expect(shortMedia).toContain(".drawer-section-title");
+    expect(compactTouchHeights.length).toBeGreaterThan(0);
+    expect(Math.min(...compactTouchHeights)).toBeGreaterThanOrEqual(44);
   });
 
   it("ships the scenery as a compact indexed PNG with explicit transparency", () => {
