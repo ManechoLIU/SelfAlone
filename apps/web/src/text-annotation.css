@@ -1,0 +1,121 @@
+.text-reader-shell .text-annotation-layer,
+.text-reader-shell .text-annotation-layer * { box-sizing: border-box; }
+
+.text-annotation-layer {
+  position: relative;
+  z-index: 18;
+  width: min(720px, calc(100% - 48px));
+  margin: -8vh auto 20px;
+  color: var(--reader-ink, #21312d);
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+.text-annotation-summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--reader-line, #cbd8d3) 82%, transparent);
+  color: var(--reader-muted, #53655f);
+  font-size: 13px;
+}
+
+.text-annotation-summary > span:first-child { color: var(--reader-ink, #21312d); font-weight: 600; }
+.text-annotation-status { min-width: 0; flex: 1; font-size: 12px; }
+.text-annotation-status.is-error { color: #b44432; }
+.text-annotation-status button { min-width: 44px; min-height: 44px; border: 0; padding: 0 8px; color: #0d6a57; background: transparent; font-weight: 600; cursor: pointer; }
+.text-annotation-detail-link {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--reader-line, #cbd8d3);
+  border-radius: 8px;
+  color: var(--reader-ink, #21312d);
+  background: transparent;
+  cursor: pointer;
+}
+
+.text-annotation-selection-menu,
+.text-annotation-thought {
+  position: fixed;
+  z-index: 60;
+  color: #21312d;
+  background: #fff;
+  border: 1px solid #cbd8d3;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(33,49,45,.14);
+}
+
+.text-annotation-selection-menu {
+  min-height: 44px;
+  display: flex;
+  max-width: min(520px, calc(100vw - 16px));
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+}
+
+.text-annotation-selection-menu button,
+.text-annotation-selection-menu a,
+.text-annotation-thought button {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  color: #21312d;
+  background: transparent;
+  font: 500 13px/1.4 "PingFang SC", "Microsoft YaHei", sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.text-annotation-selection-menu button:hover,
+.text-annotation-selection-menu a:hover,
+.text-annotation-thought button:hover { background: #eff5f2; }
+.text-annotation-selection-menu a { color: #0d6a57; }
+.text-annotation-selection-menu [data-annotation-chat][disabled] { color: #7b8b85; cursor: not-allowed; opacity: .68; }
+
+.text-annotation-thought { width: min(340px, calc(100vw - 24px)); padding: 14px; }
+.text-annotation-thought label { display: block; color: #21312d; font-size: 13px; font-weight: 600; }
+.text-annotation-thought textarea { width: 100%; min-height: 72px; margin-top: 8px; resize: vertical; border: 1px solid #cbd8d3; border-radius: 6px; padding: 8px; color: #21312d; background: #f8faf6; line-height: 1.5; }
+.text-annotation-thought div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.text-annotation-thought .text-annotation-primary { color: #fff; background: #0d6a57; }
+.text-annotation-inline-error { flex: 1 1 100%; margin: 0; color: #b44432; font-size: 12px; line-height: 1.5; }
+
+.text-reader-prose mark[data-annotation-highlight-id] { padding: 0 .08em; border-bottom: 2px solid #3f8b75; color: inherit; background: #d9eae3; }
+.text-reader-shell.is-dark .text-reader-prose mark[data-annotation-highlight-id] { color: #edf2ef; background: #2b3833; border-bottom-color: #74b49c; }
+
+.text-annotation-selection-menu :focus-visible,
+.text-annotation-thought :focus-visible,
+.text-annotation-detail-link:focus-visible,
+.text-annotation-status button:focus-visible { outline: 2px solid #0d6a57; outline-offset: 2px; }
+
+.text-reader-shell.is-dark .text-annotation-selection-menu,
+.text-reader-shell.is-dark .text-annotation-thought {
+  color: var(--reader-ink);
+  background: #202624;
+  border-color: var(--reader-line);
+  box-shadow: 0 8px 24px rgba(0,0,0,.32);
+}
+.text-reader-shell.is-dark .text-annotation-selection-menu button,
+.text-reader-shell.is-dark .text-annotation-thought button,
+.text-reader-shell.is-dark .text-annotation-thought label { color: var(--reader-ink); }
+.text-reader-shell.is-dark .text-annotation-selection-menu button:hover,
+.text-reader-shell.is-dark .text-annotation-thought button:hover { background: #2b3833; }
+.text-reader-shell.is-dark .text-annotation-thought textarea { color: var(--reader-ink); background: #171b1a; border-color: var(--reader-line); }
+
+@media (max-width: 768px) {
+  .text-annotation-layer { width: calc(100% - 32px); margin-top: -6vh; }
+  .text-annotation-summary { flex-wrap: wrap; }
+  .text-annotation-status { order: 3; flex-basis: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-annotation-selection-menu,
+  .text-annotation-thought { animation: none; }
+}

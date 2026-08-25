@@ -3,6 +3,7 @@ import type {
   ReaderBackground,
   SaveTextPositionRequest,
   TextLocator,
+  TextHighlight,
   TextReaderSection,
   TextReaderSections,
   TextReading,
@@ -13,6 +14,7 @@ export type {
   TextLocator,
   TextReaderSection,
   TextReading,
+  TextHighlight,
 } from "@selfalone/contracts";
 
 export type PendingReaderSave = {
@@ -32,6 +34,8 @@ export type TextReaderSnapshot = {
   sections: TextReaderSection[];
   pendingSave: PendingReaderSave | null;
   saveError: string;
+  /** Persisted text highlights are supplied by the private annotation seam. */
+  highlights?: TextHighlight[];
 };
 
 export type TextReaderApi = {

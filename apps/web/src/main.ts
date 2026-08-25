@@ -24,7 +24,8 @@ import {
   createLibraryPollingScheduler,
   createLatestLibraryRequest,
   libraryViewState,
-  libraryBookHref,
+  libraryBookDetailHref,
+  bookDetailIdFromHash,
   parseStatusLabel,
   readingBookIdFromHash,
   type LibraryLoadState,
@@ -289,7 +290,7 @@ function libraryGrid(books: LibraryBookSummary[]) {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
       const coverStatus = coverStatusLabel(book.parseStatus, book.errorCode);
-      const href = libraryBookHref(book);
+      const href = libraryBookDetailHref(book);
       const tag = href ? "a" : "article";
       const target = href ? ` href="${href}"` : "";
       return `<${tag} class="book-item ${book.parseStatus}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
@@ -811,12 +812,23 @@ function destroyTextReader() {
   activeTextReader = null;
 }
 
-async function openTextReader(bookId: string, navigationId: number) {
+async function openTextReader(bookId: string, navigationId: number, initialDetailOpen = false) {
   app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
   const api = createTextReaderApi(bookId);
+  const isCurrentBookRoute = () => (
+    readingBookIdFromHash(window.location.hash) === bookId
+    || bookDetailIdFromHash(window.location.hash) === bookId
+  );
+  const onDetailClose = initialDetailOpen
+    ? () => {
+        if (bookDetailIdFromHash(window.location.hash) !== bookId) return;
+        window.history.replaceState(null, "", "#/library");
+        scheduleRouteRender();
+      }
+    : undefined;
   try {
     const reading = await api.loadReading();
-    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
+    if (navigationId !== routeGeneration || !isCurrentBookRoute()) return;
     const prefetchedApi = {
       ...api,
       loadReading: async () => reading as TextReading,
@@ -824,6 +836,9 @@ async function openTextReader(bookId: string, navigationId: number) {
     activeTextReader = mountTextReader(app, {
       bookId,
       api: prefetchedApi,
+      accountId: "account-development-local",
+      initialDetailOpen,
+      onDetailClose,
       cacheScope: {
         accountId: "account-development-local",
         bookId,
@@ -831,8 +846,14 @@ async function openTextReader(bookId: string, navigationId: number) {
       },
     });
   } catch {
-    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
-    activeTextReader = mountTextReader(app, { bookId, api });
+    if (navigationId !== routeGeneration || !isCurrentBookRoute()) return;
+    activeTextReader = mountTextReader(app, {
+      bookId,
+      api,
+      accountId: "account-development-local",
+      initialDetailOpen,
+      onDetailClose,
+    });
   }
 }
 
@@ -844,6 +865,12 @@ function renderRoute() {
     window.history.replaceState(null, "", "#/library");
   }
   const readingBookId = readingBookIdFromHash(window.location.hash);
+  const bookDetailId = bookDetailIdFromHash(window.location.hash);
+  if (bookDetailId) {
+    destroyTextReader();
+    void openTextReader(bookDetailId, navigationId, true);
+    return;
+  }
   if (readingBookId) {
     destroyTextReader();
     void openTextReader(readingBookId, navigationId);

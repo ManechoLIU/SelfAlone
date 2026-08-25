@@ -10,6 +10,12 @@ import {
   type TextReaderApi,
 } from "./text-reader-state";
 import { renderTextReader } from "./text-reader-view";
+import {
+  createTextAnnotationApi,
+  createTextAnnotationController,
+  type TextAnnotationChatHandoff,
+  type TextAnnotationApi,
+} from "./text-annotation";
 
 export type ReaderBackgroundCacheScope = {
   accountId: string;
@@ -153,6 +159,11 @@ export function mountTextReader(
   options: {
     bookId: string;
     api?: TextReaderApi;
+    annotationApi?: TextAnnotationApi;
+    accountId?: string;
+    onChatHandoff?: TextAnnotationChatHandoff;
+    onDetailClose?: () => void;
+    initialDetailOpen?: boolean;
     cacheScope?: ReaderBackgroundCacheScope;
     storage?: ReaderBackgroundStorage | null;
     writeClipboard?: (value: string) => Promise<void>;
@@ -165,6 +176,21 @@ export function mountTextReader(
     options.api ?? createTextReaderApi(options.bookId),
     readCachedReaderBackground(storage, cacheScope) ?? "light",
   );
+  const annotationController = createTextAnnotationController({
+    bookId: options.bookId,
+    api: options.annotationApi ?? createTextAnnotationApi(options.bookId, fetch, options.accountId ?? ""),
+    getReaderContext: () => ({
+      root,
+      sections: model.snapshot.sections.map((section) => ({
+        ...section,
+        fileVersion: model.snapshot.reading?.fileVersion ?? 0,
+      })),
+      reading: model.snapshot.reading,
+    }),
+    onRender: () => render(),
+    onChatHandoff: options.onChatHandoff,
+    onDetailClose: options.onDetailClose,
+  });
   let scrollTimer: number | undefined;
   let copyStatusTimer: number | undefined;
   let restoringPosition = false;
@@ -349,8 +375,13 @@ export function mountTextReader(
             : active?.classList.contains("text-reader-main")
               ? ".text-reader-main"
               : null;
-    root.innerHTML = renderTextReader(model.snapshot);
+    root.innerHTML = renderTextReader({
+      ...model.snapshot,
+      highlights: annotationController.model.snapshot.highlights,
+    });
     bindInteractions();
+    annotationController.render(root);
+    annotationController.bind(root);
     updateSelectionActions();
     if (options.restore) {
       restoringPosition = true;
@@ -379,6 +410,8 @@ export function mountTextReader(
     } catch {
       // The model provides the actionable retained failure state.
     }
+    await annotationController.load();
+    if (options.initialDetailOpen) await annotationController.openDetails();
     render({ restore: !model.snapshot.error });
   }
 
@@ -391,6 +424,8 @@ export function mountTextReader(
       if (copyStatusTimer) window.clearTimeout(copyStatusTimer);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("keydown", onKeyDown);
+      annotationController.destroy();
     },
+    annotations: annotationController,
   };
 }

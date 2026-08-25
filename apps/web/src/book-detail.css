@@ -1,0 +1,111 @@
+.book-detail-private,
+.book-detail-private * { box-sizing: border-box; }
+
+.book-detail-private {
+  position: fixed;
+  z-index: 45;
+  inset: 0 0 0 var(--reader-rail, 184px);
+  overflow-y: auto;
+  color: var(--reader-ink, #21312d);
+  background: var(--reader-paper, #f3f5f5);
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+}
+
+.book-detail-private [hidden] { display: none !important; }
+
+.book-detail-header {
+  width: min(944px, calc(100% - 64px));
+  min-height: 116px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin: 0 auto;
+  padding: 28px 0 22px;
+  border-bottom: 1px solid var(--reader-line, #cbd8d3);
+}
+
+.book-detail-kicker { color: var(--reader-muted, #5f6f69); font-size: 12px; letter-spacing: .08em; }
+.book-detail-header h1 { margin: 4px 0 0; color: var(--reader-ink, #174c3f); font: 600 24px/1.35 "Songti SC", "STSong", serif; }
+.book-detail-header p { margin: 4px 0 0; color: var(--reader-muted, #5f6f69); font-size: 13px; }
+.book-detail-close { width: 44px; height: 44px; border: 0; color: var(--reader-muted, #5f6f69); background: transparent; font-size: 28px; line-height: 1; cursor: pointer; }
+.book-detail-primary,
+.book-detail-secondary {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.book-detail-primary { border: 1px solid #0d6a57; color: #fff; background: #0d6a57; }
+.book-detail-secondary { border: 1px solid var(--reader-line, #cbd8d3); color: var(--reader-ink, #21312d); background: transparent; }
+
+.book-detail-tabs {
+  width: min(944px, calc(100% - 64px));
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--reader-line, #cbd8d3);
+}
+.book-detail-tabs a,
+.book-detail-tabs button,
+.book-detail-tabs span { min-height: 52px; display: inline-flex; align-items: center; padding: 0; border: 0; border-bottom: 2px solid transparent; color: var(--reader-muted, #5f6f69); background: transparent; font-size: 14px; cursor: pointer; text-decoration: none; }
+.book-detail-tablist { display: flex; gap: 24px; }
+.book-detail-tabs button[aria-selected="true"] { border-bottom-color: #0d6a57; color: var(--reader-ink, #174c3f); font-weight: 600; }
+.book-detail-tabs a:hover,
+.book-detail-tabs a:focus-visible { color: var(--reader-ink, #174c3f); }
+.book-detail-tabs span[aria-disabled="true"] { opacity: .52; cursor: default; }
+.book-detail-tabs button:focus-visible { outline: 2px solid #0d6a57; outline-offset: 2px; }
+
+.book-detail-flow { width: min(944px, calc(100% - 64px)); margin: 0 auto; padding: 10px 0 80px; }
+.book-detail-section + .book-detail-section { margin-top: 44px; }
+.book-detail-section h2 { margin: 0; padding: 18px 0 14px; color: var(--reader-ink, #174c3f); font: 600 18px/1.45 "Songti SC", "STSong", serif; }
+.book-detail-highlight-row,
+.book-detail-note-row { padding: 18px 0 20px; border-top: 1px solid var(--reader-line, #cbd8d3); }
+.book-detail-highlight-row:last-child,
+.book-detail-note-row:last-child { border-bottom: 1px solid var(--reader-line, #cbd8d3); }
+.book-detail-private blockquote { margin: 0; padding: 0 0 0 16px; border-left: 3px solid #3f8b75; color: var(--reader-muted, #5f6f69); font: 16px/1.75 "Songti SC", "STSong", serif; }
+.book-detail-row-meta { display: flex; gap: 12px; margin-top: 10px; color: var(--reader-muted, #5f6f69); font-size: 12px; line-height: 18px; }
+.book-detail-row-meta time { color: var(--reader-muted, #788780); }
+.book-detail-thought,
+.book-detail-note-body { margin: 12px 0 0; color: var(--reader-ink, #21312d); font-size: 15px; line-height: 1.8; white-space: normal; }
+.book-detail-muted,
+.book-detail-empty { margin: 12px 0; color: var(--reader-muted, #788780); font-size: 14px; line-height: 1.7; }
+.book-detail-row-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.book-detail-row-actions button { min-height: 44px; min-width: 44px; padding: 0 8px; border: 0; color: var(--reader-muted, #5f6f69); background: transparent; font-size: 13px; cursor: pointer; }
+.book-detail-row-actions button:hover { color: #0d6a57; }
+
+.book-detail-note-editor { padding: 18px 0 20px; border-top: 1px solid var(--reader-line, #cbd8d3); }
+.book-detail-note-editor label { display: block; color: var(--reader-ink, #174c3f); font-size: 14px; font-weight: 600; }
+.book-detail-note-editor textarea { display: block; width: 100%; margin-top: 10px; resize: vertical; border: 1px solid var(--reader-line, #cbd8d3); border-radius: 8px; padding: 12px; color: var(--reader-ink, #21312d); background: var(--reader-paper, #f8faf6); font: 15px/1.8 "PingFang SC", "Microsoft YaHei", sans-serif; }
+.book-detail-editor-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.book-detail-editor-actions button { min-height: 44px; padding: 0 14px; border: 1px solid var(--reader-line, #cbd8d3); border-radius: 8px; color: var(--reader-ink, #21312d); background: transparent; cursor: pointer; }
+.book-detail-editor-actions .book-detail-primary { border-color: #0d6a57; color: #fff; background: #0d6a57; }
+.book-detail-save-error { margin: 10px 0 0; color: #b44432; font-size: 13px; line-height: 1.6; }
+.book-detail-save-error button { min-width: 44px; min-height: 44px; margin-left: 8px; border: 0; padding: 0 10px; color: #0d6a57; background: transparent; font-weight: 600; cursor: pointer; }
+.book-detail-state { width: min(520px, calc(100% - 48px)); min-height: 360px; display: flex; flex-direction: column; justify-content: center; gap: 10px; margin: 0 auto; color: var(--reader-muted, #5f6f69); text-align: center; }
+.book-detail-state strong { color: var(--reader-ink, #174c3f); font: 600 20px/1.4 "Songti SC", "STSong", serif; }
+.book-detail-state button { align-self: center; min-height: 44px; margin-top: 8px; padding: 0 16px; border: 1px solid #0d6a57; border-radius: 8px; color: #fff; background: #0d6a57; cursor: pointer; }
+.book-detail-close:focus-visible,
+.book-detail-tab-link:focus-visible,
+.book-detail-primary:focus-visible,
+.book-detail-secondary:focus-visible,
+.book-detail-row-actions button:focus-visible,
+.book-detail-editor-actions button:focus-visible,
+.book-detail-note-editor textarea:focus-visible,
+.book-detail-save-error button:focus-visible { outline: 2px solid #0d6a57; outline-offset: 2px; }
+
+@media (max-width: 768px) {
+  .book-detail-header,
+  .book-detail-tabs,
+  .book-detail-flow { width: calc(100% - 32px); }
+  .book-detail-header { grid-template-columns: 44px minmax(0, 1fr); }
+  .book-detail-header > .book-detail-primary,
+  .book-detail-header > .book-detail-secondary { grid-column: 2; justify-self: start; }
+  .book-detail-tabs { gap: 18px; overflow-x: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .book-detail-private * { scroll-behavior: auto; }
+}

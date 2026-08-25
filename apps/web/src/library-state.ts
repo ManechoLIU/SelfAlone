@@ -146,6 +146,22 @@ export function libraryBookHref(book: LibraryBookSummary) {
     : null;
 }
 
+export function libraryBookDetailHref(book: LibraryBookSummary) {
+  return book.parseStatus === "ready_text"
+    ? `#/book/${encodeURIComponent(book.id)}`
+    : null;
+}
+
+export function bookDetailIdFromHash(hash: string) {
+  const match = hash.match(/^#\/book\/([^/?#]+)$/);
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 export function readingBookIdFromHash(hash: string) {
   const match = hash.match(/^#\/reading\/([^/?#]+)$/);
   if (!match?.[1]) return null;

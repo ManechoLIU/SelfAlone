@@ -148,7 +148,6 @@ describe("M1-F2-B desktop text reader state", () => {
     })).toEqual([{ offset: 0, text: "第一章 风从海上来\n正文保留 EPUB 原始结构。" }]);
   });
 });
-
 describe("M1-F2-B desktop text reader view", () => {
   it("uses a private light/dark shell and falls closed to light without trusted cache", () => {
     const dark = renderTextReader(snapshot);
@@ -237,6 +236,34 @@ describe("M1-F2-B desktop text reader view", () => {
     expect(html).toContain('data-section-id="epub:two"');
     expect(html).not.toContain("继续阅读本章");
     expect(html).not.toContain("laoji-mascot-seated-reading");
+  });
+
+  it("leaves a private annotation and book-detail seam inside the reader without changing the shared route", () => {
+    const html = renderTextReader(snapshot);
+    expect(html).toContain('data-text-annotation-root');
+    expect(html).toContain('data-reader-book-detail');
+    expect(html).toContain("划线与笔记");
+    expect(html).toMatch(/data-reader-book-detail[^>]*>[\s\S]*<svg/);
+  });
+
+  it("renders persisted highlights as real marks without turning the first line into a title", () => {
+    const html = renderTextReader({
+      ...snapshot,
+      highlights: [{
+        id: "highlight-1",
+        bookId: "book-1",
+        locator: { kind: "text", fileVersion: 2, sectionId: "epub:one", offset: 0 },
+        endOffset: 3,
+        quote: "第一段",
+        thought: null,
+        version: 1,
+        createdAt: "2026-08-25T00:00:00.000Z",
+        updatedAt: "2026-08-25T00:00:00.000Z",
+      }],
+    });
+    expect(html).toContain('data-annotation-highlight-id="highlight-1"');
+    expect(html).toContain("<mark");
+    expect(html).not.toContain('name="title"');
   });
 
   it("removes non-reading toolbar actions and empty grid columns in focus mode", () => {
