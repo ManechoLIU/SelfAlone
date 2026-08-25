@@ -144,6 +144,20 @@ describe("miniapp navigation drawer visual contract", () => {
     expect(Math.min(...compactTouchHeights)).toBeGreaterThanOrEqual(44);
   });
 
+  it("keeps short-screen scenery on one controllable fade source", () => {
+    const regularSceneryRule = drawerWxss.match(/\.drawer-scenery\s*\{([^}]*)\}/)?.[1] ?? "";
+    const compactMedia = drawerWxss.match(/@media \(max-height: 700px\)\s*\{([\s\S]*?)@media \(max-height: 600px\)/)?.[1] ?? "";
+    const shortMediaStart = drawerWxss.indexOf("@media (max-height: 600px)");
+    const shortMedia = shortMediaStart >= 0 ? drawerWxss.slice(shortMediaStart) : "";
+    const compactSlotRule = compactMedia.match(/\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const shortSlotRule = shortMedia.match(/\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const slotMasks = (rule: string) => rule.match(/(?:-webkit-)?mask-image\s*:/g) ?? [];
+
+    expect(slotMasks(regularSceneryRule)).toHaveLength(2);
+    expect(slotMasks(compactSlotRule)).toHaveLength(0);
+    expect(slotMasks(shortSlotRule)).toHaveLength(0);
+  });
+
   it("ships the scenery as a compact indexed PNG with explicit transparency", () => {
     // @ts-expect-error Vitest runs this contract in Node; Mini production types intentionally exclude URL globals.
     const asset = readFileSync(new URL("../../assets/backgrounds/mobile-drawer-landscape-transparent-cropped-v1-mirrored.png", import.meta.url));

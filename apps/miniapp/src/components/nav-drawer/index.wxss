@@ -218,8 +218,6 @@
 @media (max-height: 700px) {
   .drawer-scenery-slot {
     height: 88px;
-    mask-image: linear-gradient(to bottom, transparent 0, rgba(0,0,0,.14) 24px, #000 88px);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0,0,0,.14) 24px, #000 88px);
   }
 }
 
@@ -254,8 +252,6 @@
   .drawer-scenery-slot {
     bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 154px);
     height: 72px;
-    mask-image: linear-gradient(to bottom, transparent 0, rgba(0,0,0,.14) 20px, #000 72px);
-    -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0,0,0,.14) 20px, #000 72px);
   }
 }
 
