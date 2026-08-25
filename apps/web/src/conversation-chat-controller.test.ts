@@ -210,6 +210,118 @@ describe("conversation chat controller", () => {
     await second;
   });
 
+  it("does not let a stale hydrate success overwrite a local send", async () => {
+    let resolveHydrate: ((value: ConversationChatSession) => void) | undefined;
+    let rejectSend: ((error: Error) => void) | undefined;
+    const client = {
+      getSession() {
+        return new Promise<ConversationChatSession>((resolve) => {
+          resolveHydrate = resolve;
+        });
+      },
+      sendText(): Promise<ConversationChatSendResult> {
+        return new Promise((_, reject) => {
+          rejectSend = reject;
+        });
+      },
+    };
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => "request-local",
+    });
+
+    const hydrating = controller.hydrate();
+    controller.setDraft("本地发送内容");
+    const sending = controller.send();
+    resolveHydrate?.(session({ revision: 2, draft: null, context: [] }));
+    await hydrating;
+
+    expect(controller.getState()).toMatchObject({
+      draft: "本地发送内容",
+      status: "sending",
+      retryRequestId: "request-local",
+      retryText: "本地发送内容",
+    });
+
+    rejectSend?.(new Error("network unavailable"));
+    await sending;
+  });
+
+  it("does not let a stale hydrate failure overwrite a local send", async () => {
+    let rejectHydrate: ((error: Error) => void) | undefined;
+    let rejectSend: ((error: Error) => void) | undefined;
+    const client = {
+      getSession() {
+        return new Promise<ConversationChatSession>((_, reject) => {
+          rejectHydrate = reject;
+        });
+      },
+      sendText(): Promise<ConversationChatSendResult> {
+        return new Promise((_, reject) => {
+          rejectSend = reject;
+        });
+      },
+    };
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => "request-local",
+    });
+
+    const hydrating = controller.hydrate();
+    controller.setDraft("本地失败内容");
+    const sending = controller.send();
+    rejectHydrate?.(new Error("stale hydrate failure"));
+    await hydrating;
+
+    expect(controller.getState()).toMatchObject({
+      draft: "本地失败内容",
+      status: "sending",
+      retryRequestId: "request-local",
+      retryText: "本地失败内容",
+    });
+
+    rejectSend?.(new Error("network unavailable"));
+    await sending;
+  });
+
+  it("restores an active server run as a sending lock", async () => {
+    let sendCount = 0;
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        async getSession() {
+          return session({
+            revision: 3,
+            draft: { text: "服务端正在处理", attachments: [] },
+            context: [{ id: "request-active:user", role: "user", text: "服务端正在处理", requestId: "request-active" }],
+            activeRun: {
+              requestId: "request-active",
+              kind: "response",
+              status: "running",
+              startedRevision: 3,
+            },
+          });
+        },
+        async sendText(): Promise<ConversationChatSendResult> {
+          sendCount += 1;
+          throw new Error("should remain locked");
+        },
+      },
+      requestIdFactory: () => "request-new",
+    });
+
+    await controller.hydrate();
+    expect(controller.getState()).toMatchObject({
+      draft: "服务端正在处理",
+      status: "sending",
+      retryRequestId: "request-active",
+    });
+    await controller.send();
+    expect(sendCount).toBe(0);
+  });
+
   it("does not issue a second request while a send is in flight", async () => {
     let resolveSend: ((result: ConversationChatSendResult) => void) | undefined;
     let sendCount = 0;

@@ -38,6 +38,8 @@ export function createConversationChatController(
 ): ConversationChatController {
   let state = createConversationChatState(options.conversationId);
   const listeners = new Set<ConversationChatStateListener>();
+  let localEpoch = 0;
+  let hydrateGeneration = 0;
 
   function publish(nextState: ConversationChatState) {
     state = nextState;
@@ -62,15 +64,20 @@ export function createConversationChatController(
 
     setDraft(draft) {
       if (state.status === "sending") return;
+      localEpoch += 1;
       publish(updateConversationDraft(state, draft));
     },
 
     async hydrate() {
+      const requestEpoch = localEpoch;
+      const requestGeneration = ++hydrateGeneration;
       try {
         const session = await options.client.getSession(options.conversationId);
+        if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
         const nextState = applyConversationSnapshot(state, session);
         publish(nextState);
       } catch (error) {
+        if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
         publish({
           ...state,
           status: "error",
@@ -88,15 +95,18 @@ export function createConversationChatController(
       const id = state.retryRequestId && state.retryText === text
         ? state.retryRequestId
         : requestId();
+      localEpoch += 1;
       publish(beginConversationSend(state, id));
       try {
         const result = await options.client.sendText(options.conversationId, {
           requestId: id,
           text,
         });
+        localEpoch += 1;
         publish(applyConversationSendResult(state, result));
         return result;
       } catch (error) {
+        localEpoch += 1;
         publish({
           ...state,
           status: "error",

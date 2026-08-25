@@ -145,7 +145,7 @@ export function applyConversationSnapshot(
     retryRequestId,
     retryText: retryRequestId ? session.draft?.text ?? null : null,
     messages: session.context.map((entry) => ({ ...entry })),
-    status: "idle",
+    status: session.activeRun ? "sending" : "idle",
     errorCode: null,
   };
 }
