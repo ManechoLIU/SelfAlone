@@ -162,6 +162,54 @@ describe("conversation chat controller", () => {
     expect(requestIds).toEqual(["request-1:同一段话", "request-2:同一段话"]);
   });
 
+  it("ignores draft edits while sending and retries the retained text with its original id", async () => {
+    const requestIds: string[] = [];
+    let rejectSend: ((error: Error) => void) | undefined;
+    const client = {
+      async getSession() {
+        return session();
+      },
+      sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+        requestIds.push(`${input.requestId}:${input.text}`);
+        return new Promise((_, reject) => {
+          rejectSend = reject;
+        });
+      },
+    };
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => "request-in-flight",
+    });
+
+    controller.setDraft("发送中的原文");
+    const first = controller.send();
+    controller.setDraft("不应写入的改动");
+
+    expect(controller.getState()).toMatchObject({
+      draft: "发送中的原文",
+      status: "sending",
+      retryRequestId: "request-in-flight",
+      retryText: "发送中的原文",
+    });
+
+    rejectSend?.(new Error("network unavailable"));
+    await first;
+    expect(controller.getState()).toMatchObject({
+      draft: "发送中的原文",
+      status: "error",
+      retryRequestId: "request-in-flight",
+    });
+
+    const second = controller.send();
+    expect(requestIds).toEqual([
+      "request-in-flight:发送中的原文",
+      "request-in-flight:发送中的原文",
+    ]);
+    rejectSend?.(new Error("network unavailable"));
+    await second;
+  });
+
   it("does not issue a second request while a send is in flight", async () => {
     let resolveSend: ((result: ConversationChatSendResult) => void) | undefined;
     let sendCount = 0;

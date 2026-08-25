@@ -61,6 +61,7 @@ export function createConversationChatController(
     },
 
     setDraft(draft) {
+      if (state.status === "sending") return;
       publish(updateConversationDraft(state, draft));
     },
 

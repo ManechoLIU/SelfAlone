@@ -145,6 +145,7 @@ describe("conversation chat view", () => {
     expect(rendered.main).toContain('aria-busy="true"');
     expect(rendered.main).toContain('data-conversation-chat-send');
     expect(rendered.main).toMatch(/data-conversation-chat-send[^>]*disabled/);
+    expect(rendered.main).toMatch(/data-conversation-chat-input[^>]*readonly/);
     expect(rendered.main).toContain("Enter 发送，Shift+Enter 换行");
   });
 

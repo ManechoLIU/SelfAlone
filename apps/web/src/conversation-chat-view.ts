@@ -43,7 +43,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
           <img class="conversation-chat-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" aria-hidden="true" />
           <label class="conversation-chat-input-label" for="conversation-chat-input-${escapeHtml(state.conversationId)}">
             <span class="visually-hidden">消息</span>
-            <textarea id="conversation-chat-input-${escapeHtml(state.conversationId)}" name="message" data-conversation-chat-input rows="1" value="${escapeHtml(state.draft)}" placeholder="写下想与老己说的话" autocomplete="off" spellcheck="true" aria-describedby="conversation-chat-status-${escapeHtml(state.conversationId)}"${isSending ? " aria-disabled=\"true\"" : ""}>${escapeHtml(state.draft)}</textarea>
+            <textarea id="conversation-chat-input-${escapeHtml(state.conversationId)}" name="message" data-conversation-chat-input rows="1" value="${escapeHtml(state.draft)}" placeholder="写下想与老己说的话" autocomplete="off" spellcheck="true" aria-describedby="conversation-chat-status-${escapeHtml(state.conversationId)}"${isSending ? " readonly aria-disabled=\"true\"" : ""}>${escapeHtml(state.draft)}</textarea>
           </label>
           <button class="conversation-chat-send" data-conversation-chat-send type="submit"${isSending || !hasDraft ? " disabled" : ""}>发送</button>
           <span id="conversation-chat-status-${escapeHtml(state.conversationId)}" class="conversation-chat-status-wrap">${statusNotice}<span class="conversation-chat-composer-help">Enter 发送，Shift+Enter 换行</span></span>
