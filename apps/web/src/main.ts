@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./book-detail.css";
+import { ApiError, requestJson as requestAuthJson } from "./api";
 import {
   conversationHash,
   outlineDraftStorageKey,
@@ -17,8 +18,20 @@ import {
   type WorkspaceScreen,
   type WorkspaceSnapshot,
 } from "./app-state";
+import {
+  authErrorField,
+  authErrorMessage,
+  authHash,
+  createAuthState,
+  parseAuthHash,
+  resolveSession,
+  setAuthMode,
+  validateAuthInput,
+  type AuthState,
+} from "./auth-state";
+import { renderAuthPage } from "./auth-page";
 import { bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash } from "./book-detail-state";
-import type { LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
+import type { AuthAccountResponse, LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
 import {
   authorLabel,
   bindLibrarySearchInteractions,
@@ -48,6 +61,10 @@ if (!appRoot) {
 }
 const app: HTMLDivElement = appRoot;
 
+let authState: AuthState = createAuthState(parseAuthHash(window.location.hash).mode);
+let authDialogOpen = false;
+let authRecoveryFinished = false;
+let authRecoveryPromise: Promise<void> | null = null;
 let workspace: WorkspaceSnapshot | null = null;
 let busy = false;
 let errorMessage = "";
@@ -99,6 +116,174 @@ function readStageViewFromHash(): WorkspaceScreen | null {
 
 function isConversationRoute() {
   return window.location.hash.slice(1).split("?")[0] === "/conversation";
+}
+
+function isAuthRoute() {
+  return window.location.hash.startsWith("#/auth");
+}
+
+function renderAuth() {
+  app.innerHTML = renderAuthPage(authState, authDialogOpen);
+  bindAuthInteractions();
+}
+
+function focusAuthDialogInitial() {
+  document.querySelector<HTMLElement>("[data-auth-dialog-initial-focus]")?.focus();
+}
+
+function closeAuthDialog() {
+  if (!authDialogOpen) return;
+  authDialogOpen = false;
+  renderAuth();
+  document.querySelector<HTMLButtonElement>("[data-auth-wechat]")?.focus();
+}
+
+function handleAuthDialogKeydown(event: KeyboardEvent) {
+  if (!authDialogOpen) return;
+  const dialog = document.querySelector<HTMLElement>('[data-auth-dialog="true"]');
+  if (!dialog) return;
+
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closeAuthDialog();
+    return;
+  }
+  if (event.key !== "Tab") return;
+
+  const focusable = Array.from(dialog.querySelectorAll<HTMLElement>("[data-auth-dialog-focusable]")).filter(
+    (element) => !element.hasAttribute("disabled"),
+  );
+  if (focusable.length === 0) {
+    event.preventDefault();
+    return;
+  }
+  const activeIndex = focusable.indexOf(document.activeElement as HTMLElement);
+  if (activeIndex === -1) {
+    event.preventDefault();
+    focusable[0]?.focus();
+    return;
+  }
+  if (event.shiftKey && activeIndex === 0) {
+    event.preventDefault();
+    focusable[focusable.length - 1]?.focus();
+  } else if (!event.shiftKey && activeIndex === focusable.length - 1) {
+    event.preventDefault();
+    focusable[0]?.focus();
+  }
+}
+
+function bindAuthInteractions() {
+  document.querySelectorAll<HTMLButtonElement>("[data-auth-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.authMode;
+      if (mode !== "entry" && mode !== "login" && mode !== "register") return;
+      authState = setAuthMode(authState, mode);
+      window.history.pushState(null, "", authHash(mode));
+      renderAuth();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-auth-wechat]").forEach((button) => {
+    button.addEventListener("click", () => {
+      authDialogOpen = true;
+      renderAuth();
+      focusAuthDialogInitial();
+    });
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-auth-close]").forEach((button) => {
+    button.addEventListener("click", () => {
+      closeAuthDialog();
+    });
+  });
+  document.querySelector<HTMLDivElement>("[data-auth-dialog-backdrop]")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      closeAuthDialog();
+    }
+  });
+  const form = document.querySelector<HTMLFormElement>("[data-auth-form]");
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitAuthForm(form);
+  });
+}
+
+async function submitAuthForm(form: HTMLFormElement) {
+  const mode = form.dataset.authForm;
+  if (mode !== "login" && mode !== "register") return;
+  const formData = new FormData(form);
+  const next = {
+    email: String(formData.get("email") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    confirmPassword: String(formData.get("confirmPassword") ?? ""),
+  };
+  const fieldErrors = validateAuthInput(mode, next);
+  authState = {
+    ...authState,
+    ...next,
+    phase: Object.keys(fieldErrors).length > 0 ? "unauthenticated" : "submitting",
+    fieldErrors,
+    formError: "",
+  };
+  renderAuth();
+  if (Object.keys(fieldErrors).length > 0) return;
+  try {
+    const response = await requestAuthJson<AuthAccountResponse>(
+      mode === "register" ? "/api/v1/auth/email/register" : "/api/v1/auth/email/login",
+      {
+        method: "POST",
+        body: JSON.stringify({ email: next.email, password: next.password }),
+      },
+    );
+    authState = {
+      ...createAuthState("entry"),
+      phase: "authenticated",
+      account: response.account,
+    };
+    authRecoveryFinished = true;
+    window.history.replaceState(null, "", "#/library");
+    renderRoute();
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : undefined;
+    const field = authErrorField(code, mode);
+    authState = {
+      ...authState,
+      phase: "unauthenticated",
+      fieldErrors: field ? { [field]: authErrorMessage(code, mode) } : {},
+      formError: field ? "" : authErrorMessage(code, mode),
+    };
+    renderAuth();
+  }
+}
+
+async function recoverAuthSession() {
+  if (authRecoveryPromise) return authRecoveryPromise;
+  authState = { ...authState, phase: "recovering", formError: "" };
+  renderAuth();
+  authRecoveryPromise = (async () => {
+    try {
+      const response = await requestAuthJson<AuthAccountResponse>("/api/v1/account");
+      const session = resolveSession({ status: 200, account: response.account });
+      authState = { ...authState, ...session, formError: "" };
+      authRecoveryFinished = true;
+      if (isAuthRoute() || !window.location.hash) {
+        window.history.replaceState(null, "", "#/library");
+      }
+      renderRoute();
+    } catch (error) {
+      authRecoveryFinished = true;
+      const mode = parseAuthHash(window.location.hash).mode;
+      authState = {
+        ...createAuthState(mode),
+        formError: error instanceof ApiError && error.status === 401
+          ? ""
+          : "暂时无法连接老己服务，请稍后重试。",
+      };
+      if (!isAuthRoute()) window.history.replaceState(null, "", authHash(mode));
+      renderAuth();
+    } finally {
+      authRecoveryPromise = null;
+    }
+  })();
+  return authRecoveryPromise;
 }
 
 function conversationHref() {
@@ -854,11 +1039,11 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
     activeTextReader = mountTextReader(app, {
       bookId,
       api: prefetchedApi,
-      accountId: "account-development-local",
+      accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
       cacheScope: {
-        accountId: "account-development-local",
+        accountId: authState.account?.id ?? "account-development-local",
         bookId,
         fileVersion: reading.fileVersion,
       },
@@ -868,7 +1053,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
     activeTextReader = mountTextReader(app, {
       bookId,
       api,
-      accountId: "account-development-local",
+      accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
     });
@@ -879,6 +1064,23 @@ function renderRoute() {
   persistConversationScroll();
   routeGeneration += 1;
   const navigationId = routeGeneration;
+  if (!authRecoveryFinished) {
+    if (!window.location.hash) window.history.replaceState(null, "", authHash("entry"));
+    renderAuth();
+    void recoverAuthSession();
+    return;
+  }
+  if (isAuthRoute()) {
+    if (authState.phase === "authenticated") {
+      window.history.replaceState(null, "", "#/library");
+      renderRoute();
+      return;
+    }
+    authState = { ...authState, mode: parseAuthHash(window.location.hash).mode };
+    destroyTextReader();
+    renderAuth();
+    return;
+  }
   if (!window.location.hash) {
     window.history.replaceState(null, "", "#/library");
   }
@@ -932,6 +1134,7 @@ window.addEventListener("beforeunload", () => {
   persistConversationScroll();
   destroyTextReader();
 });
+window.addEventListener("keydown", handleAuthDialogKeydown);
 window.addEventListener("focusin", (event) => {
   if (isConversationRoute()) {
     conversationFocusKey = focusKeyForElement(event.target instanceof Element ? event.target : null) ?? conversationFocusKey;
@@ -939,5 +1142,5 @@ window.addEventListener("focusin", (event) => {
 });
 window.addEventListener("hashchange", scheduleRouteRender);
 window.addEventListener("popstate", scheduleRouteRender);
-if (!window.location.hash) window.history.replaceState(null, "", "#/library");
+if (!window.location.hash) window.history.replaceState(null, "", authHash("entry"));
 renderRoute();

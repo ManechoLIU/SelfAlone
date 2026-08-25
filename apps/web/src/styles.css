@@ -713,6 +713,368 @@ body { overflow-x: hidden; }
   .desktop-stage-steps { margin-top: 24px; }
   .desktop-conversation-header { padding-left: 18px; padding-right: 18px; }
 }
+
+/* Desktop account entry: the approved split composition is implemented with
+   live layout, formal assets and real controls rather than a screenshot. */
+.auth-page {
+  --auth-ink: #21312d;
+  --auth-muted: #5f6f69;
+  --auth-line: #cbd8d3;
+  --auth-accent: #0d6a57;
+  --auth-accent-strong: #174c3f;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(380px, 1.2fr) minmax(380px, .8fr);
+  overflow: hidden;
+  background: #f1f1ef;
+  color: var(--auth-ink);
+}
+
+.auth-brand-panel {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+  padding: 64px clamp(32px, 7vw, 104px);
+  background: #e7eae8;
+}
+
+.auth-brand-panel::before {
+  position: absolute;
+  z-index: -2;
+  content: "";
+  inset: -20% -16% 5% -18%;
+  border-radius: 0 0 58% 0;
+  background: #f8faf6;
+}
+
+.auth-brand-panel::after {
+  position: absolute;
+  z-index: 0;
+  right: -8%;
+  bottom: 24px;
+  left: -8%;
+  height: 34px;
+  content: "";
+  border-top: 1px solid rgba(95, 111, 105, .28);
+  border-bottom: 1px solid rgba(95, 111, 105, .18);
+  background: linear-gradient(to bottom, rgba(203, 216, 211, .18), rgba(203, 216, 211, .34));
+  opacity: .7;
+  pointer-events: none;
+}
+
+.auth-landscape {
+  position: absolute;
+  z-index: -1;
+  inset: 10% -10% -6% -10%;
+  background: url("/backgrounds/desktop-left-rail-vintage-transparent-v2.png") center bottom / 122% auto no-repeat;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.44) 18%, #000 42%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,.44) 18%, #000 42%, #000 100%);
+  opacity: .42;
+  pointer-events: none;
+}
+
+.auth-brand-lockup {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  column-gap: 10px;
+  color: var(--auth-accent-strong);
+}
+
+.auth-brand-mark {
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: clamp(44px, 5vw, 64px);
+  line-height: 1;
+  letter-spacing: .12em;
+}
+
+.auth-brand-seal {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  border: 1px solid #b44432;
+  color: #b44432;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 13px;
+}
+
+.auth-brand-lockup p {
+  grid-column: 1 / -1;
+  margin: 16px 0 0;
+  color: var(--auth-accent-strong);
+  font-family: "Songti SC", "STSong", "Noto Serif CJK SC", serif;
+  font-size: 18px;
+  letter-spacing: .08em;
+}
+
+.auth-mascot {
+  position: absolute;
+  z-index: 1;
+  bottom: 30px;
+  left: clamp(28px, 8vw, 116px);
+  width: clamp(170px, 22vw, 278px);
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.auth-account-pane {
+  align-self: center;
+  justify-self: center;
+  width: min(376px, calc(100% - 56px));
+  padding: 24px 16px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 32px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid transparent;
+}
+
+.auth-tab {
+  position: relative;
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--auth-muted);
+  font: 500 17px/24px "PingFang SC", "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+}
+
+.auth-tab.is-active {
+  color: var(--auth-accent);
+  font-weight: 600;
+}
+
+.auth-tab.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  content: "";
+  background: var(--auth-accent);
+}
+
+.auth-account-pane h1 {
+  margin: 0;
+  color: #1e2523;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.auth-subtitle {
+  margin: 10px 0 24px;
+  color: var(--auth-muted);
+  font-size: 16px;
+  line-height: 28px;
+}
+
+.auth-entry-actions,
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-primary-button,
+.auth-secondary-button {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+  padding: 12px 18px;
+  font: 500 16px/24px "PingFang SC", "Microsoft YaHei", sans-serif;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.auth-primary-button {
+  border: 1px solid var(--auth-accent);
+  background: var(--auth-accent);
+  color: #fff;
+}
+
+.auth-primary-button:hover { background: #0a594a; }
+
+.auth-primary-button:disabled { cursor: progress; opacity: .72; }
+
+.auth-secondary-button {
+  border: 1px solid #77a89b;
+  background: transparent;
+  color: var(--auth-accent);
+}
+
+.auth-secondary-button:hover {
+  border-color: var(--auth-accent);
+  background: #eff5f2;
+}
+
+.auth-primary-button svg,
+.auth-secondary-button svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.auth-wechat-button svg { fill: currentColor; stroke: none; }
+
+.auth-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  color: var(--auth-muted);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  height: 1px;
+  content: "";
+  background: var(--auth-line);
+}
+
+.auth-field {
+  display: grid;
+  gap: 8px;
+  color: var(--auth-ink);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.auth-field input {
+  min-height: 48px;
+  box-sizing: border-box;
+  border: 1px solid var(--auth-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--auth-ink);
+  font: 16px/24px "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.auth-field input:focus-visible,
+.auth-tab:focus-visible,
+.auth-primary-button:focus-visible,
+.auth-secondary-button:focus-visible,
+.auth-dialog-close:focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 3px;
+}
+
+.auth-field input[aria-invalid="true"] { border-color: #b44432; }
+
+.auth-field-error,
+.auth-form-error {
+  color: #a33d2e;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.auth-field-error { margin-top: -2px; }
+.auth-form-error { margin: -2px 0 0; }
+
+.auth-agreement {
+  margin: 26px 0 0;
+  color: var(--auth-muted);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.auth-agreement a {
+  color: var(--auth-accent);
+  text-decoration: none;
+}
+
+.auth-agreement a:hover { text-decoration: underline; }
+
+.auth-dialog-backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(33, 49, 45, .2);
+}
+
+.auth-dialog {
+  position: relative;
+  width: min(400px, 100%);
+  box-sizing: border-box;
+  border: 1px solid var(--auth-line);
+  border-radius: 16px;
+  padding: 40px 32px 32px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(33, 49, 45, .1);
+  text-align: center;
+}
+
+.auth-dialog h2 {
+  margin: 0;
+  color: var(--auth-ink);
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.auth-dialog p {
+  margin: 12px 0 24px;
+  color: var(--auth-muted);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.auth-dialog-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--auth-muted);
+  cursor: pointer;
+}
+
+.auth-dialog-close svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+@media (max-width: 760px) {
+  .auth-page { grid-template-columns: 1fr; overflow: auto; }
+  .auth-brand-panel { min-height: 280px; padding: 32px 28px; }
+  .auth-brand-lockup p { margin-top: 10px; font-size: 16px; }
+  .auth-mascot { right: 20px; bottom: -2px; left: auto; width: 180px; }
+  .auth-landscape { inset: 12% -12% -30% -12%; }
+  .auth-account-pane { width: min(376px, calc(100% - 32px)); padding: 32px 0 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-primary-button,
+  .auth-secondary-button { transition: none; }
+}
 @media (max-width: 640px) {
   .desktop-conversation-main { min-height: 100svh; }
   .desktop-conversation-header { min-height: 72px; grid-template-columns: minmax(0,1fr); }
