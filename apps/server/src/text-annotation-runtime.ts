@@ -15,7 +15,7 @@ import {
   validateTextAnnotationSource,
 } from "@selfalone/domain";
 import type { TextAnnotationSource as DomainTextAnnotationSource } from "@selfalone/domain";
-import { developmentAccountId } from "./account-migration";
+import { resolveAccountOwner } from "./account-owner";
 
 const MAX_SECTION_ID_LENGTH = TEXT_ANNOTATION_LIMITS.maxSectionIdLength;
 const MAX_QUOTE_LENGTH = TEXT_ANNOTATION_LIMITS.maxQuoteLength;
@@ -923,6 +923,8 @@ function sendAnnotationError(error: unknown, reply: FastifyReply) {
   if (error instanceof z.ZodError) return reply.code(400).send({ code: "VALIDATION_FAILED" });
   const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
   if (code === "STALE_VERSION" || code === "IDEMPOTENCY_KEY_REUSED") return reply.code(409).send({ code });
+  if (code === "ACCOUNT_REQUIRED") return reply.code(401).send({ code });
+  if (code === "ACCOUNT_FORBIDDEN") return reply.code(403).send({ code });
   if (code.endsWith("_NOT_FOUND") || code === "BOOK_NOT_FOUND") return reply.code(404).send({ code });
   if (code === "TEXT_CONTENT_UNAVAILABLE") return reply.code(409).send({ code });
   if (
@@ -945,10 +947,7 @@ export function registerTextAnnotationRoutes(
     TextAnnotationService,
     "list" | "createHighlight" | "updateHighlight" | "deleteHighlight" | "createNote" | "updateNote" | "deleteNote"
   >,
-  resolveAccountId = (headers: Record<string, unknown>) => {
-    const value = headers["x-selfalone-account"];
-    return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
-  },
+  resolveAccountId = resolveAccountOwner,
 ) {
   const bookParameters = z.object({ bookId: z.string().min(1).max(256) });
   const highlightParameters = bookParameters.extend({ highlightId: z.string().min(1).max(256) });
