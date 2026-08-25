@@ -1,0 +1,4 @@
+{
+  "desc": "SelfAlone 小程序开发运行壳",
+  "rules": [{ "action": "disallow", "page": "*" }]
+}

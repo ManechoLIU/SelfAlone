@@ -1,0 +1,56 @@
+<view class="page-shell settings-page" style="{{viewportStyle}}">
+  <view class="app-header settings-header">
+    <button class="icon-button" bindtap="toggleDrawer" aria-label="打开主导航">
+      <image class="icon" src="/assets/icons/menu.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <view class="app-header__title">设置</view>
+    <view></view>
+  </view>
+
+  <view wx:if="{{developmentAdapter}}" class="development-boundary">当前状态来自开发适配边界，不代表账户、模型或微信读书已经连接。<text class="viewport-receipt">{{viewportMetrics}}</text></view>
+
+  <view class="settings-group">
+    <view class="settings-group__title">账户</view>
+    <button class="settings-row" data-label="修改邮箱" bindtap="showBoundary" aria-label="修改邮箱，等待账户能力接入">
+      <image class="settings-row__icon" src="/assets/icons/email.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text class="settings-row__label">修改邮箱</text>
+      <text class="settings-row__status">等待 F1</text>
+      <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <button class="settings-row" data-label="修改密码" bindtap="showBoundary" aria-label="修改密码，等待账户能力接入">
+      <image class="settings-row__icon" src="/assets/icons/lock.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text class="settings-row__label">修改密码</text>
+      <text class="settings-row__status">等待 F1</text>
+      <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+  </view>
+
+  <view class="settings-group settings-group--services">
+    <view class="settings-group__title">服务</view>
+    <button class="settings-row" data-label="文本模型" bindtap="showBoundary" aria-label="文本模型，等待会话与模型能力接入">
+      <image class="settings-row__icon" src="/assets/icons/key.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text class="settings-row__label">文本模型</text>
+      <text class="settings-row__status">等待 F3</text>
+      <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <button class="settings-row" data-label="图片模型" bindtap="showBoundary" aria-label="图片模型，等待模型能力接入">
+      <image class="settings-row__icon" src="/assets/icons/image-model.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text class="settings-row__label">图片模型</text>
+      <text class="settings-row__status">等待 F3</text>
+      <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <button class="settings-row" data-label="微信读书" bindtap="showBoundary" aria-label="微信读书，等待连接能力接入">
+      <image class="settings-row__icon" src="/assets/icons/book.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text class="settings-row__label">微信读书</text>
+      <text class="settings-row__status">等待 F2</text>
+      <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+  </view>
+
+  <button class="settings-row settings-row--logout" bindtap="signOut" aria-label="退出登录">
+    <image class="settings-row__icon" src="/assets/icons/logout.svg" mode="aspectFit" aria-hidden="true"></image>
+    <text class="settings-row__label">退出登录</text>
+  </button>
+</view>
+
+<nav-drawer open="{{drawerOpen}}" current="settings" viewport-style="{{viewportStyle}}" keyboard-open="{{keyboardOpen}}" bind:close="closeDrawer"></nav-drawer>

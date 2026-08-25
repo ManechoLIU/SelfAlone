@@ -1,0 +1,38 @@
+{
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "libVersion": "3.17.1",
+  "miniprogramRoot": "dist/",
+  "projectname": "SelfAlone-miniapp-shell",
+  "setting": {
+    "checkSiteMap": false,
+    "es6": true,
+    "postcss": true,
+    "urlCheck": false,
+    "minified": false,
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "enhance": false,
+    "packNpmManually": false,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmRelationList": [],
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "ignoreDevUnusedFiles": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "simulatorPluginLibVersion": {},
+  "editorSetting": {}
+}

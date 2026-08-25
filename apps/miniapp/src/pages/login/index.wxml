@@ -1,0 +1,39 @@
+<view class="login-page {{keyboardOpen ? 'is-keyboard-open' : ''}}" style="{{viewportStyle}}">
+  <view class="login-brand" aria-label="老己，遇见自己，爱你老己">
+    <view class="login-wordmark">老己</view>
+    <view class="login-slogan">遇见自己，爱你老己</view>
+  </view>
+
+  <view wx:if="{{mode === 'main'}}" class="login-actions">
+    <view class="login-primary-wrap">
+      <image class="login-mascot" src="/assets/mascot/laoji-prone-reading.png" mode="aspectFit" aria-hidden="true"></image>
+      <button class="wechat-button" bindtap="showWechatBoundary" aria-label="微信登录">
+        <image src="/assets/icons/wechat.svg" mode="aspectFit" aria-hidden="true"></image>
+        <text>微信登录</text>
+      </button>
+    </view>
+    <button class="email-entry" bindtap="showEmail" aria-label="使用邮箱登录">
+      <image src="/assets/icons/email.svg" mode="aspectFit" aria-hidden="true"></image>
+      <text>邮箱登录</text>
+    </button>
+  </view>
+
+  <view wx:else class="email-panel">
+    <button class="email-back" bindtap="showMain" aria-label="返回微信登录">
+      <image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <view class="email-title">邮箱登录</view>
+    <label class="field-label" for="email">邮箱</label>
+    <input id="email" class="email-input" type="text" value="{{email}}" bindinput="onEmailInput" adjust-position="{{false}}" cursor-spacing="12" placeholder="请输入邮箱" confirm-type="done" aria-label="邮箱" />
+    <button class="primary-button" bindtap="submitEmail">继续</button>
+  </view>
+
+  <view wx:if="{{message}}" class="login-message" role="alert">{{message}}</view>
+
+  <button wx:if="{{developmentAdapter}}" class="development-entry" bindtap="enterDevelopment">
+    进入本地开发预览
+  </button>
+  <view wx:if="{{developmentAdapter}}" class="development-caption">仅开发环境 · 内存数据 · 不会跨端同步 · {{viewportMetrics}}</view>
+
+  <view class="login-agreement">登录即表示同意 <text>《用户协议》</text> 和 <text>《隐私政策》</text></view>
+</view>

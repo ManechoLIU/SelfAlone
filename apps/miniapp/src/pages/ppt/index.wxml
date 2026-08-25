@@ -1,0 +1,108 @@
+<view class="ppt-page {{keyboardOpen ? 'is-keyboard-open' : ''}}" style="{{viewportStyle}};{{actionStyle}};{{editorStyle}}">
+  <view class="ppt-header">
+    <button class="ppt-back" bindtap="goBack" aria-label="返回上一个阶段"><image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image></button>
+    <view class="ppt-header__title">{{stageTitle}}</view>
+    <view class="ppt-header__progress">{{stageIndex}} / 4</view>
+  </view>
+
+  <view wx:if="{{phase === 'loading'}}" class="ppt-state"><view class="state-panel"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view><view class="loading-line"></view></view><view class="state-panel__body">正在恢复 PPT 草稿</view></view></view>
+  <view wx:elif="{{phase === 'empty'}}" class="ppt-state"><view class="state-panel"><view class="state-panel__title">还没有 PPT 草稿</view><view class="state-panel__body">请先从一本书或当前会话发起 PPT。</view><button class="state-panel__action" bindtap="goBack">返回</button></view></view>
+  <view wx:elif="{{phase === 'failed' && !workspaceVisible}}" class="ppt-state"><view class="state-panel"><view class="state-panel__title">PPT 草稿暂时无法加载</view><view class="state-panel__body" role="alert">{{error}}</view><button class="state-panel__action" bindtap="retryWorkspace" disabled="{{retryingWorkspace}}">{{retryingWorkspace ? '正在重试' : '重试'}}</button></view></view>
+
+  <block wx:else>
+    <view wx:if="{{developmentAdapter}}" class="ppt-development">开发适配器 · 客户端内存状态 · 真实 AI、任务与 PPTX 等待 F3 / F4 / F5 · {{viewportMetrics}}</view>
+    <view wx:if="{{phase === 'failed'}}" class="ppt-inline-error ppt-workspace-failure" role="alert"><view class="ppt-workspace-failure__title">PPT 草稿暂时无法加载</view><view>{{error || '正在恢复当前工作区'}}</view></view>
+    <view wx:elif="{{error && screen !== 'failed'}}" class="ppt-inline-error" role="alert">{{error}}</view>
+
+    <scroll-view class="ppt-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+      <view wx:if="{{screen === 'requirements'}}" class="ppt-content requirements-content">
+        <view class="scope-summary"><view class="scope-summary__label">已确认范围</view><view>当前书籍：{{workspace.bookTitle}}</view></view>
+        <view class="ppt-field"><text>用途</text>
+          <picker mode="selector" range="{{purposeOptions}}" value="{{purposeIndex}}" bindchange="choosePurpose" aria-label="选择用途">
+            <view class="select-field"><text>{{customPurpose ? '自定义' : workspace.purpose}}</text><image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image></view>
+          </picker>
+          <input wx:if="{{customPurpose}}" class="custom-choice-input" value="{{workspace.purpose}}" bindinput="onPurpose" adjust-position="{{false}}" cursor-spacing="12" placeholder="填写自定义用途" aria-label="自定义用途"/>
+        </view>
+        <view class="ppt-field"><text>受众</text>
+          <picker mode="selector" range="{{audienceOptions}}" value="{{audienceIndex}}" bindchange="chooseAudience" aria-label="选择受众">
+            <view class="select-field"><text>{{customAudience ? '自定义' : workspace.audience}}</text><image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image></view>
+          </picker>
+          <input wx:if="{{customAudience}}" class="custom-choice-input" value="{{workspace.audience}}" bindinput="onAudience" adjust-position="{{false}}" cursor-spacing="12" placeholder="填写自定义受众" aria-label="自定义受众"/>
+        </view>
+        <view class="ppt-field"><text>页数范围</text><view class="range-options">
+          <button wx:for="{{rangeOptions}}" wx:key="*this" class="range-option {{workspace.pageRange === item ? 'is-selected' : ''}}" data-value="{{item}}" bindtap="chooseRange">{{item}}</button>
+        </view></view>
+        <label class="ppt-field"><text>补充要求</text><textarea class="extra-input" value="{{workspace.extra}}" bindinput="onExtra" adjust-position="{{false}}" cursor-spacing="12" placeholder="可选，填写额外要求" aria-label="补充要求"></textarea></label>
+        <view class="scroll-bottom-space"></view>
+      </view>
+
+      <view wx:elif="{{screen === 'outline'}}" class="ppt-content outline-content">
+        <view class="outline-summary"><text>《{{workspace.bookTitle}}》读书分享</text><text>共 {{workspace.outline.length}} 条</text></view>
+        <view class="outline-flow">
+          <view class="outline-node outline-node--{{item.level}}" wx:for="{{workspace.outline}}" wx:key="index">
+            <text wx:if="{{item.level === 1}}" class="outline-number">0{{index + 1}}</text>
+            <text>{{item.text}}</text>
+          </view>
+        </view>
+        <view class="outline-hint">大纲由开发适配器提供，可直接编辑连续分层文本。</view>
+        <view class="scroll-bottom-space"></view>
+      </view>
+
+      <view wx:elif="{{screen === 'template'}}" class="ppt-content template-content">
+        <view class="template-instruction">选择一种适合内容气质的版式</view>
+        <view wx:if="{{phase === 'filtered-empty'}}" class="state-panel template-empty"><view class="state-panel__title">没有匹配模板</view><view class="state-panel__body">清除筛选后，已选择的模板仍会保留。</view></view>
+        <view wx:else class="template-grid">
+          <button class="template-card {{workspace.templateId === item.id ? 'is-selected' : ''}}" wx:for="{{templates}}" wx:key="index" data-id="{{item.id}}" bindtap="chooseTemplate" aria-label="选择模板 {{item.title}}">
+            <view class="template-preview template-preview--{{item.variant}}"><view class="template-preview__title">{{item.title}}</view></view>
+            <image wx:if="{{workspace.templateId === item.id}}" class="template-check" src="/assets/icons/check.svg" mode="aspectFit" aria-label="已选择"></image>
+          </button>
+        </view>
+        <view class="template-selection-copy">已选择「{{selectedTemplateTitle}}」</view>
+        <view class="template-boundary">当前只验证真实 16:9 比例与选择状态，不代表真实模板页面或 PPTX 已生成。</view>
+        <view class="scroll-bottom-space"></view>
+      </view>
+
+      <view wx:else class="ppt-content generation-content">
+        <view class="generation-status {{screen === 'failed' || screen === 'stopped' ? 'is-error' : ''}}">
+          <text wx:if="{{screen === 'generating'}}">正在生成第 {{workspace.task.completedPages + 1}} / {{workspace.task.totalPages}} 页</text>
+          <text wx:elif="{{screen === 'completed'}}">PPT 已完成 · 共 {{workspace.task.totalPages}} 页</text>
+          <text wx:elif="{{screen === 'failed'}}">生成失败 · 已保留 {{workspace.task.completedPages}} / {{workspace.task.totalPages}} 页</text>
+          <text wx:else>生成已暂停 · 已保留 {{workspace.task.completedPages}} / {{workspace.task.totalPages}} 页</text>
+          <button wx:if="{{screen === 'failed'}}" class="task-menu" bindtap="showTaskMenu" aria-label="打开失败任务菜单"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button>
+        </view>
+        <view class="ppt-preview-list">
+          <block wx:for="{{workspace.previews}}" wx:key="id">
+            <view wx:if="{{screen === 'completed' || index < workspace.task.completedPages}}" class="ppt-preview-card">
+              <view class="ppt-preview-card__rail"></view><view class="ppt-preview-card__eyebrow">{{item.eyebrow}}</view><view class="ppt-preview-card__title">{{item.title}}</view><view class="ppt-preview-card__body">{{item.body}}</view>
+            </view>
+          </block>
+          <view wx:if="{{screen === 'generating'}}" class="ppt-preview-card ppt-preview-card--skeleton" aria-label="当前页面生成中"><view class="preview-skeleton-line"></view><view class="preview-skeleton-line preview-skeleton-line--short"></view><view class="preview-skeleton-line"></view><text>正在排版与生成视觉…</text></view>
+          <view wx:if="{{screen === 'failed' || screen === 'stopped'}}" class="ppt-preview-card ppt-preview-card--failed"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image><view class="failed-title">{{screen === 'failed' ? '本页生成失败' : '生成已暂停'}}</view><view class="failed-copy">{{screen === 'failed' ? '已完成页面会保留，可从本页重新生成。' : '已完成页面会保留，可继续生成剩余页面。'}}</view></view>
+        </view>
+        <view class="template-boundary generation-boundary">以上为客户端版式状态预览，不是服务端生成页面或真实 PPTX。</view>
+        <view class="scroll-bottom-space"></view>
+      </view>
+    </scroll-view>
+
+    <view class="ppt-actions">
+      <block wx:if="{{phase === 'failed'}}"><button class="primary-button" bindtap="retryWorkspace" disabled="{{retryingWorkspace}}">{{retryingWorkspace ? '正在重试' : '重试加载'}}</button></block>
+      <block wx:elif="{{screen === 'requirements'}}"><button class="primary-button" bindtap="confirmRequirements" disabled="{{saving}}">确认</button></block>
+      <block wx:elif="{{screen === 'outline'}}"><button class="secondary-button" bindtap="openOutlineEditor">编辑大纲</button><button class="primary-button" bindtap="confirmOutline" disabled="{{saving}}">确认大纲并选择模板</button></block>
+      <block wx:elif="{{screen === 'template'}}"><button class="primary-button" bindtap="startGeneration" disabled="{{saving}}">开始生成 PPT</button></block>
+      <block wx:elif="{{screen === 'generating'}}"><button class="secondary-button" bindtap="stopGeneration" disabled="{{saving}}">停止生成</button></block>
+      <block wx:elif="{{screen === 'failed' || screen === 'stopped'}}"><button class="secondary-button" bindtap="modifyOutline">返回修改大纲</button><button class="primary-button" bindtap="retryGeneration" disabled="{{saving}}">{{screen === 'failed' ? '重新生成' : '继续生成'}}</button></block>
+      <block wx:else><view class="completed-secondary"><button bindtap="modifyOutline">修改大纲</button><button bindtap="changeTemplate">更换模板</button></view><button class="primary-button" bindtap="download">下载 PPTX</button><view class="download-caption">可在 PowerPoint 或 WPS 中继续编辑</view></block>
+    </view>
+
+    <view wx:if="{{outlineEditorOpen}}" class="outline-editor-layer">
+      <view class="outline-editor-mask" bindtap="closeOutlineEditor"></view>
+      <view class="outline-editor" role="dialog" aria-label="编辑大纲">
+        <view class="editor-handle"></view>
+        <view class="editor-header"><view><view class="editor-title">编辑大纲</view><view class="editor-status">已在客户端内存中保存</view></view><button bindtap="closeOutlineEditor" aria-label="关闭编辑大纲"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button></view>
+        <textarea class="outline-textarea" value="{{outlineText}}" bindinput="onOutlineInput" auto-focus adjust-position="{{false}}" cursor-spacing="12" aria-label="连续分层大纲"></textarea>
+        <view class="editor-help">直接修改文字；换行后用两个空格进入下一层级。</view>
+        <button class="primary-button" bindtap="completeOutlineEdit">完成编辑</button>
+      </view>
+    </view>
+  </block>
+</view>

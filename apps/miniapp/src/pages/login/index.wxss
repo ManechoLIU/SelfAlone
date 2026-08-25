@@ -1,0 +1,185 @@
+.login-page {
+  width: 100%;
+  max-width: 100%;
+  min-height: var(--viewport-height, 100vh);
+  box-sizing: border-box;
+  overflow-x: hidden;
+  padding: calc(var(--safe-top, env(safe-area-inset-top)) + 68px) 30px calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 28px);
+  background: #fafbf8;
+  color: #21312d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-brand {
+  width: 100%;
+  text-align: center;
+}
+
+.login-wordmark {
+  color: #174c3f;
+  font-family: "STSong", "Songti SC", serif;
+  font-size: 58px;
+  line-height: 1.1;
+  font-weight: 600;
+  letter-spacing: 10px;
+  text-indent: 10px;
+}
+
+.login-slogan {
+  margin-top: 18px;
+  color: #0d6a57;
+  font-size: 20px;
+  line-height: 28px;
+  letter-spacing: 5px;
+  text-indent: 5px;
+}
+
+.login-actions {
+  width: 100%;
+  margin-top: auto;
+  padding-top: 196px;
+}
+
+.login-primary-wrap {
+  position: relative;
+  padding-top: 18px;
+}
+
+.login-mascot {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  bottom: 50px;
+  width: 132px;
+  height: 132px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.wechat-button {
+  width: 100%;
+  min-height: 58px;
+  margin: 0;
+  padding: 0 24px;
+  border-radius: 18px;
+  background: #0d6a57;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.wechat-button image {
+  width: 25px;
+  height: 25px;
+  filter: brightness(0) invert(1);
+}
+
+.wechat-button:active { background: #0a594a; }
+
+.email-entry {
+  min-width: 180px;
+  min-height: 52px;
+  margin: 20px auto 0;
+  padding: 0 16px;
+  background: transparent;
+  color: #0d6a57;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 17px;
+}
+
+.email-entry image { width: 23px; height: 23px; }
+.email-entry:active { background: #eff5f2; }
+
+.email-panel {
+  position: relative;
+  width: 100%;
+  margin-top: 108px;
+}
+
+.email-back {
+  position: absolute;
+  left: -10px;
+  top: -6px;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.email-back image { width: 24px; height: 24px; }
+.email-title { text-align: center; font-size: 22px; line-height: 30px; font-weight: 600; color: #174c3f; }
+.field-label { display: block; margin: 36px 0 8px; color: #5f6f69; font-size: 14px; }
+.email-input { height: 52px; box-sizing: border-box; padding: 0 16px; border: 1px solid #b8cbc3; border-radius: 14px; background: #fff; }
+.email-panel .primary-button { margin-top: 24px; }
+
+.login-message {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 68, 50, .25);
+  border-radius: 12px;
+  background: #fbf1ee;
+  color: #8f3527;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.development-entry {
+  min-height: 44px;
+  margin-top: 16px;
+  padding: 0 18px;
+  border: 1px solid #b8cbc3;
+  border-radius: 14px;
+  background: #f8faf6;
+  color: #174c3f;
+  font-size: 14px;
+}
+
+.development-caption { margin-top: 6px; color: #78867f; font-size: 11px; line-height: 18px; }
+
+.login-agreement {
+  margin-top: auto;
+  padding-top: 34px;
+  text-align: center;
+  color: #68766f;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.login-agreement text { color: #0d6a57; }
+
+@media (min-width: 430px) {
+  .login-page { padding-left: 40px; padding-right: 40px; }
+  .login-actions { padding-top: 208px; }
+}
+
+@media (max-height: 700px) {
+  .login-page { padding-top: calc(var(--safe-top, env(safe-area-inset-top)) + 32px); padding-bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom)) + 18px); }
+  .login-wordmark { font-size: 48px; }
+  .login-slogan { margin-top: 10px; font-size: 17px; line-height: 24px; letter-spacing: 4px; }
+  .login-actions { padding-top: 116px; }
+  .login-agreement { padding-top: 18px; }
+}
+
+@media (max-height: 600px) {
+  .login-page { padding-top: calc(var(--safe-top, env(safe-area-inset-top)) + 20px); }
+  .login-actions { padding-top: 64px; }
+  .email-panel { margin-top: 36px; }
+  .login-agreement { padding-top: 12px; }
+}
+
+.login-page.is-keyboard-open { justify-content: flex-start; }
+.login-page.is-keyboard-open .login-brand { display: none; }
+.login-page.is-keyboard-open .email-panel { margin-top: 12px; }
+.login-page.is-keyboard-open .login-agreement { margin-top: 18px; padding-top: 0; }

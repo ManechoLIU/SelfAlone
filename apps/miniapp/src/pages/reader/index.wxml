@@ -1,0 +1,161 @@
+<view class="reader-page reader--{{theme}} {{keyboardOpen ? 'is-keyboard-open' : ''}}" style="{{viewportStyle}}">
+  <view wx:if="{{phase === 'loading' && !detail}}" class="reader-state">
+    <view class="state-panel"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view><view class="loading-line"></view></view><view class="state-panel__body">正在准备书籍内容</view></view>
+  </view>
+
+  <view wx:elif="{{phase === 'empty'}}" class="reader-state">
+    <view class="state-panel"><view class="state-panel__title">这本书暂时没有可读正文</view><view class="state-panel__body">图片型或尚未解析的内容会在支持后显示说明。</view><button class="state-panel__action" bindtap="goBack">返回书架</button></view>
+  </view>
+
+  <view wx:elif="{{phase === 'filtered-empty'}}" class="reader-state">
+    <view class="state-panel"><view class="state-panel__title">没有匹配的章节</view><view class="state-panel__body">目录筛选不会改变已保存的全书阅读位置。</view><button class="state-panel__action" bindtap="clearFilter">清除筛选</button></view>
+  </view>
+
+  <view wx:elif="{{phase === 'failed' && !detail}}" class="reader-failure-shell">
+    <view class="reader-failure-header">
+      <button class="reader-failure-back" bindtap="goBack" aria-label="返回书架"><image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image></button>
+      <view class="reader-failure-title">阅读</view>
+      <view class="reader-failure-spacer" aria-hidden="true"></view>
+    </view>
+    <view class="reader-failure-placeholder" aria-hidden="true"><view></view><view></view><view></view></view>
+    <view class="reader-inline-failure" role="alert">
+      <view class="reader-inline-failure__title">正文暂时无法加载</view>
+      <view class="reader-inline-failure__body">{{error}}</view>
+      <button class="reader-inline-failure__action" catchtap="retryBook" disabled="{{retrying}}">{{retrying ? '正在重试' : '重试'}}</button>
+    </view>
+  </view>
+
+  <block wx:else>
+    <scroll-view class="reader-scroll" scroll-y enhanced scroll-with-animation scroll-into-view="{{scrollIntoView}}" show-scrollbar="{{false}}" bindscroll="onScroll" bindtap="toggleControls">
+      <view wx:if="{{phase === 'failed'}}" class="reader-failure-context-header">
+        <button class="reader-failure-back" bindtap="goBack" aria-label="返回书架"><image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image></button>
+        <view class="reader-failure-context-title">{{detail.book.title}}</view>
+        <view class="reader-failure-context-progress">{{progressLabel}}</view>
+      </view>
+      <view class="reader-intro reader-intro--{{introDensity}} {{phase === 'failed' ? 'is-failed' : ''}}">
+        <view class="intro-cover">
+          <image src="{{coverAsset}}" mode="aspectFill" aria-hidden="true"></image>
+          <view class="intro-cover__copy"><view>{{detail.book.title}}</view><text>{{detail.book.author || '作者未知'}}</text></view>
+        </view>
+        <view class="intro-title">{{detail.book.title}}</view>
+        <view class="intro-author">{{detail.book.author || '作者未知'}}</view>
+        <view class="intro-source-row">
+          <view class="intro-source">{{detail.book.sourceLabel}}书籍</view>
+        </view>
+        <view class="intro-section-title">书籍介绍</view>
+        <view class="intro-copy">{{detail.introduction}}</view>
+        <view class="intro-progress">已读 {{progressLabel}} · 全书连续进度</view>
+        <view wx:if="{{phase === 'ready' && introSwipeState !== 'hidden'}}" class="intro-swipe {{introSwipeState === 'dismissing' ? 'is-dismissing' : ''}}" bindanimationend="onSwipeHintAnimationEnd"><image src="/assets/icons/up.svg" mode="aspectFit" aria-hidden="true"></image><text>上滑开始阅读</text></view>
+      </view>
+
+      <view class="reader-body {{phase === 'failed' ? 'is-failed' : ''}}">
+        <view wx:if="{{phase === 'failed'}}" class="reader-inline-failure" role="alert">
+          <view class="reader-inline-failure__title">正文暂时无法加载</view>
+          <view class="reader-inline-failure__body">{{error}}</view>
+          <view class="reader-inline-failure__position">已保留《{{detail.book.title}}》· {{progressLabel}} · {{theme === 'dark' ? '暗色背景' : '浅色背景'}}</view>
+          <button class="reader-inline-failure__action" catchtap="retryBook" disabled="{{retrying}}">{{retrying ? '正在重试' : '重试'}}</button>
+        </view>
+        <view class="reader-block" wx:for="{{blocks}}" wx:key="id" id="reader-block-{{index}}">
+          <view wx:if="{{item.showTitle}}" class="reader-chapter">
+            <view class="reader-chapter__eyebrow">第 {{item.sectionNumber}} 章</view>
+            <view class="reader-chapter__title">{{item.sectionTitle}}</view>
+          </view>
+          <text class="reader-copy" user-select="true">{{item.text}}</text>
+        </view>
+        <view class="reader-end">正文阅读结束</view>
+      </view>
+    </scroll-view>
+
+    <view wx:if="{{saveError}}" class="reader-save-error" role="alert" catchtap="retryPosition">{{saveError}} · 点此重试</view>
+
+    <view wx:if="{{controlsVisible && phase === 'ready'}}" class="reader-controls" catchtap="toggleControls">
+      <view class="reader-controls__top">
+        <button class="reader-control-button" bindtap="goBack" aria-label="返回书架"><image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image></button>
+        <view class="reader-controls__title">{{detail.book.title}}</view>
+        <button class="reader-control-button" bindtap="showMore" aria-label="更多阅读操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button>
+      </view>
+
+      <view class="reader-controls__bottom">
+        <button class="reader-tool" data-kind="catalog" bindtap="openSheet" aria-label="打开目录"><image src="/assets/icons/catalog.svg" mode="aspectFit" aria-hidden="true"></image><text>目录</text></button>
+        <button class="reader-tool" data-kind="content" bindtap="openSheet" aria-label="打开书籍内容"><image src="/assets/icons/content.svg" mode="aspectFit" aria-hidden="true"></image><text>内容</text></button>
+        <button class="reader-tool" data-kind="settings" bindtap="openSheet" aria-label="打开阅读设置"><image src="/assets/icons/theme.svg" mode="aspectFit" aria-hidden="true"></image><text>背景</text></button>
+        <button class="reader-tool" bindtap="openPpt" aria-label="基于本书制作 PPT"><image src="/assets/icons/ppt.svg" mode="aspectFit" aria-hidden="true"></image><text>PPT</text></button>
+        <view class="reader-companion" aria-hidden="true"><image src="/assets/mascot/laoji-prone-reading.png" mode="aspectFit"></image></view>
+        <button class="reader-chat" bindtap="openConversation" aria-label="进入当前会话"><image src="/assets/icons/chat.svg" mode="aspectFit" aria-hidden="true"></image></button>
+      </view>
+    </view>
+
+    <view wx:if="{{sheetKind}}" class="sheet-layer sheet-layer--{{sheetState}}">
+      <view class="sheet-mask" catchtap="closeSheet"></view>
+      <view class="reader-sheet reader-sheet--{{sheetState}} reader-sheet--origin-{{sheetOrigin}} reader-sheet--theme-{{theme}}" style="{{sheetStyle}}" catchtap="noop" bindtouchstart="onSheetTouchStart" bindtouchmove="onSheetTouchMove" bindtouchend="onSheetTouchEnd" role="dialog" aria-label="阅读工具面板">
+        <view class="sheet-handle" role="button" aria-label="拖动展开或收起面板"></view>
+        <button class="sheet-close" bindtap="closeSheet" aria-label="关闭面板"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
+
+        <block wx:if="{{sheetKind === 'catalog'}}">
+          <view class="sheet-title">目录</view>
+          <scroll-view class="sheet-scroll" scroll-y>
+            <block wx:for="{{detail.sections}}" wx:key="id">
+              <button wx:if="{{sectionBlockIndexes[index] !== null}}" class="catalog-row" data-block-index="{{sectionBlockIndexes[index]}}" data-target="reader-block-{{sectionBlockIndexes[index]}}" bindtap="jumpToSection" aria-label="跳转到 {{item.title}}"><text>{{item.title}}</text><image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image></button>
+              <view wx:else class="catalog-row catalog-row--disabled" aria-disabled="true" role="status"><text>{{item.title}}</text><text class="catalog-row__status">暂无可跳转正文</text></view>
+            </block>
+          </scroll-view>
+        </block>
+
+        <block wx:elif="{{sheetKind === 'settings'}}">
+          <view class="sheet-title">阅读背景</view>
+          <view class="theme-grid">
+            <button class="theme-choice {{theme === 'light' ? 'is-selected' : ''}}" data-theme="light" bindtap="chooseTheme" aria-label="选择浅色阅读背景" aria-pressed="{{theme === 'light'}}"><view class="theme-paper-preview theme-paper-preview--light" aria-hidden="true"><view class="theme-paper-preview__gutter"></view><view class="theme-paper-preview__line theme-paper-preview__line--long"></view><view class="theme-paper-preview__line"></view><view class="theme-paper-preview__line theme-paper-preview__line--short"></view></view><text>浅色</text></button>
+            <button class="theme-choice {{theme === 'dark' ? 'is-selected' : ''}}" data-theme="dark" bindtap="chooseTheme" aria-label="选择暗色阅读背景" aria-pressed="{{theme === 'dark'}}"><view class="theme-paper-preview theme-paper-preview--dark" aria-hidden="true"><view class="theme-paper-preview__gutter"></view><view class="theme-paper-preview__line theme-paper-preview__line--long"></view><view class="theme-paper-preview__line"></view><view class="theme-paper-preview__line theme-paper-preview__line--short"></view></view><text>暗色</text></button>
+          </view>
+        </block>
+
+        <block wx:else>
+          <view class="sheet-title">书籍内容</view>
+          <view class="content-tabs content-tabs--segmented">
+            <button class="content-tab {{contentTab === 'highlights' ? 'is-selected' : ''}}" data-tab="highlights" bindtap="switchTab">划线与想法</button>
+            <button class="content-tab {{contentTab === 'notes' ? 'is-selected' : ''}}" data-tab="notes" bindtap="switchTab">老己笔记</button>
+            <button class="content-tab {{contentTab === 'ppt' ? 'is-selected' : ''}}" data-tab="ppt" bindtap="switchTab">PPT 作品</button>
+          </view>
+
+          <view wx:if="{{panelState === 'loading'}}" class="sheet-state"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view></view><text>正在加载书籍内容</text></view>
+          <view wx:elif="{{panelState === 'empty'}}" class="sheet-state"><view class="state-panel__title">还没有内容</view><text>与当前书有关的内容会出现在这里。</text></view>
+          <view wx:elif="{{panelState === 'filtered-empty'}}" class="sheet-state"><view class="state-panel__title">没有匹配内容</view><text>清除筛选后，已有内容仍会保留。</text></view>
+          <view wx:elif="{{panelState === 'failed'}}" class="sheet-state"><view class="state-panel__title">内容加载失败</view><text role="alert">内容暂时无法载入，请稍后重试。</text><button class="state-panel__action" bindtap="retryPanel">重试</button></view>
+
+          <scroll-view wx:else class="sheet-scroll content-scroll" data-tab="{{contentTab}}" scroll-y scroll-top="{{contentScrollTops[contentTab]}}" bindscroll="onContentScroll">
+             <block wx:if="{{contentTab === 'highlights'}}">
+               <view class="content-row" wx:for="{{detail.highlights}}" wx:key="id"><view class="content-quote">{{item.quote}}</view><view class="content-body">{{item.body}}</view><view class="content-meta">{{item.meta}}</view></view>
+             </block>
+             <block wx:elif="{{contentTab === 'notes'}}">
+               <view class="content-notes-toolbar"><button class="content-create-note" bindtap="openNoteComposer" aria-label="新建笔记">新建笔记</button></view>
+               <view class="content-row content-row--note" wx:for="{{detail.notes}}" wx:key="id"><view wx:if="{{item.quote}}" class="content-quote">{{item.quote}}</view><view class="content-row__main"><view class="content-body">{{item.body}}</view><button class="content-more" bindtap="noop" aria-label="更多笔记操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button></view><view class="content-meta">{{item.meta}}</view></view>
+             </block>
+            <view wx:else class="works-grid">
+              <view class="work-item" wx:for="{{detail.works}}" wx:key="id"><view class="work-preview"><text>{{item.title}}</text></view><view class="work-meta"><text>{{item.meta}}</text><button wx:if="{{item.status === 'completed'}}" class="work-download" bindtap="showDownloadBoundary" aria-label="下载作品"><image src="/assets/icons/download.svg" mode="aspectFit" aria-hidden="true"></image></button></view></view>
+            </view>
+          </scroll-view>
+        </block>
+      </view>
+    </view>
+
+    <view wx:if="{{noteEditorState !== 'closed'}}" class="note-editor-layer note-editor-layer--{{noteEditorState}}">
+      <view class="note-editor-mask" catchtap="closeNoteComposer"></view>
+      <view class="note-editor-surface" catchtap="noop" role="dialog" aria-label="新建笔记编辑">
+        <view class="note-editor-header">
+          <button class="note-editor-close" bindtap="closeNoteComposer" aria-label="关闭新建笔记"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
+          <view class="note-editor-title">新建笔记</view>
+          <view class="note-editor-header-spacer" aria-hidden="true"></view>
+        </view>
+        <view class="note-editor-body">
+          <view wx:if="{{noteSaveError}}" class="note-editor-error" role="alert">{{noteSaveError}}</view>
+          <textarea class="note-editor-input" data-tab="notes" value="{{contentDrafts.notes}}" bindinput="onContentDraftInput" placeholder="写下你的想法" maxlength="4000" focus="{{noteEditorState === 'editing'}}"></textarea>
+          <view class="note-editor-hint">草稿会保留在当前阅读中，关闭后仍可继续编辑。</view>
+        </view>
+        <view class="note-editor-actions">
+          <button class="note-editor-action note-editor-action--secondary" bindtap="closeNoteComposer">关闭</button>
+          <button class="note-editor-action note-editor-action--primary" bindtap="saveNote">{{noteEditorState === 'failed' ? '重试保存' : '保存'}}</button>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

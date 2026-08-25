@@ -1,0 +1,96 @@
+<view class="conversation-page {{keyboardOpen ? 'is-keyboard-open' : ''}}" style="{{viewportStyle}}">
+  <view class="conversation-scenery" aria-hidden="true">
+    <image class="conversation-scenery-image" src="/assets/backgrounds/mobile-drawer-landscape-transparent-cropped-v1-mirrored.png" mode="widthFix" aria-hidden="true"></image>
+  </view>
+  <view class="conversation-header">
+    <button class="icon-button" bindtap="toggleDrawer" aria-label="打开主导航">
+      <image class="icon" src="/assets/icons/menu.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <view class="conversation-title">和老己聊聊</view>
+    <view></view>
+  </view>
+
+  <scroll-view class="message-scroll" scroll-y enhanced show-scrollbar="{{false}}">
+    <view class="assistant-message">
+      <image class="assistant-avatar" src="/assets/avatar/laoji-avatar.png" mode="aspectFill" aria-hidden="true"></image>
+      <view class="assistant-bubble">
+        <view class="assistant-name">老己</view>
+        <view wx:if="{{pptIntent}}">这本书会作为本次 PPT 的资料来源。请选择你想带入的分享范围，可多选。</view>
+        <view wx:else>想聊读书、笔记，或者最近脑海里反复出现的念头，都可以从这里开始。</view>
+      </view>
+    </view>
+
+    <view wx:if="{{pptIntent}}" class="task-message" role="status">
+      <view class="task-book">{{pptIntent.bookTitle}}</view>
+      <view wx:if="{{pptIntent.phase === 'awaiting-confirmation'}}" class="task-prompt">先确认这次要分享的内容范围，之后再进入 PPT 工作区。</view>
+      <view wx:else class="scope-summary">
+        <image class="scope-summary__check" src="/assets/icons/check.svg" mode="aspectFit" aria-hidden="true"></image>
+        <text>范围：{{selectionSummary}}</text>
+        <button class="scope-summary__edit" bindtap="editSelection" aria-label="修改分享范围">修改</button>
+      </view>
+      <button wx:if="{{pptIntent.phase === 'awaiting-confirmation' && !selectionSheetOpen}}" class="scope-edit-link" bindtap="openSelection">选择分享范围</button>
+      <button wx:if="{{pptIntent.phase === 'requirements-ready'}}" class="primary-button task-entry" bindtap="openPptStage">进入 PPT 工作区</button>
+    </view>
+
+    <view class="message-spacer"></view>
+  </scroll-view>
+
+  <view class="composer-area">
+    <view wx:if="{{boundaryMessage}}" class="composer-error" role="alert">{{boundaryMessage}}</view>
+    <view class="composer">
+      <image class="composer-mascot" src="/assets/mascot/laoji-prone-reading.png" mode="aspectFit" aria-hidden="true"></image>
+      <view wx:if="{{attachments.length}}" class="attachment-strip">
+        <block wx:for="{{attachments}}" wx:key="*this">
+          <view class="attachment-item">
+            <image class="attachment-image" src="{{item}}" mode="aspectFill" aria-label="已选图片"></image>
+            <button class="attachment-remove" data-index="{{index}}" bindtap="removeAttachment" aria-label="移除图片">
+              <image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image>
+            </button>
+          </view>
+        </block>
+      </view>
+      <view class="composer-row">
+        <button class="composer-icon" bindtap="chooseImage" aria-label="选择图片">
+          <image src="/assets/icons/image.svg" mode="aspectFit" aria-hidden="true"></image>
+        </button>
+        <textarea class="composer-input" value="{{draft}}" bindinput="onDraftInput" auto-height adjust-position="{{false}}" cursor-spacing="12" maxlength="-1" placeholder="想聊点什么…" aria-label="消息输入"></textarea>
+        <button class="composer-send" bindtap="sendDraft" disabled="{{!canSend}}" aria-label="发送消息">
+          <image src="/assets/icons/send.svg" mode="aspectFit" aria-hidden="true"></image>
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
+
+<nav-drawer open="{{drawerOpen}}" current="conversation" viewport-style="{{viewportStyle}}" keyboard-open="{{keyboardOpen}}" bind:close="closeDrawer"></nav-drawer>
+
+<view wx:if="{{selectionSheetOpen}}" class="selection-layer">
+  <view class="selection-mask" bindtap="closeSelection"></view>
+  <view class="selection-sheet" catchtouchmove="noop">
+    <image class="selection-mascot" src="/assets/mascot/laoji-prone-reading.png" mode="aspectFit" aria-hidden="true"></image>
+    <view class="selection-handle" aria-hidden="true"></view>
+    <view class="selection-header">
+      <view>
+        <view class="selection-title">选择分享范围</view>
+        <view class="selection-subtitle">可多选</view>
+      </view>
+      <button class="selection-close" bindtap="closeSelection" aria-label="关闭选择范围">
+        <image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image>
+      </button>
+    </view>
+    <view class="selection-list">
+      <block wx:for="{{selectionOptions}}" wx:key="id">
+        <button class="selection-option" data-id="{{item.id}}" bindtap="toggleSelection" aria-pressed="{{item.checked}}">
+          <text class="selection-option__label">{{item.label}}</text>
+          <view class="selection-check {{item.checked ? 'is-checked' : ''}}" aria-hidden="true">
+            <image wx:if="{{item.checked}}" src="/assets/icons/check.svg" mode="aspectFit"></image>
+          </view>
+        </button>
+      </block>
+    </view>
+    <view wx:if="{{selectionError}}" class="selection-error" role="alert">{{selectionError}}</view>
+    <view class="selection-actions">
+      <button class="primary-button" bindtap="confirmSelection" disabled="{{!canConfirmSelection}}">确认</button>
+    </view>
+  </view>
+</view>

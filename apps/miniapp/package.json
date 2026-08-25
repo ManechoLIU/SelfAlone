@@ -1,0 +1,11 @@
+{
+  "name": "@selfalone/miniapp",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && mkdir -p dist && cp -R src/app.json src/app.wxss src/sitemap.json src/pages src/components src/assets dist/ && find dist -name '*.ts' -delete && miniapp_kb=$(du -sk dist | cut -f1) && test \"$miniapp_kb\" -lt 2048",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. apps/miniapp/src"
+  }
+}
