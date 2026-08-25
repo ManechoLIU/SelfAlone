@@ -81,3 +81,100 @@ export type SaveTextPositionRequest = {
   locator: TextLocator;
   background: ReaderBackground;
 };
+
+/** A text-only citation shared by highlights and anchored manual notes. */
+export type TextAnnotationSource = {
+  locator: TextLocator;
+  endOffset: number;
+  quote: string;
+};
+
+export type TextHighlight = TextAnnotationSource & {
+  id: string;
+  bookId: string;
+  thought: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TextNote = {
+  id: string;
+  bookId: string;
+  body: string;
+  source: TextAnnotationSource | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TextAnnotationList = {
+  fileVersion: number;
+  highlights: TextHighlight[];
+  notes: TextNote[];
+};
+
+export type CreateTextHighlightRequest = {
+  idempotencyKey: string;
+  locator: TextLocator;
+  endOffset: number;
+  quote?: string;
+  thought?: string | null;
+};
+
+export type UpdateTextHighlightRequest = {
+  expectedVersion: number;
+  thought: string | null;
+};
+
+export type CreateTextNoteRequest = {
+  idempotencyKey: string;
+  body: string;
+  source?: TextAnnotationSource | null;
+};
+
+export type UpdateTextNoteRequest = {
+  expectedVersion: number;
+  body: string;
+  /** Optional client echo is only a draft fallback and never the source of truth. */
+  source?: TextAnnotationSource | null;
+};
+
+export type DeleteTextAnnotationRequest = {
+  expectedVersion: number;
+};
+
+export type SavedTextHighlightResponse = { status: "saved"; highlight: TextHighlight };
+export type SavedTextNoteResponse = { status: "saved"; note: TextNote };
+export type DeletedTextAnnotationResponse = { status: "deleted"; id: string };
+
+export type TextAnnotationSaveErrorCode =
+  | "HIGHLIGHT_SAVE_FAILED"
+  | "HIGHLIGHT_DELETE_FAILED"
+  | "NOTE_SAVE_FAILED"
+  | "NOTE_DELETE_FAILED"
+  | "NOTE_SOURCE_UNVERIFIED";
+
+export type TextAnnotationErrorCode =
+  | TextAnnotationSaveErrorCode
+  | "VALIDATION_FAILED"
+  | "ACCOUNT_FORBIDDEN"
+  | "BOOK_NOT_FOUND"
+  | "TEXT_CONTENT_UNAVAILABLE"
+  | "STALE_VERSION"
+  | "SECTION_NOT_FOUND"
+  | "INVALID_VERSION"
+  | "INVALID_FILE_VERSION"
+  | "INVALID_LOCATOR"
+  | "INVALID_HIGHLIGHT_RANGE"
+  | "INVALID_HIGHLIGHT_QUOTE"
+  | "NOTE_BODY_REQUIRED"
+  | "TEXT_TOO_LONG"
+  | "IDEMPOTENCY_KEY_REQUIRED"
+  | "IDEMPOTENCY_KEY_TOO_LONG"
+  | "IDEMPOTENCY_KEY_REUSED"
+  | "HIGHLIGHT_NOT_FOUND"
+  | "NOTE_NOT_FOUND"
+  | "INTERNAL_ERROR";
+
+export type TextAnnotationError = { code: TextAnnotationErrorCode };

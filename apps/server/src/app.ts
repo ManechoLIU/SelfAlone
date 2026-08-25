@@ -5,13 +5,26 @@ import { developmentAccountId } from "./account-migration";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
+import {
+  registerTextAnnotationRoutes,
+  type TextAnnotationService,
+} from "./text-annotation-runtime";
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
   library?: LibraryRuntime;
   m0?: M0Runtime;
   textReader?: TextReaderRuntime;
+  textAnnotations?: Pick<
+    TextAnnotationService,
+    "list" | "createHighlight" | "updateHighlight" | "deleteHighlight" | "createNote" | "updateNote" | "deleteNote"
+  >;
 };
+
+export function resolveAccountId(headers: Record<string, unknown>) {
+  const value = headers["x-selfalone-account"];
+  return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
+}
 
 export function createApp(dependencies: AppDependencies) {
   const app = Fastify({ logger: false });
@@ -34,19 +47,15 @@ export function createApp(dependencies: AppDependencies) {
 
   if (dependencies.library) {
     const library = dependencies.library;
-    const accountId = (headers: Record<string, unknown>) => {
-      const value = headers["x-selfalone-account"];
-      return typeof value === "string" && value.trim() ? value.trim() : developmentAccountId;
-    };
 
     app.get("/api/v1/books", async (request) => {
       const query = z.object({ query: z.string().max(120).optional() }).parse(request.query);
-      return { books: await library.listBooks(accountId(request.headers), query.query ?? "") };
+      return { books: await library.listBooks(resolveAccountId(request.headers), query.query ?? "") };
     });
 
     app.get("/api/v1/books/:id", async (request) => {
       const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
-      return library.getBook(accountId(request.headers), parameters.id);
+      return library.getBook(resolveAccountId(request.headers), parameters.id);
     });
 
     app.post("/api/v1/books/import", async (request, reply) => {
@@ -62,13 +71,17 @@ export function createApp(dependencies: AppDependencies) {
       }
       if (!Buffer.isBuffer(request.body)) throw new Error("BOOK_FILE_REQUIRED");
       return reply.code(202).send(
-        await library.importBook(accountId(request.headers), filename, request.body),
+        await library.importBook(resolveAccountId(request.headers), filename, request.body),
       );
     });
   }
 
   if (dependencies.textReader) {
-    registerTextReaderRoutes(app, dependencies.textReader);
+    registerTextReaderRoutes(app, dependencies.textReader, resolveAccountId);
+  }
+
+  if (dependencies.textAnnotations) {
+    registerTextAnnotationRoutes(app, dependencies.textAnnotations, resolveAccountId);
   }
 
   if (dependencies.m0) {

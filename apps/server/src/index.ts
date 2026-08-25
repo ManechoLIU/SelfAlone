@@ -1,10 +1,13 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import postgres from "postgres";
 import { createApp } from "./app";
 import { createLibraryRuntime } from "./library-runtime";
 import { createM0Runtime } from "./m0-runtime";
 import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
 import { createTextReaderRuntime } from "./text-reader";
+import { createTextAnnotationRuntime } from "./text-annotation-runtime";
+import { migrateTextAnnotationSchema } from "./text-annotation-migration";
 import { extractTextBook } from "@selfalone/domain";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -34,16 +37,28 @@ const library = await createLibraryRuntime({
   parseDelayMs: Number(process.env.BOOK_PARSE_DELAY_MS ?? 20),
   textPublisher: textReader,
 });
+const migrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateTextAnnotationSchema(migrationDatabase);
+} finally {
+  await migrationDatabase.end();
+}
+const textAnnotations = await createTextAnnotationRuntime({ databaseUrl });
 const app = createApp({
   readiness: async () =>
-    (await runtime.ready()) && (await library.ready()) && (await textReader.ready()),
+    (await runtime.ready())
+    && (await library.ready())
+    && (await textReader.ready())
+    && (await textAnnotations.ready()),
   library,
   m0: runtime,
   textReader,
+  textAnnotations,
 });
 
 const shutdown = async () => {
   await app.close();
+  await textAnnotations.close();
   await library.close();
   await textReader.close();
   await runtime.close();

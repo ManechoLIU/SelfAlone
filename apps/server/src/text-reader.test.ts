@@ -6,6 +6,11 @@ import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app";
 import { createTextReaderRuntime, registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
+import {
+  bootstrapTextAnnotationSchemaForTest,
+  createTextAnnotationRuntime,
+  type TextAnnotationRuntime,
+} from "./text-annotation-runtime";
 
 const domainModulePath = "../../../packages/domain/src/text-reader";
 const { extractTextBook } = await import(domainModulePath) as {
@@ -71,13 +76,17 @@ function epubFixture() {
 
 describe("M1-F2-B text reader runtime and routes", () => {
   const runtimes: TextReaderRuntime[] = [];
+  const annotationRuntimes: TextAnnotationRuntime[] = [];
   const apps: Array<ReturnType<typeof createApp>> = [];
   const databases: Array<{ administration: Sql; schema: string }> = [];
+  const auxiliaryDatabases: Sql[] = [];
   const objectDirectories: string[] = [];
 
   afterEach(async () => {
     await Promise.all(apps.splice(0).map((app) => app.close()));
     await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
+    await Promise.all(annotationRuntimes.splice(0).map((runtime) => runtime.close()));
+    await Promise.all(auxiliaryDatabases.splice(0).map((database) => database.end()));
     await Promise.all(
       databases.splice(0).map(async ({ administration, schema }) => {
         await administration.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
@@ -279,6 +288,95 @@ describe("M1-F2-B text reader runtime and routes", () => {
     `);
     expect(currentStored).toEqual(winner?.json());
   });
+
+  it("replays an identical file version without rewriting cited sections and fails closed on drift", async () => {
+    const setup = await setupSingleBook(runtimes, databases, objectDirectories);
+    await bootstrapTextAnnotationSchemaForTest({ databaseUrl: setup.databaseUrl });
+    const annotations = postgres(setup.databaseUrl, { max: 1 });
+    auxiliaryDatabases.push(annotations);
+    await annotations`
+      INSERT INTO highlights (
+        id, account_id, book_id, idempotency_key, file_version, section_id,
+        start_offset, end_offset, quote, thought
+      ) VALUES (
+        'highlight-publish-replay', 'account-a', 'txt-book', 'publish-replay', 1,
+        'txt:00000000', 0, 3, '第一章', '发布前留下的引用'
+      )
+    `;
+    const before = await annotations<Array<{ sectionId: string; body: string; sectionOrder: number }>>`
+      SELECT section_id AS "sectionId", body, section_order AS "sectionOrder"
+      FROM book_sections WHERE account_id = 'account-a' AND book_id = 'txt-book' AND file_version = 1
+      ORDER BY section_order
+    `;
+
+    await expect(setup.runtime.publishTextBook("account-a", "txt-book")).resolves.toEqual({
+      fileVersion: 1,
+      sectionCount: 1,
+    });
+    const afterReplay = await annotations<Array<{ sectionId: string; body: string; sectionOrder: number }>>`
+      SELECT section_id AS "sectionId", body, section_order AS "sectionOrder"
+      FROM book_sections WHERE account_id = 'account-a' AND book_id = 'txt-book' AND file_version = 1
+      ORDER BY section_order
+    `;
+    expect(afterReplay).toEqual(before);
+    await expect(annotations`
+      SELECT id FROM highlights WHERE id = 'highlight-publish-replay'
+    `).resolves.toHaveLength(1);
+
+    await annotations`
+      UPDATE books SET section_count = 0
+      WHERE account_id = 'account-a' AND id = 'txt-book'
+    `;
+    await expect(setup.runtime.publishTextBook("account-a", "txt-book")).rejects.toThrow("TEXT_PUBLICATION_CONFLICT");
+    await annotations`
+      UPDATE books SET section_count = 1
+      WHERE account_id = 'account-a' AND id = 'txt-book'
+    `;
+
+    const prepared = await setup.runtime.prepareTextBook("account-a", "txt-book");
+    const conflicting = {
+      ...prepared,
+      extracted: {
+        ...prepared.extracted,
+        sections: prepared.extracted.sections.map((section, index) =>
+          index === 0 ? { ...section, text: `${section.text}被篡改` } : section,
+        ),
+      },
+    };
+    await expect(annotations.begin((transaction) =>
+      setup.runtime.publishPreparedTextBook(conflicting, transaction),
+    )).rejects.toThrow("TEXT_PUBLICATION_CONFLICT");
+    await expect(annotations`
+      SELECT id FROM highlights WHERE id = 'highlight-publish-replay'
+    `).resolves.toHaveLength(1);
+  });
+
+  it("interleaves the real publisher with an annotation mutation without a deadlock", async () => {
+    const setup = await setupSingleBook(runtimes, databases, objectDirectories);
+    await bootstrapTextAnnotationSchemaForTest({ databaseUrl: setup.databaseUrl });
+    const annotation = await createTextAnnotationRuntime({ databaseUrl: setup.databaseUrl });
+    annotationRuntimes.push(annotation);
+    const saved = await annotation.createHighlight("account-a", "txt-book", {
+      idempotencyKey: "publisher-mutation-highlight",
+      locator: { kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: 0 },
+      endOffset: 3,
+      thought: "原始记录",
+    });
+    if (saved.status !== "saved") throw new Error("HIGHLIGHT_FIXTURE_FAILED");
+    const prepared = await setup.runtime.prepareTextBook("account-a", "txt-book");
+    const publisherDatabase = postgres(setup.databaseUrl, { max: 1 });
+    auxiliaryDatabases.push(publisherDatabase);
+
+    const [published, mutated] = await Promise.all([
+      publisherDatabase.begin((transaction) => setup.runtime.publishPreparedTextBook(prepared, transaction)),
+      annotation.updateHighlight("account-a", "txt-book", saved.highlight.id, {
+        expectedVersion: 1,
+        thought: "并发窗口中的更新",
+      }),
+    ]);
+    expect(published).toEqual({ fileVersion: 1, sectionCount: 1 });
+    expect(mutated).toMatchObject({ status: "saved", highlight: { thought: "并发窗口中的更新" } });
+  });
 });
 
 async function createSchema(administration: Sql, schema: string) {
@@ -380,5 +478,5 @@ async function setupSingleBook(
   });
   runtimes.push(runtime);
   await runtime.publishTextBook("account-a", "txt-book");
-  return { administration, schema, runtime };
+  return { administration, schema, runtime, databaseUrl: databaseUrl.toString() };
 }
