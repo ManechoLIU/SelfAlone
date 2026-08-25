@@ -102,6 +102,7 @@ let conversationFocusKey: string | null = null;
 let routeRenderFrame: number | undefined;
 let settingsState: SettingsState = createSettingsState();
 let settingsRequestInFlight = false;
+let lastSettingsFocusField: string | null = null;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -204,6 +205,16 @@ function focusSettingsDialog() {
   document.querySelector<HTMLButtonElement>('[data-settings-action="logout-confirm"]')?.focus();
 }
 
+function focusSettingsField(fieldName: string | null) {
+  const selectors: Record<string, string> = {
+    email: "#settings-email",
+    currentPassword: "#settings-current-password",
+    newPassword: "#settings-new-password",
+    confirmPassword: "#settings-confirm-password",
+  };
+  document.querySelector<HTMLInputElement>(selectors[fieldName ?? ""] ?? "#settings-email")?.focus();
+}
+
 function closeSettingsLogoutDialog() {
   settingsState = {
     ...settingsState,
@@ -256,6 +267,7 @@ async function submitSettingsForm(form: HTMLFormElement) {
   const emailChanged = draft.email !== currentEmail;
   const passwordChanged = Boolean(draft.newPassword || draft.confirmPassword);
   const mutationKind: SettingsMutationKind = emailChanged ? "change-email" : "change-password";
+  const settingsFocusField = document.activeElement?.getAttribute("name") || lastSettingsFocusField;
 
   settingsState = {
     ...settingsState,
@@ -283,6 +295,7 @@ async function submitSettingsForm(form: HTMLFormElement) {
       mutation: settingsMutation(mutationKind, "failed", validationError),
     };
     renderSettings();
+    focusSettingsField(settingsFocusField || (emailChanged ? "email" : "currentPassword"));
     return;
   }
 
@@ -318,11 +331,17 @@ async function submitSettingsForm(form: HTMLFormElement) {
     settingsState = {
       ...settingsState,
       accountError: message,
+      draft,
       mutation: settingsMutation(mutationKind, "failed", message),
     };
     persistSettingsDraft();
   }
-  if (isSettingsRoute()) renderSettings();
+  if (isSettingsRoute()) {
+    renderSettings();
+    if (settingsState.mutation.phase === "failed") {
+      focusSettingsField(settingsFocusField || (emailChanged ? "email" : "currentPassword"));
+    }
+  }
 }
 
 function bindSettingsInteractions() {
@@ -336,6 +355,7 @@ function bindSettingsInteractions() {
           accountError: "",
           mutation: settingsMutation("idle", "idle"),
         };
+        lastSettingsFocusField = "email";
         renderSettings();
         document.querySelector<HTMLInputElement>("#settings-email")?.focus();
       } else if (action === "back") {
@@ -345,6 +365,7 @@ function bindSettingsInteractions() {
           accountError: "",
           mutation: settingsMutation("idle", "idle"),
         };
+        lastSettingsFocusField = null;
         renderSettings();
         document.querySelector<HTMLButtonElement>('[data-settings-action="account"]')?.focus();
       } else if (action === "reload") {
@@ -390,7 +411,12 @@ function bindSettingsInteractions() {
     }
   });
 
-  document.querySelector<HTMLFormElement>("[data-settings-account-form]")?.addEventListener("submit", (event) => {
+  const accountForm = document.querySelector<HTMLFormElement>("[data-settings-account-form]");
+  accountForm?.addEventListener("focusin", (event) => {
+    const target = event.target;
+    if (target instanceof HTMLInputElement && target.name) lastSettingsFocusField = target.name;
+  });
+  accountForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     void submitSettingsForm(event.currentTarget as HTMLFormElement);
   });

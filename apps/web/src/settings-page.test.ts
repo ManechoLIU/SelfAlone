@@ -119,4 +119,10 @@ describe("desktop settings page candidate", () => {
     expect(mainSource).toContain('data-settings-action="account"');
     expect(mainSource).toContain('data-settings-action="logout"');
   });
+
+  it("restores the focused account field after a failed mutation", () => {
+    expect(mainSource).toContain("const settingsFocusField = document.activeElement?.getAttribute(\"name\")");
+    expect(mainSource).toContain("focusSettingsField(settingsFocusField ||");
+    expect(mainSource).toContain("accountError: message,\n      draft,");
+  });
 });
