@@ -110,7 +110,22 @@ describe("miniapp navigation drawer visual contract", () => {
 
   it("keeps scenery below the current conversation on short screens", () => {
     const shortScreenRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
-    expect(shortScreenRule).toContain("height: 100px");
+    expect(shortScreenRule).toContain("height: 56px");
+  });
+
+  it("shrinks scenery progressively before the short drawer content band", () => {
+    const regularRule = drawerWxss.match(/\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const compactRule = drawerWxss.match(/@media \(max-height: 700px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const shortRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
+    const readHeight = (rule: string) => Number(rule.match(/height:\s*(\d+)px/)?.[1] ?? NaN);
+
+    const regularHeight = readHeight(regularRule);
+    const compactHeight = readHeight(compactRule);
+    const shortHeight = readHeight(shortRule);
+
+    expect(regularHeight).toBe(140);
+    expect(compactHeight).toBeLessThan(regularHeight);
+    expect(shortHeight).toBeLessThan(compactHeight);
   });
 
   it("ships the scenery as a compact indexed PNG with explicit transparency", () => {
