@@ -100,12 +100,20 @@ export class ConversationStore {
     return session ? cloneConversationSession(session) : null;
   }
 
-  async listSessions(accountId: string): Promise<ConversationRuntimeSession[]> {
+  async listSessions(accountId: string, query = ""): Promise<ConversationRuntimeSession[]> {
     assertIdentifier(accountId, "ACCOUNT_ID_REQUIRED");
+    const normalizedQuery = query.trim();
+    const searchPattern = `%${normalizedQuery.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
     const rows = await this.#sql<ConversationRow[]>`
       SELECT id, revision, state
       FROM conversations
-      WHERE account_id = ${accountId} AND deleted = false
+      WHERE account_id = ${accountId}
+        AND deleted = false
+        AND (
+          ${normalizedQuery} = ''
+          OR id ILIKE ${searchPattern}
+          OR state::text ILIKE ${searchPattern}
+        )
       ORDER BY updated_at DESC, id DESC
     `;
     return rows.map((row) => cloneConversationSession(parseSession(row)));

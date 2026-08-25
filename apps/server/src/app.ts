@@ -8,6 +8,7 @@ import { registerConversationRoutes, type ConversationRouteRuntime } from "./con
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
+import { registerTrialQuotaRoutes, type TrialQuotaRouteRuntime } from "./trial-quota-routes";
 import {
   registerTextAnnotationRoutes,
   type TextAnnotationService,
@@ -25,6 +26,7 @@ type AppDependencies = {
   >;
   accountSettings?: AccountSettingsService;
   conversation?: ConversationRouteRuntime;
+  trialQuota?: TrialQuotaRouteRuntime;
 };
 
 export const resolveAccountId = resolveAccountOwner;
@@ -176,6 +178,10 @@ export function createApp(dependencies: AppDependencies) {
 
   if (dependencies.conversation) {
     registerConversationRoutes(app, dependencies.conversation, resolveAccountId);
+  }
+
+  if (dependencies.trialQuota) {
+    registerTrialQuotaRoutes(app, dependencies.trialQuota, resolveAccountId);
   }
 
   if (dependencies.m0) {

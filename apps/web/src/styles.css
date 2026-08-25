@@ -422,6 +422,7 @@ body { overflow-x: hidden; }
   border-right: 1px solid rgba(203,216,211,.86);
 }
 .desktop-list-actions { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; align-items: center; }
+.desktop-list-actions:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
 .desktop-new-conversation {
   min-height: 48px;
   display: inline-flex;
@@ -431,10 +432,15 @@ body { overflow-x: hidden; }
   border: 1px solid #3f8b75;
   border-radius: 7px;
   color: var(--desktop-celadon);
+  background: transparent;
+  cursor: pointer;
   text-decoration: none;
   font-size: 15px;
   font-weight: 600;
 }
+.desktop-new-conversation:hover { background: #eef4f0; }
+.desktop-new-conversation:focus-visible { outline: 3px solid rgba(77,125,107,.28); outline-offset: 2px; }
+.desktop-new-conversation:disabled { opacity: .64; cursor: wait; }
 .desktop-disabled-control { cursor: not-allowed; opacity: .64; }
 .desktop-disabled-control:disabled, .desktop-list-toggle:disabled { color: #7f8d87; }
 .desktop-new-conversation svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }

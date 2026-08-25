@@ -230,6 +230,38 @@ describe("conversation store", () => {
       code: "SESSION_NOT_FOUND",
     });
   });
+
+  it("searches recent conversations by persisted message text without crossing accounts", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_search");
+    const store = new ConversationStore(setup.sql, domainStateMachine);
+    await store.createSession("account-a", "conversation-longan");
+    await store.createSession("account-a", "conversation-river");
+    await store.createSession("account-b", "conversation-other");
+
+    await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-longan",
+      requestId: "request-longan",
+      text: "长安的故事",
+    });
+    await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-river",
+      requestId: "request-river",
+      text: "山河的故事",
+    });
+    await store.sendText({
+      accountId: "account-b",
+      conversationId: "conversation-other",
+      requestId: "request-other",
+      text: "长安不应泄露",
+    });
+
+    expect((await store.listSessions("account-a", "长安")).map((session) => session.id)).toEqual([
+      "conversation-longan",
+    ]);
+    expect(await store.listSessions("account-b", "山河")).toEqual([]);
+  });
 });
 
 async function isolatedDatabase(

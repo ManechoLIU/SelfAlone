@@ -24,7 +24,10 @@ export async function registerConversationRoutes(
 ) {
   app.get("/api/v1/conversations", async (request, reply) => {
     try {
-      return { conversations: await runtime.listSessions(resolveAccountId(request.headers)) };
+      const query = z.object({ query: z.string().trim().max(120).optional() }).parse(request.query);
+      return {
+        conversations: await runtime.listSessions(resolveAccountId(request.headers), query.query ?? ""),
+      };
     } catch (error) {
       return sendConversationError(error, reply);
     }

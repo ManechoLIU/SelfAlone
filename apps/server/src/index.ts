@@ -14,6 +14,8 @@ import { migrateTextAnnotationSchema } from "./text-annotation-migration";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
 import { ConversationStore } from "./conversation-store";
+import { migrateTrialQuotaSchema } from "./trial-quota-migration";
+import { TrialQuotaStore } from "./trial-quota-store";
 import { extractTextBook } from "@selfalone/domain";
 import {
   appendConversationContext,
@@ -91,6 +93,14 @@ const conversation = new ConversationStore(conversationSql, {
   deleteSession: deleteConversationSession,
   isSendLocked: isConversationSendLocked,
 });
+const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);
+} finally {
+  await trialQuotaMigrationDatabase.end();
+}
+const trialQuotaSql = postgres(databaseUrl, { max: 2 });
+const trialQuota = new TrialQuotaStore(trialQuotaSql);
 const app = createApp({
   readiness: async () =>
     (await auth.ready())
@@ -105,6 +115,7 @@ const app = createApp({
   textAnnotations,
   accountSettings: accountSettings,
   conversation,
+  trialQuota,
 });
 
 const shutdown = async () => {
@@ -116,6 +127,7 @@ const shutdown = async () => {
   await accountSettings.close();
   await auth.close();
   await conversationSql.end();
+  await trialQuotaSql.end();
   process.exit(0);
 };
 

@@ -2,6 +2,7 @@ import type {
   ConversationChatSendResult,
   ConversationChatSession,
 } from "./conversation-chat-state";
+import type { TrialQuotaStatus } from "@selfalone/contracts";
 
 export class ConversationChatClientError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -22,10 +23,12 @@ export function createConversationChatClient(options: ConversationChatClientOpti
   const headers = options.headers;
 
   return {
-    async listSessions(): Promise<ConversationChatSession[]> {
+    async listSessions(options: { query?: string } = {}): Promise<ConversationChatSession[]> {
+      const query = options.query?.trim() ?? "";
+      const suffix = query ? `?query=${encodeURIComponent(query)}` : "";
       const response = await request<{ conversations: ConversationChatSession[] }>(
         fetcher,
-        `${baseUrl}/api/v1/conversations`,
+        `${baseUrl}/api/v1/conversations${suffix}`,
         { headers },
       );
       return response.conversations;
@@ -42,6 +45,26 @@ export function createConversationChatClient(options: ConversationChatClientOpti
         },
       );
       return response.session;
+    },
+
+    async getTrialQuota(): Promise<TrialQuotaStatus> {
+      return request<TrialQuotaStatus>(
+        fetcher,
+        `${baseUrl}/api/v1/account/trial-quota`,
+        { headers },
+      );
+    },
+
+    async claimTrialQuota(): Promise<TrialQuotaStatus> {
+      return request<TrialQuotaStatus>(
+        fetcher,
+        `${baseUrl}/api/v1/account/trial-quota/claim`,
+        {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: "{}",
+        },
+      );
     },
 
     async getSession(conversationId: string): Promise<ConversationChatSession> {

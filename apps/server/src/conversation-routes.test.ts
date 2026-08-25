@@ -114,4 +114,33 @@ describe("private conversation routes", () => {
     expect(response.json()).toEqual({ conversations: [] });
     await app.close();
   });
+
+  it("passes a recent-conversation search through with the authenticated account", async () => {
+    const app = Fastify({ logger: false });
+    const calls: Array<{ accountId: string; query: string }> = [];
+    const runtime = {
+      createSession: async () => {
+        throw new Error("not used");
+      },
+      getSession: async () => null,
+      listSessions: async (accountId: string, query = "") => {
+        calls.push({ accountId, query });
+        return [];
+      },
+      sendText: async () => {
+        throw new Error("not used");
+      },
+    };
+
+    await registerConversationRoutes(app, runtime, () => "account-a");
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/conversations?query=%E9%95%BF%E5%AE%89",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ conversations: [] });
+    expect(calls).toEqual([{ accountId: "account-a", query: "长安" }]);
+    await app.close();
+  });
 });

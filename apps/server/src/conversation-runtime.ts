@@ -137,9 +137,14 @@ export class ConversationRuntime {
     return session ? cloneSession(session) : undefined;
   }
 
-  listSessions(): ConversationRuntimeSession[] {
+  listSessions(query = ""): ConversationRuntimeSession[] {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
     return [...this.#sessions.values()]
-      .filter((session) => !session.deleted)
+      .filter((session) => {
+        if (session.deleted) return false;
+        if (!normalizedQuery) return true;
+        return JSON.stringify(session).toLocaleLowerCase().includes(normalizedQuery);
+      })
       .map(cloneSession);
   }
 

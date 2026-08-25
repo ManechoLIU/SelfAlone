@@ -210,3 +210,7 @@ export type AuthErrorCode =
   | "EMAIL_ALREADY_REGISTERED"
   | "INVALID_REQUEST"
   | "INTERNAL_ERROR";
+
+export type TrialQuotaStatus = {
+  status: "unclaimed" | "claimed";
+};
