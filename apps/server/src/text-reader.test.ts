@@ -351,6 +351,56 @@ describe("M1-F2-B text reader runtime and routes", () => {
     `).resolves.toHaveLength(1);
   });
 
+  it("fails closed when a same-version replay has title or null-author metadata drift", async () => {
+    const setup = await setupSingleBook(runtimes, databases, objectDirectories);
+    const prepared = await setup.runtime.prepareTextBook("account-a", "txt-book");
+    const publisher = postgres(setup.databaseUrl, { max: 1 });
+    auxiliaryDatabases.push(publisher);
+
+    await setup.administration.unsafe(`
+      UPDATE "${setup.schema}".books
+      SET title = '手动标题'
+      WHERE account_id = 'account-a' AND id = 'txt-book'
+    `);
+    await expect(publisher.begin((transaction) =>
+      setup.runtime.publishPreparedTextBook(prepared, transaction),
+    )).rejects.toThrow("TEXT_PUBLICATION_CONFLICT");
+
+    await setup.administration.unsafe(`
+      UPDATE "${setup.schema}".books
+      SET title = '位置', author = '手动作者'
+      WHERE account_id = 'account-a' AND id = 'txt-book'
+    `);
+    await expect(publisher.begin((transaction) =>
+      setup.runtime.publishPreparedTextBook(prepared, transaction),
+    )).rejects.toThrow("TEXT_PUBLICATION_CONFLICT");
+  });
+
+  it("fails closed when section count claims a partial publication with no stored sections", async () => {
+    const setup = await setupSingleBook(runtimes, databases, objectDirectories);
+    const prepared = await setup.runtime.prepareTextBook("account-a", "txt-book");
+    const publisher = postgres(setup.databaseUrl, { max: 1 });
+    auxiliaryDatabases.push(publisher);
+
+    await setup.administration.unsafe(`
+      DELETE FROM "${setup.schema}".book_sections
+      WHERE account_id = 'account-a' AND book_id = 'txt-book' AND file_version = 1;
+      UPDATE "${setup.schema}".books
+      SET section_count = 1
+      WHERE account_id = 'account-a' AND id = 'txt-book'
+    `);
+    await expect(publisher.begin((transaction) =>
+      setup.runtime.publishPreparedTextBook(prepared, transaction),
+    )).rejects.toThrow("TEXT_PUBLICATION_CONFLICT");
+
+    const sections = await setup.administration.unsafe<Array<{ sectionId: string }>>(`
+      SELECT section_id AS "sectionId"
+      FROM "${setup.schema}".book_sections
+      WHERE account_id = 'account-a' AND book_id = 'txt-book' AND file_version = 1
+    `);
+    expect(sections).toEqual([]);
+  });
+
   it("interleaves the real publisher with an annotation mutation without a deadlock", async () => {
     const setup = await setupSingleBook(runtimes, databases, objectDirectories);
     await bootstrapTextAnnotationSchemaForTest({ databaseUrl: setup.databaseUrl });

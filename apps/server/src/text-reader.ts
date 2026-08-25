@@ -130,8 +130,13 @@ export class TextReaderRuntime {
     transaction: TransactionSql,
   ) {
     const { accountId, bookId, extracted } = prepared;
-    const [book] = await transaction<Array<{ id: string; sectionCount: number }>>`
-      SELECT id, section_count AS "sectionCount"
+    const [book] = await transaction<Array<{
+      id: string;
+      sectionCount: number;
+      title: string;
+      author: string | null;
+    }>>`
+      SELECT id, title, author, section_count AS "sectionCount"
       FROM books
       WHERE account_id = ${accountId} AND id = ${bookId}
       FOR UPDATE
@@ -160,7 +165,11 @@ export class TextReaderRuntime {
       ORDER BY section_order ASC
     `;
     if (existing.length > 0 || extracted.sections.length === 0) {
-      if (book.sectionCount !== existing.length) throw new Error("TEXT_PUBLICATION_CONFLICT");
+      if (
+        book.sectionCount !== existing.length
+        || book.title !== extracted.title
+        || book.author !== extracted.author
+      ) throw new Error("TEXT_PUBLICATION_CONFLICT");
       const matches = existing.length === extracted.sections.length
         && existing.every((stored, index) => {
           const incoming = extracted.sections[index];
@@ -173,6 +182,7 @@ export class TextReaderRuntime {
       if (!matches) throw new Error("TEXT_PUBLICATION_CONFLICT");
       return { fileVersion: extracted.fileVersion, sectionCount: existing.length };
     }
+    if (book.sectionCount !== 0) throw new Error("TEXT_PUBLICATION_CONFLICT");
 
     for (const section of extracted.sections) {
       await transaction`
