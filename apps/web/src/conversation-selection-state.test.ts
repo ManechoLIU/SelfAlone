@@ -16,6 +16,7 @@ function question(overrides: Partial<ConversationSelectionQuestion> = {}): Conve
     version: 1,
     prompt: "保留哪些内容？",
     mode: "multi",
+    requiresConfirmation: false,
     options: [
       { value: "summary", label: "摘要" },
       { value: "outline", label: "大纲" },

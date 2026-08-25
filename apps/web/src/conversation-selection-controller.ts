@@ -10,6 +10,7 @@ import {
   toggleSelectionOption,
   type ConversationSelectionAnswerResult,
   type ConversationSelectionQuestion,
+  type SelectionDraft,
   type ConversationSelectionState,
 } from "./conversation-selection-state";
 import type {
@@ -31,9 +32,30 @@ export type ConversationSelectionControllerClient = {
 };
 
 export type ConversationSelectionControllerOptions = {
+  accountId: string;
   conversationId: string;
   client: ConversationSelectionControllerClient;
   requestIdFactory?: () => string;
+  draftCache?: ConversationSelectionDraftCache;
+};
+
+export type ConversationSelectionDraftCache = {
+  load(
+    accountId: string,
+    conversationId: string,
+    questionId: string,
+  ): Promise<SelectionDraft | null> | SelectionDraft | null;
+  save(
+    accountId: string,
+    conversationId: string,
+    questionId: string,
+    draft: SelectionDraft,
+  ): Promise<void> | void;
+  clear(
+    accountId: string,
+    conversationId: string,
+    questionId: string,
+  ): Promise<void> | void;
 };
 
 export type ConversationSelectionStateListener = (state: ConversationSelectionState) => void;
@@ -54,6 +76,7 @@ export function createConversationSelectionController(
   let state = createConversationSelectionState(options.conversationId);
   const listeners = new Set<ConversationSelectionStateListener>();
   const retryRequestIds = new Map<string, string>();
+  const draftCache = options.draftCache ?? emptyDraftCache;
   let localEpoch = 0;
   let hydrateGeneration = 0;
 
@@ -68,12 +91,58 @@ export function createConversationSelectionController(
     return `selection-request-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
+  function saveDraftCache(questionId: string, draft: SelectionDraft) {
+    try {
+      void Promise.resolve(draftCache.save(
+        options.accountId,
+        options.conversationId,
+        questionId,
+        { values: [...draft.values], freeText: draft.freeText },
+      )).catch(() => undefined);
+    } catch {
+      // A cache failure must not turn a usable in-memory draft into an error state.
+    }
+  }
+
+  function clearDraftCache(questionId: string) {
+    try {
+      void Promise.resolve(draftCache.clear(
+        options.accountId,
+        options.conversationId,
+        questionId,
+      )).catch(() => undefined);
+    } catch {
+      // Cache cleanup is best effort; server state remains authoritative.
+    }
+  }
+
+  async function loadDraftCache(question: ConversationSelectionQuestion) {
+    try {
+      const cached = await draftCache.load(
+        options.accountId,
+        options.conversationId,
+        question.id,
+      );
+      if (!cached) return null;
+      const allowedValues = new Set(question.options.map((option) => option.value));
+      return {
+        values: question.mode === "free"
+          ? []
+          : cached.values.filter((value) => allowedValues.has(value)),
+        freeText: question.mode === "free" ? cached.freeText : question.freeText ?? "",
+      } satisfies SelectionDraft;
+    } catch {
+      return null;
+    }
+  }
+
   async function persist(
     question: ConversationSelectionQuestion,
     input: Omit<AnswerConversationSelectionInput, "requestId" | "expectedVersion"> & { requestId?: string },
   ) {
     const id = input.requestId ?? retryRequestIds.get(question.id) ?? requestId();
     retryRequestIds.set(question.id, id);
+    saveDraftCache(question.id, selectionDraftFor(state, question.id));
     localEpoch += 1;
     publish(beginSelectionSave(state));
     try {
@@ -83,12 +152,18 @@ export function createConversationSelectionController(
         expectedVersion: question.version,
         confirm: input.confirm ?? false,
       });
-      if (result.status === "submitted") retryRequestIds.delete(question.id);
+      retryRequestIds.delete(question.id);
+      if (result.question.status !== "pending") clearDraftCache(question.id);
       localEpoch += 1;
       publish(applySelectionResult(state, result));
       return result;
     } catch (error) {
-      publish(applySelectionError(state, selectionErrorCode(error)));
+      const code = selectionErrorCode(error);
+      if (code === "SELECTION_STALE") {
+        retryRequestIds.delete(question.id);
+        clearDraftCache(question.id);
+      }
+      publish(applySelectionError(state, code));
       return undefined;
     }
   }
@@ -109,8 +184,21 @@ export function createConversationSelectionController(
       publish(beginSelectionHydration(state));
       try {
         const questions = await options.client.listQuestions(options.conversationId);
+        const hydratedQuestions = await Promise.all(questions.map(async (question) => {
+          if (question.status !== "pending") {
+            clearDraftCache(question.id);
+            return question;
+          }
+          const cached = await loadDraftCache(question);
+          if (!cached) return question;
+          return {
+            ...question,
+            selectedValues: [...cached.values],
+            freeText: question.mode === "free" ? cached.freeText : question.freeText,
+          };
+        }));
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
-        publish(applySelectionSnapshot(state, questions));
+        publish(applySelectionSnapshot(state, hydratedQuestions));
       } catch (error) {
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
         publish(applySelectionError(state, selectionErrorCode(error)));
@@ -121,9 +209,11 @@ export function createConversationSelectionController(
     async createQuestion(input) {
       try {
         const question = await options.client.createQuestion(options.conversationId, input);
-        const superseded = state.questions.map((candidate) => candidate.status === "pending"
-          ? { ...candidate, status: "stale" as const }
-          : candidate);
+        const superseded = state.questions.map((candidate) => {
+          if (candidate.status !== "pending") return candidate;
+          clearDraftCache(candidate.id);
+          return { ...candidate, status: "stale" as const };
+        });
         publish(applySelectionSnapshot(state, [...superseded, question]));
         return question;
       } catch (error) {
@@ -141,7 +231,8 @@ export function createConversationSelectionController(
       localEpoch += 1;
       publish(nextState);
       const draft = selectionDraftFor(nextState, questionId);
-      return persist(question, { values: draft.values, confirm: question.mode === "single" });
+      const confirm = question.mode === "single" && !question.requiresConfirmation;
+      return persist(question, { values: draft.values, confirm });
     },
 
     setFreeText(questionId, value) {
@@ -150,6 +241,7 @@ export function createConversationSelectionController(
       if (nextState === state) return;
       localEpoch += 1;
       publish(nextState);
+      saveDraftCache(questionId, selectionDraftFor(nextState, questionId));
     },
 
     async confirm(questionId) {
@@ -165,6 +257,12 @@ export function createConversationSelectionController(
     },
   };
 }
+
+const emptyDraftCache: ConversationSelectionDraftCache = {
+  load: () => null,
+  save: () => undefined,
+  clear: () => undefined,
+};
 
 function selectionErrorCode(error: unknown) {
   if (error && typeof error === "object" && "code" in error) {

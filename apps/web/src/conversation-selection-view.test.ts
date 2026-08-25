@@ -25,6 +25,7 @@ function question(overrides: Partial<ConversationSelectionQuestion> = {}): Conve
     freeText: null,
     answer: null,
     answerRequestId: null,
+    requiresConfirmation: false,
     ...overrides,
   };
 }
@@ -63,6 +64,17 @@ describe("conversation selection view", () => {
     expect(rendered.main).toContain("已失效");
     expect(rendered.main).toContain("选择保存失败，当前输入仍保留，请重试");
     expect(rendered.main).not.toContain("SELECTION_REQUEST_FAILED");
+  });
+
+  it("renders confirmation for a high-impact single choice after selection", () => {
+    const state = applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+      question({ requiresConfirmation: true, selectedValues: ["summary"] }),
+    ]);
+    const rendered = renderConversationSelectionView({ state });
+
+    expect(rendered.main).toContain('aria-pressed="true"');
+    expect(rendered.main).toContain('data-selection-confirm="question-a"');
+    expect(rendered.main).toContain("确认选择");
   });
 
   it("keeps the private responsive and focus contract local to selection", () => {

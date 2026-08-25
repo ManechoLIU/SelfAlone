@@ -120,6 +120,38 @@ describe("conversation selection store", () => {
     expect(drafted.status).toBe("pending");
     expect(drafted.question.selectedValues).toEqual(["summary"]);
 
+    const replayedStore = new ConversationSelectionStore(setup.sql);
+    const replayedDraft = await replayedStore.answerQuestion({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      questionId: first.id,
+      requestId: "draft-a",
+      expectedVersion: first.version,
+      values: ["summary"],
+      confirm: false,
+    });
+    expect(replayedDraft).toEqual(drafted);
+    await expect(replayedStore.answerQuestion({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      questionId: first.id,
+      requestId: "draft-a",
+      expectedVersion: first.version,
+      values: ["outline"],
+      confirm: false,
+    })).rejects.toMatchObject({ code: "SELECTION_REQUEST_ID_CONFLICT" });
+
+    const nextDraft = await replayedStore.answerQuestion({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      questionId: first.id,
+      requestId: "draft-b",
+      expectedVersion: drafted.question.version,
+      values: ["outline"],
+      confirm: false,
+    });
+    expect(nextDraft).toMatchObject({ status: "pending", question: { version: 3, selectedValues: ["outline"] } });
+
     const replacement = await store.createQuestion("account-a", "conversation-a", {
       prompt: "改为选择哪种内容？",
       mode: "single",
@@ -137,6 +169,40 @@ describe("conversation selection store", () => {
       confirm: true,
     })).rejects.toMatchObject({ code: "SELECTION_STALE" });
     expect(replacement.status).toBe("pending");
+  });
+
+  it("requires explicit confirmation for a high-impact single choice", async () => {
+    const setup = await isolatedDatabase(databases, "selection_store_confirmation");
+    await createConversation(setup.sql, "account-a", "conversation-a");
+    const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
+    const created = await store.createQuestion("account-a", "conversation-a", {
+      prompt: "这会使已有内容失效吗？",
+      mode: "single",
+      options: [{ value: "replace", label: "替换已有内容" }],
+      requiresConfirmation: true,
+    });
+
+    const pending = await store.answerQuestion({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      questionId: created.id,
+      requestId: "select-a",
+      expectedVersion: created.version,
+      values: ["replace"],
+      confirm: false,
+    });
+    expect(pending).toMatchObject({ status: "pending", question: { selectedValues: ["replace"] } });
+
+    const submitted = await store.answerQuestion({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      questionId: created.id,
+      requestId: "confirm-a",
+      expectedVersion: pending.question.version,
+      values: ["replace"],
+      confirm: true,
+    });
+    expect(submitted.status).toBe("submitted");
   });
 
   it("keeps selection data isolated between accounts", async () => {

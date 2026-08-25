@@ -40,6 +40,14 @@ describe("conversation selection schema migration", () => {
         AND table_name = 'conversation_selection_questions'
     `;
     expect(table?.tableName).toBe("conversation_selection_questions");
+    const [confirmationColumn] = await sql<{ columnName: string }[]>`
+      SELECT column_name AS "columnName"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'conversation_selection_questions'
+        AND column_name = 'requires_confirmation'
+    `;
+    expect(confirmationColumn?.columnName).toBe("requires_confirmation");
     const [migration] = await sql<{ name: string }[]>`
       SELECT name
       FROM schema_migrations

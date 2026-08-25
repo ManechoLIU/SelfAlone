@@ -18,6 +18,7 @@ export type ConversationSelectionQuestion = {
   version: number;
   prompt: string;
   mode: SelectionMode;
+  requiresConfirmation: boolean;
   options: readonly ConversationSelectionOption[];
   status: ConversationSelectionStatus;
   selectedValues: readonly string[];

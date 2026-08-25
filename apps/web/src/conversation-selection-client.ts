@@ -10,6 +10,7 @@ export type CreateConversationSelectionInput = {
   prompt: string;
   mode: SelectionMode;
   options: readonly ConversationSelectionOption[];
+  requiresConfirmation?: boolean;
 };
 
 export type AnswerConversationSelectionInput = {
@@ -63,6 +64,7 @@ export function createConversationSelectionClient(options: ConversationSelection
             prompt: input.prompt,
             mode: input.mode,
             options: input.options,
+            requiresConfirmation: input.requiresConfirmation ?? false,
           }),
         },
       );

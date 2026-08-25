@@ -7,6 +7,7 @@ import {
 
 function question(
   mode: ConversationSelectionQuestion["mode"],
+  requiresConfirmation = false,
 ): ConversationSelectionQuestion {
   return createSelectionQuestion({
     id: `question-${mode}`,
@@ -19,6 +20,7 @@ function question(
           { value: "summary", label: "摘要" },
           { value: "outline", label: "大纲" },
         ],
+    ...(requiresConfirmation ? { requiresConfirmation: true } : {}),
   });
 }
 
@@ -34,6 +36,26 @@ describe("conversation selection core", () => {
       selectedValues: ["summary"],
       freeText: null,
     });
+  });
+
+  it("keeps a high-impact single choice pending until explicit confirmation", () => {
+    const pending = applySelectionAnswer(question("single", true), {
+      values: ["summary"],
+      confirm: false,
+    });
+
+    expect(pending.status).toBe("pending");
+    expect(pending.question).toMatchObject({
+      status: "pending",
+      selectedValues: ["summary"],
+    });
+
+    const submitted = applySelectionAnswer(pending.question, {
+      values: ["summary"],
+      confirm: true,
+    });
+    expect(submitted.status).toBe("submitted");
+    expect(submitted.question.status).toBe("submitted");
   });
 
   it("keeps a multi choice pending until explicit confirmation", () => {

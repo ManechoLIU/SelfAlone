@@ -18,6 +18,7 @@ export type ConversationSelectionQuestion = {
   version: number;
   prompt: string;
   mode: SelectionMode;
+  requiresConfirmation: boolean;
   options: readonly ConversationSelectionOption[];
   status: ConversationSelectionStatus;
   selectedValues: readonly string[];
@@ -61,6 +62,7 @@ export function createSelectionQuestion(input: {
   prompt: string;
   mode: SelectionMode;
   options?: readonly ConversationSelectionOption[];
+  requiresConfirmation?: boolean;
 }): ConversationSelectionQuestion {
   const id = input.id.trim();
   const conversationId = input.conversationId.trim();
@@ -83,6 +85,7 @@ export function createSelectionQuestion(input: {
     version: 1,
     prompt,
     mode: input.mode,
+    requiresConfirmation: input.requiresConfirmation ?? false,
     options,
     status: "pending",
     selectedValues: [],
@@ -108,6 +111,9 @@ export function applySelectionAnswer(
 
   if (question.mode === "single") {
     if (values.length !== 1) throw new SelectionCoreError("SELECTION_INPUT_REQUIRED");
+    if (question.requiresConfirmation && input.confirm !== true) {
+      return pending(question, values, null);
+    }
     return submitted(question, values, null);
   }
 

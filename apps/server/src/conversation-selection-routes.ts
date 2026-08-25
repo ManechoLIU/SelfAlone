@@ -20,6 +20,7 @@ const createQuestionBody = z.object({
   id: z.string().trim().min(1).max(160).optional(),
   prompt: z.string().trim().min(1).max(2_000),
   mode: z.enum(["single", "multi", "free"]),
+  requiresConfirmation: z.boolean().optional().default(false),
   options: z.array(
     z.object({
       value: z.string().trim().min(1).max(160),
@@ -57,6 +58,7 @@ export async function registerConversationSelectionRoutes(
         id: body.id,
         prompt: body.prompt,
         mode: body.mode,
+        requiresConfirmation: body.requiresConfirmation,
         options: body.options,
       };
       const question = await runtime.createQuestion(

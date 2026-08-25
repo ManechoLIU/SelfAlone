@@ -22,7 +22,7 @@ describe("conversation selection client", () => {
     });
 
     await client.listQuestions("conversation-a");
-    await client.createQuestion("conversation-a", { prompt: "问题", mode: "single", options: [] });
+    await client.createQuestion("conversation-a", { prompt: "问题", mode: "single", options: [], requiresConfirmation: true });
     await client.answerQuestion("conversation-a", "question-a", {
       requestId: "answer-a",
       expectedVersion: 1,
@@ -31,7 +31,7 @@ describe("conversation selection client", () => {
 
     expect(calls).toEqual([
       { url: "/api/v1/conversations/conversation-a/selection-questions", method: "GET" },
-      { url: "/api/v1/conversations/conversation-a/selection-questions", method: "POST", body: { prompt: "问题", mode: "single", options: [] } },
+      { url: "/api/v1/conversations/conversation-a/selection-questions", method: "POST", body: { prompt: "问题", mode: "single", options: [], requiresConfirmation: true } },
       { url: "/api/v1/conversations/conversation-a/selection-questions/question-a/answer", method: "POST", body: { requestId: "answer-a", expectedVersion: 1, values: ["summary"], confirm: false } },
     ]);
   });

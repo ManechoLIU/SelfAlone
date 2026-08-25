@@ -101,7 +101,7 @@ function renderPendingQuestion(
           </button>`;
         }).join("")}
       </div>`;
-  const confirm = question.mode === "single"
+  const confirm = question.mode === "single" && !question.requiresConfirmation
     ? ""
     : `<button class="conversation-selection-confirm" type="button" data-selection-confirm="${escapeHtml(question.id)}"${saving ? " disabled" : ""}>确认选择</button>`;
   return `<div class="conversation-selection-pending" data-selection-pending="${escapeHtml(question.id)}">

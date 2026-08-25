@@ -13,6 +13,7 @@ const question = {
   version: 1,
   prompt: "保留哪种内容？",
   mode: "single" as const,
+  requiresConfirmation: false,
   options: [{ value: "summary", label: "摘要" }],
   status: "pending" as const,
   selectedValues: [],
@@ -27,7 +28,7 @@ describe("conversation selection routes", () => {
     const calls: string[] = [];
     const runtime = {
       createQuestion: async (_accountId: string, _conversationId: string, input: CreateSelectionQuestionInput) => {
-        calls.push(`create:${input.prompt}`);
+        calls.push(`create:${input.prompt}:${input.requiresConfirmation}`);
         return question;
       },
       listQuestions: async () => [question],
@@ -42,7 +43,7 @@ describe("conversation selection routes", () => {
     const created = await app.inject({
       method: "POST",
       url: "/api/v1/conversations/conversation-a/selection-questions",
-      payload: { prompt: "保留哪种内容？", mode: "single", options: [{ value: "summary", label: "摘要" }] },
+      payload: { prompt: "保留哪种内容？", mode: "single", requiresConfirmation: true, options: [{ value: "summary", label: "摘要" }] },
     });
     expect(created.statusCode).toBe(201);
     expect(created.json()).toEqual({ question });
@@ -61,7 +62,7 @@ describe("conversation selection routes", () => {
     });
     expect(answered.statusCode).toBe(200);
     expect(answered.json()).toMatchObject({ status: "submitted", question: { status: "submitted" } });
-    expect(calls).toEqual(["create:保留哪种内容？"]);
+    expect(calls).toEqual(["create:保留哪种内容？:true"]);
     await app.close();
   });
 

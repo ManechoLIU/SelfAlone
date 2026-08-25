@@ -20,6 +20,7 @@ export type CreateSelectionQuestionInput = {
   prompt: string;
   mode: SelectionMode;
   options?: readonly ConversationSelectionOption[];
+  requiresConfirmation?: boolean;
 };
 
 export type AnswerSelectionQuestionInput = SelectionAnswerInput & {
@@ -62,12 +63,15 @@ type SelectionRow = {
   version: number;
   prompt: string;
   mode: SelectionMode;
+  requiresConfirmation: boolean;
   options: unknown;
   status: ConversationSelectionQuestion["status"];
   selectedValues: unknown;
   freeText: string | null;
   answer: unknown;
   answerRequestId: string | null;
+  lastRequestId: string | null;
+  lastRequestPayload: unknown;
 };
 
 export class ConversationSelectionStore {
@@ -92,6 +96,7 @@ export class ConversationSelectionStore {
       prompt: input.prompt,
       mode: input.mode,
       options: input.options,
+      requiresConfirmation: input.requiresConfirmation,
     });
 
     try {
@@ -141,12 +146,15 @@ export class ConversationSelectionStore {
         version,
         prompt,
         mode,
+        requires_confirmation AS "requiresConfirmation",
         options,
         status,
         selected_values AS "selectedValues",
         free_text AS "freeText",
         answer,
-        answer_request_id AS "answerRequestId"
+        answer_request_id AS "answerRequestId",
+        last_request_id AS "lastRequestId",
+        last_request_payload AS "lastRequestPayload"
       FROM conversation_selection_questions
       WHERE account_id = ${accountId}
         AND conversation_id = ${conversationId}
@@ -169,12 +177,15 @@ export class ConversationSelectionStore {
         version,
         prompt,
         mode,
+        requires_confirmation AS "requiresConfirmation",
         options,
         status,
         selected_values AS "selectedValues",
         free_text AS "freeText",
         answer,
-        answer_request_id AS "answerRequestId"
+        answer_request_id AS "answerRequestId",
+        last_request_id AS "lastRequestId",
+        last_request_payload AS "lastRequestPayload"
       FROM conversation_selection_questions
       WHERE account_id = ${accountId}
         AND conversation_id = ${conversationId}
@@ -207,18 +218,37 @@ export class ConversationSelectionStore {
       const [row] = await selectForUpdate(transaction, input);
       if (!row) throw new ConversationSelectionStoreError("SELECTION_NOT_FOUND");
       const current = parseQuestion(row);
+      const mutation = selectionMutationPayload(input);
+
+      if (current.status === "stale") {
+        throw new ConversationSelectionStoreError("SELECTION_STALE");
+      }
+
+      if (row.lastRequestId === input.requestId) {
+        if (!sameMutation(row.lastRequestPayload, mutation)) {
+          throw new ConversationSelectionStoreError("SELECTION_REQUEST_ID_CONFLICT");
+        }
+        if (current.status === "pending") {
+          return { status: "pending", question: cloneQuestion(current) };
+        }
+        if (!current.answer) {
+          throw new ConversationSelectionStoreError("SELECTION_STALE");
+        }
+        return { status: "submitted", question: cloneQuestion(current) };
+      }
 
       if (current.answerRequestId) {
         if (current.answerRequestId !== input.requestId) {
           throw new ConversationSelectionStoreError("SELECTION_STALE");
         }
-        if (!sameAnswer(current, input)) {
+        if (!sameSubmittedAnswer(current, input) || current.status !== "submitted" || !current.answer) {
           throw new ConversationSelectionStoreError("SELECTION_REQUEST_ID_CONFLICT");
         }
-        if (current.status !== "submitted" || !current.answer) {
-          throw new ConversationSelectionStoreError("SELECTION_STALE");
-        }
         return { status: "submitted", question: cloneQuestion(current) };
+      }
+
+      if (current.status === "submitted") {
+        throw new ConversationSelectionStoreError("SELECTION_STALE");
       }
 
       if (current.status !== "pending" || current.version !== input.expectedVersion) {
@@ -239,7 +269,7 @@ export class ConversationSelectionStore {
         ...applied.question,
         answerRequestId: applied.status === "submitted" ? input.requestId : null,
       };
-      await updateQuestion(transaction, input, persisted);
+      await updateQuestion(transaction, input, persisted, input.requestId, mutation);
       return {
         status: applied.status,
         question: cloneQuestion(persisted),
@@ -260,12 +290,15 @@ async function selectForUpdate(
       version,
       prompt,
       mode,
+      requires_confirmation AS "requiresConfirmation",
       options,
       status,
       selected_values AS "selectedValues",
       free_text AS "freeText",
       answer,
-      answer_request_id AS "answerRequestId"
+      answer_request_id AS "answerRequestId",
+      last_request_id AS "lastRequestId",
+      last_request_payload AS "lastRequestPayload"
     FROM conversation_selection_questions
     WHERE account_id = ${input.accountId}
       AND conversation_id = ${input.conversationId}
@@ -281,8 +314,8 @@ async function insertQuestion(
 ) {
   await transaction`
     INSERT INTO conversation_selection_questions (
-      id, account_id, conversation_id, version, prompt, mode, options,
-      status, selected_values, free_text, answer, answer_request_id
+      id, account_id, conversation_id, version, prompt, mode, requires_confirmation, options,
+      status, selected_values, free_text, answer, answer_request_id, last_request_id, last_request_payload
     )
     VALUES (
       ${question.id},
@@ -291,10 +324,13 @@ async function insertQuestion(
       ${question.version},
       ${question.prompt},
       ${question.mode},
+      ${question.requiresConfirmation},
       ${transaction.json(question.options)},
       ${question.status},
       ${transaction.json(question.selectedValues)},
       ${question.freeText},
+      ${null},
+      ${null},
       ${null},
       ${null}
     )
@@ -305,6 +341,8 @@ async function updateQuestion(
   transaction: TransactionSql,
   input: Pick<AnswerSelectionQuestionInput, "accountId" | "conversationId" | "questionId">,
   question: ConversationSelectionQuestion,
+  requestId: string,
+  requestPayload: SelectionMutationPayload,
 ) {
   await transaction`
     UPDATE conversation_selection_questions
@@ -314,6 +352,8 @@ async function updateQuestion(
         free_text = ${question.freeText},
         answer = ${question.answer ? transaction.json(question.answer) : null},
         answer_request_id = ${question.answerRequestId},
+        last_request_id = ${requestId},
+        last_request_payload = ${transaction.json(requestPayload)},
         updated_at = now()
     WHERE account_id = ${input.accountId}
       AND conversation_id = ${input.conversationId}
@@ -325,6 +365,7 @@ function parseQuestion(row: SelectionRow): ConversationSelectionQuestion {
   if (
     !Array.isArray(row.options)
     || !Array.isArray(row.selectedValues)
+    || typeof row.requiresConfirmation !== "boolean"
     || row.options.some((option) => !isOption(option))
     || row.selectedValues.some((value) => typeof value !== "string")
     || (row.answer !== null && !isAnswer(row.answer))
@@ -337,6 +378,7 @@ function parseQuestion(row: SelectionRow): ConversationSelectionQuestion {
     version: row.version,
     prompt: row.prompt,
     mode: row.mode,
+    requiresConfirmation: row.requiresConfirmation,
     options: row.options,
     status: row.status,
     selectedValues: row.selectedValues,
@@ -346,12 +388,57 @@ function parseQuestion(row: SelectionRow): ConversationSelectionQuestion {
   };
 }
 
-function sameAnswer(question: ConversationSelectionQuestion, input: SelectionAnswerInput) {
-  const values = [...(input.values ?? [])].map((value) => value.trim()).filter(Boolean).sort();
-  const freeText = input.freeText?.trim() || null;
+type SelectionMutationPayload = {
+  values: string[];
+  freeText: string | null;
+  confirm: boolean;
+};
+
+function selectionMutationPayload(input: SelectionAnswerInput): SelectionMutationPayload {
+  return {
+    values: [...(input.values ?? [])].map((value) => value.trim()).filter(Boolean).sort(),
+    freeText: input.freeText?.trim() || null,
+    confirm: input.confirm === true,
+  };
+}
+
+function sameSubmittedAnswer(question: ConversationSelectionQuestion, input: SelectionAnswerInput) {
+  const expected = selectionMutationPayload(input);
   const persistedValues = question.answer ? [...question.answer.values].sort() : [];
-  return JSON.stringify({ values: persistedValues, freeText: question.answer?.freeText ?? null })
-    === JSON.stringify({ values, freeText });
+  const submittedValues = [...expected.values].sort();
+  return persistedValues.length === submittedValues.length
+    && persistedValues.every((entry, index) => entry === submittedValues[index])
+    && (question.answer?.freeText ?? null) === expected.freeText;
+}
+
+function sameMutation(value: unknown, expected: SelectionMutationPayload) {
+  const candidate = typeof value === "string"
+    ? parseMutationPayload(value)
+    : value;
+  if (
+    !candidate
+    || typeof candidate !== "object"
+    || !Array.isArray((candidate as { values?: unknown }).values)
+    || !(candidate as { values: unknown[] }).values.every((entry) => typeof entry === "string")
+    || ((candidate as { freeText?: unknown }).freeText !== null
+      && typeof (candidate as { freeText?: unknown }).freeText !== "string")
+    || typeof (candidate as { confirm?: unknown }).confirm !== "boolean"
+  ) {
+    return false;
+  }
+  const candidateValues = [...(candidate as { values: string[] }).values].sort();
+  return candidateValues.length === expected.values.length
+    && candidateValues.every((entry, index) => entry === expected.values[index])
+    && (candidate as { freeText: string | null }).freeText === expected.freeText
+    && (candidate as { confirm: boolean }).confirm === expected.confirm;
+}
+
+function parseMutationPayload(value: string) {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function isOption(value: unknown): value is ConversationSelectionOption {
