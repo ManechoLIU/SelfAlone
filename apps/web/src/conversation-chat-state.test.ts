@@ -3,6 +3,7 @@ import {
   applyConversationSendResult,
   applyConversationSnapshot,
   beginConversationSend,
+  canonicalizeConversationStageRoute,
   classifyConversationRoute,
   createConversationChatState,
   updateConversationDraft,
@@ -13,6 +14,11 @@ describe("conversation chat state", () => {
     expect(classifyConversationRoute("#/conversation")).toBe("chat");
     expect(classifyConversationRoute("#/conversation?stage=requirements")).toBe("workspace");
     expect(classifyConversationRoute("#/conversation?stage=outline&book=book-1&bookTitle=书")).toBe("workspace");
+  });
+
+  it("canonicalizes a completed stage action without dropping a book handoff", () => {
+    expect(canonicalizeConversationStageRoute("#/conversation?stage=requirements", "outline")).toBe("#/conversation?stage=outline");
+    expect(canonicalizeConversationStageRoute("#/conversation?stage=requirements&book=book-1&bookTitle=书", "outline")).toBe("#/conversation?stage=outline&book=book-1&bookTitle=%E4%B9%A6");
   });
 
   it("retains input across a failed send and restores server history", () => {

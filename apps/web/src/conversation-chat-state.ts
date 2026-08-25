@@ -47,6 +47,15 @@ export function classifyConversationRoute(hash: string): ConversationRouteKind {
   return parameters.has("stage") || parameters.has("book") ? "workspace" : "chat";
 }
 
+export function canonicalizeConversationStageRoute(hash: string, stage: string): string {
+  const [route, query = ""] = hash.slice(1).split("?");
+  if (route !== "/conversation") return hash;
+  const parameters = new URLSearchParams(query);
+  parameters.set("stage", stage);
+  const nextQuery = parameters.toString();
+  return `#${route}${nextQuery ? `?${nextQuery}` : ""}`;
+}
+
 export function createConversationChatState(conversationId: string): ConversationChatState {
   return {
     conversationId,

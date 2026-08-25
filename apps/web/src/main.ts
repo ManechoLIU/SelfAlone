@@ -50,7 +50,11 @@ import { coverAssetForBook } from "./library-cover";
 import { createConversationChatClient } from "./conversation-chat-client";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView } from "./conversation-chat-view";
-import { classifyConversationRoute, type ConversationChatSession } from "./conversation-chat-state";
+import {
+  canonicalizeConversationStageRoute,
+  classifyConversationRoute,
+  type ConversationChatSession,
+} from "./conversation-chat-state";
 import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
@@ -98,6 +102,7 @@ let draftOutlineDirty = false;
 let outlineDraftStatus: "local" | undefined;
 let stageView: WorkspaceScreen | null = readStageViewFromHash();
 let lastConversationStage: WorkspaceScreen | null = stageView;
+let legacyRouteFollowsWorkspace = false;
 let bookPptIntentId: string | null = bookPptIntentFromHash(window.location.hash);
 let bookPptIntentTitle: string | null = bookPptIntentTitleFromHash(window.location.hash);
 let routeGeneration = 0;
@@ -749,6 +754,7 @@ function setStageView(next: WorkspaceScreen) {
   persistConversationScroll();
   stageView = next;
   lastConversationStage = next;
+  legacyRouteFollowsWorkspace = false;
   window.history.pushState(null, "", conversationHref());
   render();
 }
@@ -756,8 +762,16 @@ function setStageView(next: WorkspaceScreen) {
 function clearStageView() {
   stageView = null;
   lastConversationStage = null;
-  if (window.location.hash.includes("?stage=")) {
-    window.history.replaceState(null, "", conversationHref());
+  legacyRouteFollowsWorkspace = true;
+}
+
+function canonicalizeLegacyRoute(workspaceSnapshot: WorkspaceSnapshot) {
+  const nextStage = resolveScreen(workspaceSnapshot);
+  const nextHash = canonicalizeConversationStageRoute(window.location.hash, nextStage);
+  stageView = nextStage;
+  lastConversationStage = nextStage;
+  if (nextHash !== window.location.hash) {
+    window.history.replaceState(null, "", nextHash);
   }
 }
 
@@ -1094,7 +1108,8 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   return payload;
 }
 
-async function loadWorkspace() {
+async function loadWorkspace(options: { render?: boolean } = {}) {
+  const shouldRender = options.render ?? true;
   if (workspaceRequestInFlight) return false;
   workspaceRequestInFlight = true;
   let loaded = false;
@@ -1155,8 +1170,17 @@ async function loadWorkspace() {
     }
   } finally {
     workspaceRequestInFlight = false;
-    if (isLegacyConversationRoute()) render();
-    updatePolling();
+    if (shouldRender && isLegacyConversationRoute()) {
+      if (loaded && workspace) {
+        if (legacyRouteFollowsWorkspace) {
+          canonicalizeLegacyRoute(workspace);
+        } else if (stageView === resolveScreen(workspace) || (stageView === null && bookPptIntentId !== null)) {
+          legacyRouteFollowsWorkspace = true;
+        }
+      }
+      render();
+      updatePolling();
+    }
   }
   return loaded;
 }
@@ -1361,7 +1385,7 @@ function bindInteractions() {
     });
   });
 
-  document.querySelector<HTMLButtonElement>("#refresh-workspace")?.addEventListener("click", loadWorkspace);
+  document.querySelector<HTMLButtonElement>("#refresh-workspace")?.addEventListener("click", () => void loadWorkspace());
 }
 
 async function act(action: () => Promise<void>) {
@@ -1371,8 +1395,9 @@ async function act(action: () => Promise<void>) {
   try {
     await action();
     clearStageView();
-    const loaded = await loadWorkspace();
+    const loaded = await loadWorkspace({ render: false });
     if (loaded && workspace) {
+      canonicalizeLegacyRoute(workspace);
       clearRecoveredRequirements(workspace.draft.id);
       clearRecoveredOutline(workspace.draft.id);
       draftRequirementsDirty = false;
@@ -1383,10 +1408,13 @@ async function act(action: () => Promise<void>) {
     errorMessage = error instanceof Error && error.message === "STALE_VERSION"
       ? "页面状态已经更新，正在为你恢复最新进度。"
       : "这一步暂时没有完成，已保留你的输入和当前进度。";
-    await loadWorkspace();
+    await loadWorkspace({ render: false });
   } finally {
     busy = false;
-    render();
+    if (isLegacyConversationRoute()) {
+      render();
+      updatePolling();
+    }
   }
 }
 
@@ -1522,6 +1550,7 @@ function renderRoute() {
   if (!legacyConversationRoute) {
     stageView = null;
     lastConversationStage = null;
+    legacyRouteFollowsWorkspace = false;
     if (conversationChatSession) {
       renderConversationChat(conversationChatSession);
     } else {
@@ -1531,6 +1560,12 @@ function renderRoute() {
   }
   stageView = readStageViewFromHash();
   lastConversationStage = stageView;
+  legacyRouteFollowsWorkspace = Boolean(
+    workspace && (
+      stageView === resolveScreen(workspace)
+      || (stageView === null && bookPptIntentId !== null)
+    ),
+  );
   if (!workspace) {
     renderLoading();
     void loadWorkspace();
