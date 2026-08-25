@@ -1,8 +1,19 @@
 import "./styles.css";
 import {
+  conversationHash,
+  outlineDraftStorageKey,
+  parseOutlineDraft,
+  parseRequirementsDraft,
   resolveScreen,
+  requirementsDraftStorageKey,
+  serializeRequirementsDraft,
+  serializeOutlineDraft,
+  stageFromConversationHash,
   taskProgressLabel,
+  withDraftOutline,
+  withDraftRequirements,
   type OutlineItem,
+  type WorkspaceScreen,
   type WorkspaceSnapshot,
 } from "./app-state";
 import type { LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
@@ -19,8 +30,14 @@ import {
   type LibraryLoadState,
 } from "./library-state";
 import { coverAssetForBook } from "./library-cover";
+import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
+import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
+
+const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
+const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
+const conversationScrollStorageKey = "selfalone:m1:conversation-scroll";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -33,6 +50,19 @@ let busy = false;
 let errorMessage = "";
 let selectedTemplate = "qingci-study";
 let pollingTimer: number | undefined;
+let workspaceRequestInFlight = false;
+let draftRequirements = "";
+let draftRequirementsDirty = false;
+let draftOutline: OutlineItem[] = [];
+let draftOutlineDirty = false;
+let outlineDraftStatus: "local" | undefined;
+let stageView: WorkspaceScreen | null = readStageViewFromHash();
+let lastConversationStage: WorkspaceScreen | null = stageView;
+let routeGeneration = 0;
+let conversationScrollTop = 0;
+let taskScrollTop = 0;
+let conversationFocusKey: string | null = null;
+let routeRenderFrame: number | undefined;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -58,24 +88,165 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+function readStageViewFromHash(): WorkspaceScreen | null {
+  return stageFromConversationHash(window.location.hash);
+}
+
+function isConversationRoute() {
+  return window.location.hash.slice(1).split("?")[0] === "/conversation";
+}
+
+function conversationHref() {
+  return conversationHash(stageView ?? lastConversationStage);
+}
+
+function focusKeyForElement(element: Element | null) {
+  if (!element || !element.closest(".conversation-content, .desktop-task-panel")) return null;
+  if (element.id === "requirements") return "requirements";
+  const name = element.getAttribute("name");
+  return name && /^(title|body)-\d+$/.test(name) ? name : null;
+}
+
+function persistConversationScroll() {
+  const scroll = document.querySelector<HTMLElement>(".desktop-conversation-scroll");
+  const task = document.querySelector<HTMLElement>(".desktop-task-panel");
+  if (!scroll && !task) return;
+  conversationFocusKey = focusKeyForElement(document.activeElement) ?? conversationFocusKey;
+  conversationScrollTop = scroll?.scrollTop ?? conversationScrollTop;
+  taskScrollTop = task?.scrollTop ?? taskScrollTop;
+  try {
+    window.sessionStorage.setItem(conversationScrollStorageKey, JSON.stringify({
+      conversation: conversationScrollTop,
+      task: taskScrollTop,
+      focus: conversationFocusKey,
+    }));
+  } catch {
+    // Keep the in-memory position when session storage is unavailable.
+  }
+}
+
+function restoreConversationScroll() {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(conversationScrollStorageKey) ?? "null") as { conversation?: unknown; task?: unknown; focus?: unknown } | null;
+    if (parsed) {
+      if (typeof parsed.conversation === "number") conversationScrollTop = parsed.conversation;
+      if (typeof parsed.task === "number") taskScrollTop = parsed.task;
+      if (typeof parsed.focus === "string") conversationFocusKey = parsed.focus;
+    }
+  } catch {
+    // The current in-memory position is still useful when storage is unavailable.
+  }
+  const apply = () => {
+    document.querySelector<HTMLElement>(".desktop-conversation-scroll")?.scrollTo({ top: conversationScrollTop });
+    document.querySelector<HTMLElement>(".desktop-task-panel")?.scrollTo({ top: taskScrollTop });
+    const focusSelector = conversationFocusKey === "requirements"
+      ? "#requirements"
+      : conversationFocusKey && /^(title|body)-\d+$/.test(conversationFocusKey)
+        ? `[name="${conversationFocusKey}"]`
+        : null;
+    if (focusSelector) document.querySelector<HTMLElement>(focusSelector)?.focus({ preventScroll: true });
+  };
+  window.requestAnimationFrame?.(apply);
+  window.setTimeout(apply, 0);
+}
+
+function setStageView(next: WorkspaceScreen) {
+  if (!workspace) return;
+  if (stageView === next) return;
+  persistConversationScroll();
+  stageView = next;
+  lastConversationStage = next;
+  window.history.pushState(null, "", conversationHash(next));
+  render();
+}
+
+function clearStageView() {
+  stageView = null;
+  lastConversationStage = null;
+  if (window.location.hash.includes("?stage=")) {
+    window.history.replaceState(null, "", conversationHash());
+  }
+}
+
+function readRecoveredOutline(draftId: string) {
+  try {
+    return parseOutlineDraft(window.localStorage.getItem(outlineDraftStorageKey(draftId)));
+  } catch {
+    return null;
+  }
+}
+
+function persistOutlineDraft(draftId: string, outline: OutlineItem[]) {
+  try {
+    window.localStorage.setItem(outlineDraftStorageKey(draftId), serializeOutlineDraft(outline));
+  } catch {
+    // A private browsing policy may deny local recovery; the in-memory draft still remains visible.
+  }
+}
+
+function readRecoveredRequirements(draftId: string) {
+  try {
+    return parseRequirementsDraft(window.localStorage.getItem(requirementsDraftStorageKey(draftId)));
+  } catch {
+    return null;
+  }
+}
+
+function persistRequirementsDraft(draftId: string, requirements: string) {
+  try {
+    window.localStorage.setItem(requirementsDraftStorageKey(draftId), serializeRequirementsDraft(requirements));
+  } catch {
+    // Keep the in-memory draft visible when browser storage is unavailable.
+  }
+}
+
+function clearRecoveredRequirements(draftId: string) {
+  try {
+    window.localStorage.removeItem(requirementsDraftStorageKey(draftId));
+  } catch {
+    // Keep the successful server response usable when storage cleanup is unavailable.
+  }
+}
+
+function clearRecoveredOutline(draftId: string) {
+  try {
+    window.localStorage.removeItem(outlineDraftStorageKey(draftId));
+  } catch {
+    // Keep the successful server response usable even when storage cleanup is unavailable.
+  }
+}
+
+function cacheWorkspace(snapshot: WorkspaceSnapshot) {
+  try {
+    window.localStorage.setItem(workspaceCacheStorageKey, JSON.stringify(snapshot));
+  } catch {
+    // The network response remains the source of truth when browser storage is unavailable.
+  }
+}
+
+function readCachedWorkspace(): WorkspaceSnapshot | null {
+  try {
+    const value = window.localStorage.getItem(workspaceCacheStorageKey);
+    if (!value) return null;
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || !("draft" in parsed) || !("outline" in parsed) || !Array.isArray(parsed.outline)) {
+      return null;
+    }
+    return parsed as WorkspaceSnapshot;
+  } catch {
+    return null;
+  }
+}
+
 function libraryShell(content: string) {
+  const conversationRoute = conversationHref();
   return `
-    <div class="library-shell">
-      <aside class="library-rail" aria-label="主导航">
-        <a class="library-brand" href="#/conversation" aria-label="老己，对话首页">
-          <img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="" />
-          <strong>老己</strong>
-        </a>
-        <nav class="library-nav">
-          <a href="#/conversation">${icons.chat}<span>对话</span></a>
-          <a class="active" href="#/library" aria-current="page">${icons.book}<span>读书</span></a>
-          <span class="disabled-nav" aria-disabled="true">${icons.settings}<span>设置</span></span>
-        </nav>
-      </aside>
+    <div class="library-shell" data-active-section="library">
+      ${renderDesktopRail({ activeSection: "library", conversationHref: conversationRoute })}
       <main class="library-main">${content}</main>
       <div class="library-companion">
         <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
-        <a class="library-companion-button" href="#/conversation" aria-label="和老己聊聊">${icons.chat}</a>
+        <a class="library-companion-button" href="${conversationRoute}" aria-label="和老己聊聊">${icons.chat}</a>
       </div>
     </div>`;
 }
@@ -194,6 +365,7 @@ async function loadLibrary(
   kind: LibraryLoadKind = "initial",
   preserveSearchFocus = false,
 ) {
+  if (!window.location.hash.startsWith("#/library")) return;
   libraryPolling.stop();
   const normalizedQuery = query.trim();
   const request = latestLibraryRequest.begin();
@@ -250,8 +422,9 @@ async function loadLibrary(
           loading: false,
           searching: false,
           error: "无法连接书架服务，请检查本地服务后重试",
-        };
+      };
   }
+  if (!window.location.hash.startsWith("#/library")) return;
   renderLibrary(preserveSearchFocus);
   updateLibraryPolling();
 }
@@ -286,8 +459,10 @@ async function uploadBook(file: File) {
     libraryState = { ...libraryState, error: messages[code] ?? "这本书没有导入，当前书架已保留" };
   } finally {
     libraryUploading = false;
-    renderLibrary();
-    updateLibraryPolling();
+    if (window.location.hash.startsWith("#/library")) {
+      renderLibrary();
+      updateLibraryPolling();
+    }
   }
 }
 
@@ -327,17 +502,70 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 async function loadWorkspace() {
+  if (workspaceRequestInFlight) return false;
+  workspaceRequestInFlight = true;
+  let loaded = false;
   try {
-    workspace = await requestJson<WorkspaceSnapshot>("/api/v1/workspace");
-    if (workspace.draft.templateId) {
-      selectedTemplate = workspace.draft.templateId;
+    const snapshot = await requestJson<WorkspaceSnapshot>("/api/v1/workspace");
+    cacheWorkspace(snapshot);
+    workspace = snapshot;
+    loaded = true;
+    const recoveredRequirements = readRecoveredRequirements(snapshot.draft.id);
+    if (recoveredRequirements !== null && !draftRequirementsDirty) {
+      draftRequirements = recoveredRequirements;
+      draftRequirementsDirty = true;
+    } else if (!draftRequirementsDirty) {
+      draftRequirements = snapshot.draft.requirements;
+    }
+    const recoveredOutline = (snapshot.draft.stage === "outline" || stageView !== null) ? readRecoveredOutline(snapshot.draft.id) : null;
+    if (recoveredOutline && !draftOutlineDirty) {
+      draftOutline = recoveredOutline;
+      draftOutlineDirty = true;
+      outlineDraftStatus = "local";
+    } else if (!draftOutlineDirty) {
+      draftOutline = snapshot.outline.map((page) => ({ ...page }));
+      outlineDraftStatus = undefined;
+    }
+    if (snapshot.draft.stage !== "outline" && stageView === null && !draftOutlineDirty) {
+      clearRecoveredOutline(snapshot.draft.id);
+      outlineDraftStatus = undefined;
+    }
+    if (snapshot.draft.stage !== "requirements" && stageView === null && !draftRequirementsDirty) {
+      clearRecoveredRequirements(snapshot.draft.id);
+    }
+    if (snapshot.draft.templateId) {
+      selectedTemplate = snapshot.draft.templateId;
     }
     errorMessage = "";
   } catch {
     errorMessage = "暂时无法连接老己服务，输入和已完成结果都不会被清空。";
+    if (!workspace) {
+      const cached = readCachedWorkspace();
+      if (cached) {
+        workspace = cached;
+        const recoveredRequirements = readRecoveredRequirements(cached.draft.id);
+        if (recoveredRequirements !== null) {
+          draftRequirements = recoveredRequirements;
+          draftRequirementsDirty = true;
+        } else {
+          draftRequirements = cached.draft.requirements;
+        }
+        const recoveredOutline = (cached.draft.stage === "outline" || stageView !== null) ? readRecoveredOutline(cached.draft.id) : null;
+        if (recoveredOutline) {
+          draftOutline = recoveredOutline;
+          draftOutlineDirty = true;
+          outlineDraftStatus = "local";
+        } else {
+          draftOutline = cached.outline.map((page) => ({ ...page }));
+        }
+      }
+    }
+  } finally {
+    workspaceRequestInFlight = false;
+    if (isConversationRoute()) render();
+    updatePolling();
   }
-  render();
-  updatePolling();
+  return loaded;
 }
 
 function updatePolling() {
@@ -345,214 +573,100 @@ function updatePolling() {
     window.clearInterval(pollingTimer);
     pollingTimer = undefined;
   }
-  if (workspace && resolveScreen(workspace) === "generating") {
+  if (isConversationRoute() && workspace && !errorMessage && resolveScreen(workspace) === "generating") {
     pollingTimer = window.setInterval(loadWorkspace, 450);
   }
 }
 
-function renderShell(content: string) {
-  return `
-    <div class="app-shell">
-      <aside class="side-rail" aria-label="主导航">
-        <img class="brand-avatar" src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" />
-        <nav class="rail-nav">
-          <div class="rail-item active" aria-current="page">${icons.chat}<span>对话</span></div>
-          <div class="rail-item muted">${icons.book}<span>读书</span></div>
-          <div class="rail-item muted">${icons.settings}<span>设置</span></div>
-        </nav>
-        <img class="rail-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="老己坐着读书" />
-      </aside>
-      <section class="workspace-shell">
-        <header class="topbar">
-          <div>
-            <p class="topbar-title">${workspace?.book.title ?? "读书与表达"}</p>
-            <p class="topbar-subtitle">${workspace?.book.sourceLabel ?? "正在连接开发工作区"}</p>
-          </div>
-          <div class="development-flag"><span></span>开发数据</div>
-        </header>
-        ${errorMessage ? `<div class="error-banner" role="alert">${errorMessage}</div>` : ""}
-        ${content}
-      </section>
-    </div>
-  `;
+function conversationMeta() {
+  if (!workspace) return "正在恢复最近对话";
+  const screen = stageView ?? resolveScreen(workspace);
+  const labels: Record<string, string> = {
+    requirements: "范围与需求",
+    outline: "大纲",
+    template: "模板",
+    submitted: "生成",
+  };
+  return screen === "failed"
+    ? "生成失败"
+    : screen === "completed"
+      ? "生成完成"
+      : labels[screen] ?? labels[workspace.draft.stage] ?? "当前会话";
+}
+
+function conversationList() {
+  return workspace
+    ? [{
+        id: workspace.conversation.id,
+        title: `《${workspace.book.title}》读书分享`,
+        meta: conversationMeta(),
+        active: true,
+      }]
+    : [];
+}
+
+function renderShell(content: string, taskPanel = "") {
+  return renderDesktopAppShell({
+    activeSection: "conversation",
+    conversationHref: conversationHref(),
+    currentConversation: {
+      title: workspace ? `《${workspace.book.title}》读书分享` : "老己对话",
+      meta: conversationMeta(),
+    },
+    conversationList: conversationList(),
+    mainContent: content,
+    taskPanel,
+    connectionError: errorMessage || undefined,
+  });
+}
+
+function renderWorkspaceSnapshot() {
+  if (!workspace) return workspace;
+  let snapshot = workspace;
+  if (draftRequirementsDirty) {
+    snapshot = withDraftRequirements(snapshot, draftRequirements);
+  }
+  if (draftOutlineDirty) {
+    snapshot = withDraftOutline(snapshot, draftOutline);
+  }
+  return snapshot;
 }
 
 function renderLoading() {
-  app.innerHTML = renderShell(`
-    <main class="loading-state" aria-live="polite">
-      <div class="loading-orbit"></div>
+  app.innerHTML = renderShell(
+    `<section class="desktop-loading-state" aria-live="polite">
+      <div class="desktop-loading-orbit" aria-hidden="true"></div>
       <p>正在恢复你的工作进度…</p>
-    </main>
-  `);
-}
-
-function stageSteps(activeIndex: number) {
-  const labels = ["说明需求", "确认大纲", "选择模板", "生成演示"];
-  return `<ol class="stage-steps" aria-label="PPT 生成进度">
-    ${labels
-      .map(
-        (label, index) => `
-          <li class="${index < activeIndex ? "done" : index === activeIndex ? "active" : ""}">
-            <span>${index < activeIndex ? "✓" : index + 1}</span>${label}
-          </li>`,
-      )
-      .join("")}
-  </ol>`;
-}
-
-function requirementsPanel() {
-  return `
-    <main class="workbench two-column">
-      <section class="conversation-column" aria-labelledby="conversation-title">
-        <div class="section-heading">
-          <p>新对话</p>
-          <h1 id="conversation-title">从一本书，讲出你真正想说的</h1>
-        </div>
-        <div class="message-row">
-          <img src="/avatar/laoji-avatar-conversation-approved-v1.png" alt="老己头像" />
-          <div class="assistant-message">
-            <p>这次想把《${workspace?.book.title}》讲给谁听？</p>
-            <p>告诉我场景、页数和你最想留下的一个观点，我先帮你理出结构。</p>
-          </div>
-        </div>
-        <div class="source-strip">
-          <div class="book-cover">荔</div>
-          <div><strong>${workspace?.book.title}</strong><span>已选为本次生成材料</span></div>
-        </div>
-        <form id="requirements-form" class="prompt-composer">
-          <label for="requirements">你的生成要求</label>
-          <textarea id="requirements" name="requirements" rows="4" required>${workspace?.draft.requirements || "为读书会生成三页分享，突出普通人的选择。"}</textarea>
-          <div class="composer-actions">
-            <span>生成后仍可修改大纲</span>
-            <button class="primary-button" type="submit" ${busy ? "disabled" : ""}>${busy ? "正在整理…" : "生成大纲"}${icons.arrow}</button>
-          </div>
-        </form>
-      </section>
-      <aside class="progress-column">
-        ${stageSteps(0)}
-        <div class="quiet-note"><span>本次只生成 3 页</span><p>先跑通表达，再决定要不要继续扩写。</p></div>
-      </aside>
-    </main>`;
-}
-
-function outlinePanel() {
-  const outline = workspace?.outline ?? [];
-  return `
-    <main class="workbench outline-workbench">
-      <section class="outline-main">
-        <div class="section-heading">
-          <p>大纲草案</p>
-          <h1>先看结构，再开始生成</h1>
-          <span>每一页都可以直接修改。确认后，老己再把它变成演示文稿。</span>
-        </div>
-        <form id="outline-form">
-          <div class="outline-document">
-            ${outline
-              .map(
-                (page, index) => `
-                  <div class="outline-node">
-                    <div class="outline-level" aria-hidden="true">${index + 1}</div>
-                    <div class="outline-fields">
-                      <label>第 ${index + 1} 页标题<input name="title-${index}" value="${page.title}" required /></label>
-                      <label>这一页要说什么<textarea name="body-${index}" rows="2" required>${page.body}</textarea></label>
-                    </div>
-                  </div>`,
-              )
-              .join("")}
-          </div>
-          <div class="sticky-action">
-            <span>共 ${outline.length} 页 · 文字可编辑</span>
-            <button class="primary-button" type="submit" ${busy ? "disabled" : ""}>${busy ? "正在保存…" : "确认大纲"}${icons.arrow}</button>
-          </div>
-        </form>
-      </section>
-      <aside class="progress-column">${stageSteps(1)}</aside>
-    </main>`;
-}
-
-const templates = [
-  { id: "qingci-study", name: "青瓷书房", note: "留白、青绿、适合读书分享" },
-  { id: "paper-notes", name: "纸上札记", note: "柔和纸色、适合观点梳理" },
-  { id: "ink-minimal", name: "墨色极简", note: "高对比、适合演讲投屏" },
-];
-
-function templatePanel() {
-  return `
-    <main class="workbench template-workbench">
-      <section class="template-main">
-        <div class="section-heading">
-          <p>选择模板</p>
-          <h1>选一个与你的表达气质相近的版式</h1>
-          <span>首个闭环提供三种本地模板；生成的是可编辑 PPTX。</span>
-        </div>
-        <div class="template-grid" role="radiogroup" aria-label="演示文稿模板">
-          ${templates
-            .map(
-              (template, index) => `
-                <button type="button" class="template-card ${selectedTemplate === template.id ? "selected" : ""}" data-template="${template.id}" role="radio" aria-checked="${selectedTemplate === template.id}">
-                  <div class="template-preview preview-${index + 1}"><span>老己</span><strong>${workspace?.book.title}</strong><i>${index + 1} / 3</i></div>
-                  <div class="template-meta"><strong>${template.name}</strong><span>${template.note}</span></div>
-                  <b class="selection-mark">${selectedTemplate === template.id ? "✓" : ""}</b>
-                </button>`,
-            )
-            .join("")}
-        </div>
-        <div class="sticky-action template-action">
-          <span>已选择「${templates.find((template) => template.id === selectedTemplate)?.name}」</span>
-          <button id="submit-task" class="primary-button" type="button" ${busy ? "disabled" : ""}>${busy ? "正在创建…" : "开始生成"}${icons.arrow}</button>
-        </div>
-      </section>
-      <aside class="progress-column">${stageSteps(2)}</aside>
-    </main>`;
-}
-
-function generationPanel() {
-  const task = workspace?.task;
-  const screen = workspace ? resolveScreen(workspace) : "generating";
-  const completed = task?.completedPages ?? 0;
-  const total = task?.totalPages ?? workspace?.outline.length ?? 3;
-  const isDone = screen === "completed";
-  return `
-    <main class="generation-workbench">
-      <section class="generation-header">
-        <div>
-          <p>${isDone ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</p>
-          <h1>${isDone ? "你的读书分享已经可以下载" : "老己正在把大纲变成演示文稿"}</h1>
-          <span>${isDone ? "文件为原生 16:9 PPTX，标题和正文可继续编辑。" : "页面会逐张完成；刷新后会从已保存进度恢复。"}</span>
-        </div>
-        <div class="compact-progress"><strong>${task ? taskProgressLabel(task) : `0 / ${total}`}</strong><span>页</span></div>
-      </section>
-      ${stageSteps(3)}
-      <section class="waterfall" aria-live="polite">
-        ${(workspace?.outline ?? [])
-          .filter((_page, index) => isDone || index <= completed)
-          .map(
-            (page, index) => `
-              <article class="generation-page ${index < completed || isDone ? "complete" : "working"}">
-                <div class="slide-miniature"><span>老己 · ${workspace?.book.title}</span><strong>${page.title}</strong><p>${page.body}</p><i>${index + 1} / ${total}</i></div>
-                <div class="page-status"><strong>第 ${index + 1} 页 · ${page.title}</strong><span>${index < completed || isDone ? "已完成" : "正在排版"}</span></div>
-              </article>`,
-          )
-          .join("")}
-      </section>
-      <div class="generation-actions">
-        ${
-          isDone && task?.artifactId
-            ? `<a class="primary-button download-button" href="/api/v1/ppt-artifacts/${task.artifactId}/download">下载 PPTX${icons.arrow}</a>`
-            : screen === "generating"
-              ? `<button id="stop-task" class="secondary-button" type="button" ${busy || !task ? "disabled" : ""}>停止生成</button>`
-              : `<button id="refresh-workspace" class="secondary-button" type="button">刷新状态</button>`
-        }
-        <span>${screen === "failed" ? "已保留需求、大纲和完成页面。" : screen === "stopped" ? "已完成页面仍然保留。" : "开发数据不会调用外部模型。"}</span>
-      </div>
-    </main>`;
+    </section>`,
+    `<section class="desktop-task-panel-inner desktop-task-loading" aria-live="polite">
+      <p>当前任务</p><h2>范围与需求</h2><span>正在恢复已保存状态…</span>
+    </section>`,
+  );
+  bindInteractions();
 }
 
 function bindInteractions() {
+  document.querySelectorAll<HTMLButtonElement>('[data-stage-back], [data-stage-forward][data-stage-local="true"]').forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      const target = button.dataset.stageBack ?? button.dataset.stageForward;
+      if (target && workspaceScreens.includes(target as WorkspaceScreen)) {
+        setStageView(target as WorkspaceScreen);
+      }
+    });
+  });
+
+  document.querySelector<HTMLButtonElement>("#reconnect-workspace")?.addEventListener("click", () => {
+    void loadWorkspace();
+  });
+
   document.querySelector<HTMLFormElement>("#requirements-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!workspace) return;
     const form = new FormData(event.currentTarget as HTMLFormElement);
+    draftRequirements = String(form.get("requirements") ?? "");
+    draftRequirementsDirty = true;
+    persistRequirementsDraft(workspace.draft.id, draftRequirements);
     await act(async () => {
       await requestJson(`/api/v1/ppt-drafts/${workspace?.draft.id}/requirements`, {
         method: "PUT",
@@ -564,7 +678,28 @@ function bindInteractions() {
     });
   });
 
-  document.querySelector<HTMLFormElement>("#outline-form")?.addEventListener("submit", async (event) => {
+  document.querySelector<HTMLTextAreaElement>("#requirements")?.addEventListener("input", (event) => {
+    draftRequirements = (event.currentTarget as HTMLTextAreaElement).value;
+    draftRequirementsDirty = true;
+    if (workspace) persistRequirementsDraft(workspace.draft.id, draftRequirements);
+  });
+
+  const outlineForm = document.querySelector<HTMLFormElement>("#outline-form");
+  const captureOutlineDraft = (form: HTMLFormElement) => {
+    if (!workspace) return;
+    const formData = new FormData(form);
+    draftOutline = workspace.outline.map((_page, index) => ({
+      title: String(formData.get(`title-${index}`) ?? "").trim(),
+      body: String(formData.get(`body-${index}`) ?? "").trim(),
+    }));
+    draftOutlineDirty = true;
+    outlineDraftStatus = "local";
+    persistOutlineDraft(workspace.draft.id, draftOutline);
+  };
+  outlineForm?.addEventListener("input", (event) => {
+    captureOutlineDraft(event.currentTarget as HTMLFormElement);
+  });
+  outlineForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!workspace) return;
     const form = new FormData(event.currentTarget as HTMLFormElement);
@@ -572,6 +707,10 @@ function bindInteractions() {
       title: String(form.get(`title-${index}`) ?? "").trim(),
       body: String(form.get(`body-${index}`) ?? "").trim(),
     }));
+    draftOutline = outline;
+    draftOutlineDirty = true;
+    outlineDraftStatus = "local";
+    persistOutlineDraft(workspace.draft.id, outline);
     await act(async () => {
       await requestJson(`/api/v1/ppt-drafts/${workspace?.draft.id}/outline`, {
         method: "PUT",
@@ -589,8 +728,11 @@ function bindInteractions() {
 
   document.querySelector<HTMLButtonElement>("#submit-task")?.addEventListener("click", async () => {
     if (!workspace) return;
-    const requestKey =
-      window.localStorage.getItem("selfalone-m0-request") ?? crypto.randomUUID();
+    const isRetry = workspace.task?.status === "failed" || workspace.task?.status === "stopped";
+    const isNewTask = !workspace.task || isRetry;
+    const requestKey = isNewTask
+      ? crypto.randomUUID()
+      : window.localStorage.getItem("selfalone-m0-request") ?? crypto.randomUUID();
     window.localStorage.setItem("selfalone-m0-request", requestKey);
     await act(async () => {
       await requestJson("/api/v1/ppt-tasks", {
@@ -606,7 +748,7 @@ function bindInteractions() {
   });
 
   document.querySelector<HTMLButtonElement>("#stop-task")?.addEventListener("click", async () => {
-    if (!workspace?.task) return;
+    if (!workspace?.task || stageView) return;
     await act(async () => {
       await requestJson(`/api/v1/ppt-tasks/${workspace?.task?.id}/stop`, {
         method: "POST",
@@ -624,7 +766,15 @@ async function act(action: () => Promise<void>) {
   render();
   try {
     await action();
-    await loadWorkspace();
+    clearStageView();
+    const loaded = await loadWorkspace();
+    if (loaded && workspace) {
+      clearRecoveredRequirements(workspace.draft.id);
+      clearRecoveredOutline(workspace.draft.id);
+      draftRequirementsDirty = false;
+      draftOutlineDirty = false;
+      outlineDraftStatus = undefined;
+    }
   } catch (error) {
     errorMessage = error instanceof Error && error.message === "STALE_VERSION"
       ? "页面状态已经更新，正在为你恢复最新进度。"
@@ -641,26 +791,32 @@ function render() {
     renderLoading();
     return;
   }
-  const screen = resolveScreen(workspace);
-  const content = screen === "requirements"
-    ? requirementsPanel()
-    : screen === "outline"
-      ? outlinePanel()
-      : screen === "template"
-        ? templatePanel()
-        : generationPanel();
-  app.innerHTML = renderShell(content);
+  const view = renderConversationView({
+    workspace: renderWorkspaceSnapshot() ?? workspace,
+    busy,
+    selectedTemplate,
+    screenOverride: stageView ?? undefined,
+    localStageView: stageView !== null,
+    outlineDraftStatus,
+  });
+  app.innerHTML = renderShell(view.main, view.taskPanel);
   bindInteractions();
+  restoreConversationScroll();
 }
 
 let activeTextReader: ReturnType<typeof mountTextReader> | null = null;
 
-async function openTextReader(bookId: string) {
+function destroyTextReader() {
+  activeTextReader?.destroy();
+  activeTextReader = null;
+}
+
+async function openTextReader(bookId: string, navigationId: number) {
   app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
   const api = createTextReaderApi(bookId);
   try {
     const reading = await api.loadReading();
-    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
     const prefetchedApi = {
       ...api,
       loadReading: async () => reading as TextReading,
@@ -675,21 +831,66 @@ async function openTextReader(bookId: string) {
       },
     });
   } catch {
-    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
     activeTextReader = mountTextReader(app, { bookId, api });
   }
 }
 
-window.addEventListener("beforeunload", () => activeTextReader?.destroy());
-window.addEventListener("hashchange", () => window.location.reload());
-if (!window.location.hash) window.history.replaceState(null, "", "#/library");
-const readingBookId = readingBookIdFromHash(window.location.hash);
-if (readingBookId) {
-  void openTextReader(readingBookId);
-} else if (window.location.hash === "#/library") {
-  renderLibrary();
-  void loadLibrary("", "initial");
-} else {
-  renderLoading();
-  void loadWorkspace();
+function renderRoute() {
+  persistConversationScroll();
+  routeGeneration += 1;
+  const navigationId = routeGeneration;
+  if (!window.location.hash) {
+    window.history.replaceState(null, "", "#/library");
+  }
+  const readingBookId = readingBookIdFromHash(window.location.hash);
+  if (readingBookId) {
+    destroyTextReader();
+    void openTextReader(readingBookId, navigationId);
+    return;
+  }
+  if (window.location.hash.startsWith("#/library")) {
+    destroyTextReader();
+    renderLibrary();
+    if (libraryState.loading) void loadLibrary("", "initial");
+    return;
+  }
+  if (!isConversationRoute()) {
+    window.history.replaceState(null, "", "#/library");
+    renderLibrary();
+    if (libraryState.loading) void loadLibrary("", "initial");
+    return;
+  }
+  stageView = readStageViewFromHash();
+  lastConversationStage = stageView;
+  destroyTextReader();
+  if (!workspace) {
+    renderLoading();
+    void loadWorkspace();
+  } else {
+    render();
+    updatePolling();
+  }
 }
+
+function scheduleRouteRender() {
+  if (routeRenderFrame !== undefined) return;
+  routeRenderFrame = window.requestAnimationFrame(() => {
+    routeRenderFrame = undefined;
+    renderRoute();
+  });
+}
+
+window.addEventListener("beforeunload", () => {
+  persistConversationScroll();
+  destroyTextReader();
+});
+window.addEventListener("focusin", (event) => {
+  if (isConversationRoute()) {
+    conversationFocusKey = focusKeyForElement(event.target instanceof Element ? event.target : null) ?? conversationFocusKey;
+  }
+});
+window.addEventListener("hashchange", scheduleRouteRender);
+window.addEventListener("popstate", scheduleRouteRender);
+if (!window.location.hash) window.history.replaceState(null, "", "#/library");
+renderRoute();
