@@ -100,6 +100,14 @@ describe("miniapp navigation drawer visual contract", () => {
     expect(drawerWxss).toContain(".drawer-nav {\n  position: relative;\n  z-index: 2;");
   });
 
+  it("keeps the scenery out of the conversation list layout", () => {
+    const conversationRule = drawerWxss.match(/\.drawer-conversations\s*\{([^}]*)\}/)?.[1] ?? "";
+
+    expect(conversationRule).not.toContain("padding-bottom");
+    expect(drawerWxss).toContain(".drawer-scenery-slot {\n  position: absolute;");
+    expect(drawerWxss).toContain(".drawer-scenery-slot {\n  position: absolute;\n  left: 0;\n  right: 0;");
+  });
+
   it("keeps scenery below the current conversation on short screens", () => {
     const shortScreenRule = drawerWxss.match(/@media \(max-height: 600px\)\s*\{\s*\.drawer-scenery-slot\s*\{([^}]*)\}/)?.[1] ?? "";
     expect(shortScreenRule).toContain("height: 100px");
