@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveScreen, taskProgressLabel, type WorkspaceSnapshot } from "./app-state";
+import { resolveScreen, taskProgressLabel, withDraftRequirements, type WorkspaceSnapshot } from "./app-state";
 
 const workspace: WorkspaceSnapshot = {
   book: { id: "book-1", title: "长安的荔枝", sourceLabel: "开发种子书" },
@@ -43,5 +43,12 @@ describe("M0 workspace screen", () => {
     };
     expect(resolveScreen({ ...workspace, task })).toBe("completed");
     expect(taskProgressLabel(task)).toBe("3 / 3");
+  });
+
+  it("keeps unsaved requirements isolated from the server snapshot", () => {
+    const retained = withDraftRequirements(workspace, "离线时仍要保留这段输入");
+
+    expect(retained.draft.requirements).toBe("离线时仍要保留这段输入");
+    expect(workspace.draft.requirements).toBe("");
   });
 });

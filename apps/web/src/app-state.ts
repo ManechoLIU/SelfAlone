@@ -58,3 +58,10 @@ export function resolveScreen(workspace: WorkspaceSnapshot): WorkspaceScreen {
 export function taskProgressLabel(task: TaskSnapshot) {
   return `${task.completedPages} / ${task.totalPages}`;
 }
+
+export function withDraftRequirements(workspace: WorkspaceSnapshot, requirements: string): WorkspaceSnapshot {
+  return {
+    ...workspace,
+    draft: { ...workspace.draft, requirements },
+  };
+}
