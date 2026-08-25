@@ -42,6 +42,9 @@ describe("conversation-view", () => {
     expect(view.taskPanel).toContain("PRESENTATION_GENERATION_FAILED");
     expect(view.taskPanel).toContain("已保留需求、大纲和已完成页面");
     expect(view.main).toContain("已保留需求、大纲和已完成页面");
+    expect(view.taskPanel).toContain('data-stage-back="outline"');
+    expect(view.taskPanel).toContain("修改大纲");
+    expect(view.taskPanel).toContain("重新生成");
     expect(view.main).not.toContain("正在排版");
     expect(view.taskPanel).toContain("生成");
   });
@@ -111,6 +114,88 @@ describe("conversation-view", () => {
     }
   });
 
+  it("exposes contract-consistent forward and return actions inside the single task workspace", () => {
+    const requirements = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(requirements.taskPanel).toContain('data-stage-forward="outline"');
+
+    const outline = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "outline" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(outline.taskPanel).toContain('data-stage-back="requirements"');
+    expect(outline.taskPanel).toContain('data-stage-forward="template"');
+
+    const template = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "template" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(template.taskPanel).toContain('data-stage-back="outline"');
+    expect(template.taskPanel).toContain('data-stage-forward="generating"');
+
+    const generating = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "running" } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(generating.taskPanel).toContain('data-stage-back="template"');
+  });
+
+  it("labels a recovered outline as local and not yet saved", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "outline" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+      outlineDraftStatus: "local",
+    } as unknown as Parameters<typeof renderConversationView>[0]);
+
+    expect(view.taskPanel).toContain("本地草稿 · 尚未保存");
+    expect(view.taskPanel).toContain("确认大纲后才会写入老己服务");
+  });
+
+  it("renders a returned stage as the same single workspace without replacing the conversation", () => {
+    const view = renderConversationView({
+      workspace: failedWorkspace,
+      busy: false,
+      selectedTemplate: "qingci-study",
+      screenOverride: "template",
+      localStageView: true,
+    });
+
+    expect(view.taskPanel).toContain('data-current-stage="template"');
+    expect(view.taskPanel).toContain('data-stage-back="outline"');
+    expect(view.taskPanel).toContain("重新生成");
+    expect(view.taskPanel).not.toContain("desktop-waterfall");
+    expect(view.main).toContain("模板选择已移到右侧工作区");
+  });
+
+  it("keeps completed 16:9 pages and shows one same-size current-page skeleton while generating", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "running", completedPages: 2, totalPages: 3 } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.taskPanel.match(/class="desktop-slide-miniature"/g)).toHaveLength(2);
+    expect(view.taskPanel.match(/class="desktop-slide-skeleton"/g)).toHaveLength(1);
+    expect(view.taskPanel).toContain("第 3 页 · 正在生成");
+  });
+
+  it("does not add a phantom page skeleton after the last page is complete", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "running", completedPages: 3, totalPages: 3 } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.taskPanel.match(/class="desktop-slide-skeleton"/g)).toBeNull();
+  });
+
   it("keeps the center limited to messages, a stage summary, and one input", () => {
     const view = renderConversationView({
       workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "template" }, task: null },
@@ -123,6 +208,53 @@ describe("conversation-view", () => {
     expect(view.main).not.toContain("desktop-outline-node");
     expect(view.main).not.toContain("desktop-template-card");
     expect(view.main).not.toContain("desktop-generation-page");
+  });
+
+  it("keeps the composer in the center during generation and makes requirements editable after stop", () => {
+    const generating = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "running", completedPages: 1 } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(generating.main.match(/class="desktop-composer"/g)).toHaveLength(1);
+    expect(generating.main).toContain('id="requirements"');
+    expect(generating.main).toContain('aria-readonly="true"');
+
+    const stopped = renderConversationView({
+      workspace: { ...failedWorkspace, task: { ...failedWorkspace.task!, status: "stopped" } },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+    expect(stopped.main).not.toContain('aria-readonly="true"');
+    expect(stopped.main).toContain("停止后可修改要求");
+    expect(stopped.main).toContain("保存修改要求");
+  });
+
+  it("keeps the requirements summary aligned with the current stage", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.main).toContain("范围与需求 · 生成示例大纲在右侧工作区");
+    expect(view.main).not.toContain("生成中 · 进度在右侧工作区实时保留");
+  });
+
+  it("marks a returned workspace when its previous generation result is stale", () => {
+    const view = renderConversationView({
+      workspace: {
+        ...failedWorkspace,
+        draft: { ...failedWorkspace.draft, stage: "template" },
+        task: null,
+        staleTask: { ...failedWorkspace.task!, status: "completed" },
+      },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.taskPanel).toContain("上一版生成结果已失效");
+    expect(view.taskPanel).toContain("确认修改后的范围、大纲和模板后可重新生成");
   });
 
   it("does not duplicate the complete stage workspace at the compact breakpoint", () => {

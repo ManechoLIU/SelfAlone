@@ -11,6 +11,9 @@ export type ConversationViewOptions = {
   workspace: WorkspaceSnapshot;
   busy: boolean;
   selectedTemplate: string;
+  screenOverride?: WorkspaceScreen;
+  localStageView?: boolean;
+  outlineDraftStatus?: "local";
 };
 
 export type ConversationViewResult = {
@@ -65,7 +68,16 @@ function renderScopeSummary(workspace: WorkspaceSnapshot) {
     </dl>`;
 }
 
-function renderRequirementsWorkspace(workspace: WorkspaceSnapshot) {
+function renderRevisionNotice(workspace: WorkspaceSnapshot) {
+  return workspace.staleTask
+    ? `<p class="desktop-revision-note" role="status">上一版生成结果已失效；已完成内容仍保留在历史任务中。确认修改后的范围、大纲和模板后可重新生成。</p>`
+    : "";
+}
+
+function renderRequirementsWorkspace(workspace: WorkspaceSnapshot, localStageView: boolean) {
+  const action = localStageView
+    ? `<button class="desktop-primary-button" type="submit" form="requirements-form" data-stage-forward="outline">保存范围并继续${icons.arrow}</button>`
+    : `<button class="desktop-primary-button" type="submit" form="requirements-form" data-stage-forward="outline">生成示例大纲${icons.arrow}</button>`;
   return `
     <div class="desktop-confirmed-scope">
       <p>已确认范围</p>
@@ -77,15 +89,23 @@ function renderRequirementsWorkspace(workspace: WorkspaceSnapshot) {
       <label for="scope-pages">页数范围<select id="scope-pages" name="pages" disabled aria-disabled="true" aria-label="页数范围（暂不可用）"><option>本地示例暂不可用</option></select></label>
     </div>
     <p class="desktop-scope-note">用途、受众和页数暂不可用，不会进入本地示例提交与结果；本次只读取下方要求。</p>
-    <button class="desktop-primary-button" type="submit" form="requirements-form">生成示例大纲${icons.arrow}</button>`;
+    ${renderRevisionNotice(workspace)}
+    ${localStageView ? `<p class="desktop-local-stage-note">当前回到前序阶段；提交后会写入老己服务，后续阶段需要重新确认。</p>` : ""}
+    ${action}`;
 }
 
-function renderOutlineWorkspace(workspace: WorkspaceSnapshot, busy: boolean) {
+function renderOutlineWorkspace(workspace: WorkspaceSnapshot, busy: boolean, localStageView: boolean, outlineDraftStatus?: "local") {
+  const action = localStageView
+    ? `<button class="desktop-primary-button" type="submit" data-stage-forward="template" ${busy ? "disabled" : ""}>确认并保存大纲${icons.arrow}</button>`
+    : `<button class="desktop-primary-button" type="submit" data-stage-forward="template" ${busy ? "disabled" : ""}>确认大纲${icons.arrow}</button>`;
   return `
     <div class="desktop-task-stage-copy">
       <strong>大纲已生成</strong>
       <span>逐页调整标题与正文，保存后进入模板选择。</span>
     </div>
+    ${renderRevisionNotice(workspace)}
+    ${outlineDraftStatus === "local" ? `<p class="desktop-local-draft-note" role="status"><strong>本地草稿 · 尚未保存</strong><span>确认大纲后才会写入老己服务；刷新或断网恢复会继续保留这份本地编辑。</span></p>` : ""}
+    ${localStageView && outlineDraftStatus !== "local" ? `<p class="desktop-local-stage-note">当前回到前序阶段；确认并保存后会写入老己服务，后续阶段需要重新确认。</p>` : ""}
     <form id="outline-form" class="desktop-outline-form">
       <div class="desktop-outline-document">
         ${workspace.outline.map((page, index) => `
@@ -97,18 +117,23 @@ function renderOutlineWorkspace(workspace: WorkspaceSnapshot, busy: boolean) {
       </div>
       <div class="desktop-form-action">
         <span>共 ${workspace.outline.length} 页 · 文字可编辑</span>
-        <button class="desktop-primary-button" type="submit" ${busy ? "disabled" : ""}>确认大纲${icons.arrow}</button>
+        <button class="desktop-secondary-button" type="button" data-stage-back="requirements">返回范围与需求</button>
+        ${action}
       </div>
     </form>`;
 }
 
-function renderTemplateWorkspace(workspace: WorkspaceSnapshot, busy: boolean, selectedTemplate: string) {
+function renderTemplateWorkspace(workspace: WorkspaceSnapshot, busy: boolean, selectedTemplate: string, localStageView: boolean) {
   const selected = templates.find((template) => template.id === selectedTemplate) ?? templates[0];
+  const action = localStageView
+    ? `<button id="submit-task" class="desktop-primary-button" type="button" data-stage-forward="generating" ${busy ? "disabled" : ""}>重新生成${icons.arrow}</button>`
+    : `<button id="submit-task" class="desktop-primary-button" type="button" data-stage-forward="generating" ${busy ? "disabled" : ""}>开始生成${icons.arrow}</button>`;
   return `
     <div class="desktop-task-stage-copy">
       <strong>大纲已确认</strong>
       <span>首个闭环提供三种本地模板；生成的是可编辑 PPTX。</span>
     </div>
+    ${renderRevisionNotice(workspace)}
     <div class="desktop-template-grid" role="radiogroup" aria-label="演示文稿模板">
       ${templates.map((template, index) => `
         <button type="button" class="desktop-template-card ${selectedTemplate === template.id ? "selected" : ""}" data-template="${template.id}" role="radio" aria-checked="${selectedTemplate === template.id}">
@@ -119,7 +144,8 @@ function renderTemplateWorkspace(workspace: WorkspaceSnapshot, busy: boolean, se
     </div>
     <div class="desktop-form-action">
       <span>已选择「${escapeHtml(selected.name)}」</span>
-      <button id="submit-task" class="desktop-primary-button" type="button" ${busy ? "disabled" : ""}>开始生成${icons.arrow}</button>
+      <button class="desktop-secondary-button" type="button" data-stage-back="outline">返回大纲</button>
+      ${action}
     </div>`;
 }
 
@@ -147,6 +173,14 @@ function renderGenerationWorkspace(workspace: WorkspaceSnapshot, screen: Workspa
       </article>`;
     })
     .join("");
+  const currentIndex = completed;
+  const skeleton = screen === "generating" && total > 0 && completed < total
+    ? `<article class="desktop-generation-page current">
+        <div class="desktop-slide-skeleton" role="status" aria-label="第 ${currentIndex + 1} 页正在生成"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span></div>
+        <div class="desktop-page-status"><strong>第 ${currentIndex + 1} 页 · 正在生成</strong><span>生成中</span></div>
+      </article>`
+    : "";
+  const renderedPages = `${pages}${skeleton}`;
 
   return `
     <div class="desktop-task-stage-copy">
@@ -157,8 +191,11 @@ function renderGenerationWorkspace(workspace: WorkspaceSnapshot, screen: Workspa
       <strong>${isDone ? "生成完成" : screen === "failed" ? "生成失败" : screen === "stopped" ? "已停止" : "正在生成"}</strong>
       <span>${task ? escapeHtml(taskProgressLabel(task)) : `${workspace.outline.length} 页`}</span>
     </div>
-    <section class="desktop-waterfall" aria-live="polite">${pages || `<p class="desktop-empty-generation">等待任务状态…</p>`}</section>
+    <section class="desktop-waterfall" aria-live="polite">${renderedPages || `<p class="desktop-empty-generation">等待任务状态…</p>`}</section>
     <div class="desktop-generation-actions">
+      ${screen === "failed"
+        ? `<button class="desktop-secondary-button" type="button" data-stage-back="outline">修改大纲</button><button class="desktop-secondary-button" type="button" data-stage-back="template">重新生成</button>`
+        : `<button class="desktop-secondary-button" type="button" data-stage-back="template">返回模板</button>`}
       ${isDone && task?.artifactId
         ? `<a class="desktop-primary-button" href="/api/v1/ppt-artifacts/${task.artifactId}/download">下载 PPTX${icons.arrow}</a>`
         : screen === "generating"
@@ -170,13 +207,13 @@ function renderGenerationWorkspace(workspace: WorkspaceSnapshot, screen: Workspa
     </div>`;
 }
 
-function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean, selectedTemplate: string) {
+function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean, selectedTemplate: string, localStageView: boolean, outlineDraftStatus?: "local") {
   const body = screen === "requirements"
-    ? renderRequirementsWorkspace(workspace)
+    ? renderRequirementsWorkspace(workspace, localStageView)
     : screen === "outline"
-      ? renderOutlineWorkspace(workspace, busy)
+      ? renderOutlineWorkspace(workspace, busy, localStageView, outlineDraftStatus)
       : screen === "template"
-        ? renderTemplateWorkspace(workspace, busy, selectedTemplate)
+        ? renderTemplateWorkspace(workspace, busy, selectedTemplate, localStageView)
         : renderGenerationWorkspace(workspace, screen);
   const title = taskPanelTitle(workspace, screen);
   const eyebrow = screen === "requirements" ? "当前任务" : "制作 PPT";
@@ -227,7 +264,9 @@ function renderStageThread(workspace: WorkspaceSnapshot, screen: WorkspaceScreen
 }
 
 function renderStageSummary(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
-  const summary = screen === "outline"
+  const summary = screen === "requirements"
+    ? "范围与需求 · 生成示例大纲在右侧工作区"
+    : screen === "outline"
     ? `已确认范围 · ${workspace.outline.length} 页大纲`
     : screen === "template"
       ? "大纲已确认 · 模板选择在右侧工作区"
@@ -242,13 +281,22 @@ function renderStageSummary(workspace: WorkspaceSnapshot, screen: WorkspaceScree
 }
 
 function renderConversationComposer(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, busy: boolean) {
-  const readOnly = screen !== "requirements";
+  const canEditRequirements = screen === "requirements" || screen === "stopped";
+  const helper = screen === "stopped"
+    ? "停止后可修改要求"
+    : canEditRequirements
+      ? "生成后仍可修改大纲"
+      : "当前阶段内容请在右侧工作区查看";
+  const saveAction = screen === "stopped"
+    ? `<button class="desktop-secondary-button" type="submit" ${busy ? "disabled" : ""}>保存修改要求</button>`
+    : "";
   return `<form id="requirements-form" class="desktop-composer" aria-busy="${busy}">
       <img class="desktop-conversation-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="老己坐姿持书" />
       <label for="requirements">生成要求 · 继续补充</label>
-      <textarea id="requirements" name="requirements" rows="3" required ${readOnly ? "readonly aria-readonly=\"true\"" : ""} placeholder="补充用途、受众或希望保留的观点">${escapeHtml(workspace.draft.requirements)}</textarea>
+      <textarea id="requirements" name="requirements" rows="3" required ${canEditRequirements ? "" : "readonly aria-readonly=\"true\""} placeholder="补充用途、受众或希望保留的观点">${escapeHtml(workspace.draft.requirements)}</textarea>
       <div class="desktop-composer-actions">
-        <span>${readOnly ? "当前阶段内容请在右侧工作区查看" : "生成后仍可修改大纲"}</span>
+        <span>${helper}</span>
+        ${saveAction}
         <span class="desktop-demo-note">本地演示 · 不调用 AI</span>
       </div>
     </form>`;
@@ -266,9 +314,9 @@ function renderConversationMain(workspace: WorkspaceSnapshot, screen: WorkspaceS
 }
 
 export function renderConversationView(options: ConversationViewOptions): ConversationViewResult {
-  const screen = resolveScreen(options.workspace);
+  const screen = options.screenOverride ?? resolveScreen(options.workspace);
   return {
     main: renderConversationMain(options.workspace, screen, options.busy),
-    taskPanel: renderTaskPanel(options.workspace, screen, options.busy, options.selectedTemplate),
+    taskPanel: renderTaskPanel(options.workspace, screen, options.busy, options.selectedTemplate, options.localStageView ?? false, options.outlineDraftStatus),
   };
 }

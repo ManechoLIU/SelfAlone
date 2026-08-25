@@ -26,6 +26,7 @@ export type WorkspaceSnapshot = {
   };
   outline: OutlineItem[];
   task: TaskSnapshot | null;
+  staleTask?: TaskSnapshot;
 };
 
 export type TaskSnapshot = {
@@ -212,6 +213,7 @@ export class M0Runtime {
       throw new Error("DEVELOPMENT_SEED_MISSING");
     }
 
+    const currentTask = task ? taskSnapshot(task) : null;
     return {
       book,
       conversation,
@@ -223,7 +225,8 @@ export class M0Runtime {
         templateId: draft.templateId,
       },
       outline: draft.outline,
-      task: task ? taskSnapshot(task) : null,
+      task: draft.stage === "submitted" ? currentTask : null,
+      ...(draft.stage !== "submitted" && currentTask ? { staleTask: currentTask } : {}),
     };
   }
 
@@ -233,14 +236,28 @@ export class M0Runtime {
       { title: "制度之困", body: "把不可能任务拆成可验证问题" },
       { title: "普通人的选择", body: "在限制中保留善意与担当" },
     ];
-    const [updated] = await this.#sql<Array<DraftRow>>`
-      UPDATE ppt_drafts
-      SET stage = ${"outline"}, version = version + 1,
-          requirements = ${requirements}, outline = ${this.#sql.json(defaultOutline)}
-      WHERE id = ${draftId} AND account_id = ${developmentAccountId}
-        AND stage = ${"requirements"} AND version = ${expectedVersion}
-      RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
-    `;
+    const updated = await this.#sql.begin(async (transaction) => {
+      const [draft] = await transaction<Array<DraftRow>>`
+        UPDATE ppt_drafts
+        SET stage = ${"outline"}, version = version + 1,
+            requirements = ${requirements},
+            outline = CASE WHEN jsonb_array_length(outline) = 0 THEN ${transaction.json(defaultOutline)} ELSE outline END,
+            template_id = NULL
+        WHERE id = ${draftId} AND account_id = ${developmentAccountId}
+          AND stage IN (${"requirements"}, ${"outline"}, ${"template"}, ${"submitted"})
+          AND version = ${expectedVersion}
+        RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
+      `;
+      if (draft) {
+        await transaction`
+          UPDATE ppt_tasks
+          SET status = ${"stopped"}, error = ${"DRAFT_REVISED"}, version = version + 1
+          WHERE draft_id = ${draftId} AND account_id = ${developmentAccountId}
+            AND status IN (${"queued"}, ${"running"})
+        `;
+      }
+      return draft;
+    });
     if (!updated) {
       await this.#throwDraftConflict(draftId, expectedVersion, "requirements");
     }
@@ -248,13 +265,26 @@ export class M0Runtime {
   }
 
   async saveOutline(draftId: string, expectedVersion: number, outline: OutlineItem[]) {
-    const [updated] = await this.#sql<Array<DraftRow>>`
-      UPDATE ppt_drafts
-      SET stage = ${"template"}, version = version + 1, outline = ${this.#sql.json(outline)}
-      WHERE id = ${draftId} AND account_id = ${developmentAccountId}
-        AND stage = ${"outline"} AND version = ${expectedVersion}
-      RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
-    `;
+    const updated = await this.#sql.begin(async (transaction) => {
+      const [draft] = await transaction<Array<DraftRow>>`
+        UPDATE ppt_drafts
+        SET stage = ${"template"}, version = version + 1,
+            outline = ${transaction.json(outline)}, template_id = NULL
+        WHERE id = ${draftId} AND account_id = ${developmentAccountId}
+          AND stage IN (${"outline"}, ${"template"}, ${"submitted"})
+          AND version = ${expectedVersion}
+        RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
+      `;
+      if (draft) {
+        await transaction`
+          UPDATE ppt_tasks
+          SET status = ${"stopped"}, error = ${"DRAFT_REVISED"}, version = version + 1
+          WHERE draft_id = ${draftId} AND account_id = ${developmentAccountId}
+            AND status IN (${"queued"}, ${"running"})
+        `;
+      }
+      return draft;
+    });
     if (!updated) {
       await this.#throwDraftConflict(draftId, expectedVersion, "outline");
     }
@@ -280,24 +310,39 @@ export class M0Runtime {
 
     const taskId = randomUUID();
     const result = await this.#sql.begin(async (transaction) => {
+      const [latestTask] = await transaction<Array<{ status: TaskSnapshot["status"] }>>`
+        SELECT status
+        FROM ppt_tasks
+        WHERE draft_id = ${input.draftId} AND account_id = ${developmentAccountId}
+        ORDER BY version DESC, id DESC
+        LIMIT 1
+      `;
       const [draft] = await transaction<Array<DraftRow>>`
         UPDATE ppt_drafts
         SET stage = ${"submitted"}, version = version + 1, template_id = ${input.templateId}
         WHERE id = ${input.draftId} AND account_id = ${developmentAccountId}
-          AND stage = ${"template"}
+          AND (
+            stage = ${"template"}
+            OR (stage = ${"submitted"} AND ${latestTask?.status ?? ""} IN (${"failed"}, ${"stopped"}))
+          )
           AND version = ${input.expectedVersion}
         RETURNING id, stage, version, requirements, outline, template_id AS "templateId"
       `;
       if (!draft) {
         return null;
       }
+      const [nextTaskVersion] = await transaction<Array<{ version: number }>>`
+        SELECT COALESCE(MAX(version), 0) + 1 AS version
+        FROM ppt_tasks
+        WHERE draft_id = ${input.draftId} AND account_id = ${developmentAccountId}
+      `;
       const [task] = await transaction<Array<TaskRow>>`
         INSERT INTO ppt_tasks (
           id, account_id, draft_id, idempotency_key, status,
           completed_pages, total_pages, version
         ) VALUES (
           ${taskId}, ${developmentAccountId}, ${input.draftId}, ${input.idempotencyKey},
-          ${"queued"}, 0, ${draft.outline.length}, 1
+          ${"queued"}, 0, ${draft.outline.length}, ${nextTaskVersion?.version ?? 1}
         )
         RETURNING id, status, completed_pages AS "completedPages", total_pages AS "totalPages",
                   version, artifact_id AS "artifactId", error

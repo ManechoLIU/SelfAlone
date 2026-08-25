@@ -56,4 +56,28 @@ describe("DesktopAppShell", () => {
     expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-primary-nav\s*\{[^}]*margin-left:\s*12px[^}]*margin-right:\s*12px/);
     expect(styles).toMatch(/\.desktop-reconnect, \.desktop-secondary-button\s*\{[^}]*min-height:\s*44px/);
   });
+
+  it("bounds desktop content to the viewport while letting compact stages flow below it", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.desktop-app-shell\s*\{[\s\S]*height:\s*100vh[;\s]/);
+    expect(styles).toMatch(/\.desktop-rail,\s*\.desktop-conversation-list,\s*\.desktop-conversation-main,\s*\.desktop-task-panel\s*\{[^}]*min-height:\s*0/);
+    expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*height:\s*auto/);
+  });
+
+  it("reuses the reader's Qingci paper-card language for conversation messages", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*padding:\s*19px\s+22px/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*border-radius:\s*5px\s+18px\s+18px\s+18px/);
+    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*background:\s*rgba\(255,255,255,\.82\)/);
+  });
+
+  it("uses a two-column 16:9 template grid when the task panel has room", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.desktop-task-panel \.desktop-template-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
+    expect(styles).toMatch(/@media \(max-width: 880px\)[\s\S]*?\.desktop-task-panel \.desktop-template-grid\s*\{[^}]*grid-template-columns:\s*1fr/);
+    expect(styles).toMatch(/\.desktop-slide-skeleton\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*9/);
+  });
 });

@@ -163,6 +163,161 @@ describe("M0 persisted presentation flow", () => {
       completedPages: 3,
       totalPages: 3,
     });
+
+    const revisedRequirements = await app.inject({
+      method: "PUT",
+      url: `/api/v1/ppt-drafts/${draftId}/requirements`,
+      payload: {
+        expectedVersion: 4,
+        requirements: "返回修改范围后仍要保留本地草稿。",
+      },
+    });
+    expect(revisedRequirements.statusCode).toBe(200);
+    expect(revisedRequirements.json()).toMatchObject({ draft: { stage: "outline", version: 5 } });
+
+    const revisedWorkspace = await app.inject({ method: "GET", url: "/api/v1/workspace" });
+    expect(revisedWorkspace.json()).toMatchObject({
+      draft: { stage: "outline", version: 5 },
+      task: null,
+      staleTask: { status: "completed", completedPages: 3 },
+    });
+
+    const revisedOutline = await app.inject({
+      method: "PUT",
+      url: `/api/v1/ppt-drafts/${draftId}/outline`,
+      payload: {
+        expectedVersion: 5,
+        outline: revisedRequirements.json().outline.map((page: { title: string; body: string }, index: number) => (
+          index === 0 ? { ...page, title: "修改后的第一页" } : page
+        )),
+      },
+    });
+    expect(revisedOutline.statusCode).toBe(200);
+    expect(revisedOutline.json()).toMatchObject({ stage: "template", version: 6 });
+    expect(revisedOutline.json().outline[0]).toMatchObject({ title: "修改后的第一页" });
+
+    const templatedAgain = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 6,
+        idempotencyKey: "m0-test-retry-request",
+        templateId: "paper-notes",
+      },
+    });
+    expect(templatedAgain.statusCode).toBe(202);
+    const retriedTaskId = templatedAgain.json().id as string;
+    expect(retriedTaskId).not.toBe(taskId);
+    let retriedCompletedTask: Record<string, unknown> | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const response = await app.inject({ method: "GET", url: `/api/v1/ppt-tasks/${retriedTaskId}` });
+      const task = response.json<Record<string, unknown>>();
+      if (task.status === "completed") {
+        retriedCompletedTask = task;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect((await app.inject({ method: "GET", url: "/api/v1/workspace" })).json()).toMatchObject({
+      draft: { stage: "submitted", version: 7 },
+      task: { id: retriedTaskId, status: "completed" },
+    });
+    expect(retriedCompletedTask).toMatchObject({ status: "completed", artifactId: expect.any(String) });
+
+    const repeatedRetry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 6,
+        idempotencyKey: "m0-test-retry-request",
+        templateId: "paper-notes",
+      },
+    });
+    expect(repeatedRetry.statusCode).toBe(202);
+    expect(repeatedRetry.json().id).toBe(retriedTaskId);
+
+    const staleRetry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 6,
+        idempotencyKey: "m0-test-stale-retry-request",
+        templateId: "paper-notes",
+      },
+    });
+    expect(staleRetry.statusCode).toBe(409);
+    expect(staleRetry.json()).toEqual({ code: "STALE_VERSION" });
+
+    await administration.unsafe(`
+      UPDATE "${schemaName}".ppt_tasks
+      SET status = 'failed', error = 'PRESENTATION_GENERATION_FAILED'
+      WHERE id = '${retriedTaskId}'
+    `);
+    const failedWorkspace = await app.inject({ method: "GET", url: "/api/v1/workspace" });
+    expect(failedWorkspace.json()).toMatchObject({
+      draft: { stage: "submitted", version: 7 },
+      task: { id: retriedTaskId, status: "failed" },
+    });
+
+    const failedRetry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 7,
+        idempotencyKey: "m0-test-failed-retry-request",
+        templateId: "ink-minimal",
+      },
+    });
+    expect(failedRetry.statusCode).toBe(202);
+    const failedRetryTaskId = failedRetry.json().id as string;
+    expect(failedRetryTaskId).not.toBe(retriedTaskId);
+    let failedRetryCompletedTask: Record<string, unknown> | undefined;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const response = await app.inject({ method: "GET", url: `/api/v1/ppt-tasks/${failedRetryTaskId}` });
+      const task = response.json<Record<string, unknown>>();
+      if (task.status === "completed") {
+        failedRetryCompletedTask = task;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(failedRetryCompletedTask).toMatchObject({ status: "completed", artifactId: expect.any(String) });
+
+    const repeatedFailedRetry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 7,
+        idempotencyKey: "m0-test-failed-retry-request",
+        templateId: "ink-minimal",
+      },
+    });
+    expect(repeatedFailedRetry.statusCode).toBe(202);
+    expect(repeatedFailedRetry.json().id).toBe(failedRetryTaskId);
+
+    const staleFailedRetry = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId,
+        expectedVersion: 7,
+        idempotencyKey: "m0-test-stale-failed-retry-request",
+        templateId: "ink-minimal",
+      },
+    });
+    expect(staleFailedRetry.statusCode).toBe(409);
+    expect(staleFailedRetry.json()).toEqual({ code: "STALE_VERSION" });
+
+    expect((await app.inject({ method: "GET", url: "/api/v1/workspace" })).json()).toMatchObject({
+      draft: { stage: "submitted", version: 8 },
+      task: { id: failedRetryTaskId, status: "completed" },
+    });
+
     const artifactId = completedTask?.artifactId as string;
     const download = await app.inject({
       method: "GET",
@@ -178,9 +333,9 @@ describe("M0 persisted presentation flow", () => {
       ["books", 1],
       ["conversations", 1],
       ["ppt_drafts", 1],
-      ["ppt_tasks", 1],
-      ["ppt_pages", 3],
-      ["ppt_artifacts", 1],
+      ["ppt_tasks", 3],
+      ["ppt_pages", 9],
+      ["ppt_artifacts", 3],
     ] as const) {
       const [ownership] = await administration.unsafe<
         Array<{ rows: number; developmentRows: number }>
@@ -203,8 +358,8 @@ describe("M0 persisted presentation flow", () => {
     runtimes.push(reconnected);
     const restored = await reconnected.getWorkspace();
     expect(restored).toMatchObject({
-      draft: { stage: "submitted", version: 4 },
-      task: { id: taskId, status: "completed", artifactId },
+      draft: { stage: "submitted", version: 8 },
+      task: { id: failedRetryTaskId, status: "completed", artifactId: failedRetryCompletedTask?.artifactId },
     });
   });
 });

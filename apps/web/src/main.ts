@@ -1,10 +1,19 @@
 import "./styles.css";
 import {
+  conversationHash,
+  outlineDraftStorageKey,
+  parseOutlineDraft,
+  parseRequirementsDraft,
   resolveScreen,
+  requirementsDraftStorageKey,
+  serializeRequirementsDraft,
+  serializeOutlineDraft,
+  stageFromConversationHash,
   taskProgressLabel,
   withDraftOutline,
   withDraftRequirements,
   type OutlineItem,
+  type WorkspaceScreen,
   type WorkspaceSnapshot,
 } from "./app-state";
 import type { LibraryBookSummary, LibrarySnapshot, TextReading } from "@selfalone/contracts";
@@ -26,6 +35,10 @@ import { createTextReaderApi, mountTextReader } from "./text-reader";
 import { renderDesktopAppShell } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
 
+const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
+const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
+const conversationScrollStorageKey = "selfalone:m1:conversation-scroll";
+
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
   throw new Error("APP_ROOT_MISSING");
@@ -42,6 +55,14 @@ let draftRequirements = "";
 let draftRequirementsDirty = false;
 let draftOutline: OutlineItem[] = [];
 let draftOutlineDirty = false;
+let outlineDraftStatus: "local" | undefined;
+let stageView: WorkspaceScreen | null = readStageViewFromHash();
+let lastConversationStage: WorkspaceScreen | null = stageView;
+let routeGeneration = 0;
+let conversationScrollTop = 0;
+let taskScrollTop = 0;
+let conversationFocusKey: string | null = null;
+let routeRenderFrame: number | undefined;
 let libraryState: LibraryLoadState = {
   loading: true,
   searching: false,
@@ -67,16 +88,167 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+function readStageViewFromHash(): WorkspaceScreen | null {
+  return stageFromConversationHash(window.location.hash);
+}
+
+function isConversationRoute() {
+  return window.location.hash.slice(1).split("?")[0] === "/conversation";
+}
+
+function conversationHref() {
+  return conversationHash(stageView ?? lastConversationStage);
+}
+
+function focusKeyForElement(element: Element | null) {
+  if (!element || !element.closest(".conversation-content, .desktop-task-panel")) return null;
+  if (element.id === "requirements") return "requirements";
+  const name = element.getAttribute("name");
+  return name && /^(title|body)-\d+$/.test(name) ? name : null;
+}
+
+function persistConversationScroll() {
+  const scroll = document.querySelector<HTMLElement>(".desktop-conversation-scroll");
+  const task = document.querySelector<HTMLElement>(".desktop-task-panel");
+  if (!scroll && !task) return;
+  conversationFocusKey = focusKeyForElement(document.activeElement) ?? conversationFocusKey;
+  conversationScrollTop = scroll?.scrollTop ?? conversationScrollTop;
+  taskScrollTop = task?.scrollTop ?? taskScrollTop;
+  try {
+    window.sessionStorage.setItem(conversationScrollStorageKey, JSON.stringify({
+      conversation: conversationScrollTop,
+      task: taskScrollTop,
+      focus: conversationFocusKey,
+    }));
+  } catch {
+    // Keep the in-memory position when session storage is unavailable.
+  }
+}
+
+function restoreConversationScroll() {
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(conversationScrollStorageKey) ?? "null") as { conversation?: unknown; task?: unknown; focus?: unknown } | null;
+    if (parsed) {
+      if (typeof parsed.conversation === "number") conversationScrollTop = parsed.conversation;
+      if (typeof parsed.task === "number") taskScrollTop = parsed.task;
+      if (typeof parsed.focus === "string") conversationFocusKey = parsed.focus;
+    }
+  } catch {
+    // The current in-memory position is still useful when storage is unavailable.
+  }
+  const apply = () => {
+    document.querySelector<HTMLElement>(".desktop-conversation-scroll")?.scrollTo({ top: conversationScrollTop });
+    document.querySelector<HTMLElement>(".desktop-task-panel")?.scrollTo({ top: taskScrollTop });
+    const focusSelector = conversationFocusKey === "requirements"
+      ? "#requirements"
+      : conversationFocusKey && /^(title|body)-\d+$/.test(conversationFocusKey)
+        ? `[name="${conversationFocusKey}"]`
+        : null;
+    if (focusSelector) document.querySelector<HTMLElement>(focusSelector)?.focus({ preventScroll: true });
+  };
+  window.requestAnimationFrame?.(apply);
+  window.setTimeout(apply, 0);
+}
+
+function setStageView(next: WorkspaceScreen) {
+  if (!workspace) return;
+  if (stageView === next) return;
+  persistConversationScroll();
+  stageView = next;
+  lastConversationStage = next;
+  window.history.pushState(null, "", conversationHash(next));
+  render();
+}
+
+function clearStageView() {
+  stageView = null;
+  lastConversationStage = null;
+  if (window.location.hash.includes("?stage=")) {
+    window.history.replaceState(null, "", conversationHash());
+  }
+}
+
+function readRecoveredOutline(draftId: string) {
+  try {
+    return parseOutlineDraft(window.localStorage.getItem(outlineDraftStorageKey(draftId)));
+  } catch {
+    return null;
+  }
+}
+
+function persistOutlineDraft(draftId: string, outline: OutlineItem[]) {
+  try {
+    window.localStorage.setItem(outlineDraftStorageKey(draftId), serializeOutlineDraft(outline));
+  } catch {
+    // A private browsing policy may deny local recovery; the in-memory draft still remains visible.
+  }
+}
+
+function readRecoveredRequirements(draftId: string) {
+  try {
+    return parseRequirementsDraft(window.localStorage.getItem(requirementsDraftStorageKey(draftId)));
+  } catch {
+    return null;
+  }
+}
+
+function persistRequirementsDraft(draftId: string, requirements: string) {
+  try {
+    window.localStorage.setItem(requirementsDraftStorageKey(draftId), serializeRequirementsDraft(requirements));
+  } catch {
+    // Keep the in-memory draft visible when browser storage is unavailable.
+  }
+}
+
+function clearRecoveredRequirements(draftId: string) {
+  try {
+    window.localStorage.removeItem(requirementsDraftStorageKey(draftId));
+  } catch {
+    // Keep the successful server response usable when storage cleanup is unavailable.
+  }
+}
+
+function clearRecoveredOutline(draftId: string) {
+  try {
+    window.localStorage.removeItem(outlineDraftStorageKey(draftId));
+  } catch {
+    // Keep the successful server response usable even when storage cleanup is unavailable.
+  }
+}
+
+function cacheWorkspace(snapshot: WorkspaceSnapshot) {
+  try {
+    window.localStorage.setItem(workspaceCacheStorageKey, JSON.stringify(snapshot));
+  } catch {
+    // The network response remains the source of truth when browser storage is unavailable.
+  }
+}
+
+function readCachedWorkspace(): WorkspaceSnapshot | null {
+  try {
+    const value = window.localStorage.getItem(workspaceCacheStorageKey);
+    if (!value) return null;
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object" || !("draft" in parsed) || !("outline" in parsed) || !Array.isArray(parsed.outline)) {
+      return null;
+    }
+    return parsed as WorkspaceSnapshot;
+  } catch {
+    return null;
+  }
+}
+
 function libraryShell(content: string) {
+  const conversationRoute = conversationHref();
   return `
     <div class="library-shell">
       <aside class="library-rail" aria-label="主导航">
-        <a class="library-brand" href="#/conversation" aria-label="老己，对话首页">
+        <a class="library-brand" href="${conversationRoute}" aria-label="老己，对话首页">
           <img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="" />
           <strong>老己</strong>
         </a>
         <nav class="library-nav">
-          <a href="#/conversation">${icons.chat}<span>对话</span></a>
+          <a href="${conversationRoute}">${icons.chat}<span>对话</span></a>
           <a class="active" href="#/library" aria-current="page">${icons.book}<span>读书</span></a>
           <span class="disabled-nav" aria-disabled="true">${icons.settings}<span>设置</span></span>
         </nav>
@@ -84,7 +256,7 @@ function libraryShell(content: string) {
       <main class="library-main">${content}</main>
       <div class="library-companion">
         <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
-        <a class="library-companion-button" href="#/conversation" aria-label="和老己聊聊">${icons.chat}</a>
+        <a class="library-companion-button" href="${conversationRoute}" aria-label="和老己聊聊">${icons.chat}</a>
       </div>
     </div>`;
 }
@@ -203,6 +375,7 @@ async function loadLibrary(
   kind: LibraryLoadKind = "initial",
   preserveSearchFocus = false,
 ) {
+  if (!window.location.hash.startsWith("#/library")) return;
   libraryPolling.stop();
   const normalizedQuery = query.trim();
   const request = latestLibraryRequest.begin();
@@ -259,8 +432,9 @@ async function loadLibrary(
           loading: false,
           searching: false,
           error: "无法连接书架服务，请检查本地服务后重试",
-        };
+      };
   }
+  if (!window.location.hash.startsWith("#/library")) return;
   renderLibrary(preserveSearchFocus);
   updateLibraryPolling();
 }
@@ -295,8 +469,10 @@ async function uploadBook(file: File) {
     libraryState = { ...libraryState, error: messages[code] ?? "这本书没有导入，当前书架已保留" };
   } finally {
     libraryUploading = false;
-    renderLibrary();
-    updateLibraryPolling();
+    if (window.location.hash.startsWith("#/library")) {
+      renderLibrary();
+      updateLibraryPolling();
+    }
   }
 }
 
@@ -341,13 +517,31 @@ async function loadWorkspace() {
   let loaded = false;
   try {
     const snapshot = await requestJson<WorkspaceSnapshot>("/api/v1/workspace");
+    cacheWorkspace(snapshot);
     workspace = snapshot;
     loaded = true;
-    if (!draftRequirementsDirty) {
+    const recoveredRequirements = readRecoveredRequirements(snapshot.draft.id);
+    if (recoveredRequirements !== null && !draftRequirementsDirty) {
+      draftRequirements = recoveredRequirements;
+      draftRequirementsDirty = true;
+    } else if (!draftRequirementsDirty) {
       draftRequirements = snapshot.draft.requirements;
     }
-    if (!draftOutlineDirty) {
+    const recoveredOutline = (snapshot.draft.stage === "outline" || stageView !== null) ? readRecoveredOutline(snapshot.draft.id) : null;
+    if (recoveredOutline && !draftOutlineDirty) {
+      draftOutline = recoveredOutline;
+      draftOutlineDirty = true;
+      outlineDraftStatus = "local";
+    } else if (!draftOutlineDirty) {
       draftOutline = snapshot.outline.map((page) => ({ ...page }));
+      outlineDraftStatus = undefined;
+    }
+    if (snapshot.draft.stage !== "outline" && stageView === null && !draftOutlineDirty) {
+      clearRecoveredOutline(snapshot.draft.id);
+      outlineDraftStatus = undefined;
+    }
+    if (snapshot.draft.stage !== "requirements" && stageView === null && !draftRequirementsDirty) {
+      clearRecoveredRequirements(snapshot.draft.id);
     }
     if (snapshot.draft.templateId) {
       selectedTemplate = snapshot.draft.templateId;
@@ -355,9 +549,30 @@ async function loadWorkspace() {
     errorMessage = "";
   } catch {
     errorMessage = "暂时无法连接老己服务，输入和已完成结果都不会被清空。";
+    if (!workspace) {
+      const cached = readCachedWorkspace();
+      if (cached) {
+        workspace = cached;
+        const recoveredRequirements = readRecoveredRequirements(cached.draft.id);
+        if (recoveredRequirements !== null) {
+          draftRequirements = recoveredRequirements;
+          draftRequirementsDirty = true;
+        } else {
+          draftRequirements = cached.draft.requirements;
+        }
+        const recoveredOutline = (cached.draft.stage === "outline" || stageView !== null) ? readRecoveredOutline(cached.draft.id) : null;
+        if (recoveredOutline) {
+          draftOutline = recoveredOutline;
+          draftOutlineDirty = true;
+          outlineDraftStatus = "local";
+        } else {
+          draftOutline = cached.outline.map((page) => ({ ...page }));
+        }
+      }
+    }
   } finally {
     workspaceRequestInFlight = false;
-    render();
+    if (isConversationRoute()) render();
     updatePolling();
   }
   return loaded;
@@ -368,24 +583,25 @@ function updatePolling() {
     window.clearInterval(pollingTimer);
     pollingTimer = undefined;
   }
-  if (workspace && !errorMessage && resolveScreen(workspace) === "generating") {
+  if (isConversationRoute() && workspace && !errorMessage && resolveScreen(workspace) === "generating") {
     pollingTimer = window.setInterval(loadWorkspace, 450);
   }
 }
 
 function conversationMeta() {
   if (!workspace) return "正在恢复最近对话";
+  const screen = stageView ?? resolveScreen(workspace);
   const labels: Record<string, string> = {
     requirements: "范围与需求",
     outline: "大纲",
     template: "模板",
     submitted: "生成",
   };
-  return workspace.task?.status === "failed"
+  return screen === "failed"
     ? "生成失败"
-    : workspace.task?.status === "completed"
+    : screen === "completed"
       ? "生成完成"
-      : labels[workspace.draft.stage] ?? "当前会话";
+      : labels[screen] ?? labels[workspace.draft.stage] ?? "当前会话";
 }
 
 function conversationList() {
@@ -402,6 +618,7 @@ function conversationList() {
 function renderShell(content: string, taskPanel = "") {
   return renderDesktopAppShell({
     activeSection: "conversation",
+    conversationHref: conversationHref(),
     currentConversation: {
       title: workspace ? `《${workspace.book.title}》读书分享` : "老己对话",
       meta: conversationMeta(),
@@ -439,6 +656,16 @@ function renderLoading() {
 }
 
 function bindInteractions() {
+  document.querySelectorAll<HTMLButtonElement>('[data-stage-back], [data-stage-forward][data-stage-local="true"]').forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      const target = button.dataset.stageBack ?? button.dataset.stageForward;
+      if (target && workspaceScreens.includes(target as WorkspaceScreen)) {
+        setStageView(target as WorkspaceScreen);
+      }
+    });
+  });
+
   document.querySelector<HTMLButtonElement>("#reconnect-workspace")?.addEventListener("click", () => {
     void loadWorkspace();
   });
@@ -449,6 +676,7 @@ function bindInteractions() {
     const form = new FormData(event.currentTarget as HTMLFormElement);
     draftRequirements = String(form.get("requirements") ?? "");
     draftRequirementsDirty = true;
+    persistRequirementsDraft(workspace.draft.id, draftRequirements);
     await act(async () => {
       await requestJson(`/api/v1/ppt-drafts/${workspace?.draft.id}/requirements`, {
         method: "PUT",
@@ -463,6 +691,7 @@ function bindInteractions() {
   document.querySelector<HTMLTextAreaElement>("#requirements")?.addEventListener("input", (event) => {
     draftRequirements = (event.currentTarget as HTMLTextAreaElement).value;
     draftRequirementsDirty = true;
+    if (workspace) persistRequirementsDraft(workspace.draft.id, draftRequirements);
   });
 
   const outlineForm = document.querySelector<HTMLFormElement>("#outline-form");
@@ -474,6 +703,8 @@ function bindInteractions() {
       body: String(formData.get(`body-${index}`) ?? "").trim(),
     }));
     draftOutlineDirty = true;
+    outlineDraftStatus = "local";
+    persistOutlineDraft(workspace.draft.id, draftOutline);
   };
   outlineForm?.addEventListener("input", (event) => {
     captureOutlineDraft(event.currentTarget as HTMLFormElement);
@@ -488,6 +719,8 @@ function bindInteractions() {
     }));
     draftOutline = outline;
     draftOutlineDirty = true;
+    outlineDraftStatus = "local";
+    persistOutlineDraft(workspace.draft.id, outline);
     await act(async () => {
       await requestJson(`/api/v1/ppt-drafts/${workspace?.draft.id}/outline`, {
         method: "PUT",
@@ -505,8 +738,11 @@ function bindInteractions() {
 
   document.querySelector<HTMLButtonElement>("#submit-task")?.addEventListener("click", async () => {
     if (!workspace) return;
-    const requestKey =
-      window.localStorage.getItem("selfalone-m0-request") ?? crypto.randomUUID();
+    const isRetry = workspace.task?.status === "failed" || workspace.task?.status === "stopped";
+    const isNewTask = !workspace.task || isRetry;
+    const requestKey = isNewTask
+      ? crypto.randomUUID()
+      : window.localStorage.getItem("selfalone-m0-request") ?? crypto.randomUUID();
     window.localStorage.setItem("selfalone-m0-request", requestKey);
     await act(async () => {
       await requestJson("/api/v1/ppt-tasks", {
@@ -522,7 +758,7 @@ function bindInteractions() {
   });
 
   document.querySelector<HTMLButtonElement>("#stop-task")?.addEventListener("click", async () => {
-    if (!workspace?.task) return;
+    if (!workspace?.task || stageView) return;
     await act(async () => {
       await requestJson(`/api/v1/ppt-tasks/${workspace?.task?.id}/stop`, {
         method: "POST",
@@ -540,10 +776,14 @@ async function act(action: () => Promise<void>) {
   render();
   try {
     await action();
+    clearStageView();
     const loaded = await loadWorkspace();
-    if (loaded) {
+    if (loaded && workspace) {
+      clearRecoveredRequirements(workspace.draft.id);
+      clearRecoveredOutline(workspace.draft.id);
       draftRequirementsDirty = false;
       draftOutlineDirty = false;
+      outlineDraftStatus = undefined;
     }
   } catch (error) {
     errorMessage = error instanceof Error && error.message === "STALE_VERSION"
@@ -561,19 +801,32 @@ function render() {
     renderLoading();
     return;
   }
-  const view = renderConversationView({ workspace: renderWorkspaceSnapshot() ?? workspace, busy, selectedTemplate });
+  const view = renderConversationView({
+    workspace: renderWorkspaceSnapshot() ?? workspace,
+    busy,
+    selectedTemplate,
+    screenOverride: stageView ?? undefined,
+    localStageView: stageView !== null,
+    outlineDraftStatus,
+  });
   app.innerHTML = renderShell(view.main, view.taskPanel);
   bindInteractions();
+  restoreConversationScroll();
 }
 
 let activeTextReader: ReturnType<typeof mountTextReader> | null = null;
 
-async function openTextReader(bookId: string) {
+function destroyTextReader() {
+  activeTextReader?.destroy();
+  activeTextReader = null;
+}
+
+async function openTextReader(bookId: string, navigationId: number) {
   app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
   const api = createTextReaderApi(bookId);
   try {
     const reading = await api.loadReading();
-    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
     const prefetchedApi = {
       ...api,
       loadReading: async () => reading as TextReading,
@@ -588,21 +841,66 @@ async function openTextReader(bookId: string) {
       },
     });
   } catch {
-    if (readingBookIdFromHash(window.location.hash) !== bookId) return;
+    if (navigationId !== routeGeneration || readingBookIdFromHash(window.location.hash) !== bookId) return;
     activeTextReader = mountTextReader(app, { bookId, api });
   }
 }
 
-window.addEventListener("beforeunload", () => activeTextReader?.destroy());
-window.addEventListener("hashchange", () => window.location.reload());
-if (!window.location.hash) window.history.replaceState(null, "", "#/library");
-const readingBookId = readingBookIdFromHash(window.location.hash);
-if (readingBookId) {
-  void openTextReader(readingBookId);
-} else if (window.location.hash === "#/library") {
-  renderLibrary();
-  void loadLibrary("", "initial");
-} else {
-  renderLoading();
-  void loadWorkspace();
+function renderRoute() {
+  persistConversationScroll();
+  routeGeneration += 1;
+  const navigationId = routeGeneration;
+  if (!window.location.hash) {
+    window.history.replaceState(null, "", "#/library");
+  }
+  const readingBookId = readingBookIdFromHash(window.location.hash);
+  if (readingBookId) {
+    destroyTextReader();
+    void openTextReader(readingBookId, navigationId);
+    return;
+  }
+  if (window.location.hash.startsWith("#/library")) {
+    destroyTextReader();
+    renderLibrary();
+    if (libraryState.loading) void loadLibrary("", "initial");
+    return;
+  }
+  if (!isConversationRoute()) {
+    window.history.replaceState(null, "", "#/library");
+    renderLibrary();
+    if (libraryState.loading) void loadLibrary("", "initial");
+    return;
+  }
+  stageView = readStageViewFromHash();
+  lastConversationStage = stageView;
+  destroyTextReader();
+  if (!workspace) {
+    renderLoading();
+    void loadWorkspace();
+  } else {
+    render();
+    updatePolling();
+  }
 }
+
+function scheduleRouteRender() {
+  if (routeRenderFrame !== undefined) return;
+  routeRenderFrame = window.requestAnimationFrame(() => {
+    routeRenderFrame = undefined;
+    renderRoute();
+  });
+}
+
+window.addEventListener("beforeunload", () => {
+  persistConversationScroll();
+  destroyTextReader();
+});
+window.addEventListener("focusin", (event) => {
+  if (isConversationRoute()) {
+    conversationFocusKey = focusKeyForElement(event.target instanceof Element ? event.target : null) ?? conversationFocusKey;
+  }
+});
+window.addEventListener("hashchange", scheduleRouteRender);
+window.addEventListener("popstate", scheduleRouteRender);
+if (!window.location.hash) window.history.replaceState(null, "", "#/library");
+renderRoute();

@@ -11,6 +11,7 @@ export type DesktopConversation = {
 
 export type DesktopAppShellOptions = {
   activeSection: DesktopSection;
+  conversationHref?: string;
   currentConversation: { title: string; meta: string };
   conversationList: DesktopConversation[];
   mainContent: string;
@@ -36,17 +37,17 @@ const navItems: Array<
   { id: "settings", label: "设置", icon: icons.settings, available: false },
 ];
 
-function renderRail(activeSection: DesktopSection) {
+function renderRail(activeSection: DesktopSection, conversationHref: string) {
   return `
     <aside class="desktop-rail" aria-label="主导航">
-      <a class="desktop-brand" href="#/conversation" aria-label="老己，对话首页">
+      <a class="desktop-brand" href="${conversationHref}" aria-label="老己，对话首页">
         <img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="" />
         <span>老己</span>
       </a>
       <nav class="desktop-primary-nav" aria-label="一级导航">
         ${navItems.map((item) => item.available
           ? `
-          <a class="desktop-nav-link ${activeSection === item.id ? "active" : ""}" href="${item.href}" aria-label="${item.label}"${activeSection === item.id ? ' aria-current="page"' : ""}>
+          <a class="desktop-nav-link ${activeSection === item.id ? "active" : ""}" href="${item.id === "conversation" ? conversationHref : item.href}" aria-label="${item.label}"${activeSection === item.id ? ' aria-current="page"' : ""}>
             ${item.icon}<span>${item.label}</span>
           </a>`
           : `
@@ -61,10 +62,11 @@ function renderRail(activeSection: DesktopSection) {
 function renderConversationList(
   conversations: DesktopConversation[],
   currentConversation: DesktopAppShellOptions["currentConversation"],
+  conversationHref: string,
 ) {
   const items = conversations.length
     ? conversations.map((conversation) => `
-        <a class="desktop-conversation-item ${conversation.active ? "active" : ""}" href="#/conversation"${conversation.active ? ' aria-current="page"' : ""}>
+        <a class="desktop-conversation-item ${conversation.active ? "active" : ""}" href="${conversationHref}"${conversation.active ? ' aria-current="page"' : ""}>
           <span class="desktop-conversation-item-icon">${icons.chat}</span>
           <span class="desktop-conversation-item-copy">
             <strong>${escapeHtml(conversation.title)}</strong>
@@ -113,10 +115,11 @@ function renderConnectionError(error: string) {
 }
 
 export function renderDesktopAppShell(options: DesktopAppShellOptions) {
+  const conversationHref = options.conversationHref ?? "#/conversation";
   return `
     <div class="desktop-app-shell" data-active-section="${options.activeSection}">
-      ${renderRail(options.activeSection)}
-      ${renderConversationList(options.conversationList, options.currentConversation)}
+      ${renderRail(options.activeSection, conversationHref)}
+      ${renderConversationList(options.conversationList, options.currentConversation, conversationHref)}
       <main class="desktop-conversation-main">
         ${renderHeader(options.currentConversation)}
         <div class="desktop-conversation-scroll">
