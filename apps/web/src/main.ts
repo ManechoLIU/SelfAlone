@@ -32,6 +32,13 @@ import {
 } from "./auth-state";
 import { renderAuthPage } from "./auth-page";
 import { bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash } from "./book-detail-state";
+import {
+  parseTextReaderPptIntent,
+  resolveTextReaderPptHandoff,
+  textReaderPptConversationScrollPolicy,
+  type TextReaderPptBlockedDisplay,
+  type TextReaderPptIntent,
+} from "./text-reader-ppt-handoff";
 import type { AuthAccountResponse, LibraryBookSummary, LibrarySnapshot, TextReading, TrialQuotaStatus } from "@selfalone/contracts";
 import {
   authorLabel,
@@ -117,6 +124,7 @@ let routeGeneration = 0;
 let conversationScrollTop = 0;
 let taskScrollTop = 0;
 let conversationFocusKey: string | null = null;
+let lastTextReaderPptScrollIntent: TextReaderPptIntent | null = null;
 let routeRenderFrame: number | undefined;
 let conversationChatSession: ConversationChatSession | null = null;
 let conversationChatSessions: ConversationChatSession[] = [];
@@ -926,6 +934,47 @@ function persistConversationScroll() {
   }
 }
 
+function resetStoredConversationScroll() {
+  conversationScrollTop = 0;
+  let stored: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(window.sessionStorage.getItem(conversationScrollStorageKey) ?? "null") as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      stored = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Replace a malformed snapshot with the safe current position below.
+  }
+  try {
+    window.sessionStorage.setItem(conversationScrollStorageKey, JSON.stringify({
+      ...stored,
+      conversation: 0,
+    }));
+  } catch {
+    // The in-memory reset still prevents the current route from restoring old scroll.
+  }
+}
+
+function syncTextReaderPptConversationScroll(hash: string) {
+  const parsed = parseTextReaderPptIntent(hash);
+  if (parsed.status === "none") {
+    lastTextReaderPptScrollIntent = null;
+    return;
+  }
+  if (parsed.status === "blocked") {
+    lastTextReaderPptScrollIntent = null;
+    resetStoredConversationScroll();
+    return;
+  }
+  const policy = textReaderPptConversationScrollPolicy(
+    lastTextReaderPptScrollIntent,
+    parsed.intent,
+    conversationScrollTop,
+  );
+  lastTextReaderPptScrollIntent = parsed.intent;
+  if (policy.action === "reset") resetStoredConversationScroll();
+}
+
 function restoreConversationScroll() {
   try {
     const parsed = JSON.parse(window.sessionStorage.getItem(conversationScrollStorageKey) ?? "null") as { conversation?: unknown; task?: unknown; focus?: unknown } | null;
@@ -1375,7 +1424,10 @@ async function loadWorkspace(options: { render?: boolean } = {}) {
     workspaceRequestInFlight = false;
     if (shouldRender && isLegacyConversationRoute()) {
       if (loaded && workspace) {
-        if (legacyRouteFollowsWorkspace) {
+        const handoff = resolveTextReaderPptHandoff(window.location.hash, workspace);
+        if (handoff.status === "blocked") {
+          legacyRouteFollowsWorkspace = false;
+        } else if (legacyRouteFollowsWorkspace) {
           canonicalizeLegacyRoute(workspace);
         } else if (stageView === resolveScreen(workspace) || (stageView === null && bookPptIntentId !== null)) {
           legacyRouteFollowsWorkspace = true;
@@ -1449,6 +1501,30 @@ function renderShell(content: string, taskPanel = "") {
     taskPanel,
     connectionError: errorMessage || undefined,
   });
+}
+
+function renderTextReaderPptBlockedHandoff(display: TextReaderPptBlockedDisplay) {
+  const requestedTitle = display.requestedBook
+    ? `《${display.requestedBook.bookTitle}》制作 PPT`
+    : "当前书籍制作 PPT";
+  const bookData = display.requestedBook
+    ? ` data-book-id="${escapeHtml(display.requestedBook.bookId)}"`
+    : "";
+  const retry = display.kind === "workspace-unavailable"
+    ? `<button id="reconnect-workspace" class="desktop-reconnect" type="button">重新连接当前书籍</button>`
+    : "";
+  app.innerHTML = renderDesktopAppShell({
+    activeSection: "conversation",
+    conversationHref: conversationHref(),
+    currentConversation: {
+      title: requestedTitle,
+      meta: "PPT 工作区未打开",
+    },
+    conversationList: [],
+    mainContent: `<section class="conversation-content"><aside class="book-ppt-intent" data-book-ppt-intent${bookData} role="alert"><strong>${escapeHtml(display.heading)}</strong><span>${escapeHtml(display.message)}</span>${retry}</aside></section>`,
+  });
+  bindInteractions();
+  restoreConversationScroll();
 }
 
 function renderWorkspaceSnapshot() {
@@ -1622,6 +1698,11 @@ async function act(action: () => Promise<void>) {
 }
 
 function render() {
+  const handoff = resolveTextReaderPptHandoff(window.location.hash, workspace);
+  if (handoff.status === "blocked") {
+    renderTextReaderPptBlockedHandoff(handoff.display);
+    return;
+  }
   if (!workspace) {
     renderLoading();
     return;
@@ -1693,6 +1774,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
 
 function renderRoute() {
   persistConversationScroll();
+  syncTextReaderPptConversationScroll(window.location.hash);
   routeGeneration += 1;
   const navigationId = routeGeneration;
   if (!authRecoveryFinished) {
@@ -1763,8 +1845,9 @@ function renderRoute() {
   }
   stageView = readStageViewFromHash();
   lastConversationStage = stageView;
+  const handoff = resolveTextReaderPptHandoff(window.location.hash, workspace);
   legacyRouteFollowsWorkspace = Boolean(
-    workspace && (
+    workspace && handoff.status !== "blocked" && (
       stageView === resolveScreen(workspace)
       || (stageView === null && bookPptIntentId !== null)
     ),
