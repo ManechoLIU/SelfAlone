@@ -40,6 +40,13 @@ export type ConversationChatSendResult =
 
 export type ConversationRouteKind = "chat" | "workspace";
 
+export type ConversationChatLoadOutcome = "success" | "failure";
+
+export type ConversationChatLoadCoordinator = {
+  request: (navigationId: number) => "start" | "pending" | "ignore";
+  settle: (navigationId: number, outcome: ConversationChatLoadOutcome) => number | null;
+};
+
 export function classifyConversationRoute(hash: string): ConversationRouteKind {
   const [route, query = ""] = hash.slice(1).split("?");
   if (route !== "/conversation") return "workspace";
@@ -54,6 +61,30 @@ export function canonicalizeConversationStageRoute(hash: string, stage: string):
   parameters.set("stage", stage);
   const nextQuery = parameters.toString();
   return `#${route}${nextQuery ? `?${nextQuery}` : ""}`;
+}
+
+export function createConversationChatLoadCoordinator(): ConversationChatLoadCoordinator {
+  let inFlightNavigationId: number | null = null;
+  let pendingNavigationId: number | null = null;
+
+  return {
+    request(navigationId) {
+      if (inFlightNavigationId === null) {
+        inFlightNavigationId = navigationId;
+        return "start";
+      }
+      if (inFlightNavigationId === navigationId) return "ignore";
+      pendingNavigationId = navigationId;
+      return "pending";
+    },
+    settle(navigationId, _outcome) {
+      if (inFlightNavigationId !== navigationId) return null;
+      inFlightNavigationId = null;
+      const nextNavigationId = pendingNavigationId;
+      pendingNavigationId = null;
+      return nextNavigationId;
+    },
+  };
 }
 
 export function createConversationChatState(conversationId: string): ConversationChatState {

@@ -5,6 +5,7 @@ import {
   beginConversationSend,
   canonicalizeConversationStageRoute,
   classifyConversationRoute,
+  createConversationChatLoadCoordinator,
   createConversationChatState,
   updateConversationDraft,
 } from "./conversation-chat-state";
@@ -19,6 +20,27 @@ describe("conversation chat state", () => {
   it("canonicalizes a completed stage action without dropping a book handoff", () => {
     expect(canonicalizeConversationStageRoute("#/conversation?stage=requirements", "outline")).toBe("#/conversation?stage=outline");
     expect(canonicalizeConversationStageRoute("#/conversation?stage=requirements&book=book-1&bookTitle=书", "outline")).toBe("#/conversation?stage=outline&book=book-1&bookTitle=%E4%B9%A6");
+  });
+
+  it("restarts the current route after an in-flight load settles stale-successfully", () => {
+    const coordinator = createConversationChatLoadCoordinator();
+
+    expect(coordinator.request(1)).toBe("start");
+    expect(coordinator.request(2)).toBe("pending");
+    expect(coordinator.settle(1, "success")).toBe(2);
+    expect(coordinator.request(2)).toBe("start");
+    expect(coordinator.settle(2, "success")).toBeNull();
+  });
+
+  it("restarts the latest returned route after an in-flight load settles stale-failed", () => {
+    const coordinator = createConversationChatLoadCoordinator();
+
+    expect(coordinator.request(10)).toBe("start");
+    expect(coordinator.request(11)).toBe("pending");
+    expect(coordinator.request(12)).toBe("pending");
+    expect(coordinator.settle(10, "failure")).toBe(12);
+    expect(coordinator.request(12)).toBe("start");
+    expect(coordinator.settle(12, "failure")).toBeNull();
   });
 
   it("retains input across a failed send and restores server history", () => {

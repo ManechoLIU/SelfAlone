@@ -53,6 +53,7 @@ import { mountConversationChatView } from "./conversation-chat-view";
 import {
   canonicalizeConversationStageRoute,
   classifyConversationRoute,
+  createConversationChatLoadCoordinator,
   type ConversationChatSession,
 } from "./conversation-chat-state";
 import { renderConversationView } from "./conversation-view";
@@ -78,6 +79,7 @@ const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "templat
 const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
 const conversationScrollStorageKey = "selfalone:m1:conversation-scroll";
 const conversationChatClient = createConversationChatClient();
+const conversationChatLoadCoordinator = createConversationChatLoadCoordinator();
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -111,7 +113,6 @@ let taskScrollTop = 0;
 let conversationFocusKey: string | null = null;
 let routeRenderFrame: number | undefined;
 let conversationChatSession: ConversationChatSession | null = null;
-let conversationChatRequestInFlight = false;
 let conversationChatCleanup: (() => void) | null = null;
 let conversationChatError = "";
 let settingsState: SettingsState = createSettingsState();
@@ -679,10 +680,17 @@ function renderConversationChat(session: ConversationChatSession) {
 }
 
 async function loadConversationChat(navigationId: number) {
-  if (conversationChatRequestInFlight) return;
-  conversationChatRequestInFlight = true;
+  const loadPlan = conversationChatLoadCoordinator.request(navigationId);
+  if (loadPlan !== "start") {
+    if (loadPlan === "pending" && navigationId === routeGeneration && isConversationRoute()) {
+      conversationChatError = "";
+      renderConversationChatLoading();
+    }
+    return;
+  }
   conversationChatError = "";
   renderConversationChatLoading();
+  let loadOutcome: "success" | "failure" = "success";
   try {
     const sessions = await conversationChatClient.listSessions();
     const session = sessions[0] ?? await conversationChatClient.createSession();
@@ -690,11 +698,18 @@ async function loadConversationChat(navigationId: number) {
     conversationChatError = "";
     renderConversationChat(session);
   } catch (error) {
+    loadOutcome = "failure";
     if (navigationId !== routeGeneration || !isConversationRoute()) return;
     conversationChatError = error instanceof Error ? error.message : "CONVERSATION_REQUEST_FAILED";
     renderConversationChatError();
   } finally {
-    conversationChatRequestInFlight = false;
+    const nextNavigationId = conversationChatLoadCoordinator.settle(
+      navigationId,
+      loadOutcome,
+    );
+    if (nextNavigationId !== null && nextNavigationId === routeGeneration && isConversationRoute()) {
+      void loadConversationChat(nextNavigationId);
+    }
   }
 }
 
