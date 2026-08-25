@@ -53,7 +53,7 @@ function renderStageSteps(screen: WorkspaceScreen) {
   const activeIndex = activeStage(screen);
   return `<ol class="desktop-stage-steps" aria-label="PPT 生成进度">
     ${stageLabels.map((label, index) => `
-      <li class="${index < activeIndex ? "done" : index === activeIndex ? "active" : ""}">
+      <li class="${index < activeIndex ? "done" : index === activeIndex ? "active" : ""}"${index === activeIndex ? ' aria-current="step"' : ""}>
         <span aria-hidden="true">${index + 1}</span><strong>${label}</strong>
       </li>`).join("")}
   </ol>`;

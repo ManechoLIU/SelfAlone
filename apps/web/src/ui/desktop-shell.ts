@@ -58,7 +58,7 @@ export function renderDesktopRail(options: DesktopRailOptions) {
           </a>`
           : `
           <span class="desktop-nav-link desktop-nav-link-disabled" role="button" tabindex="0" aria-disabled="true" aria-label="${item.label}（暂不可用）" title="${item.label}暂不可用">
-            ${item.icon}<span>${item.label} · 暂不可用</span>
+            ${item.icon}<span>${item.label}</span>
           </span>`).join("")}
       </nav>
       <div class="desktop-rail-scenery" aria-hidden="true"></div>

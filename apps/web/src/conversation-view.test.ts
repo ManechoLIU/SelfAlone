@@ -105,7 +105,9 @@ describe("conversation-view", () => {
       expect(view.taskPanel).toContain(`data-current-stage="${stage.screen}"`);
       expect(view.taskPanel).toContain(`<h2>${stage.title}</h2>`);
       expect(view.taskPanel).toContain(stage.marker);
-      expect(view.taskPanel.match(/<li class="active">/g)).toHaveLength(1);
+      expect(view.taskPanel.match(/<li class="active"[^>]*>/g)).toHaveLength(1);
+      expect(view.taskPanel.match(/<li[^>]*aria-current="step"/g)).toHaveLength(1);
+      expect(view.taskPanel).toMatch(/<li class="active"[^>]*aria-current="step"/);
       expect(view.main).not.toContain(stage.marker);
       if (stage.screen !== "requirements") {
         expect(view.taskPanel).not.toContain("<h2>范围与需求</h2>");

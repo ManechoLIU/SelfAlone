@@ -679,6 +679,12 @@ body { overflow-x: hidden; }
   .desktop-task-panel { padding-left: 24px; padding-right: 24px; }
   .desktop-conversation-header { padding-left: 22px; padding-right: 22px; }
 }
+@media (min-width: 1025px) and (max-width: 1279px) {
+  .desktop-brand { gap: 8px; padding-left: 14px; padding-right: 14px; }
+  .desktop-brand img { width: 50px; height: 50px; }
+  .desktop-brand span, .desktop-nav-link span { white-space: nowrap; }
+  .desktop-nav-link { gap: 8px; padding-left: 12px; padding-right: 12px; }
+}
 @media (max-width: 1024px) {
   .desktop-app-shell, .library-shell { --desktop-rail-width: 92px; }
   .desktop-app-shell { --desktop-list-width: 196px; --desktop-task-width: 320px; }

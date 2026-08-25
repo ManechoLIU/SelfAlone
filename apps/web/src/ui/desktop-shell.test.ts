@@ -49,6 +49,19 @@ describe("DesktopAppShell", () => {
     expect(html).toContain('disabled aria-label="打开会话列表（暂不可用）"');
   });
 
+  it("keeps the 1200 rail brand and labels on one line without changing nav row height", () => {
+    const conversation = renderDesktopRail({ activeSection: "conversation", conversationHref: "#/conversation" });
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(conversation).toContain("<span>设置</span>");
+    expect(conversation).not.toContain("设置 · 暂不可用");
+    expect(conversation).toContain('aria-label="设置（暂不可用）" title="设置暂不可用"');
+    expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand\s*\{[^}]*gap:\s*8px[^}]*padding-left:\s*14px[^}]*padding-right:\s*14px/);
+    expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand img\s*\{[^}]*width:\s*50px[^}]*height:\s*50px/);
+    expect(styles).toMatch(/@media \(min-width: 1025px\) and \(max-width: 1279px\)[\s\S]*?\.desktop-brand span,\s*\.desktop-nav-link span\s*\{[^}]*white-space:\s*nowrap/);
+    expect(styles).toMatch(/\.desktop-nav-link\s*\{[^}]*min-height:\s*56px/);
+  });
+
   it("renders one reconnect action while preserving the visible shell", () => {
     const html = renderDesktopAppShell({
       activeSection: "conversation",
