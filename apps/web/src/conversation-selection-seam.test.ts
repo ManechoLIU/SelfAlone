@@ -60,4 +60,3 @@ describe("conversation selection shared seam", () => {
     expect(mainSource).toContain("destroyConversationSelection");
   });
 });
-
