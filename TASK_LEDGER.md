@@ -4,16 +4,16 @@
 
 ## 1. 当前控制面
 
-- **Goal（系统对象，`blocked`）**：`并行闭合 Desktop M1-F4-A 免费体验领取在当前 main 的候选审查、真实 Chrome/DB Case、必要集成与台账状态，以及 Mini Drawer v2 在唯一 f312 入口恢复后的 writer 四宽自验和非作者 EARLY verdict；不得让 Mini DevTools 环境阻塞 Desktop，真实外部授权门除外。` 唯一项目总控任务为 `01a03c61-5dd2-7553-968b-a3bc2f5777c9`。Drawer 430 `SELF FAIL`与三次无delivered ACK的局部阻塞继续有效；系统`create_goal`拒绝从`blocked`切换并返回`cannot create a new goal because this thread has an unfinished goal`，因此不得用虚假`complete`清槽。本轮按用户明确纠偏启动单一后续执行里程碑：root审查并集成DeepSeek设置候选`4410e6e`及当前main真实设置页Case；不把其他模块混入。
-- 当前执行波次：`DEEPSEEK-4410E6E-MAIN-INTEGRATION`（仅候选审查→顺序main集成→安全fake H3设置Case→台账；不读取Key、不外调、不关闭自由聊天）。
-- 当前活动项：`M1-F3A-A`
-- 协调下一动作：root已固定真实`main@5a7c97d`与clean候选`dsk1@4410e6e`，候选相对共同父`d44ff0b`为24文件、2363新增 / 6删除，`git merge-tree --write-tree main 4410e6e`无冲突；下一步审实际安全 / API / Web diff，合格才顺序集成并在main跑设置总览→文本模型→空Key→无效Key→安全fake保存→刷新→撤销真实Case。Drawer保持冻结，解除条件仍是非作者对同一430证据交ACK与EARLY verdict。
-- **已加载规则基线**：本事件从真实仓库 `/Users/echoman/Documents/SelfAlone`、`main@5a7c97d92d5d41a87a8c8753d3c78fb0d46ca03a`、clean候选`dsk1@4410e6eaa500ba477c0ed55a46414708fe61b55e`与唯一`f312@0a464bb042cbf53224b30c38d33cad89d63081b3`对账；main既有受保护未跟踪路径与f312保护status未被修改。`adaptive-delivery@9967bb8`及当前AGENTS安全 / Goal / 验收合同已重新加载。
-- **活动实现 / 复验线**：当前仅root负责DeepSeek共享候选审查与main集成，协作树`1 / 4`、可用`3`；`dsk1` clean且已有非作者候选收据，故不新建依赖失效reviewer通道的任务。Drawer三条回收记录继续保留，不把其局部阻塞扩为项目阻塞。
-- **READY 重算**：DeepSeek`4410e6e`为本波次唯一ACTIVE；Conversation message roles保持ref02下一滚动Goal的`READY`视觉包，非作者通道恢复后首派；Book Detail`7b0a671`保持`VERIFY / READY FOR NONAUTHOR EARLY`，Auth writer、D-TEXT`a71c24b`、Mini notes、PDF及其他独立包仍按各自文件 / 环境 / 授权门排队，不延长本里程碑。
-- **下一用户可见检查点**：真实main设置总览能进入文本模型配置，使用明确development fake完成空Key / 无效Key保留、检测并保存、刷新后脱敏状态与撤销；1440×844为主门，768 / 430检查无横向溢出、focus与console。它只证明产品内安全配置入口，不证明真实DeepSeek调用或自由聊天。
-- **真实阻塞 / 授权门**：DeepSeek状态更新为 `DIRECT RETRIEVAL AUTHORIZED / LOCATION UNRESOLVED`。用户已授权后续SelfAlone H4由Agent直接从本机安全凭证存储读取Key；现有不回显元数据探测未在预期Keychain service/label定位条目，可能位于浏览器密码管理器或使用不同名称。安全delta的writer loaded ACK已闭合，但这不允许现在扩大读取：provider seam、产品内加密入口、精确模型、官方计费与约定三次短调用费用上限未闭合前，禁止继续探测、摄入或真实调用；Key仍不得输出或进入聊天、源码、`.env`、命令参数、日志、截图、台账。
-- **当前可见入口 / revision**：本事件父主线为`5a7c97d`；Web `127.0.0.1:4276`、API live / ready最近核验均HTTP 200且进程cwd指向真实main。默认responder仍fail-closed。Mini唯一常驻DevTools路径仍为`/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`、HEAD`0a464bb`；430证据保持`SELF FAIL / NONAUTHOR VERDICT MISSING`。
+- **Goal（系统对象，`blocked`）**：`并行闭合 Desktop M1-F4-A 免费体验领取在当前 main 的候选审查、真实 Chrome/DB Case、必要集成与台账状态，以及 Mini Drawer v2 在唯一 f312 入口恢复后的 writer 四宽自验和非作者 EARLY verdict；不得让 Mini DevTools 环境阻塞 Desktop，真实外部授权门除外。` 唯一项目总控任务为 `01a03c61-5dd2-7553-968b-a3bc2f5777c9`。系统`create_goal`仍因 unfinished blocked Goal 拒绝滚动，不能用虚假`complete`清槽；今后包级 / reviewer级阻塞只写台账并绕行其他READY，只有整个控制任务无可执行READY、无待回收结果且必须等待用户 / 外部状态时才映射为系统Goal blocked。DeepSeek单一执行里程碑已闭合，不改变该系统对象。
+- 当前执行波次：`DRAWER-ACK-TIMELINE-AUDIT`（`READY / NEXT SHORT EVENT`；仅恢复三条任务的可核验时间线并校正根因，不实现Drawer、不合Mini、不夹带其他模块）。
+- 当前活动项：无
+- 协调下一动作：下一短事件逐条恢复三次Drawer任务的task id / path、spawn返回、ACK截止、follow-up、最近消息 / 工具 / 工作树证据、interrupt与`previous_status`；时间线闭合前统一为`ROOT CAUSE UNCONFIRMED`，不得继续定性为外部执行通道失败。审计后重算Conversation message roles、Book Detail、D-TEXT与其他READY并滚动一个可共同验收的小Goal。
+- **已加载规则基线**：本事件从真实仓库 `/Users/echoman/Documents/SelfAlone`、父主线`5a7c97d92d5d41a87a8c8753d3c78fb0d46ca03a`、clean候选`dsk1@4410e6eaa500ba477c0ed55a46414708fe61b55e`与唯一`f312@0a464bb042cbf53224b30c38d33cad89d63081b3`对账；候选已顺序合入并由root修复到代码主线`0b1402f`，main既有受保护未跟踪路径与f312保护status未被修改。`adaptive-delivery@9967bb8`及当前AGENTS安全 / Goal / 验收合同已重新加载。
+- **活动实现 / 复验线**：DeepSeek writer / reviewer均已释放；当前仅root控制面`1 / 4`、可用`3`，三条Drawer审查任务均为`interrupted`且不继续等待。它们的包级阻塞收据保留，但“外部通道失败”根因未确认。
+- **READY 重算**：`M1-F3A-A`已`DONE / H3`；下一控制项为Drawer ACK时间线审计。Conversation message roles保持ref02视觉包`READY`，审计结束后首选非作者UI/UX派发；Book Detail`7b0a671`保持`VERIFY / READY FOR NONAUTHOR EARLY`，D-TEXT`a71c24b`保持`READY FOR ROOT MAIN REVIEW`，Auth、Mini notes、PDF及其他包按各自文件 / 环境 / 授权门排队，不并入本短事件。
+- **下一用户可见检查点**：当前真实main设置总览可进入文本模型配置，安全development fake已完成空Key、无效Key、保存、刷新脱敏、替换与撤销H3；下一产品可见包在Drawer时间线审计后按READY重算选择。本收据不证明真实DeepSeek调用或自由聊天。
+- **真实阻塞 / 授权门**：DeepSeek状态仍为 `DIRECT RETRIEVAL AUTHORIZED / LOCATION UNRESOLVED`。用户已授权后续SelfAlone H4由Agent直接从本机安全凭证存储读取Key；配置校验provider seam与产品内加密入口现已H3闭合，但凭证位置、精确模型、官方计费、约定三次短调用费用上限及真实会话responder接线仍未闭合，禁止扩大读取、摄入或真实调用；Key不得输出或进入聊天、源码、`.env`、命令参数、日志、截图、台账。
+- **当前可见入口 / revision**：代码主线`0b1402f`；Web `127.0.0.1:4276`、API `127.0.0.1:4212` live / ready均HTTP 200，API使用隔离schema `deepseek_main_5f3b1bf_20260826`。真实Chrome完成保存`2221→2222`、撤销`2222→2223`，撤销后密文 / nonce / auth tag均为0且仅一条墓碑记录；默认conversation responder仍fail-closed。Mini唯一常驻DevTools路径仍为`/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`、HEAD`0a464bb`；430证据保持`SELF FAIL / NONAUTHOR VERDICT MISSING`。
 - **受保护现场**：main 的短暂 clean 是旧 handoff 搬移造成的假象，既有9组未跟踪路径均仍在。用户本事件确认新增IMG-07候选`mobile-drawer-correction-imagegen-v7-candidate.png`（851×1847、SHA`ab0d5dfb…838a2`）为第7/20次调用；保持未跟踪候选、只供UI/UX拆解，不是运行时整图，不覆盖IMG-06 / v5或其他冻结路径。
 
 ## 2. 路线图与父级功能组（模块级导航，非执行项）
@@ -23,7 +23,7 @@
 | `M0` 可运行基础 | `DONE` | 工作区、健康检查、确定性本地 PPT 基线 | 证据提交 `2b639e0` |
 | `M1-F2` 桌面书库、阅读与笔记 | `VERIFY` | 本地书导入、阅读、记录、详情与账户隔离 | 当前无active writer；A仅功能完成，B `VERIFY`，C半成品，D-PDF仍开放，Book Detail / D-TEXT handoff scoped FINAL，E-OWNER已完成 |
 | `M1-F1` 桌面账户与设置 | `READY` | 邮箱身份、会话与账户设置闭环 | 本地邮箱 / 会话可先做；owner 接缝由 `M1-F2-E-OWNER` 顺序冻结，不等待完整 `M1-F2-V1` |
-| `M1-F3A` 模型配置 | `VERIFY` | 文本模型加密配置 / provider seam候选已交，图片模型与真实调用仍开放 | `c346772`待非作者EARLY与main集成；真实DeepSeek受模型 / 计费 / 三次上限与安全摄入门控 |
+| `M1-F3A` 模型配置 | `VERIFY` | 文本模型加密配置 / 校验provider seam已进main并完成H3；图片模型、真实会话接线与真实调用仍开放 | A已`DONE`；真实DeepSeek受凭证位置、精确模型、官方计费、三次上限与安全摄入门控 |
 | `M1-F3B` 桌面对话与 AI | `VERIFY` | 会话、图文消息、选择与书籍上下文 | A与C限定范围已进main；A2组合checkpoint待下一事件冻结 / main Case，B、D仍按各自依赖 |
 | `M1-F4` 免费体验与成本 | `PENDING` | 一次性领取、成本硬上限与恢复 | `M1-F3B-V1` |
 | `M1-F5` 桌面 PPT 与真实 PPTX | `PENDING` | 单书四阶段、恢复、作品与可编辑 PPTX | `M1-F4-V1` |
@@ -65,7 +65,7 @@
 
 | ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
 | --- | --- | --- | --- | --- | --- |
-| `M1-F3A-A` | `ACTIVE` | root正在审查并顺序集成clean候选`dsk1@4410e6e`的24文件文本模型加密配置 / provider seam；候选EARLY曾发现空Key后再提交无效Key残留旧字段错误，作者两文件修复已进入`4410e6e`。本包只关闭产品内安全配置入口，不读取本机Key、不外调、不代表自由聊天 | 既有候选覆盖真实Chrome exact sequence、success fake / reload / revoke、768 / 430、console / overflow及92文件 / 532项、typecheck / build / diff-check；root须审实际全diff、顺序main集成并在当前main重跑相称H0-H3。状态仍`DIRECT RETRIEVAL AUTHORIZED / LOCATION UNRESOLVED` | 候选24文件；root独占main共享接缝与台账。修复diff仅`apps/web/src/main.ts`、`settings-page.test.ts`；证据`desktop-deepseek-early-c346772/`不含秘密 | 首个用户可见检查点为main设置总览→文本模型→空Key / 无效Key保留→安全fake检测保存→刷新脱敏→撤销；精确模型 / 官方计费 / 三次费用上限未闭合前不得真实调用。合格后本项才可DONE |
+| `M1-F3A-A` | `DONE` · `MAIN MERGED 5f3b1bf + FIX 0b1402f / H3 PASS` | clean候选`dsk1@4410e6e`的24文件文本模型加密配置 / 校验provider seam已顺序进main；root真实Case另发现撤销成功文案误称AI仍可用、PostgreSQL `bigint`字符串导致修订号`9→91`，均以失败回归和最小修复关闭。本包只关闭产品内安全配置入口，不读取本机Key、不外调、不代表自由聊天 | root在隔离schema完成空Key、无效Key、development fake保存、刷新脱敏、替换与撤销；修订号保存`2221→2222`、撤销`2222→2223`，墓碑密文 / nonce / auth tag均0。状态仍`DIRECT RETRIEVAL AUTHORIZED / LOCATION UNRESOLVED` | main候选24文件 + root四文件修复；凭证仅AES-256-GCM密文与脱敏提示入库，测试 / 日志 / UI无真实Key。证据`desktop-deepseek-early-c346772/`与本事件真实Chrome / DB收据 | 定向11文件46项、全仓typecheck、全仓build、diff-check通过；Web `4276` / API `4212`当前可验。H4仍需凭证位置、精确模型 / 官方计费 / 三次费用上限与真实responder接线，不得把H3写成自由聊天DONE |
 | `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立可选配置、检测、撤销和设置 UI 闭环；不成为无图 PPT 前置 | A；图片供应商范围未确认或产生付费调用时暂停 | CORE、API、DB、WEB、QA | 文本 / 图片配置互不覆盖；撤销不影响历史数据和无图 PPT；失败保留输入；未产生；通过后释放 V1 |
 | `M1-F3A-V1` | `PENDING` / 待分配 | 完成模型配置本地闭环，并以DeepSeek取得至少一次脱敏H4最小真实对话收据 | A、B；用户已授权未来H4由Agent从本机安全存储直接读取，但位置未解析；精确模型 / 官方计费 / 三次调用费用上限仍pending | QA、DOC | fake先证明保存 / 失败 / 替换 / 撤销；适配器与入口READY、模型 / 费用门闭合后才做一次有界安全定位与三次短调用，不要求用户再次复制Key；仅记供应商 / 模型 / 次数 / 结果，不记录密钥 |
 
@@ -201,8 +201,8 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | `M1-F2-D-TEXT` 共享集成与私有候选 | 共享链至`main@f85d86c`；私有Web `d65ab3b`；768修复`cc0cec0`；PPT handoff`101789e → main@1e7763a` | reader与handoff scoped FINAL PASS；删除、200% / DPR2与父项仍开放。 |
 | 当前桌面候选波次 | Auth / Settings、D-TEXT、Conversation与Book Detail既有限定结论保持；Selection链已完整集成至`a08fbbc → 30e0423 → 6e21cad → 9ff9877 → 940d390 → 858bf19 → c858a06` | focus两轮非作者EARLY后main实测：真实注册 / 登录、对话、assistant绑定multi、非首项确认、断服 / 重连、刷新、全新标签、1440 / 768、console / overflow通过；真实AI生成仍开放，父项保持VERIFY。 |
 | 当前 Mini 候选波次 | Reader / Conversation既有限定结论保持；长列表`35bad75`与Settings`14b69dc`在main但scoped FINAL仍NO-GO；唯一`f312@cbb63fa`为v5静态PASS / 320 SELF FAIL现场 | recent-project清理`CLOSED`、唯一常驻入口仍为f312；Drawer根因brief已就绪、返工未启动。PPT handoff仅在`mppt1@c06ec53`启动，未进f312；Mini notes save仍fail-closed且edit / delete缺失。 |
-| 当前 Desktop main 预览 | `RUNNING / EVENT BASELINE c06ec53 / QUOTA H3 PASS / RESPONDER CASE PASS / DEEPSEEK c346772 VERIFY / FREE CHAT NOT WIRED` | main API仍为默认无mode fail-closed；dsk1候选只用假master key / fake HTTP，未合入main。凭证状态`DIRECT RETRIEVAL AUTHORIZED / LOCATION UNRESOLVED`，真实模型 / 计费 / 三次上限pending。 |
-| 开发基线 | 本台账事件父为`main@c06ec535a516f0b0034dbd23f2a3dc6b976be461`；本轮控制提交只写`TASK_LEDGER.md` | main除本台账diff外无tracked改动；6个受保护DOCX / Word锁文件与3组视觉候选目录仍在；Mini唯一f312保护修改 / QA未改变；mppt1与dsk1均不写main。 |
+| 当前 Desktop main 预览 | `RUNNING / CODE MAIN 0b1402f / DEEPSEEK SETTINGS H3 PASS / FREE CHAT NOT WIRED` | Web `4276`与API `4212`指向真实main，API使用隔离schema；安全fake证明配置入口与撤销，不读取用户Key、不外调。默认conversation responder仍fail-closed；凭证位置、模型 / 计费 / 三次上限与真实会话接线pending。 |
+| 开发基线 | 本台账事件代码主线为`main@0b1402f`；本轮控制提交只写`TASK_LEDGER.md` | main除本台账diff外无tracked改动；6个受保护DOCX / Word锁文件与3组视觉候选目录仍在；Mini唯一f312保护修改 / QA未改变；dsk1 clean且不再写main。 |
 | 共享 PostgreSQL | 只证明跨工作树副作用 | 不能证明当前分支已有功能；开发必须使用隔离 schema 或实例，迁移记录 schema、数据量、owner、约束和回退点。 |
 
 完整候选父链、patch-id、文件重叠、测试和共享数据库对账见提交 `2a4cc24` 的台账历史。任何候选、worktree 或共享环境变化只使对应结论失效，不自动推翻其他项。
@@ -235,4 +235,4 @@ M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界
 | `M2-F0-A` 原生运行壳 | `VERIFY / MAIN MERGED 35bad75 + 14b69dc / SCOPED FINAL FAIL-NO-GO / DRAWER VISUAL REOPEN / H3 OPEN` | Reader / Conversation与send-retry既有限定结论保留；长列表与Settings fresh FINAL因`Errors:5, Warnings:9`不闭合，Drawer用户同态FAIL已派四文件writer；软件键盘、凭证化clean console与PPT真实预览仍开放，Mini父项不关闭 |
 | 项目总控与台账写入权 | `ACTIVE / UNIQUE` | 唯一总控任务 `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 直接运行在 `/Users/echoman/Documents/SelfAlone` 的真实 main 并独占台账写入。旧总控 `01a038e8-5ee8-79b1-8bdd-daafc2d58e0e` 为 `notLoaded / interrupted`；冻结副本任务 `01a03c60-732d-7e20-a76c-185dead30233` 位于隔离 `a233`、不得恢复或调度，其9组未跟踪副本只作冻结对账。 |
 
-- 当前外部授权门：验证合格后的本地 `main` 合并已授权；用户已授权SelfAlone后续H4由Agent从本机安全凭证存储直接读取DeepSeek Key，无需用户再次复制，但当前位置未解析，且provider / 产品加密入口 / 精确模型 / 官方计费 / 三次短调用费用上限未闭合前不得继续定位、摄入或调用。秘密不得输出、转存或进入聊天、源码、`.env`、命令参数、日志、截图、台账，也不扩展为生产、其他项目或无限调用。远端push、PR、发布、部署、真实邮件 / 微信、微信读书 / Presenton及其他付费调用和小程序审核均未授权。外部图片生成仅限已授权的20次总额度并受上表逐次记录约束。
+- 当前外部授权门：验证合格后的本地 `main` 合并已授权；用户已授权SelfAlone后续H4由Agent从本机安全凭证存储直接读取DeepSeek Key，无需用户再次复制。产品内加密入口与配置校验provider seam现已H3闭合，但凭证位置、精确模型、官方计费、三次短调用费用上限和真实conversation responder接线仍未闭合，故不得继续定位、摄入或调用。秘密不得输出、转存或进入聊天、源码、`.env`、命令参数、日志、截图、台账，也不扩展为生产、其他项目或无限调用。远端push、PR、发布、部署、真实邮件 / 微信、微信读书 / Presenton及其他付费调用和小程序审核均未授权。外部图片生成仅限已授权的20次总额度并受上表逐次记录约束。
