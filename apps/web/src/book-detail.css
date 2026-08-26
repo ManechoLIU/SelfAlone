@@ -37,7 +37,8 @@
 .book-detail-kicker { color: var(--reader-muted, #5f6f69); font-size: 12px; letter-spacing: .08em; }
 .book-detail-header h1 { margin: 4px 0 0; color: var(--reader-ink, #174c3f); font: 600 24px/1.35 "Songti SC", "STSong", serif; }
 .book-detail-header p { margin: 4px 0 0; color: var(--reader-muted, #5f6f69); font-size: 13px; }
-.book-detail-close { width: 44px; height: 44px; border: 0; color: var(--reader-muted, #5f6f69); background: transparent; font-size: 28px; line-height: 1; cursor: pointer; }
+.book-detail-close { width: 44px; height: 44px; display: inline-grid; place-items: center; border: 0; color: var(--reader-muted, #5f6f69); background: transparent; cursor: pointer; }
+.book-detail-close svg { width: 20px; height: 20px; }
 .book-detail-primary,
 .book-detail-secondary {
   min-height: 44px;
@@ -46,10 +47,10 @@
   font-size: 14px;
   cursor: pointer;
 }
-.book-detail-primary { border: 1px solid #0d6a57; color: #fff; background: #0d6a57; }
+.book-detail-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid #0d6a57; color: #fff; background: #0d6a57; }
 .book-detail-secondary { border: 1px solid var(--reader-line, #cbd8d3); color: var(--reader-ink, #21312d); background: transparent; }
+.book-detail-primary svg { width: 18px; height: 18px; flex: 0 0 auto; }
 .book-detail-ppt-cta { min-height: 44px; display: inline-flex; align-items: center; gap: 5px; padding: 0 12px; border: 1px solid #0d6a57; border-radius: 8px; color: #0d6a57; background: transparent; font-size: 13px; text-decoration: none; }
-.book-detail-ppt-cta svg { width: 16px; height: 16px; }
 
 .book-detail-tabs {
   width: min(944px, calc(100% - 64px));

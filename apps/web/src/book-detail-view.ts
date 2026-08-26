@@ -2,8 +2,6 @@ import type { TextHighlight, TextNote } from "@selfalone/contracts";
 import type { BookDetailPptWork, BookDetailSnapshot } from "./book-detail-state";
 import { icons } from "./ui/icons";
 
-const moreIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.7" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 6a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 6a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/></svg>`;
-
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")
@@ -28,7 +26,7 @@ function renderHighlight(highlight: TextHighlight) {
   return `<article class="book-detail-highlight-row" data-highlight-id="${escapeHtml(highlight.id)}">
     <blockquote>${escapeHtml(highlight.quote)}</blockquote>
     ${highlight.thought ? `<p class="book-detail-thought">${escapeHtml(highlight.thought)}</p>` : `<p class="book-detail-muted">还没有写下想法</p>`}
-    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div><div class="book-detail-row-actions"><span class="book-detail-row-kind">划线</span><details class="book-detail-row-menu" data-book-detail-highlight-menu><summary aria-label="打开划线操作" tabindex="0">${moreIcon}<span class="visually-hidden">打开划线操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-delete-highlight="${escapeHtml(highlight.id)}">删除</button></div></details></div></div>
+    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div><div class="book-detail-row-actions"><span class="book-detail-row-kind">划线</span><details class="book-detail-row-menu" data-book-detail-highlight-menu><summary aria-label="打开划线操作" tabindex="0">${icons.ellipsisVertical}<span class="visually-hidden">打开划线操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-delete-highlight="${escapeHtml(highlight.id)}">删除</button></div></details></div></div>
   </article>`;
 }
 
@@ -36,7 +34,7 @@ function renderNote(note: TextNote) {
   return `<article class="book-detail-note-row" data-note-id="${escapeHtml(note.id)}">
     ${note.source ? `<blockquote>${escapeHtml(note.source.quote)}</blockquote>` : ""}
     <p class="book-detail-note-body">${escapeHtml(note.body).replaceAll("\n", "<br />")}</p>
-    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(note.source)}</span><time datetime="${escapeHtml(note.createdAt)}">${dateLabel(note.createdAt)}</time></div><div class="book-detail-row-actions"><details class="book-detail-row-menu" data-book-detail-note-menu><summary aria-label="打开笔记操作" tabindex="0">${moreIcon}<span class="visually-hidden">打开笔记操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-edit-note="${escapeHtml(note.id)}">编辑</button><button type="button" role="menuitem" data-book-detail-delete-note="${escapeHtml(note.id)}">删除</button></div></details></div></div>
+    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(note.source)}</span><time datetime="${escapeHtml(note.createdAt)}">${dateLabel(note.createdAt)}</time></div><div class="book-detail-row-actions"><details class="book-detail-row-menu" data-book-detail-note-menu><summary aria-label="打开笔记操作" tabindex="0">${icons.ellipsisVertical}<span class="visually-hidden">打开笔记操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-edit-note="${escapeHtml(note.id)}">编辑</button><button type="button" role="menuitem" data-book-detail-delete-note="${escapeHtml(note.id)}">删除</button></div></details></div></div>
   </article>`;
 }
 
@@ -60,7 +58,7 @@ function renderPptWork(work: BookDetailPptWork) {
     ? `<img src="${escapeHtml(work.previewSrc)}" alt="" />`
     : `<div class="book-detail-ppt-preview-placeholder" aria-hidden="true"></div>`;
   const download = work.downloadHref && work.status === "completed"
-    ? `<a class="book-detail-ppt-download" href="${escapeHtml(work.downloadHref)}" aria-label="下载 ${escapeHtml(work.title)} PPTX">下载${icons.file}</a>`
+    ? `<a class="book-detail-ppt-download" href="${escapeHtml(work.downloadHref)}" aria-label="下载 ${escapeHtml(work.title)} PPTX"><span class="visually-hidden">下载 ${escapeHtml(work.title)} PPTX</span>${icons.arrowDownTray}</a>`
     : "";
   return `<article class="book-detail-ppt-work is-${work.status}" data-book-detail-ppt-work="${escapeHtml(work.id)}">
     <div class="book-detail-ppt-preview">${preview}<span class="book-detail-ppt-status">${pptWorkStatus(work)}</span></div>
@@ -95,7 +93,7 @@ export function renderBookDetail(snapshot: BookDetailSnapshot) {
     return `<section class="book-detail-private" data-book-detail-panel role="dialog" aria-modal="true" aria-label="书籍详情" tabindex="-1"><div class="book-detail-state" role="status">正在载入划线与笔记…</div></section>`;
   }
   if (snapshot.error && snapshot.fileVersion === null) {
-    return `<section class="book-detail-private" data-book-detail-panel role="dialog" aria-modal="true" aria-label="书籍详情" tabindex="-1"><button type="button" class="book-detail-close" data-book-detail-close aria-label="返回正文">×</button><div class="book-detail-state is-error" role="alert"><strong>书籍内容暂时没有载入</strong><span>${escapeHtml(snapshot.error)}</span><button type="button" data-book-detail-reload>重新载入</button></div></section>`;
+    return `<section class="book-detail-private" data-book-detail-panel role="dialog" aria-modal="true" aria-label="书籍详情" tabindex="-1"><button type="button" class="book-detail-close" data-book-detail-close aria-label="返回正文">${icons.xMark}</button><div class="book-detail-state is-error" role="alert"><strong>书籍内容暂时没有载入</strong><span>${escapeHtml(snapshot.error)}</span><button type="button" data-book-detail-reload>重新载入</button></div></section>`;
   }
   const activeTab = snapshot.activeTab ?? "highlights";
   const highlightsSelected = activeTab === "highlights";
@@ -105,11 +103,11 @@ export function renderBookDetail(snapshot: BookDetailSnapshot) {
     ? `<div class="book-detail-cover" data-book-detail-cover role="img" aria-label="《${escapeHtml(snapshot.title)}》封面"><img src="${escapeHtml(snapshot.coverSrc)}" alt="" /><strong>${escapeHtml(snapshot.title)}</strong><em>${escapeHtml(snapshot.author)}</em></div>`
     : "";
   const pptCta = snapshot.pptHref
-    ? `<a class="book-detail-ppt-cta" data-book-detail-ppt-cta href="${escapeHtml(snapshot.pptHref)}">基于本书制作 PPT${icons.arrow}</a>`
+    ? `<a class="book-detail-ppt-cta" data-book-detail-ppt-cta href="${escapeHtml(snapshot.pptHref)}">基于本书制作 PPT</a>`
     : "";
   return `<section class="book-detail-private" data-book-detail-panel role="dialog" aria-modal="true" aria-labelledby="book-detail-heading" tabindex="-1">
     <header class="book-detail-header">
-      <button type="button" class="book-detail-close" data-book-detail-close aria-label="返回正文">×</button>
+      <button type="button" class="book-detail-close" data-book-detail-close aria-label="返回正文">${icons.xMark}</button>
       <div class="book-detail-book-context">
         ${cover}
         <div class="book-detail-book-copy"><h1 id="book-detail-heading">《${escapeHtml(snapshot.title)}》</h1><p class="book-detail-book-meta"><span>${escapeHtml(snapshot.author)}</span><span aria-hidden="true">·</span><span>${escapeHtml(snapshot.sourceLabel?.trim() || "本地")}</span></p>${snapshot.description?.trim() ? `<p class="book-detail-description">${escapeHtml(snapshot.description.trim())}</p>` : ""}</div>
@@ -125,7 +123,7 @@ export function renderBookDetail(snapshot: BookDetailSnapshot) {
         <button type="button" role="tab" id="book-detail-tab-notes" data-book-detail-tab="notes" aria-controls="book-detail-panel-notes" aria-selected="${String(notesSelected)}" tabindex="${notesSelected ? "0" : "-1"}">老己笔记</button>
         <button type="button" role="tab" id="book-detail-tab-ppt" data-book-detail-tab="ppt" aria-controls="book-detail-panel-ppt" aria-selected="${String(pptSelected)}" tabindex="${pptSelected ? "0" : "-1"}">PPT作品</button>
       </div>
-      <div class="book-detail-tab-actions">${notesSelected ? (snapshot.draft ? `<button type="button" class="book-detail-secondary" data-book-detail-cancel>收起编辑</button>` : `<button type="button" class="book-detail-primary" data-book-detail-new-note>新建笔记</button>`) : ""}</div>
+      <div class="book-detail-tab-actions">${notesSelected ? (snapshot.draft ? `<button type="button" class="book-detail-secondary" data-book-detail-cancel>收起编辑</button>` : `<button type="button" class="book-detail-primary" data-book-detail-new-note>${icons.pencil}<span>新建笔记</span></button>`) : ""}</div>
     </nav>
     <div class="book-detail-flow">
       <section class="book-detail-section book-detail-tabpanel" id="book-detail-panel-highlights" role="tabpanel" aria-label="划线与想法"${highlightsSelected ? "" : " hidden"}>${snapshot.highlights.length ? snapshot.highlights.map(renderHighlight).join("") : `<p class="book-detail-empty">还没有划线，回到正文选中一句话就能留下它。</p>`}</section>

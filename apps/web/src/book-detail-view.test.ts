@@ -185,7 +185,7 @@ describe("private book detail notes view", () => {
       deleteError: "",
     });
     expect(html.match(/data-book-detail-ppt-work/g)).toHaveLength(2);
-    expect(html).toContain("下载 已完成作品 PPTX");
+    expect(html).toContain('aria-label="下载 已完成作品 PPTX"');
     expect(bookDetailCss).toContain("aspect-ratio: 16 / 9");
     expect(bookDetailCss).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
   });
@@ -211,7 +211,7 @@ describe("private book detail notes view", () => {
     expect(html).toContain("服务暂时不可用");
     expect(html).toContain("data-book-detail-ppt-reload");
     expect(html).toContain('data-book-detail-ppt-work="work-1"');
-    expect(html).toContain("下载 《一本书》读书分享 PPTX");
+    expect(html).toContain('aria-label="下载 《一本书》读书分享 PPTX"');
   });
 
   it("keeps loading, filtered-empty, and failed PPT states actionable", () => {
@@ -292,5 +292,62 @@ describe("private book detail notes view", () => {
     expect(html).toContain('aria-label="打开划线操作" tabindex="0"');
     expect(html).toContain('role="menuitem" data-book-detail-delete-highlight="highlight-1"');
     expect(html).toContain("删除");
+  });
+
+  it("uses the shared mature SVG language for detail actions", () => {
+    const base = {
+      open: true,
+      loading: false,
+      error: "",
+      title: "雨后山亭",
+      author: "林野",
+      fileVersion: 2,
+      highlights: [],
+      notes: [{
+        id: "note-1",
+        bookId: "book-1",
+        body: "留给下次回看的句子。",
+        source: null,
+        version: 1,
+        createdAt: "2026-08-25T00:00:00.000Z",
+        updatedAt: "2026-08-25T00:00:00.000Z",
+      }],
+      draft: null,
+      saveError: "",
+      deleteError: "",
+    };
+    const notesHtml = renderBookDetail({ ...base, activeTab: "notes" as const });
+    const ctaHtml = renderBookDetail({
+      ...base,
+      activeTab: "highlights" as const,
+      pptHref: "#/conversation?stage=requirements&book=book-1",
+    });
+    const pptHtml = renderBookDetail({
+      ...base,
+      activeTab: "ppt" as const,
+      pptState: "normal" as const,
+      pptWorks: [{ id: "work-1", title: "已完成作品", status: "completed" as const, downloadHref: "/download/work-1" }],
+    });
+    const errorHtml = renderBookDetail({ ...base, error: "服务暂时不可用", fileVersion: null, notes: [], activeTab: "highlights" as const });
+
+    expect(notesHtml).not.toContain("×");
+    expect(notesHtml).toContain('class="book-detail-close"');
+    expect(notesHtml).toContain('d="M6 18 18 6M6 6l12 12"');
+    expect(notesHtml).toContain('data-book-detail-new-note');
+    expect(notesHtml).toContain('d="m16.862 4.487 1.687-1.688');
+    expect(notesHtml).toContain('d="M12 6.75a.75.75 0 1 0 0-1.5');
+
+    expect(ctaHtml).toContain("基于本书制作 PPT</a>");
+    expect(ctaHtml).not.toContain('d="m8.25 4.5 7.5 7.5');
+
+    expect(pptHtml).not.toContain(">下载<");
+    expect(pptHtml).toContain('aria-label="下载 已完成作品 PPTX"');
+    expect(pptHtml).toContain('class="visually-hidden">下载 已完成作品 PPTX</span>');
+    expect(pptHtml).toContain('d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21');
+    expect(pptHtml).not.toContain('d="M19.5 14.25v-2.625');
+
+    expect(errorHtml).not.toContain("×");
+    expect(errorHtml).toContain('class="book-detail-close"');
+    expect(errorHtml).toContain('d="M6 18 18 6M6 6l12 12"');
   });
 });
