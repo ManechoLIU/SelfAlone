@@ -295,16 +295,21 @@ function restoreFocus(root: HTMLElement, target: FocusTarget) {
   const element = target.kind === "question"
     ? findFocusable(root, [`${questionSelector} .conversation-selection-readonly`, selector])
     : findFocusable(root, [selector]);
-  if (!element && target.kind !== "option" && target.kind !== "question") return;
   if (!element) {
-    findFocusable(root, [
+    if (target.kind !== "option" && target.kind !== "question" && target.kind !== "confirm") return;
+    const fallbackSelectors = [
       `${questionSelector} .conversation-selection-readonly`,
       questionSelector,
-      "[data-selection-option]",
-      "[data-selection-free-input]",
-      "[data-selection-confirm]",
-      "[data-selection-retry]",
-    ])?.focus();
+    ];
+    if (target.kind === "option" || target.kind === "question") {
+      fallbackSelectors.push(
+        "[data-selection-option]",
+        "[data-selection-free-input]",
+        "[data-selection-confirm]",
+        "[data-selection-retry]",
+      );
+    }
+    findFocusable(root, fallbackSelectors)?.focus();
     return;
   }
   element.focus();

@@ -9,6 +9,7 @@ import {
 import { renderConversationSelectionView } from "./conversation-selection-view";
 
 const selectionCss = readFileSync(new URL("./conversation-selection.css", import.meta.url), "utf8");
+const selectionViewSource = readFileSync(new URL("./conversation-selection-view.ts", import.meta.url), "utf8");
 
 function question(overrides: Partial<ConversationSelectionQuestion> = {}): ConversationSelectionQuestion {
   return {
@@ -86,6 +87,10 @@ describe("conversation selection view", () => {
 
     expect(rendered.main).toContain('class="conversation-selection-question is-readonly"');
     expect(rendered.main).toContain('class="conversation-selection-readonly" role="status" tabindex="-1"');
+  });
+
+  it("keeps confirmation focus within the same question while it becomes read-only", () => {
+    expect(selectionViewSource).not.toContain('if (!element && target.kind !== "option" && target.kind !== "question") return;');
   });
 
   it("keeps the private responsive and focus contract local to selection", () => {
