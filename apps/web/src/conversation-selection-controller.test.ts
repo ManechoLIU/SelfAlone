@@ -259,4 +259,163 @@ describe("conversation selection controller", () => {
 
     expect(controller.getState().drafts["question-a"]).toEqual({ values: [], freeText: "本地输入" });
   });
+
+  it("retries the exact lost multi mutation, then uses a new id for confirmation", async () => {
+    const calls: Array<{
+      requestId: string;
+      expectedVersion: number;
+      values: readonly string[];
+      confirm: boolean;
+    }> = [];
+    let current = question({ mode: "multi" });
+    let firstAttempt = true;
+    const client = {
+      async listQuestions() { return [current]; },
+      async createQuestion() { return current; },
+      async getQuestion() { return current; },
+      async answerQuestion(
+        _conversationId: string,
+        _questionId: string,
+        input: {
+          requestId: string;
+          expectedVersion: number;
+          values?: readonly string[];
+          confirm?: boolean;
+        },
+      ): Promise<ConversationSelectionAnswerResult> {
+        calls.push({
+          requestId: input.requestId,
+          expectedVersion: input.expectedVersion,
+          values: [...(input.values ?? [])],
+          confirm: input.confirm ?? false,
+        });
+        if (firstAttempt) {
+          firstAttempt = false;
+          current = {
+            ...current,
+            version: current.version + 1,
+            selectedValues: [...(input.values ?? [])],
+          };
+          throw new Error("response lost after pending selection commit");
+        }
+        if (input.confirm) {
+          current = {
+            ...current,
+            version: current.version + 1,
+            status: "submitted",
+            selectedValues: [...(input.values ?? [])],
+            answer: { values: [...(input.values ?? [])], freeText: null },
+            answerRequestId: input.requestId,
+          };
+        }
+        return { status: input.confirm ? "submitted" : "pending", question: current };
+      },
+    };
+    let nextId = 0;
+    const controller = createConversationSelectionController({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `mutation-${++nextId}`,
+    });
+
+    await controller.hydrate();
+    await controller.selectOption("question-a", "summary");
+    expect(controller.getState()).toMatchObject({ status: "error", errorCode: "SELECTION_REQUEST_FAILED" });
+    expect(controller.getState().drafts["question-a"]).toEqual({ values: ["summary"], freeText: "" });
+
+    await controller.retry("question-a");
+    expect(calls).toEqual([
+      { requestId: "mutation-1", expectedVersion: 1, values: ["summary"], confirm: false },
+      { requestId: "mutation-1", expectedVersion: 1, values: ["summary"], confirm: false },
+    ]);
+    expect(controller.getState().questions[0]).toMatchObject({ version: 2, status: "pending", selectedValues: ["summary"] });
+
+    await controller.confirm("question-a");
+    expect(calls[2]).toEqual({ requestId: "mutation-2", expectedVersion: 2, values: ["summary"], confirm: true });
+    expect(controller.getState().questions[0]?.status).toBe("submitted");
+  });
+
+  it("reconciles a changed free draft without replaying the old text", async () => {
+    const calls: Array<{ requestId: string; expectedVersion: number; freeText?: string; confirm: boolean }> = [];
+    let current = question({ mode: "free", options: [] });
+    let firstAttempt = true;
+    const client = {
+      async listQuestions() { return [current]; },
+      async createQuestion() { return current; },
+      async getQuestion() { return current; },
+      async answerQuestion(
+        _conversationId: string,
+        _questionId: string,
+        input: { requestId: string; expectedVersion: number; freeText?: string; confirm?: boolean },
+      ): Promise<ConversationSelectionAnswerResult> {
+        calls.push({
+          requestId: input.requestId,
+          expectedVersion: input.expectedVersion,
+          freeText: input.freeText,
+          confirm: input.confirm ?? false,
+        });
+        current = {
+          ...current,
+          version: current.version + 1,
+          status: input.confirm ? "submitted" : "pending",
+          freeText: input.freeText ?? null,
+          answer: input.confirm ? { values: [], freeText: input.freeText ?? null } : null,
+          answerRequestId: input.confirm ? input.requestId : null,
+        };
+        if (firstAttempt) {
+          firstAttempt = false;
+          throw new Error("response lost after free answer commit");
+        }
+        return { status: input.confirm ? "submitted" : "pending", question: current };
+      },
+    };
+    let nextId = 0;
+    const controller = createConversationSelectionController({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `free-${++nextId}`,
+    });
+
+    await controller.hydrate();
+    controller.setFreeText("question-a", "旧的回答");
+    await controller.confirm("question-a");
+    expect(controller.getState()).toMatchObject({ status: "error", errorCode: "SELECTION_REQUEST_FAILED" });
+
+    controller.setFreeText("question-a", "修改后的回答");
+    await controller.retry("question-a");
+
+    expect(calls).toEqual([
+      { requestId: "free-1", expectedVersion: 1, freeText: "旧的回答", confirm: true },
+      { requestId: "free-2", expectedVersion: 2, freeText: "修改后的回答", confirm: true },
+    ]);
+    expect(controller.getState().drafts["question-a"]).toBeUndefined();
+    expect(controller.getState().questions[0]).toMatchObject({ status: "submitted", freeText: "修改后的回答" });
+  });
+
+  it("does not submit an empty multi or free confirmation", async () => {
+    const calls: Array<{ questionId: string; confirm: boolean }> = [];
+    const multi = question({ id: "question-multi", mode: "multi" });
+    const free = question({ id: "question-free", mode: "free", options: [] });
+    const client = {
+      async listQuestions() { return [multi, free]; },
+      async createQuestion() { return multi; },
+      async answerQuestion(_conversationId: string, questionId: string, input: { confirm?: boolean }): Promise<ConversationSelectionAnswerResult> {
+        calls.push({ questionId, confirm: input.confirm ?? false });
+        return { status: "pending", question: questionId === multi.id ? multi : free };
+      },
+    };
+    const controller = createConversationSelectionController({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      client,
+    });
+
+    await controller.hydrate();
+    expect(await controller.confirm("question-multi")).toBeUndefined();
+    expect(await controller.confirm("question-free")).toBeUndefined();
+    expect(calls).toEqual([]);
+    expect(controller.getState()).toMatchObject({ status: "idle", errorCode: null });
+  });
 });

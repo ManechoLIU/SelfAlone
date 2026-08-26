@@ -15,12 +15,22 @@ export type ConversationSelectionViewResult = {
   main: string;
 };
 
+type ConversationSelectionViewState = ConversationSelectionState & {
+  recoveryQuestionId?: string;
+};
+
 export function renderConversationSelectionView(
   options: ConversationSelectionViewOptions,
 ): ConversationSelectionViewResult {
   const { state } = options;
+  const recoveryQuestionId = (state as ConversationSelectionViewState).recoveryQuestionId;
   const error = state.status === "error"
-    ? `<p class="conversation-selection-error" role="alert">选择保存失败，当前输入仍保留，请重试</p>`
+    ? recoveryQuestionId
+      ? `<div class="conversation-selection-recovery" role="alert">
+          <p class="conversation-selection-error">这次保存结果尚未确认，当前输入仍保留</p>
+          <button class="conversation-selection-retry" type="button" data-selection-retry="${escapeHtml(recoveryQuestionId)}" aria-label="重试保存当前选择">重试保存</button>
+        </div>`
+      : `<p class="conversation-selection-error" role="alert">选择保存失败，当前输入仍保留，请重试</p>`
     : "";
   const status = state.status === "loading"
     ? `<p class="conversation-selection-status" role="status">正在恢复选择…</p>`
@@ -52,9 +62,11 @@ export function mountConversationSelectionView(
       return;
     }
 
+    const focusTarget = captureFocus(root);
     root.innerHTML = renderConversationSelectionView({ state: nextState }).main;
     renderedState = nextState;
     bindSelectionControls(root, controller);
+    restoreFocus(root, focusTarget);
   };
 
   const unsubscribe = controller.subscribe(render);
@@ -103,7 +115,7 @@ function renderPendingQuestion(
       </div>`;
   const confirm = question.mode === "single" && !question.requiresConfirmation
     ? ""
-    : `<button class="conversation-selection-confirm" type="button" data-selection-confirm="${escapeHtml(question.id)}"${saving ? " disabled" : ""}>确认选择</button>`;
+    : `<button class="conversation-selection-confirm" type="button" data-selection-confirm="${escapeHtml(question.id)}" aria-label="确认当前选择"${saving || !isValidConfirmationDraft(question, draft) ? " disabled" : ""}>确认选择</button>`;
   return `<div class="conversation-selection-pending" data-selection-pending="${escapeHtml(question.id)}">
     ${controls}
     ${confirm}
@@ -147,6 +159,12 @@ function bindSelectionControls(root: HTMLElement, controller: ConversationSelect
       if (questionId) void controller.confirm(questionId);
     });
   });
+  root.querySelectorAll<HTMLButtonElement>("[data-selection-retry]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const questionId = button.dataset.selectionRetry;
+      if (questionId) void controller.retry(questionId);
+    });
+  });
 }
 
 function isDraftOnlyChange(previous: ConversationSelectionState, next: ConversationSelectionState) {
@@ -175,4 +193,67 @@ function patchDraftControls(root: HTMLElement, state: ConversationSelectionState
       input.value = selectionDraftFor(state, questionId).freeText;
     }
   });
+  root.querySelectorAll<HTMLButtonElement>("[data-selection-confirm]").forEach((button) => {
+    const questionId = button.dataset.selectionConfirm;
+    if (!questionId) return;
+    const question = state.questions.find((candidate) => candidate.id === questionId);
+    if (!question) return;
+    const valid = isValidConfirmationDraft(question, selectionDraftFor(state, questionId));
+    button.disabled = state.status === "saving" || !valid;
+  });
+}
+
+function isValidConfirmationDraft(
+  question: ConversationSelectionQuestion,
+  draft: { values: readonly string[]; freeText: string },
+) {
+  if (question.mode === "free") return draft.freeText.trim().length > 0;
+  if (question.mode === "multi") return draft.values.length > 0;
+  return draft.values.length === 1;
+}
+
+type FocusTarget = {
+  kind: "free" | "confirm" | "retry";
+  questionId: string;
+  selectionStart?: number | null;
+  selectionEnd?: number | null;
+} | null;
+
+function captureFocus(root: HTMLElement): FocusTarget {
+  const active = root.ownerDocument.activeElement;
+  if (!(active instanceof HTMLElement)) return null;
+  const freeQuestionId = active.getAttribute("data-selection-free-input");
+  if (freeQuestionId) {
+    const input = active as HTMLTextAreaElement;
+    return {
+      kind: "free",
+      questionId: freeQuestionId,
+      selectionStart: input.selectionStart,
+      selectionEnd: input.selectionEnd,
+    };
+  }
+  const confirmQuestionId = active.getAttribute("data-selection-confirm");
+  if (confirmQuestionId) return { kind: "confirm", questionId: confirmQuestionId };
+  const retryQuestionId = active.getAttribute("data-selection-retry");
+  if (retryQuestionId) return { kind: "retry", questionId: retryQuestionId };
+  return null;
+}
+
+function restoreFocus(root: HTMLElement, target: FocusTarget) {
+  if (!target) return;
+  const selector = target.kind === "free"
+    ? `[data-selection-free-input="${cssEscape(target.questionId)}"]`
+    : target.kind === "confirm"
+      ? `[data-selection-confirm="${cssEscape(target.questionId)}"]`
+      : `[data-selection-retry="${cssEscape(target.questionId)}"]`;
+  const element = root.querySelector<HTMLElement>(selector);
+  if (!element || (element instanceof HTMLButtonElement && element.disabled)) return;
+  element.focus();
+  if (element instanceof HTMLTextAreaElement && target.selectionStart !== undefined && target.selectionEnd !== undefined) {
+    element.setSelectionRange(target.selectionStart ?? element.value.length, target.selectionEnd ?? element.value.length);
+  }
+}
+
+function cssEscape(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }

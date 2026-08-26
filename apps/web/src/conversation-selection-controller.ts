@@ -20,6 +20,10 @@ import type {
 
 export type ConversationSelectionControllerClient = {
   listQuestions(conversationId: string): Promise<ConversationSelectionQuestion[]>;
+  getQuestion?: (
+    conversationId: string,
+    questionId: string,
+  ) => Promise<ConversationSelectionQuestion>;
   createQuestion(
     conversationId: string,
     input: CreateConversationSelectionInput,
@@ -60,29 +64,51 @@ export type ConversationSelectionDraftCache = {
 
 export type ConversationSelectionStateListener = (state: ConversationSelectionState) => void;
 
+type SelectionMutation = {
+  requestId: string;
+  expectedVersion: number;
+  values: readonly string[];
+  freeText?: string;
+  confirm: boolean;
+};
+
+type ConversationSelectionControllerState = ConversationSelectionState & {
+  recoveryQuestionId?: string;
+};
+
 export type ConversationSelectionController = {
-  getState(): ConversationSelectionState;
+  getState(): ConversationSelectionControllerState;
   subscribe(listener: ConversationSelectionStateListener): () => void;
   hydrate(): Promise<ConversationSelectionState>;
   createQuestion(input: CreateConversationSelectionInput): Promise<ConversationSelectionQuestion | undefined>;
   selectOption(questionId: string, value: string): Promise<ConversationSelectionAnswerResult | undefined>;
   setFreeText(questionId: string, value: string): void;
   confirm(questionId: string): Promise<ConversationSelectionAnswerResult | undefined>;
+  retry(questionId: string): Promise<ConversationSelectionAnswerResult | undefined>;
 };
 
 export function createConversationSelectionController(
   options: ConversationSelectionControllerOptions,
 ): ConversationSelectionController {
-  let state = createConversationSelectionState(options.conversationId);
+  let state: ConversationSelectionControllerState = createConversationSelectionState(options.conversationId);
   const listeners = new Set<ConversationSelectionStateListener>();
-  const retryRequestIds = new Map<string, string>();
+  const ambiguousMutations = new Map<string, SelectionMutation>();
   const draftCache = options.draftCache ?? emptyDraftCache;
   let localEpoch = 0;
   let hydrateGeneration = 0;
 
-  function publish(nextState: ConversationSelectionState) {
+  function publish(nextState: ConversationSelectionControllerState) {
     state = nextState;
     listeners.forEach((listener) => listener(state));
+  }
+
+  function clearRecovery(nextState: ConversationSelectionState): ConversationSelectionControllerState {
+    const { recoveryQuestionId: _recoveryQuestionId, ...withoutRecovery } = nextState as ConversationSelectionControllerState;
+    return withoutRecovery;
+  }
+
+  function markRecovery(nextState: ConversationSelectionState, questionId: string): ConversationSelectionControllerState {
+    return { ...nextState, recoveryQuestionId: questionId };
   }
 
   function requestId() {
@@ -136,34 +162,104 @@ export function createConversationSelectionController(
     }
   }
 
+  async function reconcileQuestion(questionId: string) {
+    try {
+      const question = options.client.getQuestion
+        ? await options.client.getQuestion(options.conversationId, questionId)
+        : (await options.client.listQuestions(options.conversationId)).find((candidate) => candidate.id === questionId);
+      if (!question) throw new Error("SELECTION_NOT_FOUND");
+
+      const currentDraft = selectionDraftFor(state, questionId);
+      const questions = state.questions.map((candidate) => candidate.id === questionId ? question : candidate);
+      const nextDrafts = {
+        ...state.drafts,
+        [questionId]: {
+          values: [...currentDraft.values],
+          freeText: currentDraft.freeText,
+        },
+      };
+      const activeQuestionId = question.status === "pending"
+        ? questionId
+        : [...questions].reverse().find((candidate) => candidate.status === "pending")?.id ?? null;
+      publish(clearRecovery({
+        ...state,
+        questions,
+        drafts: nextDrafts,
+        activeQuestionId,
+        status: "idle",
+        errorCode: null,
+      }));
+      return question;
+    } catch (error) {
+      publish(applySelectionError(clearRecovery(state), selectionErrorCode(error)));
+      return undefined;
+    }
+  }
+
   async function persist(
     question: ConversationSelectionQuestion,
     input: Omit<AnswerConversationSelectionInput, "requestId" | "expectedVersion"> & { requestId?: string },
   ) {
-    const id = input.requestId ?? retryRequestIds.get(question.id) ?? requestId();
-    retryRequestIds.set(question.id, id);
-    saveDraftCache(question.id, selectionDraftFor(state, question.id));
+    const draft = selectionDraftFor(state, question.id);
+    const confirm = input.confirm ?? false;
+    if (confirm && !isValidConfirmation(question, draft)) return undefined;
+
+    const recovery = ambiguousMutations.get(question.id);
+    const desiredMutation = {
+      values: [...(input.values ?? [])],
+      freeText: question.mode === "free" ? input.freeText ?? "" : undefined,
+      confirm,
+    };
+    let currentQuestion = question;
+    let expectedVersion = question.version;
+    let id = input.requestId;
+    const exactRetry = recovery
+      && recovery.expectedVersion === question.version
+      && sameMutation(recovery, desiredMutation);
+
+    if (exactRetry) {
+      id = recovery.requestId;
+      expectedVersion = recovery.expectedVersion;
+    } else if (recovery) {
+      const reconciled = await reconcileQuestion(question.id);
+      if (!reconciled) return undefined;
+      currentQuestion = reconciled;
+      expectedVersion = currentQuestion.version;
+      id = undefined;
+    }
+
+    const mutation: SelectionMutation = {
+      requestId: id ?? requestId(),
+      expectedVersion,
+      values: desiredMutation.values,
+      freeText: desiredMutation.freeText,
+      confirm: desiredMutation.confirm,
+    };
+    ambiguousMutations.delete(question.id);
+    saveDraftCache(question.id, draft);
     localEpoch += 1;
-    publish(beginSelectionSave(state));
+    publish(beginSelectionSave(clearRecovery(state)));
     try {
-      const result = await options.client.answerQuestion(options.conversationId, question.id, {
-        ...input,
-        requestId: id,
-        expectedVersion: question.version,
-        confirm: input.confirm ?? false,
+      const result = await options.client.answerQuestion(options.conversationId, currentQuestion.id, {
+        values: mutation.values,
+        freeText: mutation.freeText,
+        confirm: mutation.confirm,
+        requestId: mutation.requestId,
+        expectedVersion: mutation.expectedVersion,
       });
-      retryRequestIds.delete(question.id);
       if (result.question.status !== "pending") clearDraftCache(question.id);
       localEpoch += 1;
-      publish(applySelectionResult(state, result));
+      publish(clearRecovery(applySelectionResult(state, result)));
       return result;
     } catch (error) {
       const code = selectionErrorCode(error);
       if (code === "SELECTION_STALE") {
-        retryRequestIds.delete(question.id);
         clearDraftCache(question.id);
+        publish(applySelectionError(clearRecovery(state), code));
+      } else {
+        ambiguousMutations.set(question.id, mutation);
+        publish(markRecovery(applySelectionError(state, code), question.id));
       }
-      publish(applySelectionError(state, code));
       return undefined;
     }
   }
@@ -198,7 +294,7 @@ export function createConversationSelectionController(
           };
         }));
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
-        publish(applySelectionSnapshot(state, hydratedQuestions));
+        publish(clearRecovery(applySelectionSnapshot(state, hydratedQuestions)));
       } catch (error) {
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
         publish(applySelectionError(state, selectionErrorCode(error)));
@@ -212,9 +308,10 @@ export function createConversationSelectionController(
         const superseded = state.questions.map((candidate) => {
           if (candidate.status !== "pending") return candidate;
           clearDraftCache(candidate.id);
+          ambiguousMutations.delete(candidate.id);
           return { ...candidate, status: "stale" as const };
         });
-        publish(applySelectionSnapshot(state, [...superseded, question]));
+        publish(clearRecovery(applySelectionSnapshot(state, [...superseded, question])));
         return question;
       } catch (error) {
         publish(applySelectionError(state, selectionErrorCode(error)));
@@ -255,6 +352,19 @@ export function createConversationSelectionController(
         confirm: true,
       });
     },
+
+    async retry(questionId) {
+      if (state.status === "saving") return undefined;
+      const question = state.questions.find((candidate) => candidate.id === questionId);
+      const recovery = ambiguousMutations.get(questionId);
+      if (!question || question.status !== "pending" || !recovery) return undefined;
+      const draft = selectionDraftFor(state, questionId);
+      return persist(question, {
+        values: draft.values,
+        freeText: question.mode === "free" ? draft.freeText : undefined,
+        confirm: recovery.confirm,
+      });
+    },
   };
 }
 
@@ -263,6 +373,25 @@ const emptyDraftCache: ConversationSelectionDraftCache = {
   save: () => undefined,
   clear: () => undefined,
 };
+
+function sameMutation(
+  left: Pick<SelectionMutation, "values" | "freeText" | "confirm">,
+  right: Pick<SelectionMutation, "values" | "freeText" | "confirm">,
+) {
+  return left.confirm === right.confirm
+    && left.freeText === right.freeText
+    && left.values.length === right.values.length
+    && left.values.every((value, index) => value === right.values[index]);
+}
+
+function isValidConfirmation(
+  question: ConversationSelectionQuestion,
+  draft: SelectionDraft,
+) {
+  if (question.mode === "free") return draft.freeText.trim().length > 0;
+  if (question.mode === "multi") return draft.values.length > 0;
+  return draft.values.length === 1;
+}
 
 function selectionErrorCode(error: unknown) {
   if (error && typeof error === "object" && "code" in error) {

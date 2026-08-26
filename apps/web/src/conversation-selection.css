@@ -138,6 +138,31 @@
 .conversation-selection-status { color: var(--desktop-muted, #5f6f69); }
 .conversation-selection-error { color: #9a4737; }
 
+.conversation-selection-recovery {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.conversation-selection-retry {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--desktop-celadon, #0d6a57);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--desktop-celadon-dark, #174c3f);
+  cursor: pointer;
+  font: 600 13px/1.4 "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+}
+
+.conversation-selection-retry:hover { background: var(--desktop-user-wash, #e7f1ec); }
+
+.conversation-selection-retry:focus-visible {
+  outline: 3px solid rgba(13, 106, 87, .28);
+  outline-offset: 3px;
+}
+
 @media (max-width: 1024px) {
   .conversation-selection-question { padding-left: 14px; padding-right: 14px; }
 }

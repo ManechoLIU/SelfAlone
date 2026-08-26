@@ -4,6 +4,7 @@ import {
   applySelectionSnapshot,
   createConversationSelectionState,
   type ConversationSelectionQuestion,
+  type ConversationSelectionState,
 } from "./conversation-selection-state";
 import { renderConversationSelectionView } from "./conversation-selection-view";
 
@@ -83,5 +84,49 @@ describe("conversation selection view", () => {
     expect(selectionCss).toContain("@media (max-width: 1024px)");
     expect(selectionCss).toContain("@media (max-width: 768px)");
     expect(selectionCss).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
+  it("disables empty multi and free confirmation until the draft is valid", () => {
+    const empty = applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+      question({ id: "question-multi", mode: "multi" }),
+      question({ id: "question-free", mode: "free", options: [] }),
+    ]);
+    const emptyRendered = renderConversationSelectionView({ state: empty });
+    expect(emptyRendered.main).toMatch(/data-selection-confirm="question-multi"[^>]*disabled/);
+    expect(emptyRendered.main).toMatch(/data-selection-confirm="question-free"[^>]*disabled/);
+    expect(emptyRendered.main).toContain('aria-label="确认当前选择"');
+
+    const valid = applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+      question({ id: "question-multi", mode: "multi", selectedValues: ["summary"] }),
+      question({ id: "question-free", mode: "free", options: [], freeText: "补充说明" }),
+    ]);
+    const validRendered = renderConversationSelectionView({ state: valid });
+    expect(validRendered.main).toContain('data-selection-confirm="question-multi"');
+    expect(validRendered.main).not.toMatch(/data-selection-confirm="question-multi"[^>]*disabled/);
+    expect(validRendered.main).toContain('data-selection-confirm="question-free"');
+    expect(validRendered.main).not.toMatch(/data-selection-confirm="question-free"[^>]*disabled/);
+  });
+
+  it("renders an executable recovery action separately from a generic error", () => {
+    const state = {
+      ...applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+        question({ mode: "multi", selectedValues: ["summary"] }),
+      ]),
+      status: "error" as const,
+      errorCode: "SELECTION_REQUEST_FAILED",
+      recoveryQuestionId: "question-a",
+    } as ConversationSelectionState & { recoveryQuestionId: string };
+    const rendered = renderConversationSelectionView({ state });
+
+    expect(rendered.main).toContain("这次保存结果尚未确认，当前输入仍保留");
+    expect(rendered.main).toContain('data-selection-retry="question-a"');
+    expect(rendered.main).toContain('aria-label="重试保存当前选择"');
+    expect(rendered.main).not.toContain("选择保存失败，当前输入仍保留，请重试");
+
+    const generic = renderConversationSelectionView({
+      state: { ...state, recoveryQuestionId: undefined } as ConversationSelectionState,
+    });
+    expect(generic.main).toContain("选择保存失败，当前输入仍保留，请重试");
+    expect(generic.main).not.toContain("data-selection-retry");
   });
 });
