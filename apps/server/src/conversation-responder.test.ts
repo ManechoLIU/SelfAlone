@@ -3,14 +3,14 @@ import {
   createConversationResponder,
   createDevelopmentConversationResponder,
   type ChatInput,
-  type TextModelChatAdapter,
+  type ChatResponderPort,
 } from "./conversation-responder";
 
 describe("conversation responder contract", () => {
   it("forwards the message and every context entry to TextModelAdapter.chat", async () => {
     let received: ChatInput | undefined;
     let receivedSignal: AbortSignal | undefined;
-    const adapter: TextModelChatAdapter = {
+    const adapter: ChatResponderPort = {
       async chat(input, signal) {
         received = input;
         receivedSignal = signal;
@@ -31,13 +31,15 @@ describe("conversation responder contract", () => {
 
   it("makes the explicit development fake depend on the complete context", async () => {
     const responder = createDevelopmentConversationResponder();
+    const priorText = "旧上下文是一段不应被逐字复述的阅读讨论";
     const withoutHistory = await responder("同一个问题", []);
     const withHistory = await responder("同一个问题", [
-      { id: "user-1", role: "user", text: "旧上下文", requestId: "request-1" },
+      { id: "user-1", role: "user", text: priorText, requestId: "request-1" },
     ]);
 
     expect(withHistory).not.toBe(withoutHistory);
-    expect(withHistory).toContain("旧上下文");
+    expect(withHistory).not.toContain(priorText);
+    expect(withHistory).not.toContain("旧上下文");
     expect(withHistory).not.toContain("我先记下");
   });
 
@@ -47,5 +49,15 @@ describe("conversation responder contract", () => {
     await expect(responder("没有模型", [])).rejects.toThrow(
       "CONVERSATION_RESPONDER_NOT_CONFIGURED",
     );
+  });
+
+  it("fails closed when the model adapter returns an empty reply", async () => {
+    const responder = createConversationResponder({
+      async chat() {
+        return { text: "  " };
+      },
+    });
+
+    await expect(responder("空回复不能提交", [])).rejects.toThrow("CONVERSATION_REPLY_INVALID");
   });
 });

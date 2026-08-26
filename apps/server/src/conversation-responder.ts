@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { ConversationRuntimeContextEntry } from "./conversation-runtime";
 
 /**
@@ -14,13 +15,16 @@ export type ChatResult = {
   text: string;
 };
 
-/** The chat-only portion of the TextModelAdapter described by TECHNICAL.md. */
-export type TextModelChatAdapter = {
+/**
+ * The chat-only server port compatible with TextModelAdapter.chat. It is not
+ * the complete technical adapter, which also owns credential validation and
+ * PPT-specific methods.
+ */
+export type ChatResponderPort = {
   chat(input: ChatInput, signal: AbortSignal): Promise<ChatResult>;
 };
 
-/** Alias for callers that refer to the complete technical adapter by name. */
-export type TextModelAdapter = TextModelChatAdapter;
+export type TextModelChatAdapter = ChatResponderPort;
 
 export type ConversationResponder = (
   text: string,
@@ -38,7 +42,7 @@ export const CONVERSATION_REPLY_INVALID = "CONVERSATION_REPLY_INVALID" as const;
  * called, so callers retain the existing failed-send/draft-recovery path.
  */
 export function createConversationResponder(
-  adapter?: TextModelChatAdapter,
+  adapter?: ChatResponderPort,
 ): ConversationResponder {
   return async (text, context, signal = new AbortController().signal) => {
     if (!adapter) throw new Error(CONVERSATION_RESPONDER_NOT_CONFIGURED);
@@ -62,21 +66,24 @@ export function createConversationResponder(
  * never selected by default and deliberately includes the full context in its
  * output so a canned "acknowledged" reply cannot mask a missing context.
  */
-export class DevelopmentTextModelAdapter implements TextModelChatAdapter {
+export class DevelopmentTextModelAdapter implements ChatResponderPort {
   async chat(input: ChatInput, signal: AbortSignal): Promise<ChatResult> {
     if (signal.aborted) throw new Error("CONVERSATION_REPLY_ABORTED");
-    const context = input.context
-      .map((entry) => `${entry.role}: ${entry.text}`)
-      .join(" | ");
+    const roleCounts = input.context.reduce(
+      (counts, entry) => ({ ...counts, [entry.role]: counts[entry.role] + 1 }),
+      { user: 0, assistant: 0, system: 0 },
+    );
+    const contextFingerprint = createHash("sha256")
+      .update(JSON.stringify(input.context))
+      .digest("hex")
+      .slice(0, 10);
     return {
-      text: context
-        ? `基于 ${input.context.length} 条对话上下文回应：${context}`
-        : `基于当前问题回应：${input.text}`,
+      text: `基于 ${input.context.length} 条对话上下文摘要（用户 ${roleCounts.user}、老己 ${roleCounts.assistant}、系统 ${roleCounts.system}、指纹 ${contextFingerprint}）回应当前问题。`,
     };
   }
 }
 
-export function createDevelopmentTextModelAdapter(): TextModelChatAdapter {
+export function createDevelopmentTextModelAdapter(): ChatResponderPort {
   return new DevelopmentTextModelAdapter();
 }
 

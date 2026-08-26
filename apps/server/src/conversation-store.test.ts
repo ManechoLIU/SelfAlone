@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { migrateConversationSchema } from "./conversation-migration";
-import { createDevelopmentConversationResponder } from "./conversation-responder";
+import {
+  createConversationResponder,
+  createDevelopmentConversationResponder,
+} from "./conversation-responder";
 import { ConversationStore } from "./conversation-store";
 
 const domainModulePath = "../../../packages/domain/src/" + "conversation-session";
@@ -51,7 +54,9 @@ describe("conversation store", () => {
 
     expect(sent.status).toBe("completed");
     if (sent.status !== "completed") throw new Error("expected completed send");
-    expect(sent.reply).toBe("基于 1 条对话上下文回应：user: 请记住这一段");
+    expect(sent.reply).toMatch(
+      /^基于 1 条对话上下文摘要（用户 1、老己 0、系统 0、指纹 [0-9a-f]{10}）回应当前问题。$/,
+    );
     expect(sent.session.draft).toBeNull();
     const [stored] = await setup.sql<{ stateType: string }[]>`
       SELECT jsonb_typeof(state) AS "stateType"
@@ -67,7 +72,7 @@ describe("conversation store", () => {
       {
         id: "request-a-1:assistant",
         role: "assistant",
-        text: "基于 1 条对话上下文回应：user: 请记住这一段",
+        text: sent.reply,
         requestId: "request-a-1",
       },
     ]);
@@ -132,6 +137,43 @@ describe("conversation store", () => {
       session: {
         draft: { text: "没有 responder 也不能丢失", attachments: [] },
         activeRun: null,
+      },
+    });
+  });
+
+  it("retains the draft and context when the adapter returns an empty reply", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_invalid_reply");
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: createConversationResponder({
+        async chat() {
+          return { text: "  " };
+        },
+      }),
+    });
+    await store.createSession("account-a", "conversation-a");
+
+    const sent = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-invalid-reply",
+      text: "空回复不能吞掉上下文",
+    });
+
+    expect(sent).toMatchObject({
+      status: "failed",
+      errorCode: "CONVERSATION_REPLY_FAILED",
+      retainedDraft: { text: "空回复不能吞掉上下文", attachments: [] },
+      session: {
+        draft: { text: "空回复不能吞掉上下文", attachments: [] },
+        activeRun: null,
+        context: [
+          {
+            id: "request-invalid-reply:user",
+            role: "user",
+            text: "空回复不能吞掉上下文",
+            requestId: "request-invalid-reply",
+          },
+        ],
       },
     });
   });
@@ -320,14 +362,18 @@ describe("conversation store", () => {
 
     expect(firstA.status).toBe("completed");
     expect(firstB.status).toBe("completed");
-    expect(retryA).toMatchObject({
-      status: "completed",
-      reply: "基于 1 条对话上下文回应：user: 账户 A 的消息",
-    });
-    expect(retryB).toMatchObject({
-      status: "completed",
-      reply: "基于 1 条对话上下文回应：user: 账户 B 的消息",
-    });
+    expect(retryA).toMatchObject({ status: "completed" });
+    expect(retryB).toMatchObject({ status: "completed" });
+    if (retryA.status !== "completed" || retryB.status !== "completed") {
+      throw new Error("expected completed account-scoped replies");
+    }
+    expect(retryA.reply).toMatch(
+      /^基于 1 条对话上下文摘要（用户 1、老己 0、系统 0、指纹 [0-9a-f]{10}）回应当前问题。$/,
+    );
+    expect(retryB.reply).toMatch(
+      /^基于 1 条对话上下文摘要（用户 1、老己 0、系统 0、指纹 [0-9a-f]{10}）回应当前问题。$/,
+    );
+    expect(retryA.reply).not.toBe(retryB.reply);
     const rows = await setup.sql<{ accountId: string; conversationId: string; id: string }[]>`
       SELECT account_id AS "accountId", conversation_id AS "conversationId", id
       FROM messages
