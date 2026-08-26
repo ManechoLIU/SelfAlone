@@ -2,8 +2,6 @@
   background: #f6f6f4;
 }
 
-.viewport-receipt { display: block; margin-top: 4px; color: #68766f; font-variant-numeric: tabular-nums; }
-
 .settings-header { margin-bottom: 28px; }
 
 .settings-group { margin-top: 22px; }

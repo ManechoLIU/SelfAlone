@@ -3,14 +3,13 @@ import { createViewportTracker, viewportPresentation } from "../../core/viewport
 
 type SettingsData = {
   drawerOpen: boolean;
-  developmentAdapter: boolean;
   keyboardOpen: boolean;
   viewportStyle: string;
   viewportMetrics: string;
 };
 
 Page<SettingsData>({
-  data: { drawerOpen: false, developmentAdapter: false, keyboardOpen: false, viewportStyle: "", viewportMetrics: "" },
+  data: { drawerOpen: false, keyboardOpen: false, viewportStyle: "", viewportMetrics: "" },
   onLoad() {
     this.isUnloaded = false;
     this.releaseViewport = createViewportTracker(wx, (geometry) => {
@@ -24,7 +23,6 @@ Page<SettingsData>({
       wx.reLaunch({ url: "/pages/login/index" });
       return;
     }
-    this.setData({ developmentAdapter: app.globalData.developmentAdapter });
   },
   onUnload() {
     this.isUnloaded = true;
@@ -35,8 +33,8 @@ Page<SettingsData>({
   showBoundary(event: MiniappEvent) {
     const label = String(event.currentTarget.dataset.label ?? "此设置");
     wx.showModal({
-      title: `${label}等待接入`,
-      content: "当前只交付客户端状态与导航骨架；真实账户、模型或微信读书能力按台账中的上游门逐项接入。",
+      title: `${label}暂不可用`,
+      content: "这项设置目前还不能使用，当前不会修改任何账户或服务信息。",
       showCancel: false,
     });
   },
