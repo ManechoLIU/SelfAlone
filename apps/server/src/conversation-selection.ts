@@ -15,6 +15,7 @@ export type ConversationSelectionAnswer = {
 export type ConversationSelectionQuestion = {
   id: string;
   conversationId: string;
+  assistantMessageId: string;
   version: number;
   prompt: string;
   mode: SelectionMode;
@@ -42,6 +43,7 @@ export type SelectionCoreErrorCode =
   | "SELECTION_STALE"
   | "SELECTION_ID_REQUIRED"
   | "SELECTION_CONVERSATION_REQUIRED"
+  | "SELECTION_MESSAGE_REQUIRED"
   | "SELECTION_PROMPT_REQUIRED"
   | "SELECTION_OPTION_REQUIRED"
   | "SELECTION_OPTION_INVALID"
@@ -59,6 +61,7 @@ export class SelectionCoreError extends Error {
 export function createSelectionQuestion(input: {
   id: string;
   conversationId: string;
+  assistantMessageId: string;
   prompt: string;
   mode: SelectionMode;
   options?: readonly ConversationSelectionOption[];
@@ -66,9 +69,11 @@ export function createSelectionQuestion(input: {
 }): ConversationSelectionQuestion {
   const id = input.id.trim();
   const conversationId = input.conversationId.trim();
+  const assistantMessageId = input.assistantMessageId.trim();
   const prompt = input.prompt.trim();
   if (!id) throw new SelectionCoreError("SELECTION_ID_REQUIRED");
   if (!conversationId) throw new SelectionCoreError("SELECTION_CONVERSATION_REQUIRED");
+  if (!assistantMessageId) throw new SelectionCoreError("SELECTION_MESSAGE_REQUIRED");
   if (!prompt) throw new SelectionCoreError("SELECTION_PROMPT_REQUIRED");
 
   const options = normalizeOptions(input.options ?? []);
@@ -82,6 +87,7 @@ export function createSelectionQuestion(input: {
   return {
     id,
     conversationId,
+    assistantMessageId,
     version: 1,
     prompt,
     mode: input.mode,

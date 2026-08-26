@@ -24,9 +24,16 @@ describe("conversation selection store", () => {
   it("persists an account-scoped question and restores its history", async () => {
     const setup = await isolatedDatabase(databases, "selection_store_restore");
     await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
     const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
 
     const created = await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "保留哪种内容？",
       mode: "single",
       options: [
@@ -58,11 +65,72 @@ describe("conversation selection store", () => {
       .resolves.toMatchObject([{ id: "question-a", status: "submitted", selectedValues: ["summary"] }]);
   });
 
+  it("persists the originating assistant message and restores it with selection history", async () => {
+    const setup = await isolatedDatabase(databases, "selection_store_message_association");
+    await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
+    const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
+
+    const created = await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
+      prompt: "保留哪种内容？",
+      mode: "single",
+      options: [{ value: "summary", label: "摘要" }],
+    });
+
+    expect(created.assistantMessageId).toBe("message-assistant-a");
+    await expect(store.getQuestion("account-a", "conversation-a", "question-a"))
+      .resolves.toMatchObject({ assistantMessageId: "message-assistant-a" });
+    await expect(store.listQuestions("account-a", "conversation-a"))
+      .resolves.toMatchObject([{ assistantMessageId: "message-assistant-a" }]);
+  });
+
+  it.each([
+    ["cross-account", "message-from-other-account", "account-b", "conversation-b", "assistant"],
+    ["cross-conversation", "message-from-other-conversation", "account-a", "conversation-b", "assistant"],
+    ["user-role", "message-user", "account-a", "conversation-a", "user"],
+    ["missing", "message-missing", null, null, null],
+  ] as const)("fails closed for %s assistant message association", async (_caseName, messageId, messageAccountId, messageConversationId, role) => {
+    const setup = await isolatedDatabase(databases, `selection_store_message_${_caseName}`);
+    await createConversation(setup.sql, "account-a", "conversation-a");
+    if (messageAccountId && messageConversationId && role) {
+      if (messageAccountId !== "account-a" || messageConversationId !== "conversation-a") {
+        await createConversation(setup.sql, messageAccountId, messageConversationId);
+      }
+      await createMessage(setup.sql, {
+        id: messageId,
+        accountId: messageAccountId,
+        conversationId: messageConversationId,
+        role,
+      });
+    }
+    const store = new ConversationSelectionStore(setup.sql, { idFactory: () => `question-${_caseName}` });
+
+    await expect(store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: messageId,
+      prompt: "保留哪种内容？",
+      mode: "single",
+      options: [{ value: "summary", label: "摘要" }],
+    })).rejects.toMatchObject({ code: "SELECTION_MESSAGE_NOT_FOUND" });
+  });
+
   it("replays a completed answer idempotently and rejects a reused request id", async () => {
     const setup = await isolatedDatabase(databases, "selection_store_idempotency");
     await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
     const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
     await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "保留哪种内容？",
       mode: "single",
       options: [{ value: "summary", label: "摘要" }, { value: "outline", label: "大纲" }],
@@ -99,11 +167,18 @@ describe("conversation selection store", () => {
   it("requires confirmation for multi choice and rejects stale questions after supersession", async () => {
     const setup = await isolatedDatabase(databases, "selection_store_stale");
     await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
     let nextId = 0;
     const store = new ConversationSelectionStore(setup.sql, {
       idFactory: () => `question-${++nextId}`,
     });
     const first = await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "保留哪些内容？",
       mode: "multi",
       options: [{ value: "summary", label: "摘要" }, { value: "outline", label: "大纲" }],
@@ -153,6 +228,7 @@ describe("conversation selection store", () => {
     expect(nextDraft).toMatchObject({ status: "pending", question: { version: 3, selectedValues: ["outline"] } });
 
     const replacement = await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "改为选择哪种内容？",
       mode: "single",
       options: [{ value: "outline", label: "大纲" }],
@@ -174,8 +250,15 @@ describe("conversation selection store", () => {
   it("requires explicit confirmation for a high-impact single choice", async () => {
     const setup = await isolatedDatabase(databases, "selection_store_confirmation");
     await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
     const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
     const created = await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "这会使已有内容失效吗？",
       mode: "single",
       options: [{ value: "replace", label: "替换已有内容" }],
@@ -208,8 +291,15 @@ describe("conversation selection store", () => {
   it("keeps selection data isolated between accounts", async () => {
     const setup = await isolatedDatabase(databases, "selection_store_owner");
     await createConversation(setup.sql, "account-a", "conversation-a");
+    await createMessage(setup.sql, {
+      id: "message-assistant-a",
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      role: "assistant",
+    });
     const store = new ConversationSelectionStore(setup.sql, { idFactory: () => "question-a" });
     await store.createQuestion("account-a", "conversation-a", {
+      assistantMessageId: "message-assistant-a",
       prompt: "保留哪种内容？",
       mode: "single",
       options: [{ value: "summary", label: "摘要" }],
@@ -262,5 +352,20 @@ async function createConversation(sql: Sql, accountId: string, conversationId: s
       })},
       false
     )
+  `;
+}
+
+async function createMessage(
+  sql: Sql,
+  input: {
+    id: string;
+    accountId: string;
+    conversationId: string;
+    role: "user" | "assistant";
+  },
+) {
+  await sql`
+    INSERT INTO messages (id, account_id, conversation_id, role, text)
+    VALUES (${input.id}, ${input.accountId}, ${input.conversationId}, ${input.role}, ${input.role})
   `;
 }

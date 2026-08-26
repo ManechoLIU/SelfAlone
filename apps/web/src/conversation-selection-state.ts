@@ -15,6 +15,8 @@ export type ConversationSelectionAnswer = {
 export type ConversationSelectionQuestion = {
   id: string;
   conversationId: string;
+  /** Present for server-created questions; legacy callers may omit it until they migrate. */
+  assistantMessageId?: string;
   version: number;
   prompt: string;
   mode: SelectionMode;
@@ -84,6 +86,15 @@ export function selectionDraftFor(
   questionId: string,
 ): SelectionDraft {
   return state.drafts[questionId] ?? { values: [], freeText: "" };
+}
+
+export function selectionQuestionsForMessage(
+  state: ConversationSelectionState,
+  assistantMessageId: string,
+): ConversationSelectionQuestion[] {
+  const normalizedMessageId = assistantMessageId.trim();
+  if (!normalizedMessageId) return [];
+  return state.questions.filter((question) => question.assistantMessageId === normalizedMessageId);
 }
 
 export function toggleSelectionOption(

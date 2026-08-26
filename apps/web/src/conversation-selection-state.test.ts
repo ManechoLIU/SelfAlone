@@ -3,6 +3,7 @@ import {
   applySelectionResult,
   applySelectionSnapshot,
   createConversationSelectionState,
+  selectionQuestionsForMessage,
   selectionDraftFor,
   setSelectionFreeText,
   toggleSelectionOption,
@@ -13,6 +14,7 @@ function question(overrides: Partial<ConversationSelectionQuestion> = {}): Conve
   return {
     id: "question-a",
     conversationId: "conversation-a",
+    assistantMessageId: "message-assistant-a",
     version: 1,
     prompt: "保留哪些内容？",
     mode: "multi",
@@ -38,6 +40,8 @@ describe("conversation selection state", () => {
     ]);
 
     expect(state.activeQuestionId).toBe("question-new");
+    expect(state.questions.find((candidate) => candidate.id === "question-new")?.assistantMessageId)
+      .toBe("message-assistant-a");
     expect(selectionDraftFor(state, "question-new")).toEqual({ values: ["outline"], freeText: "" });
     expect(state.status).toBe("idle");
   });
@@ -63,6 +67,16 @@ describe("conversation selection state", () => {
     expect(selectionDraftFor(typed, "question-free")).toEqual({ values: [], freeText: "补充说明" });
     expect(selectionDraftFor(typed, "question-old")).toEqual({ values: ["summary"], freeText: "" });
     expect(toggleSelectionOption(typed, "question-old", "outline")).toBe(typed);
+  });
+
+  it("projects questions onto their exact originating assistant message", () => {
+    const state = applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+      question({ id: "question-a", assistantMessageId: "message-assistant-a" }),
+      question({ id: "question-b", assistantMessageId: "message-assistant-b" }),
+    ]);
+
+    expect(selectionQuestionsForMessage(state, "message-assistant-a").map((candidate) => candidate.id))
+      .toEqual(["question-a"]);
   });
 
   it("removes the local draft after a submitted result and retains it after an error", () => {

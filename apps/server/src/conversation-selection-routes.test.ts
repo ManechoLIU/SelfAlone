@@ -10,6 +10,7 @@ import { registerConversationSelectionRoutes } from "./conversation-selection-ro
 const question = {
   id: "question-a",
   conversationId: "conversation-a",
+  assistantMessageId: "message-assistant-a",
   version: 1,
   prompt: "保留哪种内容？",
   mode: "single" as const,
@@ -28,7 +29,7 @@ describe("conversation selection routes", () => {
     const calls: string[] = [];
     const runtime = {
       createQuestion: async (_accountId: string, _conversationId: string, input: CreateSelectionQuestionInput) => {
-        calls.push(`create:${input.prompt}:${input.requiresConfirmation}`);
+        calls.push(`create:${input.prompt}:${input.requiresConfirmation}:${input.assistantMessageId}`);
         return question;
       },
       listQuestions: async () => [question],
@@ -43,7 +44,7 @@ describe("conversation selection routes", () => {
     const created = await app.inject({
       method: "POST",
       url: "/api/v1/conversations/conversation-a/selection-questions",
-      payload: { prompt: "保留哪种内容？", mode: "single", requiresConfirmation: true, options: [{ value: "summary", label: "摘要" }] },
+      payload: { assistantMessageId: "message-assistant-a", prompt: "保留哪种内容？", mode: "single", requiresConfirmation: true, options: [{ value: "summary", label: "摘要" }] },
     });
     expect(created.statusCode).toBe(201);
     expect(created.json()).toEqual({ question });
@@ -62,7 +63,7 @@ describe("conversation selection routes", () => {
     });
     expect(answered.statusCode).toBe(200);
     expect(answered.json()).toMatchObject({ status: "submitted", question: { status: "submitted" } });
-    expect(calls).toEqual(["create:保留哪种内容？:true"]);
+    expect(calls).toEqual(["create:保留哪种内容？:true:message-assistant-a"]);
     await app.close();
   });
 

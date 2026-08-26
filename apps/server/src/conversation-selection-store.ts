@@ -17,6 +17,7 @@ export type ConversationSelectionStoreOptions = {
 
 export type CreateSelectionQuestionInput = {
   id?: string;
+  assistantMessageId: string;
   prompt: string;
   mode: SelectionMode;
   options?: readonly ConversationSelectionOption[];
@@ -39,6 +40,7 @@ export type ConversationSelectionAnswerResult = {
 export type ConversationSelectionStoreErrorCode =
   | "SELECTION_NOT_FOUND"
   | "SELECTION_CONVERSATION_NOT_FOUND"
+  | "SELECTION_MESSAGE_NOT_FOUND"
   | "SELECTION_REQUEST_ID_CONFLICT"
   | "SELECTION_STALE"
   | "ACCOUNT_ID_REQUIRED"
@@ -60,6 +62,7 @@ type SelectionRow = {
   id: string;
   accountId: string;
   conversationId: string;
+  assistantMessageId: string | null;
   version: number;
   prompt: string;
   mode: SelectionMode;
@@ -93,6 +96,7 @@ export class ConversationSelectionStore {
     const question = createSelectionQuestion({
       id: input.id ?? this.#idFactory(),
       conversationId,
+      assistantMessageId: input.assistantMessageId,
       prompt: input.prompt,
       mode: input.mode,
       options: input.options,
@@ -110,6 +114,19 @@ export class ConversationSelectionStore {
           FOR UPDATE
         `;
         if (!conversation) throw new ConversationSelectionStoreError("SELECTION_CONVERSATION_NOT_FOUND");
+
+        const [assistantMessage] = await transaction<{ id: string }[]>`
+          SELECT id
+          FROM messages
+          WHERE id = ${question.assistantMessageId}
+            AND account_id = ${accountId}
+            AND conversation_id = ${conversationId}
+            AND role = 'assistant'
+          FOR SHARE
+        `;
+        if (!assistantMessage) {
+          throw new ConversationSelectionStoreError("SELECTION_MESSAGE_NOT_FOUND");
+        }
 
         await transaction`
           UPDATE conversation_selection_questions
@@ -143,6 +160,7 @@ export class ConversationSelectionStore {
         id,
         account_id AS "accountId",
         conversation_id AS "conversationId",
+        assistant_message_id AS "assistantMessageId",
         version,
         prompt,
         mode,
@@ -174,6 +192,7 @@ export class ConversationSelectionStore {
         id,
         account_id AS "accountId",
         conversation_id AS "conversationId",
+        assistant_message_id AS "assistantMessageId",
         version,
         prompt,
         mode,
@@ -287,6 +306,7 @@ async function selectForUpdate(
       id,
       account_id AS "accountId",
       conversation_id AS "conversationId",
+      assistant_message_id AS "assistantMessageId",
       version,
       prompt,
       mode,
@@ -314,13 +334,14 @@ async function insertQuestion(
 ) {
   await transaction`
     INSERT INTO conversation_selection_questions (
-      id, account_id, conversation_id, version, prompt, mode, requires_confirmation, options,
+      id, account_id, conversation_id, assistant_message_id, version, prompt, mode, requires_confirmation, options,
       status, selected_values, free_text, answer, answer_request_id, last_request_id, last_request_payload
     )
     VALUES (
       ${question.id},
       ${accountId},
       ${question.conversationId},
+      ${question.assistantMessageId},
       ${question.version},
       ${question.prompt},
       ${question.mode},
@@ -365,6 +386,8 @@ function parseQuestion(row: SelectionRow): ConversationSelectionQuestion {
   if (
     !Array.isArray(row.options)
     || !Array.isArray(row.selectedValues)
+    || typeof row.assistantMessageId !== "string"
+    || !row.assistantMessageId.trim()
     || typeof row.requiresConfirmation !== "boolean"
     || row.options.some((option) => !isOption(option))
     || row.selectedValues.some((value) => typeof value !== "string")
@@ -375,6 +398,7 @@ function parseQuestion(row: SelectionRow): ConversationSelectionQuestion {
   return {
     id: row.id,
     conversationId: row.conversationId,
+    assistantMessageId: row.assistantMessageId,
     version: row.version,
     prompt: row.prompt,
     mode: row.mode,

@@ -7,6 +7,7 @@ import type {
 
 export type CreateConversationSelectionInput = {
   id?: string;
+  assistantMessageId: string;
   prompt: string;
   mode: SelectionMode;
   options: readonly ConversationSelectionOption[];
@@ -61,6 +62,7 @@ export function createConversationSelectionClient(options: ConversationSelection
           headers: { ...headers, "content-type": "application/json" },
           body: JSON.stringify({
             id: input.id,
+            assistantMessageId: input.assistantMessageId,
             prompt: input.prompt,
             mode: input.mode,
             options: input.options,

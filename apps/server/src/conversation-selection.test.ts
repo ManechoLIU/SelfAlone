@@ -12,6 +12,7 @@ function question(
   return createSelectionQuestion({
     id: `question-${mode}`,
     conversationId: "conversation-a",
+    assistantMessageId: "message-assistant-a",
     prompt: "这次要保留什么？",
     mode,
     options: mode === "free"
@@ -25,6 +26,19 @@ function question(
 }
 
 describe("conversation selection core", () => {
+  it("creates a question bound to its originating assistant message", () => {
+    const created = createSelectionQuestion({
+      id: "question-bound",
+      conversationId: "conversation-a",
+      assistantMessageId: "message-assistant-a",
+      prompt: "这次要保留什么？",
+      mode: "single",
+      options: [{ value: "summary", label: "摘要" }],
+    });
+
+    expect(created.assistantMessageId).toBe("message-assistant-a");
+  });
+
   it("submits a low-risk single choice immediately", () => {
     const result = applySelectionAnswer(question("single"), {
       values: ["summary"],

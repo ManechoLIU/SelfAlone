@@ -18,6 +18,7 @@ const questionParameters = z.object({
 });
 const createQuestionBody = z.object({
   id: z.string().trim().min(1).max(160).optional(),
+  assistantMessageId: z.string().trim().min(1).max(160),
   prompt: z.string().trim().min(1).max(2_000),
   mode: z.enum(["single", "multi", "free"]),
   requiresConfirmation: z.boolean().optional().default(false),
@@ -56,6 +57,7 @@ export async function registerConversationSelectionRoutes(
       const body = createQuestionBody.parse(request.body);
       const input: CreateSelectionQuestionInput = {
         id: body.id,
+        assistantMessageId: body.assistantMessageId,
         prompt: body.prompt,
         mode: body.mode,
         requiresConfirmation: body.requiresConfirmation,
@@ -109,7 +111,7 @@ function sendSelectionError(error: unknown, reply: FastifyReply) {
   const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
   if (code === "ACCOUNT_REQUIRED") return reply.code(401).send({ code });
   if (code === "ACCOUNT_FORBIDDEN") return reply.code(403).send({ code });
-  if (code === "SELECTION_NOT_FOUND" || code === "SELECTION_CONVERSATION_NOT_FOUND") {
+  if (code === "SELECTION_NOT_FOUND" || code === "SELECTION_CONVERSATION_NOT_FOUND" || code === "SELECTION_MESSAGE_NOT_FOUND") {
     return reply.code(404).send({ code: "SELECTION_NOT_FOUND" });
   }
   if (code === "SELECTION_STALE" || code === "SELECTION_REQUEST_ID_CONFLICT" || code === "SELECTION_ID_CONFLICT") {
