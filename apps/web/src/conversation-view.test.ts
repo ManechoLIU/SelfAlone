@@ -49,6 +49,39 @@ describe("conversation-view", () => {
     expect(view.taskPanel).toContain("生成");
   });
 
+  it("separates user and assistant roles into aligned rows while keeping selection summary nested", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "requirements" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.main.match(/data-message-role="user"/g)).toHaveLength(1);
+    expect(view.main.match(/data-message-role="assistant"/g)).toHaveLength(1);
+    expect(view.main).toMatch(/<div class="desktop-message-row desktop-message-row-user">[\s\S]*?<article[^>]*data-message-role="user"/);
+    expect(view.main).toMatch(/<div class="desktop-message-row desktop-message-row-assistant">[\s\S]*?<img class="desktop-message-avatar"[^>]*alt="老己"[^>]*>[\s\S]*?<article[^>]*data-message-role="assistant"/);
+
+    const userArticle = view.main.match(/<article[^>]*data-message-role="user"[\s\S]*?<\/article>/)?.[0];
+    const assistantArticle = view.main.match(/<article[^>]*data-message-role="assistant"[\s\S]*?<\/article>/)?.[0];
+    expect(userArticle).toBeDefined();
+    expect(userArticle).not.toContain("desktop-message-avatar");
+    expect(assistantArticle).toContain("desktop-selection-summary");
+    expect(assistantArticle).not.toContain("desktop-message-avatar");
+    expect(view.main.match(/desktop-selection-summary/g)).toHaveLength(1);
+  });
+
+  it("marks each stage context explicitly instead of falling back to an untyped assistant card", () => {
+    const view = renderConversationView({
+      workspace: { ...failedWorkspace, draft: { ...failedWorkspace.draft, stage: "outline" }, task: null },
+      busy: false,
+      selectedTemplate: "qingci-study",
+    });
+
+    expect(view.main).toMatch(/<div class="desktop-message-row desktop-message-row-context">[\s\S]*?<article[^>]*class="desktop-message desktop-message-context"[^>]*data-message-role="assistant"[^>]*data-message-kind="stage-context"/);
+    expect(view.main).toMatch(/<div class="desktop-message-row desktop-message-row-assistant">[\s\S]*?<img class="desktop-message-avatar"[^>]*alt="老己"[^>]*>[\s\S]*?<article[^>]*data-message-role="assistant"/);
+    expect(view.main).not.toContain('class="assistant-message desktop-message"');
+  });
+
   it("keeps each stage's complete workspace in one right panel", () => {
     const stages = [
       {

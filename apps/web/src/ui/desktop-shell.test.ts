@@ -110,10 +110,10 @@ describe("DesktopAppShell", () => {
 
     expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell, \.library-shell\s*\{[^}]*--desktop-rail-width:\s*92px/);
     expect(styles).toMatch(/@media \(max-width: 1024px\)[\s\S]*?\.desktop-app-shell\s*\{[^}]*--desktop-list-width:\s*196px[^}]*--desktop-task-width:\s*320px/);
-    expect(styles).toMatch(/\.desktop-conversation-main,\s*\.conversation-content,\s*\.conversation-thread,\s*\.desktop-message,\s*\.desktop-composer\s*\{[^}]*box-sizing:\s*border-box/);
+    expect(styles).toMatch(/\.desktop-conversation-main,\s*\.conversation-content,\s*\.conversation-thread,\s*\.desktop-message-row,\s*\.desktop-message,\s*\.desktop-composer\s*\{[^}]*box-sizing:\s*border-box/);
   });
 
-  it("reuses the reader's Qingci paper-card language for conversation messages", () => {
+  it("keeps conversation message roles visually and structurally distinct", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
     expect(styles).toMatch(/--desktop-paper:\s*#f1f1ef/);
@@ -122,11 +122,16 @@ describe("DesktopAppShell", () => {
     expect(styles).toMatch(/--desktop-celadon:\s*#0d6a57/);
     expect(styles).toMatch(/--desktop-line:\s*#cbd8d3/);
     expect(styles).toMatch(/\.desktop-message\s*\{[^}]*padding:\s*14px\s+16px/);
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*border-radius:\s*12px/);
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*background:\s*var\(--desktop-paper-strong\)/);
-    expect(styles).toMatch(/\.desktop-message\s*\{[^}]*box-shadow:\s*0 8px 24px rgba\(42,76,63,\.04\)/);
-    expect(styles).toMatch(/\.desktop-message-user\s*\{[^}]*background:\s*var\(--desktop-user-wash\)/);
-    expect(styles).toMatch(/\.desktop-message-question\s*\{[^}]*background:\s*var\(--desktop-paper-strong\)/);
+    expect(styles).toMatch(/\.desktop-message-row\s*\{[^}]*display:\s*flex/);
+    expect(styles).toMatch(/\.desktop-message-row-user\s*\{[^}]*justify-content:\s*flex-end/);
+    expect(styles).toMatch(/\.desktop-message-row-assistant\s*\{[^}]*gap:\s*12px/);
+    expect(styles).toMatch(/\.desktop-message-user\s*\{[^}]*max-width:\s*min\(416px,\s*100%\)[^}]*margin-inline-start:\s*auto[^}]*border-radius:\s*14px[^}]*background:\s*var\(--desktop-user-wash\)/);
+    expect(styles).toMatch(/\.desktop-message-assistant\s*\{[^}]*max-width:\s*calc\(100%\s*-\s*64px\)[^}]*border-radius:\s*5px\s+18px\s+18px\s+18px[^}]*background:\s*var\(--desktop-paper-strong\)/);
+    expect(styles).toMatch(/\.desktop-message-avatar\s*\{[^}]*width:\s*52px[^}]*height:\s*52px[^}]*border-radius:\s*50%/);
+    expect(styles).toMatch(/\.desktop-message-context\s*\{[^}]*max-width:\s*100%[^}]*border:\s*0[^}]*background:\s*transparent/);
+    const sharedMessageBlock = styles.match(/\.desktop-message\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(sharedMessageBlock).not.toContain("border-radius");
+    expect(sharedMessageBlock).not.toContain("background");
     expect(styles).toMatch(/\.desktop-composer\s*\{[^}]*padding:\s*12px\s+14px/);
     expect(styles).toMatch(/\.desktop-stage-summary\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/);
   });

@@ -229,16 +229,21 @@ function renderTaskPanel(workspace: WorkspaceSnapshot, screen: WorkspaceScreen, 
 }
 
 function renderRequirementsThread(workspace: WorkspaceSnapshot) {
-  return `<article class="desktop-message desktop-message-user">
-      <p>帮我把《${escapeHtml(workspace.book.title)}》的读书笔记整理成一份读书会分享 PPT。</p>
-      <time>当前会话</time>
-    </article>
-    <article class="assistant-message desktop-message desktop-message-question">
-      <div class="desktop-message-author"><img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" /><strong>这次想重点覆盖哪些内容？</strong></div>
-      <time>范围与需求</time>
-      <div class="desktop-selection-summary"><span>已选择：全书 · 包含个人笔记</span><strong>已确认</strong></div>
-      <p class="desktop-message-note">已同步到右侧范围与需求。</p>
-    </article>`;
+  return `<div class="desktop-message-row desktop-message-row-user">
+      <article class="desktop-message desktop-message-user" data-message-role="user">
+        <p>帮我把《${escapeHtml(workspace.book.title)}》的读书笔记整理成一份读书会分享 PPT。</p>
+        <time>当前会话</time>
+      </article>
+    </div>
+    <div class="desktop-message-row desktop-message-row-assistant">
+      <img class="desktop-message-avatar" src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" />
+      <article class="desktop-message desktop-message-assistant desktop-message-question" data-message-role="assistant">
+        <div class="desktop-message-author"><strong>这次想重点覆盖哪些内容？</strong></div>
+        <time>范围与需求</time>
+        <div class="desktop-selection-summary"><span>已选择：全书 · 包含个人笔记</span><strong>已确认</strong></div>
+        <p class="desktop-message-note">已同步到右侧范围与需求。</p>
+      </article>
+    </div>`;
 }
 
 function renderStageThread(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
@@ -253,14 +258,19 @@ function renderStageThread(workspace: WorkspaceSnapshot, screen: WorkspaceScreen
           : screen === "stopped"
             ? ["生成已停止。", "已保存进度保留在右侧工作区，可刷新后继续查看。"]
             : ["正在生成演示文稿。", "生成进度保留在右侧工作区，中心继续显示会话。"];
-  return `<article class="assistant-message desktop-message">
-      <p>《${escapeHtml(workspace.book.title)}》读书分享</p>
-      <time>当前会话 · ${stageLabels[activeStage(screen)]}</time>
-    </article>
-    <article class="assistant-message desktop-message desktop-message-question">
-      <div class="desktop-message-author"><img src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" /><strong>${copy[0]}</strong></div>
-      <p class="desktop-message-note">${copy[1]}</p>
-    </article>`;
+  return `<div class="desktop-message-row desktop-message-row-context">
+      <article class="desktop-message desktop-message-context" data-message-role="assistant" data-message-kind="stage-context">
+        <p>《${escapeHtml(workspace.book.title)}》读书分享</p>
+        <time>当前会话 · ${stageLabels[activeStage(screen)]}</time>
+      </article>
+    </div>
+    <div class="desktop-message-row desktop-message-row-assistant">
+      <img class="desktop-message-avatar" src="/avatar/laoji-avatar-qingci-chibi-v2.png" alt="老己" />
+      <article class="desktop-message desktop-message-assistant desktop-message-question" data-message-role="assistant">
+        <div class="desktop-message-author"><strong>${copy[0]}</strong></div>
+        <p class="desktop-message-note">${copy[1]}</p>
+      </article>
+    </div>`;
 }
 
 function renderStageSummary(workspace: WorkspaceSnapshot, screen: WorkspaceScreen) {
