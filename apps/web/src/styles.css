@@ -639,6 +639,16 @@ body { overflow-x: hidden; }
 .desktop-conversation-mascot { position: absolute; z-index: 1; top: -104px; right: 22px; width: 104px; height: 104px; object-fit: contain; pointer-events: none; }
 .desktop-composer label { display: block; margin-bottom: 10px; color: var(--desktop-muted); font-size: 13px; font-weight: 600; }
 .desktop-composer textarea { width: 100%; min-height: 88px; resize: vertical; border: 0; outline: 0; background: transparent; color: var(--desktop-ink); font-size: 15px; line-height: 1.65; }
+.desktop-composer:focus-within {
+  border-color: var(--desktop-celadon);
+  outline: 2px solid var(--desktop-celadon);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(13,106,87,.14), 0 8px 24px rgba(42,76,63,.04);
+}
+.desktop-composer textarea:focus-visible {
+  outline: 2px solid var(--desktop-celadon);
+  outline-offset: 2px;
+}
 .desktop-composer-actions, .desktop-form-action, .desktop-generation-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .desktop-composer-actions { padding-top: 12px; border-top: 1px solid #edf2ef; color: var(--desktop-muted); font-size: 12px; }
 .desktop-demo-note { color: #71837b; font-size: 11px; }

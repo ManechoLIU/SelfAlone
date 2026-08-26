@@ -136,6 +136,13 @@ describe("DesktopAppShell", () => {
     expect(styles).toMatch(/\.desktop-stage-summary\s*\{[^}]*border:\s*0[^}]*background:\s*transparent/);
   });
 
+  it("keeps the requirements composer focus visibly anchored in the Qingci system", () => {
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+    expect(styles).toMatch(/\.desktop-composer:focus-within\s*\{[^}]*border-color:\s*var\(--desktop-celadon\)[^}]*outline:\s*2px\s+solid\s+var\(--desktop-celadon\)[^}]*outline-offset:\s*3px[^}]*box-shadow:/);
+    expect(styles).toMatch(/\.desktop-composer textarea:focus-visible\s*\{[^}]*outline:\s*2px\s+solid\s+var\(--desktop-celadon\)[^}]*outline-offset:\s*2px/);
+  });
+
   it("uses a two-column 16:9 template grid when the task panel has room", () => {
     const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 
