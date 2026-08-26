@@ -21,30 +21,36 @@
 | 写作、执行、判断、验收和落档风格 | [`SKILL.md`](SKILL.md) | 用户最新明确要求 |
 | 跨会话稳定结论 | [`MEMORY.md`](MEMORY.md) | 条目中的证据指针 |
 | 可复用方法与错误预防 | [`EVOLUTION.md`](EVOLUTION.md) | 对应真实案例、测试或提交 |
+| Agent 上下文治理、Compact、Wiki 与台账粒度 | [`wiki/agent-context-governance.md`](wiki/agent-context-governance.md) | [`raw_sources/context-governance/README.md`](raw_sources/context-governance/README.md) 与三篇 DOCX 原文 |
 | 里程碑范围与顺序 | [`docs/superpowers/plans/2026-08-23-mvp-launch.md`](docs/superpowers/plans/2026-08-23-mvp-launch.md) | [`TASK_LEDGER.md`](TASK_LEDGER.md) 当前项 |
 
 ## 3. 当前知识目录
 
 ```text
 raw_sources/
-└── README.md
+├── README.md
+└── context-governance/
+    ├── README.md
+    └── 3 个 DOCX 原文
 wiki/
-└── README.md
+├── README.md
+└── agent-context-governance.md
 logs/
 └── ingestion/
-    └── README.md
+    ├── README.md
+    └── 2026-08-26-agent-context-governance.md
 ```
 
-- 当前没有已摄取的原始资料、编译 Wiki 页面或摄取记录；三份 README 只定义边界，不代表已有知识资产。
-- 本次三篇上下文治理文章用于更新全局 `adaptive-delivery` Skill，不作为 SelfAlone 产品资料入库。
+- 三篇上下文治理文章已作为项目治理方法资料摄取；它们不属于 SelfAlone 产品、视觉或技术规则。
+- 原文进入 Raw Sources，综合方法进入 Wiki，摄取过程进入日志；全局 Skill 的分类差异只登记，不由项目 Wiki 越权修改。
 
 ## 4. 当前知识资产
 
 | 类型 | 当前状态 | 查询入口 |
 | --- | --- | --- |
-| Raw Sources | 无项目资料 | [`raw_sources/README.md`](raw_sources/README.md) |
-| Wiki 页面 | 无编译页面 | [`wiki/README.md`](wiki/README.md) |
-| 摄取日志 | 无摄取记录 | [`logs/ingestion/README.md`](logs/ingestion/README.md) |
+| Raw Sources | 3 篇治理方法原文 | [`raw_sources/context-governance/README.md`](raw_sources/context-governance/README.md) |
+| Wiki 页面 | 1 个综合方法页面 | [`wiki/agent-context-governance.md`](wiki/agent-context-governance.md) |
+| 摄取日志 | 1 条摄取记录 | [`logs/ingestion/2026-08-26-agent-context-governance.md`](logs/ingestion/2026-08-26-agent-context-governance.md) |
 
 ## 5. SelfAlone 资料边界
 
