@@ -61,6 +61,7 @@ import {
   type ConversationChatDirectoryViewState,
   type ConversationChatQuotaViewState,
 } from "./conversation-chat-directory";
+import { createConversationChatQuotaFlow } from "./conversation-chat-quota";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView } from "./conversation-chat-view";
 import { createConversationSelectionClient } from "./conversation-selection-client";
@@ -137,7 +138,6 @@ let conversationChatDirectoryViewState: ConversationChatDirectoryViewState = { l
 let conversationChatDirectoryRequest = 0;
 let conversationChatQuota: TrialQuotaStatus | null = null;
 let conversationChatQuotaViewState: ConversationChatQuotaViewState = { phase: "loading" };
-let conversationChatQuotaDismissTimer: number | undefined;
 let conversationChatDirectoryRetry: (() => void) | null = null;
 let conversationChatCleanup: (() => void) | null = null;
 let conversationSelectionCleanup: (() => void) | null = null;
@@ -162,6 +162,26 @@ const latestLibraryRequest = createLatestLibraryRequest();
 const libraryPolling = createLibraryPollingScheduler(
   () => void loadLibrary(libraryState.query, "poll"),
 );
+const conversationChatQuotaFlow = createConversationChatQuotaFlow({
+  claim: () => conversationChatClient.claimTrialQuota(),
+  getContext: () => ({
+    routeGeneration,
+    accountId: authState.account?.id ?? null,
+    isConversationRoute: isConversationRoute(),
+  }),
+  getState: () => ({
+    status: conversationChatQuota,
+    viewState: conversationChatQuotaViewState,
+  }),
+  apply: (nextState, focusTarget) => {
+    conversationChatQuota = nextState.status;
+    conversationChatQuotaViewState = nextState.viewState;
+    renderConversationChatQuotaHost();
+    if (focusTarget) focusConversationChatQuota(focusTarget);
+  },
+  schedule: (callback, delayMs) => window.setTimeout(callback, delayMs),
+  clear: (timer) => window.clearTimeout(timer),
+});
 
 function escapeHtml(value: string) {
   return value
@@ -711,10 +731,7 @@ function destroyConversationChat() {
   conversationChatCleanup = null;
   conversationSelectionCleanup = null;
   destroyConversationSelection();
-  if (conversationChatQuotaDismissTimer !== undefined) {
-    window.clearTimeout(conversationChatQuotaDismissTimer);
-    conversationChatQuotaDismissTimer = undefined;
-  }
+  conversationChatQuotaFlow.cancel();
   conversationChatSession = null;
   conversationChatSessions = [];
   conversationChatSearchQuery = "";
@@ -916,6 +933,15 @@ function renderConversationChatQuotaHost() {
   bindConversationChatQuota();
 }
 
+function focusConversationChatQuota(target: "status" | "claim" | "input") {
+  const selector = target === "status"
+    ? "[data-conversation-trial-focus]"
+    : target === "claim"
+      ? "#claim-trial-quota"
+      : "[data-conversation-chat-input]";
+  document.querySelector<HTMLElement>(selector)?.focus({ preventScroll: true });
+}
+
 function bindConversationChatQuota() {
   document.querySelector<HTMLButtonElement>("#claim-trial-quota")?.addEventListener("click", () => {
     void claimConversationTrialQuota();
@@ -923,10 +949,7 @@ function bindConversationChatQuota() {
 }
 
 async function loadConversationTrialQuota(navigationId: number) {
-  if (conversationChatQuotaDismissTimer !== undefined) {
-    window.clearTimeout(conversationChatQuotaDismissTimer);
-    conversationChatQuotaDismissTimer = undefined;
-  }
+  conversationChatQuotaFlow.cancel();
   try {
     const status = await conversationChatClient.getTrialQuota();
     if (navigationId !== routeGeneration || !isConversationRoute()) return;
@@ -940,28 +963,8 @@ async function loadConversationTrialQuota(navigationId: number) {
   renderConversationChatQuotaHost();
 }
 
-async function claimConversationTrialQuota() {
-  if (conversationChatQuotaDismissTimer !== undefined) {
-    window.clearTimeout(conversationChatQuotaDismissTimer);
-    conversationChatQuotaDismissTimer = undefined;
-  }
-  conversationChatQuotaViewState = { phase: "claiming" };
-  renderConversationChatQuotaHost();
-  try {
-    conversationChatQuota = await conversationChatClient.claimTrialQuota();
-    conversationChatQuotaViewState = { phase: "success" };
-    renderConversationChatQuotaHost();
-    conversationChatQuotaDismissTimer = window.setTimeout(() => {
-      conversationChatQuotaDismissTimer = undefined;
-      if (conversationChatQuotaViewState.phase !== "success") return;
-      conversationChatQuotaViewState = { phase: "claimed" };
-      renderConversationChatQuotaHost();
-    }, 1200);
-    return;
-  } catch {
-    conversationChatQuotaViewState = { phase: "error", error: "领取失败，请稍后重试" };
-  }
-  renderConversationChatQuotaHost();
+function claimConversationTrialQuota() {
+  return conversationChatQuotaFlow.claim();
 }
 
 async function loadConversationChat(navigationId: number) {

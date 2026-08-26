@@ -40,10 +40,13 @@ describe("conversation chat directory", () => {
   });
 
   it("keeps the one-line free quota bar hidden after claim and recoverable on failure", () => {
-    expect(renderConversationChatQuota({ status: "unclaimed" }, { phase: "unclaimed" }))
-      .toContain("免费体验额度");
-    expect(renderConversationChatQuota({ status: "claimed" }, { phase: "success" } as ConversationChatQuotaViewState))
-      .toContain("已领取");
+    const unclaimed = renderConversationChatQuota({ status: "unclaimed" }, { phase: "unclaimed" });
+    const success = renderConversationChatQuota({ status: "claimed" }, { phase: "success" } as ConversationChatQuotaViewState);
+
+    expect(unclaimed).toContain("免费体验额度");
+    expect(unclaimed).toContain('data-conversation-trial-focus');
+    expect(success).toContain("已领取");
+    expect(success).toContain('tabindex="-1"');
     expect(renderConversationChatQuota({ status: "claimed" }, { phase: "claimed" })).toBe("");
     expect(renderConversationChatQuota({ status: "unclaimed" }, {
       phase: "error",
@@ -75,8 +78,4 @@ describe("conversation chat directory", () => {
     expect(mainSource).toContain("const sessions = conversationChatSessions;\n  return renderConversationChatDirectory(");
   });
 
-  it("keeps a measurable brief success state before dismissing a claimed quota", () => {
-    expect(mainSource).toContain("conversationChatQuotaDismissTimer");
-    expect(mainSource).toContain('conversationChatQuotaViewState = { phase: "success" }');
-  });
 });

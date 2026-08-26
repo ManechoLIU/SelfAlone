@@ -62,7 +62,7 @@ export function renderConversationChatQuota(
   }
 
   if (viewState.phase === "success") {
-    return `<aside class="conversation-chat-trial conversation-chat-trial-success" data-conversation-trial data-conversation-trial-state="success" role="status" aria-live="polite">
+    return `<aside class="conversation-chat-trial conversation-chat-trial-success" data-conversation-trial data-conversation-trial-focus data-conversation-trial-state="success" role="status" aria-live="polite" tabindex="-1">
       <span class="conversation-chat-trial-icon">${icons.gift}</span>
       <strong>免费体验额度</strong>
       <span class="conversation-chat-trial-success-message">已领取</span>
@@ -73,7 +73,7 @@ export function renderConversationChatQuota(
 
   const isClaiming = viewState.phase === "claiming";
   const error = viewState.phase === "error" ? viewState.error ?? "领取失败，请稍后重试" : "";
-  return `<aside class="conversation-chat-trial" data-conversation-trial role="status" aria-live="polite">
+  return `<aside class="conversation-chat-trial" data-conversation-trial data-conversation-trial-focus role="status" aria-live="polite" tabindex="-1">
     <span class="conversation-chat-trial-icon">${icons.gift}</span>
     <strong>免费体验额度</strong>
     <button id="claim-trial-quota" class="conversation-chat-trial-action" type="button"${isClaiming ? " disabled" : ""}>${isClaiming ? "领取中…" : "领取"}</button>

@@ -73,6 +73,7 @@
 }
 
 .conversation-chat-trial strong { font-weight: 650; }
+.conversation-chat-trial:focus { outline: 3px solid rgba(13, 106, 87, .28); outline-offset: 3px; }
 
 .conversation-chat-trial-action {
   min-width: 64px;
