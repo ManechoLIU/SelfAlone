@@ -78,6 +78,16 @@ describe("conversation selection view", () => {
     expect(rendered.main).toContain("确认选择");
   });
 
+  it("keeps a same-question focus target when an option disappears after rerender", () => {
+    const state = applySelectionSnapshot(createConversationSelectionState("conversation-a"), [
+      question({ status: "submitted", selectedValues: ["summary"], version: 2 }),
+    ]);
+    const rendered = renderConversationSelectionView({ state });
+
+    expect(rendered.main).toContain('class="conversation-selection-question is-readonly"');
+    expect(rendered.main).toContain('class="conversation-selection-readonly" role="status" tabindex="-1"');
+  });
+
   it("keeps the private responsive and focus contract local to selection", () => {
     expect(selectionCss).toContain("min-height: 44px");
     expect(selectionCss).toContain("focus-visible");

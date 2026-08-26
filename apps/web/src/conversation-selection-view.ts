@@ -121,7 +121,7 @@ function renderQuestion(
   const body = readonly
     ? renderReadonlyQuestion(question)
     : renderPendingQuestion(question, draft, state.status === "saving");
-  return `<article class="conversation-selection-question ${readonly ? "is-readonly" : "is-pending"}" data-selection-question="${escapeHtml(question.id)}" data-selection-status="${question.status}">
+  return `<article class="conversation-selection-question ${readonly ? "is-readonly" : "is-pending"}" data-selection-question="${escapeHtml(question.id)}" data-selection-status="${question.status}" tabindex="-1">
     <p class="conversation-selection-prompt">${escapeHtml(question.prompt)}</p>
     ${body}
   </article>`;
@@ -162,7 +162,7 @@ function renderReadonlyQuestion(question: ConversationSelectionQuestion) {
       .map((value) => question.options.find((option) => option.value === value)?.label ?? value)
       .join("、");
   const status = question.status === "stale" ? "已失效，当前问题不可再提交" : "已确认";
-  return `<div class="conversation-selection-readonly" role="status">
+  return `<div class="conversation-selection-readonly" role="status" tabindex="-1">
     <span class="conversation-selection-readonly-label">${escapeHtml(status)}</span>
     <span class="conversation-selection-readonly-value">已选择：${escapeHtml(selected || "未填写")}</span>
   </div>`;
@@ -246,7 +246,7 @@ function isValidConfirmationDraft(
 }
 
 type FocusTarget = {
-  kind: "free" | "confirm" | "retry";
+  kind: "free" | "confirm" | "retry" | "option" | "question";
   questionId: string;
   selectionStart?: number | null;
   selectionEnd?: number | null;
@@ -269,22 +269,58 @@ function captureFocus(root: HTMLElement): FocusTarget {
   if (confirmQuestionId) return { kind: "confirm", questionId: confirmQuestionId };
   const retryQuestionId = active.getAttribute("data-selection-retry");
   if (retryQuestionId) return { kind: "retry", questionId: retryQuestionId };
+  const optionQuestionId = active.getAttribute("data-selection-question-id");
+  if (optionQuestionId && active.hasAttribute("data-selection-option")) {
+    return { kind: "option", questionId: optionQuestionId };
+  }
+  const question = active.closest<HTMLElement>("[data-selection-question]");
+  const questionId = question?.getAttribute("data-selection-question");
+  if (questionId) return { kind: "question", questionId };
   return null;
 }
 
 function restoreFocus(root: HTMLElement, target: FocusTarget) {
   if (!target) return;
+  const questionId = cssEscape(target.questionId);
+  const questionSelector = `[data-selection-question="${questionId}"]`;
   const selector = target.kind === "free"
-    ? `[data-selection-free-input="${cssEscape(target.questionId)}"]`
+    ? `[data-selection-free-input="${questionId}"]`
     : target.kind === "confirm"
-      ? `[data-selection-confirm="${cssEscape(target.questionId)}"]`
-      : `[data-selection-retry="${cssEscape(target.questionId)}"]`;
-  const element = root.querySelector<HTMLElement>(selector);
-  if (!element || (element instanceof HTMLButtonElement && element.disabled)) return;
+      ? `[data-selection-confirm="${questionId}"]`
+      : target.kind === "retry"
+        ? `[data-selection-retry="${questionId}"]`
+        : target.kind === "option"
+          ? `[data-selection-option][data-selection-question-id="${questionId}"]`
+          : questionSelector;
+  const element = target.kind === "question"
+    ? findFocusable(root, [`${questionSelector} .conversation-selection-readonly`, selector])
+    : findFocusable(root, [selector]);
+  if (!element && target.kind !== "option" && target.kind !== "question") return;
+  if (!element) {
+    findFocusable(root, [
+      `${questionSelector} .conversation-selection-readonly`,
+      questionSelector,
+      "[data-selection-option]",
+      "[data-selection-free-input]",
+      "[data-selection-confirm]",
+      "[data-selection-retry]",
+    ])?.focus();
+    return;
+  }
   element.focus();
   if (element instanceof HTMLTextAreaElement && target.selectionStart !== undefined && target.selectionEnd !== undefined) {
     element.setSelectionRange(target.selectionStart ?? element.value.length, target.selectionEnd ?? element.value.length);
   }
+}
+
+function findFocusable(root: HTMLElement, selectors: readonly string[]) {
+  for (const selector of selectors) {
+    for (const element of root.querySelectorAll<HTMLElement>(selector)) {
+      if (element instanceof HTMLButtonElement && element.disabled) continue;
+      return element;
+    }
+  }
+  return null;
 }
 
 function cssEscape(value: string) {
