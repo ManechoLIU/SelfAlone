@@ -50,6 +50,7 @@ PPT 任务: queued -> running -> completed
                             -> stopped
 ```
 
+- 从书籍详情 / 阅读页进入会话的书籍来源与预填文本属于版本化的会话 `draft/context handoff`，不是 PPT 草稿或任务。该交接保存 `conversation_id`、`bookId`、书名和当前已有的可显示书籍信息，以及未发送的可编辑草稿；在用户实际发送并完成 PPT 意图识别前，不得创建 `ppt_drafts` / `ppt_tasks`、分配任务 ID、进入 requirements 阶段或预写范围选择。跳转、刷新或恢复失败必须保留交接上下文和草稿。
 - 同一 `conversation_id` 最多存在一个运行中的 AI 回答或 PPT 任务，由数据库约束与事务共同保证。
 - 创建 PPT 任务必须携带草稿版本和账户级幂等键；同一请求重试返回原任务。
 - Worker 使用租约、心跳和有限重试；进程重启后重新领取过期租约。
