@@ -63,6 +63,8 @@ import {
 } from "./conversation-chat-directory";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView } from "./conversation-chat-view";
+import { createConversationSelectionClient } from "./conversation-selection-client";
+import { createConversationSelectionController } from "./conversation-selection-controller";
 import {
   canonicalizeConversationStageRoute,
   classifyConversationRoute,
@@ -92,7 +94,9 @@ const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "templat
 const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
 const conversationScrollStorageKey = "selfalone:m1:conversation-scroll";
 const conversationChatClient = createConversationChatClient();
+const conversationSelectionClient = createConversationSelectionClient();
 const conversationChatLoadCoordinator = createConversationChatLoadCoordinator();
+const conversationSelectionDraftStoragePrefix = "selfalone:m1:conversation-selection-draft";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -136,6 +140,10 @@ let conversationChatQuotaViewState: ConversationChatQuotaViewState = { phase: "l
 let conversationChatQuotaDismissTimer: number | undefined;
 let conversationChatDirectoryRetry: (() => void) | null = null;
 let conversationChatCleanup: (() => void) | null = null;
+let conversationSelectionCleanup: (() => void) | null = null;
+let conversationSelectionController: ReturnType<typeof createConversationSelectionController> | null = null;
+let conversationSelectionConversationId: string | null = null;
+let conversationSelectionHydrated = false;
 let settingsState: SettingsState = createSettingsState();
 let settingsRequestInFlight = false;
 let lastSettingsFocusField: string | null = null;
@@ -636,9 +644,73 @@ function conversationHref() {
     : conversationHash(stage);
 }
 
+function conversationSelectionDraftStorageKey(
+  accountId: string,
+  conversationId: string,
+  questionId: string,
+) {
+  return [
+    conversationSelectionDraftStoragePrefix,
+    accountId,
+    conversationId,
+    questionId,
+  ].map((part) => encodeURIComponent(part)).join(":");
+}
+
+const conversationSelectionDraftCache = {
+  load(accountId: string, conversationId: string, questionId: string) {
+    try {
+      const raw = window.localStorage.getItem(
+        conversationSelectionDraftStorageKey(accountId, conversationId, questionId),
+      );
+      if (!raw) return null;
+      const value = JSON.parse(raw) as { values?: unknown; freeText?: unknown };
+      if (!value || !Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
+        return null;
+      }
+      return {
+        values: value.values as string[],
+        freeText: typeof value.freeText === "string" ? value.freeText : "",
+      };
+    } catch {
+      return null;
+    }
+  },
+  save(accountId: string, conversationId: string, questionId: string, draft: { values: readonly string[]; freeText: string }) {
+    try {
+      window.localStorage.setItem(
+        conversationSelectionDraftStorageKey(accountId, conversationId, questionId),
+        JSON.stringify({ values: [...draft.values], freeText: draft.freeText }),
+      );
+    } catch {
+      // Keep the in-memory draft when browser storage is unavailable.
+    }
+  },
+  clear(accountId: string, conversationId: string, questionId: string) {
+    try {
+      window.localStorage.removeItem(
+        conversationSelectionDraftStorageKey(accountId, conversationId, questionId),
+      );
+    } catch {
+      // Cache cleanup is best effort; the server remains authoritative.
+    }
+  },
+};
+
+function destroyConversationSelection() {
+  conversationSelectionCleanup?.();
+  conversationSelectionCleanup = null;
+  conversationSelectionController = null;
+  conversationSelectionConversationId = null;
+  conversationSelectionHydrated = false;
+}
+
 function destroyConversationChat() {
-  conversationChatCleanup?.();
+  const cleanup = conversationChatCleanup ?? conversationSelectionCleanup;
+  cleanup?.();
   conversationChatCleanup = null;
+  conversationSelectionCleanup = null;
+  destroyConversationSelection();
   if (conversationChatQuotaDismissTimer !== undefined) {
     window.clearTimeout(conversationChatQuotaDismissTimer);
     conversationChatQuotaDismissTimer = undefined;
@@ -705,7 +777,20 @@ function renderConversationChatError() {
 }
 
 function renderConversationChat(session: ConversationChatSession) {
-  conversationChatCleanup?.();
+  const previousCleanup = conversationChatCleanup ?? conversationSelectionCleanup;
+  previousCleanup?.();
+  conversationChatCleanup = null;
+  conversationSelectionCleanup = null;
+  if (conversationSelectionConversationId !== session.id) {
+    destroyConversationSelection();
+    conversationSelectionConversationId = session.id;
+    conversationSelectionController = createConversationSelectionController({
+      accountId: authState.account?.id ?? "account-development-local",
+      conversationId: session.id,
+      client: conversationSelectionClient,
+      draftCache: conversationSelectionDraftCache,
+    });
+  }
   conversationChatSession = session;
   conversationChatDirectoryRetry = null;
   conversationChatSessions = [
@@ -722,7 +807,13 @@ function renderConversationChat(session: ConversationChatSession) {
     conversationId: session.id,
     client: conversationChatClient,
   });
-  conversationChatCleanup = mountConversationChatView(mainMount, null, controller, { title: "老己对话" });
+  conversationChatCleanup = mountConversationChatView(mainMount, null, controller, {
+    title: "老己对话",
+    selectionController: conversationSelectionController ?? undefined,
+    hydrateSelection: !conversationSelectionHydrated,
+  });
+  conversationSelectionCleanup = conversationChatCleanup;
+  conversationSelectionHydrated = true;
 }
 
 function replaceConversationChatDirectory() {

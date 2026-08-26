@@ -2,10 +2,21 @@ import "./conversation-chat.css";
 import { escapeHtml } from "./ui/desktop-shell";
 import type { ConversationChatController } from "./conversation-chat-controller";
 import type { ConversationChatMessage, ConversationChatState } from "./conversation-chat-state";
+import type { ConversationSelectionController } from "./conversation-selection-controller";
+import {
+  mountConversationSelectionView,
+  renderConversationSelectionView,
+  selectionStateForMessage,
+} from "./conversation-selection-view";
+import {
+  selectionQuestionsForMessage,
+  type ConversationSelectionState,
+} from "./conversation-selection-state";
 
 export type ConversationChatViewOptions = {
   state: ConversationChatState;
   title?: string;
+  selectionState?: ConversationSelectionState;
 };
 
 export type ConversationChatViewResult = {
@@ -15,6 +26,8 @@ export type ConversationChatViewResult = {
 
 export type ConversationChatMountOptions = {
   title?: string;
+  selectionController?: ConversationSelectionController;
+  hydrateSelection?: boolean;
 };
 
 export function renderConversationChatView(options: ConversationChatViewOptions): ConversationChatViewResult {
@@ -36,7 +49,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
         <span class="conversation-chat-state-label visually-hidden ${isSending ? "is-sending" : state.status === "error" ? "is-error" : "is-idle"}" role="status">${statusLabel}</span>
         <div class="conversation-chat-scroll">
           <div class="conversation-chat-stream" data-conversation-chat-messages role="log" aria-live="polite" aria-relevant="additions text">
-            ${renderMessages(state.messages)}
+            ${renderMessages(state.messages, options.selectionState)}
           </div>
         </div>
         <form class="conversation-chat-composer" data-conversation-chat-form>
@@ -61,6 +74,47 @@ export function mountConversationChatView(
 ) {
   let disposed = false;
   let renderedState: ConversationChatState | null = null;
+  let selectionState = options.selectionController?.getState();
+  const selectionMounts = new Map<string, () => void>();
+
+  const disposeSelectionMounts = () => {
+    selectionMounts.forEach((dispose) => dispose());
+    selectionMounts.clear();
+  };
+
+  const syncSelectionMounts = (nextState: ConversationSelectionState = selectionState!) => {
+    const selectionController = options.selectionController;
+    if (!selectionController) return;
+    const desired = new Set<string>();
+    mainRoot.querySelectorAll<HTMLElement>(".conversation-chat-message-assistant[data-message-id]").forEach((message) => {
+      const assistantMessageId = message.dataset.messageId;
+      if (!assistantMessageId) return;
+      const questions = selectionQuestionsForMessage(nextState, assistantMessageId);
+      const slot = message.querySelector<HTMLElement>("[data-conversation-selection-slot]");
+      if (questions.length === 0) {
+        if (slot) slot.remove();
+        selectionMounts.get(assistantMessageId)?.();
+        selectionMounts.delete(assistantMessageId);
+        return;
+      }
+      desired.add(assistantMessageId);
+      const selectionSlot = slot ?? createSelectionSlot(message, assistantMessageId, nextState);
+      if (!selectionMounts.has(assistantMessageId)) {
+        selectionMounts.set(
+          assistantMessageId,
+          mountConversationSelectionView(selectionSlot, selectionController, {
+            assistantMessageId,
+            hydrate: false,
+          }),
+        );
+      }
+    });
+    selectionMounts.forEach((dispose, assistantMessageId) => {
+      if (desired.has(assistantMessageId)) return;
+      dispose();
+      selectionMounts.delete(assistantMessageId);
+    });
+  };
 
   const render = (nextState: ConversationChatState = controller.getState()) => {
     if (disposed) return;
@@ -70,7 +124,12 @@ export function mountConversationChatView(
       return;
     }
 
-    const rendered = renderConversationChatView({ state: nextState, title: options.title });
+    disposeSelectionMounts();
+    const rendered = renderConversationChatView({
+      state: nextState,
+      title: options.title,
+      selectionState,
+    });
     mainRoot.innerHTML = rendered.main;
     if (taskRoot) {
       const taskPanel = taskRoot.closest<HTMLElement>(".desktop-task-panel");
@@ -85,6 +144,7 @@ export function mountConversationChatView(
       }
     }
     renderedState = nextState;
+    syncSelectionMounts();
 
     const form = mainRoot.querySelector<HTMLFormElement>("[data-conversation-chat-form]");
     const input = mainRoot.querySelector<HTMLTextAreaElement>("[data-conversation-chat-input]");
@@ -104,12 +164,21 @@ export function mountConversationChatView(
   };
 
   const unsubscribe = controller.subscribe(render);
+  const unsubscribeSelection = options.selectionController?.subscribe((nextState) => {
+    selectionState = nextState;
+    syncSelectionMounts(nextState);
+  });
   render(controller.getState());
   void controller.hydrate();
+  if (options.selectionController && options.hydrateSelection !== false) {
+    void options.selectionController.hydrate();
+  }
 
   return () => {
     disposed = true;
     unsubscribe();
+    unsubscribeSelection?.();
+    disposeSelectionMounts();
   };
 }
 
@@ -127,7 +196,10 @@ function patchDraftControls(mainRoot: HTMLElement, state: ConversationChatState)
   if (send) send.disabled = state.status === "sending" || state.draft.trim().length === 0;
 }
 
-function renderMessages(messages: readonly ConversationChatMessage[]) {
+function renderMessages(
+  messages: readonly ConversationChatMessage[],
+  selectionState?: ConversationSelectionState,
+) {
   if (messages.length === 0) {
     return `<p class="conversation-chat-empty" data-conversation-chat-empty>还没有消息</p>`;
   }
@@ -138,6 +210,31 @@ function renderMessages(messages: readonly ConversationChatMessage[]) {
       <div class="conversation-chat-message-body">
         <span class="conversation-chat-message-role">${message.role === "user" ? "我" : message.role === "assistant" ? "老己" : "状态"}</span>
         <p>${escapeHtml(message.text)}</p>
+        ${message.role === "assistant" && selectionState
+          ? renderSelectionSlot(selectionState, message.id)
+          : ""}
       </div>
     </article>`).join("");
+}
+
+function renderSelectionSlot(state: ConversationSelectionState, assistantMessageId: string) {
+  if (selectionQuestionsForMessage(state, assistantMessageId).length === 0) return "";
+  return `<div class="conversation-selection-slot" data-conversation-selection-slot="${escapeHtml(assistantMessageId)}">
+    ${renderConversationSelectionView({ state: selectionStateForMessage(state, assistantMessageId) }).main}
+  </div>`;
+}
+
+function createSelectionSlot(
+  message: HTMLElement,
+  assistantMessageId: string,
+  state: ConversationSelectionState,
+) {
+  const slot = message.ownerDocument.createElement("div");
+  slot.className = "conversation-selection-slot";
+  slot.dataset.conversationSelectionSlot = assistantMessageId;
+  slot.innerHTML = renderConversationSelectionView({
+    state: selectionStateForMessage(state, assistantMessageId),
+  }).main;
+  message.querySelector<HTMLElement>(".conversation-chat-message-body")?.append(slot);
+  return slot;
 }

@@ -3,6 +3,7 @@ import { escapeHtml } from "./ui/desktop-shell";
 import type { ConversationSelectionController } from "./conversation-selection-controller";
 import {
   selectionDraftFor,
+  selectionQuestionsForMessage,
   type ConversationSelectionQuestion,
   type ConversationSelectionState,
 } from "./conversation-selection-state";
@@ -13,6 +14,13 @@ export type ConversationSelectionViewOptions = {
 
 export type ConversationSelectionViewResult = {
   main: string;
+};
+
+export type ConversationSelectionMountOptions = {
+  /** Restrict this mounted view to questions attached to one assistant message. */
+  assistantMessageId?: string;
+  /** Skip hydration when the parent chat mount already owns the one hydrate call. */
+  hydrate?: boolean;
 };
 
 type ConversationSelectionViewState = ConversationSelectionState & {
@@ -50,32 +58,57 @@ export function renderConversationSelectionView(
 export function mountConversationSelectionView(
   root: HTMLElement,
   controller: ConversationSelectionController,
+  options: ConversationSelectionMountOptions = {},
 ) {
   let disposed = false;
   let renderedState: ConversationSelectionState | null = null;
 
   const render = (nextState: ConversationSelectionState = controller.getState()) => {
     if (disposed) return;
-    if (renderedState && isDraftOnlyChange(renderedState, nextState)) {
-      patchDraftControls(root, nextState);
-      renderedState = nextState;
+    const scopedState = options.assistantMessageId
+      ? selectionStateForMessage(nextState, options.assistantMessageId)
+      : nextState;
+    if (renderedState && isDraftOnlyChange(renderedState, scopedState)) {
+      patchDraftControls(root, scopedState);
+      renderedState = scopedState;
       return;
     }
 
     const focusTarget = captureFocus(root);
-    root.innerHTML = renderConversationSelectionView({ state: nextState }).main;
-    renderedState = nextState;
+    root.innerHTML = renderConversationSelectionView({ state: scopedState }).main;
+    renderedState = scopedState;
     bindSelectionControls(root, controller);
     restoreFocus(root, focusTarget);
   };
 
   const unsubscribe = controller.subscribe(render);
   render(controller.getState());
-  void controller.hydrate();
+  if (options.hydrate !== false) void controller.hydrate();
 
   return () => {
     disposed = true;
     unsubscribe();
+  };
+}
+
+export function selectionStateForMessage(
+  state: ConversationSelectionState,
+  assistantMessageId: string,
+): ConversationSelectionState {
+  const questions = selectionQuestionsForMessage(state, assistantMessageId);
+  const questionIds = new Set(questions.map((question) => question.id));
+  const drafts = Object.fromEntries(
+    Object.entries(state.drafts).filter(([questionId]) => questionIds.has(questionId)),
+  );
+  const recoveryQuestionId = (state as ConversationSelectionViewState).recoveryQuestionId;
+  return {
+    ...state,
+    questions,
+    activeQuestionId: questions.some((question) => question.id === state.activeQuestionId)
+      ? state.activeQuestionId
+      : questions.find((question) => question.status === "pending")?.id ?? null,
+    drafts,
+    ...(recoveryQuestionId && questionIds.has(recoveryQuestionId) ? { recoveryQuestionId } : {}),
   };
 }
 

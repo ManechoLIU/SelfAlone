@@ -6,6 +6,10 @@ import { registerAccountSettingsRoutes, type AccountSettingsService } from "./ac
 import type { AuthRuntime } from "./auth-runtime";
 import type { BookPresentationService } from "./book-presentation";
 import { registerConversationRoutes, type ConversationRouteRuntime } from "./conversation-routes";
+import {
+  registerConversationSelectionRoutes,
+  type ConversationSelectionRouteRuntime,
+} from "./conversation-selection-routes";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
@@ -28,6 +32,7 @@ type AppDependencies = {
   >;
   accountSettings?: AccountSettingsService;
   conversation?: ConversationRouteRuntime;
+  selection?: ConversationSelectionRouteRuntime;
   trialQuota?: TrialQuotaRouteRuntime;
 };
 
@@ -190,6 +195,10 @@ export function createApp(dependencies: AppDependencies) {
 
   if (dependencies.conversation) {
     registerConversationRoutes(app, dependencies.conversation, resolveAccountId);
+  }
+
+  if (dependencies.selection) {
+    registerConversationSelectionRoutes(app, dependencies.selection, resolveAccountId);
   }
 
   if (dependencies.trialQuota) {
