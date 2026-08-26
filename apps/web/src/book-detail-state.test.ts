@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { TextHighlight } from "@selfalone/contracts";
 import type { TextAnnotationApi } from "./text-annotation-state";
 import type { BookDetailPptRuntime } from "./book-detail-runtime";
 import { bookDetailPptIntentHref, bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash, createBookDetailModel } from "./book-detail-state";
@@ -9,6 +10,18 @@ const note = {
   body: "先把这一句留给下次回看。",
   source: null,
   version: 1,
+  createdAt: "2026-08-25T00:00:00.000Z",
+  updatedAt: "2026-08-25T00:00:00.000Z",
+};
+
+const highlight: TextHighlight = {
+  id: "highlight-1",
+  bookId: "book-1",
+  locator: { kind: "text", fileVersion: 2, sectionId: "txt:0", offset: 4 },
+  endOffset: 8,
+  quote: "留给下次回看的句子。",
+  thought: "这句值得记住。",
+  version: 3,
   createdAt: "2026-08-25T00:00:00.000Z",
   updatedAt: "2026-08-25T00:00:00.000Z",
 };
@@ -152,5 +165,36 @@ describe("private book detail notes state", () => {
     expect(updateCalls).toBe(2);
     expect(model.snapshot.draft).toBeNull();
     expect(model.snapshot.notes[0]).toMatchObject({ body: "我的冲突输入要留下。", version: 3 });
+  });
+
+  it("deletes a highlight with its current expected version and removes it immediately", async () => {
+    const calls: Array<{ id: string; expectedVersion: number }> = [];
+    const model = createBookDetailModel("book-1", api({
+      list: async () => ({ fileVersion: 2, highlights: [highlight], notes: [] }),
+      deleteHighlight: async (id, input) => {
+        calls.push({ id, expectedVersion: input.expectedVersion });
+        return { status: "deleted", id };
+      },
+    }));
+    await model.load();
+
+    await model.deleteHighlight(highlight);
+
+    expect(calls).toEqual([{ id: "highlight-1", expectedVersion: 3 }]);
+    expect(model.snapshot.highlights).toEqual([]);
+    expect(model.snapshot.deleteError).toBe("");
+  });
+
+  it("retains a highlight and exposes a local retry error when deletion fails", async () => {
+    const model = createBookDetailModel("book-1", api({
+      list: async () => ({ fileVersion: 2, highlights: [highlight], notes: [] }),
+      deleteHighlight: async () => { throw new Error("HIGHLIGHT_DELETE_FAILED"); },
+    }));
+    await model.load();
+
+    await expect(model.deleteHighlight(highlight)).rejects.toThrow("HIGHLIGHT_DELETE_FAILED");
+
+    expect(model.snapshot.highlights).toEqual([highlight]);
+    expect(model.snapshot.deleteError).toBe("划线没有删除，请重试。");
   });
 });

@@ -262,4 +262,35 @@ describe("private book detail notes view", () => {
     expect(html.match(/data-book-detail-edit-note/g)).toHaveLength(3);
     expect(html.match(/data-book-detail-delete-note/g)).toHaveLength(3);
   });
+
+  it("gives each highlight row one accessible overflow entry point", () => {
+    const html = renderBookDetail({
+      open: true,
+      loading: false,
+      error: "",
+      title: "一本书",
+      author: "作者",
+      fileVersion: 2,
+      activeTab: "highlights",
+      highlights: [{
+        id: "highlight-1",
+        bookId: "book-1",
+        locator: { kind: "text", fileVersion: 2, sectionId: "txt:0", offset: 4 },
+        endOffset: 8,
+        quote: "留给下次回看的句子。",
+        thought: "这句值得记住。",
+        version: 3,
+        createdAt: "2026-08-25T00:00:00.000Z",
+        updatedAt: "2026-08-25T00:00:00.000Z",
+      }],
+      notes: [],
+      draft: null,
+      saveError: "",
+      deleteError: "",
+    });
+    expect(html).toContain('data-book-detail-highlight-menu');
+    expect(html).toContain('aria-label="打开划线操作" tabindex="0"');
+    expect(html).toContain('role="menuitem" data-book-detail-delete-highlight="highlight-1"');
+    expect(html).toContain("删除");
+  });
 });

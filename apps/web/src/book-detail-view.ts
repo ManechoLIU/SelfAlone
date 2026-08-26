@@ -28,7 +28,7 @@ function renderHighlight(highlight: TextHighlight) {
   return `<article class="book-detail-highlight-row" data-highlight-id="${escapeHtml(highlight.id)}">
     <blockquote>${escapeHtml(highlight.quote)}</blockquote>
     ${highlight.thought ? `<p class="book-detail-thought">${escapeHtml(highlight.thought)}</p>` : `<p class="book-detail-muted">还没有写下想法</p>`}
-    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div><span class="book-detail-row-kind">划线</span></div>
+    <div class="book-detail-row-footer"><div class="book-detail-row-meta"><span>${sourceMeta(highlight)}</span><time datetime="${escapeHtml(highlight.createdAt)}">${dateLabel(highlight.createdAt)}</time></div><div class="book-detail-row-actions"><span class="book-detail-row-kind">划线</span><details class="book-detail-row-menu" data-book-detail-highlight-menu><summary aria-label="打开划线操作" tabindex="0">${moreIcon}<span class="visually-hidden">打开划线操作</span></summary><div class="book-detail-row-menu-panel" role="menu"><button type="button" role="menuitem" data-book-detail-delete-highlight="${escapeHtml(highlight.id)}">删除</button></div></details></div></div>
   </article>`;
 }
 

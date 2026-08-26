@@ -287,6 +287,22 @@ export function createBookDetailModel(
         throw error;
       }
     },
+    async deleteHighlight(highlight: TextHighlight) {
+      model.snapshot = { ...model.snapshot, deleteError: "" };
+      try {
+        const result = await api.deleteHighlight(highlight.id, { expectedVersion: highlight.version });
+        if (result.status !== "deleted") throw new Error("HIGHLIGHT_DELETE_FAILED");
+        model.snapshot = {
+          ...model.snapshot,
+          highlights: model.snapshot.highlights.filter((item) => item.id !== result.id),
+          deleteError: "",
+        };
+        return result;
+      } catch (error) {
+        model.snapshot = { ...model.snapshot, deleteError: "划线没有删除，请重试。" };
+        throw error;
+      }
+    },
   };
   void bookId;
   return model;

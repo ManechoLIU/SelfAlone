@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import type { TextHighlight } from "@selfalone/contracts";
 import {
   clearTextAnnotationSelection,
   createTextAnnotationApi,
+  createTextAnnotationController,
   createTextAnnotationKeyboardBinding,
   detailFocusIndex,
   detailFocusableElements,
@@ -18,6 +20,18 @@ const selection: TextAnnotationSelection = {
     quote: "灯塔亮了",
   },
   rect: { top: 180, bottom: 224, left: 420, right: 580, width: 160, height: 44 },
+};
+
+const highlight: TextHighlight = {
+  id: "highlight-1",
+  bookId: "book-1",
+  locator: { kind: "text", fileVersion: 2, sectionId: "txt:0", offset: 4 },
+  endOffset: 8,
+  quote: "灯塔亮了",
+  thought: null,
+  version: 2,
+  createdAt: "2026-08-25T00:00:00.000Z",
+  updatedAt: "2026-08-25T00:00:00.000Z",
 };
 
 const annotationSnapshot: TextAnnotationSnapshot = {
@@ -165,5 +179,63 @@ describe("desktop text annotation API", () => {
         body: JSON.stringify(input),
       }),
     );
+  });
+
+  it("refreshes the detail state after a bound highlight delete action", async () => {
+    let deleted = false;
+    let listCalls = 0;
+    const api = {
+      list: async () => {
+        listCalls += 1;
+        return { fileVersion: 2, highlights: deleted ? [] : [highlight], notes: [] };
+      },
+      createHighlight: async () => { throw new Error("NOT_USED"); },
+      updateHighlight: async () => { throw new Error("NOT_USED"); },
+      deleteHighlight: async (id: string, input: { expectedVersion: number }) => {
+        expect(id).toBe("highlight-1");
+        expect(input.expectedVersion).toBe(2);
+        deleted = true;
+        return { status: "deleted" as const, id };
+      },
+      createNote: async () => { throw new Error("NOT_USED"); },
+      updateNote: async () => { throw new Error("NOT_USED"); },
+      deleteNote: async () => { throw new Error("NOT_USED"); },
+    };
+    const deleteButton = new EventTarget() as EventTarget & { dataset: { bookDetailDeleteHighlight: string } };
+    deleteButton.dataset = { bookDetailDeleteHighlight: "highlight-1" };
+    const root = {
+      querySelectorAll: (selector: string) => selector === "[data-book-detail-delete-highlight]" ? [deleteButton] : [],
+      querySelector: () => null,
+    } as unknown as HTMLElement;
+    vi.stubGlobal("document", new EventTarget());
+    vi.stubGlobal("window", { setTimeout });
+    const renders: number[] = [];
+    const controller = createTextAnnotationController({
+      bookId: "book-1",
+      api,
+      getReaderContext: () => ({ root, sections: [], reading: null }),
+      onRender: () => renders.push(listCalls),
+    });
+    controller.details.snapshot = {
+      ...controller.details.snapshot,
+      open: true,
+      fileVersion: 2,
+      highlights: [highlight],
+      notes: [],
+    };
+
+    try {
+      controller.bind(root);
+      deleteButton.dispatchEvent(new Event("click"));
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+      expect(deleted).toBe(true);
+      expect(listCalls).toBe(2);
+      expect(renders).toEqual([2]);
+      expect(controller.details.snapshot.highlights).toEqual([]);
+    } finally {
+      controller.destroy();
+      vi.unstubAllGlobals();
+    }
   });
 });

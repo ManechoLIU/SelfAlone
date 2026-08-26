@@ -567,6 +567,13 @@ export function createTextAnnotationController(options: {
         void details.deleteNote(note).then(refreshBoth).catch(rerender);
       });
     });
+    root.querySelectorAll<HTMLButtonElement>('[data-book-detail-delete-highlight]').forEach((button) => {
+      button.addEventListener("click", () => {
+        const highlight = details.snapshot.highlights.find((item) => item.id === button.dataset.bookDetailDeleteHighlight);
+        if (!highlight) return;
+        void details.deleteHighlight(highlight).then(refreshBoth).catch(() => rerender());
+      });
+    });
     root.querySelectorAll<HTMLButtonElement>("[data-book-detail-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         const tab = button.dataset.bookDetailTab;
