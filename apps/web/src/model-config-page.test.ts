@@ -99,4 +99,17 @@ describe("settings routes and pages", () => {
     expect(html).toContain("确认移除");
     expect(html).toContain("保留当前配置");
   });
+
+  it("does not claim model access continues after the credential is revoked", () => {
+    const html = renderTextModelPage({
+      status: "success",
+      credential: null,
+      draft: createTextModelDraft(null),
+      returnTo: "#/settings",
+      notice: "文本模型配置已移除",
+    });
+    expect(html).toContain("已移除保存的凭证");
+    expect(html).toContain("书籍、笔记和历史作品不受影响");
+    expect(html).not.toContain("可以继续使用 AI 能力");
+  });
 });

@@ -155,7 +155,10 @@ export function renderTextModelPage(state: TextModelPageState) {
     return `<section class="text-model-page" aria-labelledby="text-model-title">${backLink}<header class="text-model-header"><p>AI 能力</p><h1 id="text-model-title">文本模型</h1></header><section class="model-config-state model-config-state--error" role="alert"><strong>文本模型配置暂时不可用</strong><p>${escapeHtml(state.message)}</p><button class="settings-secondary" data-settings-action="text-model-reload" type="button">重新加载</button></section></section>`;
   }
   if (state.status === "success") {
-    return `<section class="text-model-page" aria-labelledby="text-model-title">${backLink}<header class="text-model-header"><p>AI 能力</p><h1 id="text-model-title">文本模型</h1></header><section class="model-config-success" role="status"><strong>${escapeHtml(state.notice)}</strong><p>配置已保存，可以继续使用 AI 能力。</p><a class="settings-primary model-config-success__back" href="${escapeHtml(state.returnTo)}">返回设置</a></section></section>`;
+    const outcome = state.credential
+      ? "配置已保存，可以继续使用 AI 能力。"
+      : "已移除保存的凭证；书籍、笔记和历史作品不受影响。";
+    return `<section class="text-model-page" aria-labelledby="text-model-title">${backLink}<header class="text-model-header"><p>AI 能力</p><h1 id="text-model-title">文本模型</h1></header><section class="model-config-success" role="status"><strong>${escapeHtml(state.notice)}</strong><p>${outcome}</p><a class="settings-primary model-config-success__back" href="${escapeHtml(state.returnTo)}">返回设置</a></section></section>`;
   }
   return `<section class="text-model-page" aria-labelledby="text-model-title">${backLink}<header class="text-model-header"><p>AI 能力</p><h1 id="text-model-title">文本模型</h1><span>配置自己的 AI 模型后，老己才会使用对应供应商生成内容。</span></header>${renderTextModelForm(state)}</section>`;
 }

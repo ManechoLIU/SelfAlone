@@ -116,18 +116,19 @@ export class ModelConfigRuntime {
     const now = new Date();
 
     await this.#sql.begin(async (transaction) => {
-      const [current] = await transaction<Array<{ revision: number }>>`
+      const [current] = await transaction<Array<{ revision: string }>>`
         SELECT revision
         FROM model_credentials
         WHERE account_id = ${accountId}
         FOR UPDATE
       `;
-      const currentRevision = current?.revision ?? 0;
+      const currentRevision = current?.revision ?? "0";
       if (currentRevision !== expectedRevision) {
         throw new TextModelConfigurationError("STALE_VERSION");
       }
       if (current) {
-        await updateCredential(transaction, accountId, normalized, encrypted, currentRevision + 1, now);
+        const nextRevision = (BigInt(currentRevision) + 1n).toString();
+        await updateCredential(transaction, accountId, normalized, encrypted, nextRevision, now);
       } else {
         const inserted = await transaction<Array<{ revision: number }>>`
           INSERT INTO model_credentials (
@@ -184,10 +185,10 @@ export class ModelConfigRuntime {
   }
 
   async #readRevision(accountId: string) {
-    const [row] = await this.#sql<Array<{ revision: number }>>`
+    const [row] = await this.#sql<Array<{ revision: string }>>`
       SELECT revision FROM model_credentials WHERE account_id = ${accountId}
     `;
-    return row?.revision ?? 0;
+    return row?.revision ?? "0";
   }
 
   async #validate(input: NormalizedTextModelCredentialInput) {
@@ -213,7 +214,7 @@ async function updateCredential(
   accountId: string,
   normalized: NormalizedTextModelCredentialInput,
   encrypted: EncryptedApiKey,
-  revision: number,
+  revision: string,
   now: Date,
 ) {
   await transaction`

@@ -182,6 +182,29 @@ describe("account-scoped model credential runtime", () => {
     })).json()).toBeNull();
   });
 
+  it("increments a persisted bigint revision numerically when replacing a credential", async () => {
+    const harness = await setup();
+    const account = await register(harness.app, "revision-model@example.com");
+    await put(harness.app, account.cookie, { provider: "deepseek", apiKey: "first-secret-1234" });
+    await resources[0]!.db`
+      UPDATE model_credentials
+      SET revision = 9
+      WHERE account_id = ${account.accountId}
+    `;
+
+    const replaced = await put(harness.app, account.cookie, {
+      provider: "deepseek",
+      apiKey: "replacement-secret-5678",
+    });
+    expect(replaced.statusCode).toBe(200);
+    const [row] = await resources[0]!.db<Array<{ revision: string }>>`
+      SELECT revision
+      FROM model_credentials
+      WHERE account_id = ${account.accountId}
+    `;
+    expect(row?.revision).toBe("10");
+  });
+
   it("preserves prototype-backed account settings methods when adding the model overview", async () => {
     const harness = await setup();
     const account = await register(harness.app, "settings-model@example.com");
