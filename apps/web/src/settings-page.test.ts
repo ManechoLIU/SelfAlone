@@ -151,4 +151,14 @@ describe("desktop settings page candidate", () => {
     expect(mainSource).toContain("focusSettingsField(settingsFocusField ||");
     expect(mainSource).toContain("accountError: message,\n      draft,");
   });
+
+  it("clears stale field errors when API validation fails after draft validation", () => {
+    const submitCatch = mainSource.match(
+      /  } catch \(error\) \{\n    const code = error instanceof ApiError[\s\S]*?\n  \}\n  if \(isTextModelSettingsRoute\(\)\)/,
+    )?.[0];
+
+    expect(submitCatch).toContain("fieldErrors: undefined,");
+    expect(submitCatch).toContain("draft,");
+    expect(submitCatch).toContain("error: getTextModelErrorMessage(code),");
+  });
 });

@@ -393,6 +393,7 @@ async function submitTextModelForm(form: HTMLFormElement) {
         ...current,
         status: "editing",
         draft,
+        fieldErrors: undefined,
         validating: false,
         error: getTextModelErrorMessage(code),
       },
