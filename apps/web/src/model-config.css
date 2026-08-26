@@ -1,0 +1,312 @@
+.settings-page > .text-model-page {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 0;
+}
+
+.text-model-page {
+  color: var(--settings-ink);
+}
+
+.model-config-back {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--settings-accent);
+  font-size: 14px;
+  line-height: 22px;
+  text-decoration: none;
+}
+
+.model-config-back:hover {
+  color: var(--settings-ink);
+}
+
+.text-model-header {
+  width: min(680px, 100%);
+  margin-top: 30px;
+}
+
+.text-model-header > p {
+  margin: 0 0 6px;
+  color: var(--settings-muted);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+
+.text-model-header h1 {
+  margin: 0;
+  color: var(--settings-ink);
+  font-size: 26px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+.text-model-header > span {
+  display: block;
+  margin-top: 10px;
+  color: var(--settings-muted);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.model-config-state {
+  width: min(680px, 100%);
+  min-height: 220px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 12px;
+  color: var(--settings-muted);
+  font-size: 15px;
+  line-height: 24px;
+  text-align: center;
+}
+
+.model-config-state p {
+  margin: 0;
+}
+
+.model-config-state--error {
+  place-content: start;
+  justify-items: start;
+  padding: 24px 0;
+  text-align: left;
+}
+
+.model-config-state--error strong {
+  color: var(--settings-ink);
+}
+
+.model-config-form {
+  width: min(680px, 100%);
+  margin-top: 32px;
+  padding: 24px;
+  border: 1px solid var(--settings-line);
+  border-radius: 12px;
+  background: var(--settings-surface);
+}
+
+.model-config-field + .model-config-field {
+  margin-top: 22px;
+}
+
+.model-config-field > label {
+  display: block;
+  color: var(--settings-ink);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.model-config-field input,
+.model-config-field select {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  color: var(--settings-ink);
+  background: #fff;
+  font: inherit;
+}
+
+.model-config-field input:focus-visible,
+.model-config-field select:focus-visible,
+.model-config-secret-toggle:focus-visible,
+.model-config-danger-link:focus-visible {
+  border-color: var(--settings-accent);
+  outline: 2px solid var(--settings-accent);
+  outline-offset: 1px;
+}
+
+.model-config-field input[readonly] {
+  color: var(--settings-muted);
+  background: #f5f8f6;
+}
+
+.model-config-field-help {
+  margin: 7px 0 0;
+  color: var(--settings-muted);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.model-config-secret-field {
+  position: relative;
+}
+
+.model-config-secret-field input {
+  padding-right: 82px;
+}
+
+.model-config-secret-toggle {
+  position: absolute;
+  top: 9px;
+  right: 3px;
+  min-width: 72px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  color: var(--settings-accent);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.model-config-secret-toggle:hover {
+  color: var(--settings-ink);
+}
+
+.model-config-field-error,
+.model-config-form-error {
+  margin: 8px 0 0;
+  color: var(--settings-danger);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.model-config-form-error {
+  padding: 11px 13px;
+  border: 1px solid #e6c5bc;
+  border-radius: 8px;
+  background: #fff7f4;
+}
+
+.model-config-form-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.model-config-form-actions .settings-primary {
+  flex: 1 1 220px;
+  width: auto;
+}
+
+.model-config-form-actions .model-config-back {
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 92px;
+  padding: 10px 16px;
+  border: 1px solid var(--settings-line);
+  border-radius: 8px;
+  color: var(--settings-ink);
+}
+
+.model-config-form-actions .model-config-back:hover {
+  color: var(--settings-accent);
+}
+
+.model-config-danger-zone {
+  width: min(680px, 100%);
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--settings-line);
+}
+
+.model-config-danger-zone p {
+  margin: 0;
+  color: var(--settings-muted);
+  font-size: 12px;
+  line-height: 19px;
+}
+
+.model-config-danger-link {
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 8px 0;
+  border: 0;
+  color: var(--settings-danger);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.model-config-danger-link:hover {
+  text-decoration: underline;
+}
+
+.model-config-confirm {
+  position: fixed;
+  z-index: 12;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(33, 49, 45, .22);
+}
+
+.model-config-confirm-card {
+  width: min(100%, 420px);
+  padding: 28px;
+  border: 1px solid var(--settings-line);
+  border-radius: 16px;
+  background: var(--settings-surface);
+  box-shadow: 0 8px 24px rgba(33, 49, 45, .1);
+}
+
+.model-config-confirm-card h2 {
+  margin: 0;
+  color: var(--settings-ink);
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.model-config-confirm-card p {
+  margin: 12px 0 0;
+  color: var(--settings-muted);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.model-config-success {
+  width: min(680px, 100%);
+  margin-top: 32px;
+  padding: 22px 24px;
+  border: 1px solid #bed7ca;
+  border-radius: 12px;
+  color: var(--settings-accent);
+  background: #f4faf6;
+}
+
+.model-config-success strong {
+  font-size: 17px;
+  line-height: 25px;
+}
+
+.model-config-success p {
+  margin: 8px 0 18px;
+  color: var(--settings-muted);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.model-config-success__back {
+  width: fit-content;
+  display: inline-flex;
+  text-decoration: none;
+}
+
+@media (max-width: 768px) {
+  .model-config-form {
+    padding: 20px;
+  }
+
+  .model-config-form-actions .settings-primary,
+  .model-config-form-actions .model-config-back {
+    flex-basis: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-config-secret-toggle,
+  .model-config-danger-link {
+    transition: none;
+  }
+}

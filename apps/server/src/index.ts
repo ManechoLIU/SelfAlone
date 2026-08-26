@@ -15,6 +15,11 @@ import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
 import { createTextReaderRuntime } from "./text-reader";
 import { createTextAnnotationRuntime } from "./text-annotation-runtime";
 import { migrateTextAnnotationSchema } from "./text-annotation-migration";
+import {
+  createDeepSeekTextModelAdapter,
+  createDevelopmentTextModelValidator,
+} from "./deepseek-text-model-adapter";
+import { createModelConfigRuntime } from "./model-config-runtime";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
 import { createConversationResponderForMode } from "./conversation-responder";
@@ -58,6 +63,26 @@ try {
   await settingsMigrationDatabase.end();
 }
 const accountSettings = await createAccountSettingsRuntime({ databaseUrl });
+const modelConfigValidatorMode = process.env.MODEL_CONFIG_VALIDATOR_MODE;
+if (modelConfigValidatorMode === "fake" && process.env.APP_ENV !== "development") {
+  throw new Error("DEVELOPMENT_ADAPTER_DISABLED");
+}
+const modelConfigValidator = modelConfigValidatorMode === "fake"
+  ? createDevelopmentTextModelValidator(process.env.MODEL_CONFIG_FAKE_KEY)
+  : process.env.DEEPSEEK_VALIDATION_ENDPOINT && process.env.DEEPSEEK_VALIDATION_MODEL
+    ? createDeepSeekTextModelAdapter({
+      catalog: {
+        endpoint: process.env.DEEPSEEK_VALIDATION_ENDPOINT,
+        model: process.env.DEEPSEEK_VALIDATION_MODEL,
+      },
+    })
+    : undefined;
+const modelConfig = await createModelConfigRuntime({
+  databaseUrl,
+  appEnv: process.env.APP_ENV,
+  encryptionKey: process.env.MODEL_CREDENTIALS_ENCRYPTION_KEY,
+  validator: modelConfigValidator,
+});
 const runtime = await createM0Runtime({ databaseUrl, artifactDirectory });
 const bookPresentationDatabase = postgres(databaseUrl, { max: 2 });
 const bookPresentation = createBookPresentationService(
@@ -134,7 +159,8 @@ const app = createApp({
     && (await runtime.ready())
     && (await library.ready())
     && (await textReader.ready())
-    && (await textAnnotations.ready()),
+    && (await textAnnotations.ready())
+    && (await modelConfig.ready()),
   library,
   bookPresentation,
   auth,
@@ -142,6 +168,7 @@ const app = createApp({
   textReader,
   textAnnotations,
   accountSettings: accountSettings,
+  modelConfig,
   conversation,
   selection,
   trialQuota,
@@ -154,6 +181,7 @@ const shutdown = async () => {
   await textReader.close();
   await runtime.close();
   await accountSettings.close();
+  await modelConfig.close();
   await auth.close();
   await bookPresentationDatabase.end({ timeout: 2 });
   await conversationSql.end();

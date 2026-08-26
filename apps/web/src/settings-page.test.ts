@@ -88,6 +88,32 @@ describe("desktop settings page candidate", () => {
     expect(html).toContain("保存并验证");
   });
 
+  it("renders the text model detail within the authenticated settings shell", () => {
+    const state = createSettingsState(settings);
+    const html = renderSettingsPage({
+      ...state,
+      view: "text-model",
+      textModel: {
+        status: "editing",
+        credential: null,
+        draft: {
+          provider: "deepseek",
+          apiKey: "fake-browser-key",
+          workspaceId: "",
+          existingMaskedApiKey: "",
+          showApiKey: false,
+        },
+        returnTo: "#/settings",
+        error: "校验未通过，请检查 API Key。",
+      },
+    });
+    expect(html).toContain('data-settings-page="text-model"');
+    expect(html).toContain('id="text-model-api-key"');
+    expect(html).toContain("检测并保存");
+    expect(html).toContain("校验未通过");
+    expect(html).not.toContain("fake-browser-key");
+  });
+
   it("uses an explicit logout confirmation and labels the destructive action", () => {
     const html = renderSettingsPage({
       ...createSettingsState(settings),

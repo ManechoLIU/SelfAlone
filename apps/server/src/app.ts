@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import { createReadStream } from "node:fs";
 import { z } from "zod";
+import { TEXT_MODEL_PROVIDER_OPTIONS } from "@selfalone/domain";
 import { resolveAccountOwner } from "./account-owner";
 import { registerAccountSettingsRoutes, type AccountSettingsService } from "./account-settings-routes";
 import type { AuthRuntime } from "./auth-runtime";
@@ -18,6 +19,7 @@ import {
   registerTextAnnotationRoutes,
   type TextAnnotationService,
 } from "./text-annotation-runtime";
+import type { ModelConfigRuntime } from "./model-config-runtime";
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
@@ -31,6 +33,7 @@ type AppDependencies = {
     "list" | "createHighlight" | "updateHighlight" | "deleteHighlight" | "createNote" | "updateNote" | "deleteNote"
   >;
   accountSettings?: AccountSettingsService;
+  modelConfig?: Pick<ModelConfigRuntime, "getStatus" | "configure" | "revoke">;
   conversation?: ConversationRouteRuntime;
   selection?: ConversationSelectionRouteRuntime;
   trialQuota?: TrialQuotaRouteRuntime;
@@ -190,7 +193,66 @@ export function createApp(dependencies: AppDependencies) {
   }
 
   if (dependencies.accountSettings) {
-    registerAccountSettingsRoutes(app, dependencies.accountSettings, resolveAccountId);
+    const accountSettings = dependencies.accountSettings;
+    const settingsService: AccountSettingsService = dependencies.modelConfig
+      ? {
+        async getOverview(accountId) {
+          const overview = await accountSettings.getOverview(accountId);
+          const textModel = await dependencies.modelConfig!.getStatus(accountId);
+          const providerLabel = textModel
+            ? TEXT_MODEL_PROVIDER_OPTIONS.find((option) => option.id === textModel.provider)?.label
+            : undefined;
+          const existingServices = (overview as typeof overview & {
+            services?: Record<string, unknown>;
+          }).services ?? {};
+          return {
+            ...overview,
+            services: {
+              ...existingServices,
+              textModel: textModel
+                ? {
+                  connected: true,
+                  label: `${providerLabel ?? "文本模型"} · ${textModel.maskedApiKey}`,
+                }
+                : { connected: false, label: "未配置" },
+            },
+          };
+        },
+        requestEmailChange: accountSettings.requestEmailChange.bind(accountSettings),
+        confirmEmailChange: accountSettings.confirmEmailChange.bind(accountSettings),
+        changePassword: accountSettings.changePassword.bind(accountSettings),
+        requestPasswordReset: accountSettings.requestPasswordReset.bind(accountSettings),
+        confirmPasswordReset: accountSettings.confirmPasswordReset.bind(accountSettings),
+      }
+      : accountSettings;
+    registerAccountSettingsRoutes(app, settingsService, resolveAccountId);
+  }
+
+  if (dependencies.modelConfig) {
+    const modelConfig = dependencies.modelConfig;
+    const textModelCredentialBody = z.object({
+      provider: z.string().trim().min(1).max(32),
+      apiKey: z.string().min(1).max(4_096),
+      workspaceId: z.string().trim().min(1).max(256).optional(),
+    }).strict();
+
+    app.get("/api/v1/model-credentials/text", async (request) => {
+      return modelConfig.getStatus(resolveAccountId(request.headers as Record<string, unknown>));
+    });
+
+    app.put("/api/v1/model-credentials/text", async (request, reply) => {
+      const body = textModelCredentialBody.parse(request.body);
+      const result = await modelConfig.configure(
+        resolveAccountId(request.headers as Record<string, unknown>),
+        body,
+      );
+      return reply.code(200).send(result);
+    });
+
+    app.delete("/api/v1/model-credentials/text", async (request, reply) => {
+      await modelConfig.revoke(resolveAccountId(request.headers as Record<string, unknown>));
+      return reply.code(204).send();
+    });
   }
 
   if (dependencies.conversation) {
@@ -282,6 +344,18 @@ export function createApp(dependencies: AppDependencies) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     if (message === "STALE_VERSION") {
       return reply.code(409).send({ code: "STALE_VERSION" });
+    }
+    if (message === "MODEL_CREDENTIALS_INVALID_REQUEST") {
+      return reply.code(400).send({ code: message });
+    }
+    if (message === "MODEL_CREDENTIAL_VALIDATION_FAILED") {
+      return reply.code(422).send({ code: message });
+    }
+    if (
+      message === "MODEL_CREDENTIAL_VALIDATION_UNAVAILABLE"
+      || message === "MODEL_ENCRYPTION_KEY_REQUIRED"
+    ) {
+      return reply.code(503).send({ code: message });
     }
     if (message.endsWith("_NOT_FOUND")) {
       return reply.code(404).send({ code: message });

@@ -1,4 +1,5 @@
 import type { SettingsOverview, SettingsServiceStatus, SettingsState } from "./settings-state";
+import { renderTextModelPage } from "./model-config-page";
 
 function escapeHtml(value: string) {
   return value
@@ -143,6 +144,11 @@ function renderLogoutDialog(state: SettingsState) {
 
 export function renderSettingsPage(state: SettingsState) {
   const isLoading = state.phase === "loading";
+  if (state.view === "text-model") {
+    return `<main class="settings-page" data-settings-page="text-model" data-settings-phase="${state.phase}" aria-busy="${state.textModel.status === "loading"}">
+      ${renderTextModelPage(state.textModel)}
+    </main>`;
+  }
   const content = state.view === "account"
     ? renderAccountDetail(state)
     : state.overview
