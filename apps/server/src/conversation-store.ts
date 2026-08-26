@@ -1,5 +1,10 @@
 import type { Sql, TransactionSql } from "postgres";
 import {
+  createConversationResponder,
+  type ConversationResponder,
+} from "./conversation-responder";
+export type { ConversationResponder } from "./conversation-responder";
+import {
   cloneConversationSession,
   type ConversationRuntimeContextEntry,
   type ConversationRuntimeSession,
@@ -11,13 +16,9 @@ export type ConversationMessageRecord = ConversationRuntimeContextEntry & {
   conversationId: string;
 };
 
-export type ConversationResponder = (
-  text: string,
-  context: readonly ConversationRuntimeContextEntry[],
-) => Promise<string>;
-
 export type ConversationStoreOptions = {
   respond?: ConversationResponder;
+  responder?: ConversationResponder;
 };
 
 export type ConversationSendResult =
@@ -54,7 +55,7 @@ type ConversationRow = {
 const asPostgresJson = (session: ConversationRuntimeSession): Parameters<Sql["json"]>[0] =>
   JSON.parse(JSON.stringify(session)) as Parameters<Sql["json"]>[0];
 
-const defaultResponder: ConversationResponder = async (text) => `我先记下：${text.trim()}`;
+const unconfiguredResponder = createConversationResponder();
 
 export class ConversationStore {
   readonly #sql: Sql;
@@ -64,7 +65,7 @@ export class ConversationStore {
   constructor(sql: Sql, domain: ConversationStateMachine, options: ConversationStoreOptions = {}) {
     this.#sql = sql;
     this.#domain = domain;
-    this.#respond = options.respond ?? defaultResponder;
+    this.#respond = options.responder ?? options.respond ?? unconfiguredResponder;
   }
 
   async createSession(accountId: string, conversationId: string): Promise<ConversationRuntimeSession> {

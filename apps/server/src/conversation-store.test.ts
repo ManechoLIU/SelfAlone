@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { migrateConversationSchema } from "./conversation-migration";
+import { createDevelopmentConversationResponder } from "./conversation-responder";
 import { ConversationStore } from "./conversation-store";
 
 const domainModulePath = "../../../packages/domain/src/" + "conversation-session";
@@ -36,7 +37,9 @@ describe("conversation store", () => {
 
   it("persists a deterministic local reply that a fresh store can recover", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_reply");
-    const firstStore = new ConversationStore(setup.sql, domainStateMachine);
+    const firstStore = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: createDevelopmentConversationResponder(),
+    });
     await firstStore.createSession("account-a", "conversation-a");
 
     const sent = await firstStore.sendText({
@@ -48,7 +51,7 @@ describe("conversation store", () => {
 
     expect(sent.status).toBe("completed");
     if (sent.status !== "completed") throw new Error("expected completed send");
-    expect(sent.reply).toBe("我先记下：请记住这一段");
+    expect(sent.reply).toBe("基于 1 条对话上下文回应：user: 请记住这一段");
     expect(sent.session.draft).toBeNull();
     const [stored] = await setup.sql<{ stateType: string }[]>`
       SELECT jsonb_typeof(state) AS "stateType"
@@ -64,10 +67,73 @@ describe("conversation store", () => {
       {
         id: "request-a-1:assistant",
         role: "assistant",
-        text: "我先记下：请记住这一段",
+        text: "基于 1 条对话上下文回应：user: 请记住这一段",
         requestId: "request-a-1",
       },
     ]);
+  });
+
+  it("passes the ordered context, including the current user entry, to the responder", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_context");
+    const contexts: Array<readonly unknown[]> = [];
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async (_text, context) => {
+        contexts.push(context);
+        return `上下文：${context.map((entry) => entry.text).join(" / ")}`;
+      },
+    });
+    await store.createSession("account-a", "conversation-a");
+
+    await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-context-1",
+      text: "第一轮",
+    });
+    const second = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-context-2",
+      text: "第二轮",
+    });
+
+    expect(contexts).toEqual([
+      [
+        { id: "request-context-1:user", role: "user", text: "第一轮", requestId: "request-context-1" },
+      ],
+      [
+        { id: "request-context-1:user", role: "user", text: "第一轮", requestId: "request-context-1" },
+        { id: "request-context-1:assistant", role: "assistant", text: "上下文：第一轮", requestId: "request-context-1" },
+        { id: "request-context-2:user", role: "user", text: "第二轮", requestId: "request-context-2" },
+      ],
+    ]);
+    expect(second).toMatchObject({
+      status: "completed",
+      reply: "上下文：第一轮 / 上下文：第一轮 / 第二轮",
+    });
+  });
+
+  it("fails closed and retains the draft when no responder is configured", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_no_responder");
+    const store = new ConversationStore(setup.sql, domainStateMachine);
+    await store.createSession("account-a", "conversation-a");
+
+    const sent = await store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "request-no-responder",
+      text: "没有 responder 也不能丢失",
+    });
+
+    expect(sent).toMatchObject({
+      status: "failed",
+      errorCode: "CONVERSATION_REPLY_FAILED",
+      retainedDraft: { text: "没有 responder 也不能丢失", attachments: [] },
+      session: {
+        draft: { text: "没有 responder 也不能丢失", attachments: [] },
+        activeRun: null,
+      },
+    });
   });
 
   it("retains the original input when the local responder fails", async () => {
@@ -221,7 +287,9 @@ describe("conversation store", () => {
 
   it("allows the same request id for two accounts and keeps retries account-scoped", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_request_owner");
-    const store = new ConversationStore(setup.sql, domainStateMachine);
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: createDevelopmentConversationResponder(),
+    });
     await store.createSession("account-a", "conversation-a");
     await store.createSession("account-b", "conversation-b");
 
@@ -252,8 +320,14 @@ describe("conversation store", () => {
 
     expect(firstA.status).toBe("completed");
     expect(firstB.status).toBe("completed");
-    expect(retryA).toMatchObject({ status: "completed", reply: "我先记下：账户 A 的消息" });
-    expect(retryB).toMatchObject({ status: "completed", reply: "我先记下：账户 B 的消息" });
+    expect(retryA).toMatchObject({
+      status: "completed",
+      reply: "基于 1 条对话上下文回应：user: 账户 A 的消息",
+    });
+    expect(retryB).toMatchObject({
+      status: "completed",
+      reply: "基于 1 条对话上下文回应：user: 账户 B 的消息",
+    });
     const rows = await setup.sql<{ accountId: string; conversationId: string; id: string }[]>`
       SELECT account_id AS "accountId", conversation_id AS "conversationId", id
       FROM messages
