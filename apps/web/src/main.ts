@@ -1,7 +1,14 @@
 import "./styles.css";
 import "./book-detail.css";
 import "./settings-page.css";
-import { ApiError, requestJson as requestAuthJson } from "./api";
+import "./model-config.css";
+import {
+  ApiError,
+  deleteTextModelCredential,
+  getTextModelCredential,
+  requestJson as requestAuthJson,
+  saveTextModelCredential,
+} from "./api";
 import {
   conversationHash,
   outlineDraftStorageKey,
@@ -78,12 +85,24 @@ import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
 import { renderSettingsPage } from "./settings-page";
 import {
+  createTextModelDraft,
+  getTextModelErrorMessage,
+  isCurrentTextModelRequest,
+  textModelProviderLabel,
+  validateTextModelDraft,
+  type TextModelDraft,
+} from "./model-config";
+import { parseSettingsRoute } from "./model-config-page";
+import {
   createSettingsState,
+  createTextModelPageState,
   parseSettingsDraft,
+  resolveTextModelPage,
   resolveSettingsOverview,
   serializeSettingsDraft,
   settingsDraftStorageKey,
   settingsErrorMessage,
+  textModelSettingsHash,
   type SettingsMutation,
   type SettingsMutationKind,
   type SettingsMutationPhase,
@@ -146,6 +165,8 @@ let conversationSelectionConversationId: string | null = null;
 let conversationSelectionHydrated = false;
 let settingsState: SettingsState = createSettingsState();
 let settingsRequestInFlight = false;
+let textModelRequestInFlight = false;
+let textModelRequestVersion = 0;
 let lastSettingsFocusField: string | null = null;
 let libraryState: LibraryLoadState = {
   loading: true,
@@ -222,6 +243,216 @@ function settingsShell(content: string) {
 function renderSettings() {
   app.innerHTML = settingsShell(renderSettingsPage(settingsState));
   bindSettingsInteractions();
+  restoreTextModelSecret();
+}
+
+function isTextModelSettingsRoute() {
+  return parseSettingsRoute(window.location.hash).kind === "text-model";
+}
+
+function textModelDraftFromDom(): TextModelDraft | null {
+  const current = settingsState.textModel;
+  if (current.status !== "editing" && current.status !== "confirm-revoke") return null;
+  const provider = document.querySelector<HTMLSelectElement>("#text-model-provider")?.value;
+  const apiKey = document.querySelector<HTMLInputElement>("#text-model-api-key")?.value;
+  const workspaceId = document.querySelector<HTMLInputElement>("#text-model-workspace")?.value;
+  return {
+    ...current.draft,
+    ...(provider ? { provider: provider as TextModelDraft["provider"] } : {}),
+    ...(apiKey !== undefined ? { apiKey } : {}),
+    ...(workspaceId !== undefined ? { workspaceId } : {}),
+  };
+}
+
+function restoreTextModelSecret() {
+  if (settingsState.view !== "text-model") return;
+  const current = settingsState.textModel;
+  if (current.status !== "editing" && current.status !== "confirm-revoke") return;
+  const input = document.querySelector<HTMLInputElement>("#text-model-api-key");
+  if (input) input.value = current.draft.apiKey;
+}
+
+function focusTextModelField(fieldName: string | null) {
+  const selectors: Record<string, string> = {
+    provider: "#text-model-provider",
+    apiKey: "#text-model-api-key",
+    workspaceId: "#text-model-workspace",
+  };
+  document.querySelector<HTMLElement>(selectors[fieldName ?? ""] ?? "#text-model-api-key")?.focus();
+}
+
+function textModelOverviewWithCredential(
+  overview: SettingsOverview | null,
+  credential: Awaited<ReturnType<typeof getTextModelCredential>>,
+) {
+  if (!overview) return overview;
+  const textModel = credential
+    ? {
+      connected: true,
+      label: `${textModelProviderLabel(credential.provider)} · ${credential.maskedApiKey}`,
+    }
+    : { connected: false, label: "未配置" };
+  return {
+    ...overview,
+    services: { ...overview.services, textModel },
+  };
+}
+
+async function loadTextModel(force = false) {
+  if (!isTextModelSettingsRoute() || textModelRequestInFlight) return;
+  const current = settingsState.textModel;
+  if (!force && current.status !== "loading" && current.status !== "error") return;
+  textModelRequestInFlight = true;
+  const requestVersion = ++textModelRequestVersion;
+  const requestRoute = window.location.hash;
+  const returnTo = current.returnTo || "#/settings";
+  settingsState = {
+    ...settingsState,
+    view: "text-model",
+    textModel: { status: "loading", returnTo },
+  };
+  renderSettings();
+  try {
+    const credential = await getTextModelCredential();
+    if (!isCurrentTextModelRequest(requestVersion, textModelRequestVersion, requestRoute, window.location.hash)) return;
+    settingsState = {
+      ...settingsState,
+      textModel: {
+        ...createTextModelPageState(credential),
+        returnTo,
+      },
+    };
+  } catch (error) {
+    if (!isCurrentTextModelRequest(requestVersion, textModelRequestVersion, requestRoute, window.location.hash)) return;
+    const code = error instanceof ApiError ? error.code : "REQUEST_FAILED";
+    settingsState = resolveTextModelPage(settingsState, new Error(code));
+  } finally {
+    textModelRequestInFlight = false;
+  }
+  if (isTextModelSettingsRoute()) renderSettings();
+}
+
+async function submitTextModelForm(form: HTMLFormElement) {
+  const current = settingsState.textModel;
+  if ((current.status !== "editing" && current.status !== "confirm-revoke") || current.validating) return;
+  const draft = textModelDraftFromDom() ?? current.draft;
+  const focusField = document.activeElement?.getAttribute("name")
+    || document.activeElement?.id.replace("text-model-", "")
+    || "apiKey";
+  const fieldErrors = validateTextModelDraft(draft);
+  settingsState = {
+    ...settingsState,
+    textModel: {
+      ...current,
+      status: "editing",
+      draft,
+      fieldErrors,
+      error: "",
+    },
+  };
+  if (Object.keys(fieldErrors).length > 0) {
+    renderSettings();
+    focusTextModelField(focusField);
+    return;
+  }
+  settingsState = {
+    ...settingsState,
+    textModel: {
+      ...current,
+      status: "editing",
+      draft,
+      fieldErrors: undefined,
+      error: "",
+      validating: true,
+    },
+  };
+  renderSettings();
+  try {
+    const credential = await saveTextModelCredential({
+      provider: draft.provider,
+      apiKey: draft.apiKey,
+      ...(draft.provider === "qwen" ? { workspaceId: draft.workspaceId } : {}),
+    });
+    if (!credential) throw new Error("MODEL_CREDENTIAL_VALIDATION_FAILED");
+    settingsState = {
+      ...settingsState,
+      overview: textModelOverviewWithCredential(settingsState.overview, credential),
+      textModel: {
+        status: "success",
+        credential,
+        draft: createTextModelDraft(credential),
+        returnTo: current.returnTo,
+        notice: "已配置，可继续",
+      },
+    };
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : error instanceof Error ? error.message : "REQUEST_FAILED";
+    settingsState = {
+      ...settingsState,
+      textModel: {
+        ...current,
+        status: "editing",
+        draft,
+        fieldErrors: undefined,
+        validating: false,
+        error: getTextModelErrorMessage(code),
+      },
+    };
+  }
+  if (isTextModelSettingsRoute()) {
+    renderSettings();
+    if (settingsState.textModel.status === "editing" && settingsState.textModel.error) {
+      focusTextModelField(focusField);
+    }
+  }
+}
+
+function beginTextModelRevoke() {
+  const current = settingsState.textModel;
+  if (current.status !== "editing" || current.validating || !current.credential) return;
+  const draft = textModelDraftFromDom() ?? current.draft;
+  settingsState = {
+    ...settingsState,
+    textModel: { ...current, status: "confirm-revoke", draft, error: "", fieldErrors: undefined },
+  };
+  renderSettings();
+  document.querySelector<HTMLButtonElement>('[data-settings-action="text-model-revoke-confirm"]')?.focus();
+}
+
+async function confirmTextModelRevoke() {
+  const current = settingsState.textModel;
+  if (current.status !== "confirm-revoke" || current.validating) return;
+  settingsState = {
+    ...settingsState,
+    textModel: { ...current, validating: true },
+  };
+  renderSettings();
+  try {
+    await deleteTextModelCredential();
+    settingsState = {
+      ...settingsState,
+      overview: textModelOverviewWithCredential(settingsState.overview, null),
+      textModel: {
+        status: "success",
+        credential: null,
+        draft: createTextModelDraft(null),
+        returnTo: current.returnTo,
+        notice: "文本模型配置已移除",
+      },
+    };
+  } catch (error) {
+    const code = error instanceof ApiError ? error.code : error instanceof Error ? error.message : "REQUEST_FAILED";
+    settingsState = {
+      ...settingsState,
+      textModel: {
+        ...current,
+        status: "editing",
+        validating: false,
+        error: getTextModelErrorMessage(code),
+      },
+    };
+  }
+  if (isTextModelSettingsRoute()) renderSettings();
 }
 
 function settingsMutation(
@@ -439,6 +670,40 @@ function bindSettingsInteractions() {
         lastSettingsFocusField = null;
         renderSettings();
         document.querySelector<HTMLButtonElement>('[data-settings-action="account"]')?.focus();
+      } else if (action === "text-model") {
+        const textModel = settingsState.textModel.status === "success"
+          ? createTextModelPageState(settingsState.textModel.credential)
+          : settingsState.textModel;
+        settingsState = { ...settingsState, view: "text-model", textModel };
+        window.history.pushState(null, "", textModelSettingsHash());
+        renderRoute();
+      } else if (action === "text-model-toggle-key") {
+        const current = settingsState.textModel;
+        if (current.status !== "editing") return;
+        const draft = textModelDraftFromDom() ?? current.draft;
+        settingsState = {
+          ...settingsState,
+          textModel: { ...current, draft: { ...draft, showApiKey: !draft.showApiKey } },
+        };
+        renderSettings();
+        document.querySelector<HTMLButtonElement>('[data-settings-action="text-model-toggle-key"]')?.focus();
+      } else if (action === "text-model-revoke") {
+        beginTextModelRevoke();
+      } else if (action === "text-model-revoke-cancel") {
+        const current = settingsState.textModel;
+        if (current.status !== "confirm-revoke") return;
+        settingsState = {
+          ...settingsState,
+          textModel: { ...current, status: "editing", error: "", fieldErrors: undefined, validating: false },
+        };
+        renderSettings();
+        restoreTextModelSecret();
+        document.querySelector<HTMLButtonElement>('[data-settings-action="text-model-revoke"]')?.focus();
+      } else if (action === "text-model-revoke-confirm") {
+        event.preventDefault();
+        void confirmTextModelRevoke();
+      } else if (action === "text-model-reload") {
+        void loadTextModel(true);
       } else if (action === "reload") {
         void loadSettings();
       } else if (action === "logout") {
@@ -490,6 +755,49 @@ function bindSettingsInteractions() {
   accountForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     void submitSettingsForm(event.currentTarget as HTMLFormElement);
+  });
+
+  const textModelForm = document.querySelector<HTMLFormElement>("#text-model-form");
+  textModelForm?.addEventListener("input", (event) => {
+    const target = event.target;
+    const current = settingsState.textModel;
+    if (current.status !== "editing" || !(target instanceof HTMLInputElement)) return;
+    if (target.name === "apiKey") {
+      settingsState = {
+        ...settingsState,
+        textModel: { ...current, draft: { ...current.draft, apiKey: target.value } },
+      };
+    } else if (target.name === "workspaceId") {
+      settingsState = {
+        ...settingsState,
+        textModel: { ...current, draft: { ...current.draft, workspaceId: target.value } },
+      };
+    }
+  });
+  textModelForm?.addEventListener("change", (event) => {
+    const target = event.target;
+    const current = settingsState.textModel;
+    if (current.status !== "editing") return;
+    if (target instanceof HTMLSelectElement && target.name === "provider") {
+      const draft = textModelDraftFromDom() ?? current.draft;
+      const provider = target.value as TextModelDraft["provider"];
+      settingsState = {
+        ...settingsState,
+        textModel: {
+          ...current,
+          draft: { ...draft, provider, workspaceId: provider === "qwen" ? draft.workspaceId : "" },
+          error: "",
+          fieldErrors: undefined,
+        },
+      };
+      renderSettings();
+      restoreTextModelSecret();
+      document.querySelector<HTMLSelectElement>("#text-model-provider")?.focus();
+    }
+  });
+  textModelForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitTextModelForm(event.currentTarget as HTMLFormElement);
   });
 }
 
@@ -1915,8 +2223,16 @@ function renderRoute() {
   }
   if (isSettingsRoute()) {
     destroyTextReader();
+    const settingsRoute = parseSettingsRoute(window.location.hash);
+    const settingsView = settingsRoute.kind === "text-model" ? "text-model" : "overview";
+    if (settingsState.view !== settingsView) {
+      settingsState = { ...settingsState, view: settingsView };
+    }
     renderSettings();
     if (settingsState.phase === "loading" && !settingsRequestInFlight) void loadSettings();
+    if (settingsView === "text-model" && (settingsState.textModel.status === "loading" || settingsState.textModel.status === "error")) {
+      void loadTextModel();
+    }
     return;
   }
   if (!isConversationRoute()) {

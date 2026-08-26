@@ -88,6 +88,32 @@ describe("desktop settings page candidate", () => {
     expect(html).toContain("保存并验证");
   });
 
+  it("renders the text model detail within the authenticated settings shell", () => {
+    const state = createSettingsState(settings);
+    const html = renderSettingsPage({
+      ...state,
+      view: "text-model",
+      textModel: {
+        status: "editing",
+        credential: null,
+        draft: {
+          provider: "deepseek",
+          apiKey: "fake-browser-key",
+          workspaceId: "",
+          existingMaskedApiKey: "",
+          showApiKey: false,
+        },
+        returnTo: "#/settings",
+        error: "校验未通过，请检查 API Key。",
+      },
+    });
+    expect(html).toContain('data-settings-page="text-model"');
+    expect(html).toContain('id="text-model-api-key"');
+    expect(html).toContain("检测并保存");
+    expect(html).toContain("校验未通过");
+    expect(html).not.toContain("fake-browser-key");
+  });
+
   it("uses an explicit logout confirmation and labels the destructive action", () => {
     const html = renderSettingsPage({
       ...createSettingsState(settings),
@@ -124,5 +150,15 @@ describe("desktop settings page candidate", () => {
     expect(mainSource).toContain("const settingsFocusField = document.activeElement?.getAttribute(\"name\")");
     expect(mainSource).toContain("focusSettingsField(settingsFocusField ||");
     expect(mainSource).toContain("accountError: message,\n      draft,");
+  });
+
+  it("clears stale field errors when API validation fails after draft validation", () => {
+    const submitCatch = mainSource.match(
+      /  } catch \(error\) \{\n    const code = error instanceof ApiError[\s\S]*?\n  \}\n  if \(isTextModelSettingsRoute\(\)\)/,
+    )?.[0];
+
+    expect(submitCatch).toContain("fieldErrors: undefined,");
+    expect(submitCatch).toContain("draft,");
+    expect(submitCatch).toContain("error: getTextModelErrorMessage(code),");
   });
 });

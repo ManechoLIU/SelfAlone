@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  createTextModelPageState,
   createSettingsState,
   parseSettingsDraft,
+  resolveTextModelPage,
   resolveSettingsOverview,
   serializeSettingsDraft,
   settingsDraftStorageKey,
@@ -99,5 +101,25 @@ describe("desktop settings state", () => {
       "暂时无法发送验证邮件，请稍后重试。",
     );
     expect(settingsErrorMessage("INTERNAL_ERROR")).toBe("暂时无法保存设置，请稍后重试。");
+  });
+
+  it("keeps model drafts in memory while exposing only safe response state", () => {
+    const initialTextModel = createTextModelPageState(null);
+    if (initialTextModel.status !== "editing") throw new Error("unexpected initial model state");
+    const state = {
+      ...createSettingsState(overview),
+      view: "text-model" as const,
+      textModel: {
+        ...initialTextModel,
+        draft: { ...initialTextModel.draft, apiKey: "fake-browser-key" },
+      },
+    };
+    const failed = resolveTextModelPage(state, new Error("MODEL_CREDENTIAL_VALIDATION_FAILED"));
+    expect(failed.textModel.status).toBe("error");
+    expect(JSON.stringify(failed)).not.toContain("fake-browser-key");
+    const loaded = resolveTextModelPage(state, null);
+    expect(loaded.textModel).toMatchObject({ status: "editing", credential: null });
+    expect(loaded.textModel.status).toBe("editing");
+    if (loaded.textModel.status === "editing") expect(loaded.textModel.draft.apiKey).toBe("");
   });
 });

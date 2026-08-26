@@ -214,3 +214,31 @@ export type AuthErrorCode =
 export type TrialQuotaStatus = {
   status: "unclaimed" | "claimed";
 };
+
+export type TextModelProvider = "deepseek" | "kimi" | "glm" | "qwen";
+
+export type TextModelCredentialRequest = {
+  provider: TextModelProvider;
+  apiKey: string;
+  workspaceId?: string;
+};
+
+export type TextModelConfigurationStatus = "verified";
+
+export type TextModelCredentialStatus = {
+  status: TextModelConfigurationStatus;
+  provider: TextModelProvider;
+  maskedApiKey: string;
+  workspaceId?: string;
+  verifiedAt: string;
+  catalogVersion: string;
+};
+
+export type TextModelCredentialResponse = TextModelCredentialStatus | null;
+
+export type TextModelCredentialErrorCode =
+  | "MODEL_CREDENTIALS_INVALID_REQUEST"
+  | "MODEL_CREDENTIAL_VALIDATION_FAILED"
+  | "MODEL_CREDENTIAL_VALIDATION_UNAVAILABLE"
+  | "MODEL_ENCRYPTION_KEY_REQUIRED"
+  | "STALE_VERSION";

@@ -1,3 +1,7 @@
+import type { TextModelCredential } from "./model-config";
+import { getTextModelErrorMessage, createTextModelDraft } from "./model-config";
+import type { TextModelPageState } from "./model-config-page";
+
 export type SettingsServiceStatus = {
   connected: boolean;
   label: string;
@@ -32,7 +36,7 @@ export type SettingsMutation = {
   error: string;
 };
 
-export type SettingsView = "overview" | "account";
+export type SettingsView = "overview" | "account" | "text-model";
 export type SettingsPhase = "loading" | "ready" | "failed";
 
 export type SettingsState = {
@@ -44,6 +48,7 @@ export type SettingsState = {
   logoutConfirmation: boolean;
   draft: SettingsDraft;
   mutation: SettingsMutation;
+  textModel: TextModelPageState;
 };
 
 const blankDraft: SettingsDraft = {
@@ -52,6 +57,17 @@ const blankDraft: SettingsDraft = {
   newPassword: "",
   confirmPassword: "",
 };
+
+export function createTextModelPageState(
+  credential: TextModelCredential | null = null,
+): TextModelPageState {
+  return {
+    status: "editing",
+    credential,
+    draft: createTextModelDraft(credential),
+    returnTo: settingsHash(),
+  };
+}
 
 export function createSettingsState(overview: SettingsOverview | null = null): SettingsState {
   return {
@@ -65,6 +81,27 @@ export function createSettingsState(overview: SettingsOverview | null = null): S
       ? { ...blankDraft, email: overview.account.email }
       : { ...blankDraft },
     mutation: { kind: "idle", phase: "idle", error: "" },
+    textModel: { status: "loading", returnTo: settingsHash() },
+  };
+}
+
+export function resolveTextModelPage(
+  state: SettingsState,
+  result: TextModelCredential | null | Error,
+): SettingsState {
+  if (result instanceof Error) {
+    return {
+      ...state,
+      textModel: {
+        status: "error",
+        returnTo: settingsHash(),
+        message: getTextModelErrorMessage(result.message),
+      },
+    };
+  }
+  return {
+    ...state,
+    textModel: createTextModelPageState(result),
   };
 }
 
@@ -131,7 +168,17 @@ export function settingsHash() {
   return "#/settings";
 }
 
+export function textModelSettingsHash() {
+  return "#/settings/text-model";
+}
+
 export function settingsErrorMessage(code: string | undefined) {
+  if (
+    code === "MODEL_CREDENTIAL_VALIDATION_FAILED"
+    || code === "MODEL_CREDENTIAL_VALIDATION_UNAVAILABLE"
+    || code === "MODEL_CREDENTIALS_INVALID_REQUEST"
+    || code === "STALE_VERSION"
+  ) return getTextModelErrorMessage(code);
   if (code === "SETTINGS_LOAD_FAILED") return "暂时无法加载设置，请稍后重试。";
   if (code === "EMAIL_DELIVERY_UNAVAILABLE") return "暂时无法发送验证邮件，请稍后重试。";
   if (code === "INVALID_EMAIL_TOKEN") return "验证链接已失效，请重新申请。";
