@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ConversationSelectionAnswerResult, ConversationSelectionQuestion } from "./conversation-selection-state";
+import type {
+  ConversationSelectionAnswerResult,
+  ConversationSelectionQuestion,
+  ConversationSelectionState,
+} from "./conversation-selection-state";
 import { createConversationSelectionController } from "./conversation-selection-controller";
 
 function question(overrides: Partial<ConversationSelectionQuestion> = {}): ConversationSelectionQuestion {
@@ -21,6 +25,12 @@ function question(overrides: Partial<ConversationSelectionQuestion> = {}): Conve
     requiresConfirmation: false,
     ...overrides,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve; });
+  return { promise, resolve };
 }
 
 describe("conversation selection controller", () => {
@@ -355,6 +365,18 @@ describe("conversation selection controller", () => {
           freeText: input.freeText,
           confirm: input.confirm ?? false,
         });
+        if (firstAttempt) {
+          firstAttempt = false;
+          current = {
+            ...current,
+            version: current.version + 1,
+            status: "pending",
+            freeText: input.freeText ?? null,
+            answer: null,
+            answerRequestId: null,
+          };
+          throw new Error("response lost after free answer commit");
+        }
         current = {
           ...current,
           version: current.version + 1,
@@ -363,10 +385,6 @@ describe("conversation selection controller", () => {
           answer: input.confirm ? { values: [], freeText: input.freeText ?? null } : null,
           answerRequestId: input.confirm ? input.requestId : null,
         };
-        if (firstAttempt) {
-          firstAttempt = false;
-          throw new Error("response lost after free answer commit");
-        }
         return { status: input.confirm ? "submitted" : "pending", question: current };
       },
     };
@@ -417,5 +435,112 @@ describe("conversation selection controller", () => {
     expect(await controller.confirm("question-free")).toBeUndefined();
     expect(calls).toEqual([]);
     expect(controller.getState()).toMatchObject({ status: "idle", errorCode: null });
+  });
+
+  it("does not let an older reconcile attempt send or write back after a newer draft", async () => {
+    const reconcileWaits: Array<ReturnType<typeof deferred<ConversationSelectionQuestion>>> = [];
+    const calls: Array<{ requestId: string; values: readonly string[]; expectedVersion: number }> = [];
+    const cacheSaves: Array<{ values: readonly string[]; freeText: string }> = [];
+    let current = question({ mode: "multi" });
+    let firstAttempt = true;
+    const client = {
+      async listQuestions() { return [current]; },
+      async createQuestion() { return current; },
+      async getQuestion() {
+        const pending = deferred<ConversationSelectionQuestion>();
+        reconcileWaits.push(pending);
+        return pending.promise;
+      },
+      async answerQuestion(
+        _conversationId: string,
+        _questionId: string,
+        input: { requestId: string; expectedVersion: number; values?: readonly string[] },
+      ): Promise<ConversationSelectionAnswerResult> {
+        calls.push({ requestId: input.requestId, expectedVersion: input.expectedVersion, values: [...(input.values ?? [])] });
+        if (firstAttempt) {
+          firstAttempt = false;
+          current = { ...current, version: 2, selectedValues: ["summary"] };
+          throw new Error("response lost after pending selection commit");
+        }
+        current = { ...current, version: current.version + 1, selectedValues: [...(input.values ?? [])] };
+        return { status: "pending", question: current };
+      },
+    };
+    let nextId = 0;
+    const controller = createConversationSelectionController({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `mutation-${++nextId}`,
+      draftCache: {
+        load: () => null,
+        save: (_accountId, _conversationId, _questionId, draft) => { cacheSaves.push(draft); },
+        clear: () => undefined,
+      },
+    });
+
+    await controller.hydrate();
+    await controller.selectOption("question-a", "summary");
+    const olderAttempt = controller.selectOption("question-a", "outline");
+    const newerAttempt = controller.confirm("question-a");
+    expect(reconcileWaits).toHaveLength(2);
+
+    reconcileWaits[1]?.resolve(current);
+    await newerAttempt;
+    reconcileWaits[0]?.resolve(current);
+    await olderAttempt;
+
+    expect(calls).toEqual([
+      { requestId: "mutation-1", expectedVersion: 1, values: ["summary"] },
+      { requestId: "mutation-2", expectedVersion: 2, values: ["summary", "outline"] },
+    ]);
+    expect(cacheSaves).toHaveLength(2);
+    expect(controller.getState().questions[0]).toMatchObject({ version: 3, selectedValues: ["summary", "outline"] });
+  });
+
+  it("accepts a submitted server truth after free edit without sending a second answer", async () => {
+    const calls: Array<{ requestId: string; freeText?: string }> = [];
+    let current = question({ mode: "free", options: [] });
+    const client = {
+      async listQuestions() { return [current]; },
+      async createQuestion() { return current; },
+      async getQuestion() { return current; },
+      async answerQuestion(
+        _conversationId: string,
+        _questionId: string,
+        input: { requestId: string; freeText?: string },
+      ): Promise<ConversationSelectionAnswerResult> {
+        calls.push({ requestId: input.requestId, freeText: input.freeText });
+        current = {
+          ...current,
+          version: 2,
+          status: "submitted",
+          freeText: "服务端已确认",
+          answer: { values: [], freeText: "服务端已确认" },
+          answerRequestId: input.requestId,
+        };
+        if (calls.length === 1) throw new Error("response lost after free answer commit");
+        throw Object.assign(new Error("SELECTION_STALE"), { code: "SELECTION_STALE" });
+      },
+    };
+    const controller = createConversationSelectionController({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      client,
+      requestIdFactory: () => `free-${calls.length + 1}`,
+    });
+
+    await controller.hydrate();
+    controller.setFreeText("question-a", "用户原始回答");
+    await controller.confirm("question-a");
+    controller.setFreeText("question-a", "用户修改后的回答");
+    await controller.retry("question-a");
+
+    const recovered = controller.getState() as ConversationSelectionState & { recoveryQuestionId?: string };
+    expect(calls).toEqual([{ requestId: "free-1", freeText: "用户原始回答" }]);
+    expect(recovered).toMatchObject({ status: "idle", errorCode: null });
+    expect(recovered.recoveryQuestionId).toBeUndefined();
+    expect(recovered.drafts["question-a"]).toBeUndefined();
+    expect(recovered.questions[0]).toMatchObject({ status: "submitted", freeText: "服务端已确认" });
   });
 });

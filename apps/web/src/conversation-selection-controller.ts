@@ -93,6 +93,7 @@ export function createConversationSelectionController(
   let state: ConversationSelectionControllerState = createConversationSelectionState(options.conversationId);
   const listeners = new Set<ConversationSelectionStateListener>();
   const ambiguousMutations = new Map<string, SelectionMutation>();
+  const mutationGenerations = new Map<string, number>();
   const draftCache = options.draftCache ?? emptyDraftCache;
   let localEpoch = 0;
   let hydrateGeneration = 0;
@@ -109,6 +110,16 @@ export function createConversationSelectionController(
 
   function markRecovery(nextState: ConversationSelectionState, questionId: string): ConversationSelectionControllerState {
     return { ...nextState, recoveryQuestionId: questionId };
+  }
+
+  function beginMutationAttempt(questionId: string) {
+    const nextGeneration = (mutationGenerations.get(questionId) ?? 0) + 1;
+    mutationGenerations.set(questionId, nextGeneration);
+    return nextGeneration;
+  }
+
+  function isCurrentMutationAttempt(questionId: string, generation: number) {
+    return mutationGenerations.get(questionId) === generation;
   }
 
   function requestId() {
@@ -162,22 +173,25 @@ export function createConversationSelectionController(
     }
   }
 
-  async function reconcileQuestion(questionId: string) {
+  async function reconcileQuestion(questionId: string, generation: number) {
     try {
       const question = options.client.getQuestion
         ? await options.client.getQuestion(options.conversationId, questionId)
         : (await options.client.listQuestions(options.conversationId)).find((candidate) => candidate.id === questionId);
       if (!question) throw new Error("SELECTION_NOT_FOUND");
+      if (!isCurrentMutationAttempt(questionId, generation)) return undefined;
 
       const currentDraft = selectionDraftFor(state, questionId);
       const questions = state.questions.map((candidate) => candidate.id === questionId ? question : candidate);
-      const nextDrafts = {
-        ...state.drafts,
-        [questionId]: {
+      const nextDrafts = { ...state.drafts };
+      if (question.status === "pending") {
+        nextDrafts[questionId] = {
           values: [...currentDraft.values],
           freeText: currentDraft.freeText,
-        },
-      };
+        };
+      } else {
+        delete nextDrafts[questionId];
+      }
       const activeQuestionId = question.status === "pending"
         ? questionId
         : [...questions].reverse().find((candidate) => candidate.status === "pending")?.id ?? null;
@@ -191,6 +205,7 @@ export function createConversationSelectionController(
       }));
       return question;
     } catch (error) {
+      if (!isCurrentMutationAttempt(questionId, generation)) return undefined;
       publish(applySelectionError(clearRecovery(state), selectionErrorCode(error)));
       return undefined;
     }
@@ -203,6 +218,7 @@ export function createConversationSelectionController(
     const draft = selectionDraftFor(state, question.id);
     const confirm = input.confirm ?? false;
     if (confirm && !isValidConfirmation(question, draft)) return undefined;
+    const generation = beginMutationAttempt(question.id);
 
     const recovery = ambiguousMutations.get(question.id);
     const desiredMutation = {
@@ -221,12 +237,19 @@ export function createConversationSelectionController(
       id = recovery.requestId;
       expectedVersion = recovery.expectedVersion;
     } else if (recovery) {
-      const reconciled = await reconcileQuestion(question.id);
+      const reconciled = await reconcileQuestion(question.id, generation);
       if (!reconciled) return undefined;
       currentQuestion = reconciled;
+      if (currentQuestion.status !== "pending") {
+        ambiguousMutations.delete(question.id);
+        clearDraftCache(question.id);
+        return undefined;
+      }
       expectedVersion = currentQuestion.version;
       id = undefined;
     }
+
+    if (!isCurrentMutationAttempt(question.id, generation)) return undefined;
 
     const mutation: SelectionMutation = {
       requestId: id ?? requestId(),
@@ -236,6 +259,7 @@ export function createConversationSelectionController(
       confirm: desiredMutation.confirm,
     };
     ambiguousMutations.delete(question.id);
+    if (!isCurrentMutationAttempt(question.id, generation)) return undefined;
     saveDraftCache(question.id, draft);
     localEpoch += 1;
     publish(beginSelectionSave(clearRecovery(state)));
@@ -247,11 +271,13 @@ export function createConversationSelectionController(
         requestId: mutation.requestId,
         expectedVersion: mutation.expectedVersion,
       });
+      if (!isCurrentMutationAttempt(question.id, generation)) return undefined;
       if (result.question.status !== "pending") clearDraftCache(question.id);
       localEpoch += 1;
       publish(clearRecovery(applySelectionResult(state, result)));
       return result;
     } catch (error) {
+      if (!isCurrentMutationAttempt(question.id, generation)) return undefined;
       const code = selectionErrorCode(error);
       if (code === "SELECTION_STALE") {
         clearDraftCache(question.id);
@@ -338,6 +364,7 @@ export function createConversationSelectionController(
       if (nextState === state) return;
       localEpoch += 1;
       publish(nextState);
+      beginMutationAttempt(questionId);
       saveDraftCache(questionId, selectionDraftFor(nextState, questionId));
     },
 
