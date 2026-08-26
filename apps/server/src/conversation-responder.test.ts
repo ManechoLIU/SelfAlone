@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createConversationResponder,
+  createConversationResponderForMode,
   createDevelopmentConversationResponder,
   type ChatInput,
   type ChatResponderPort,
@@ -59,5 +60,22 @@ describe("conversation responder contract", () => {
     });
 
     await expect(responder("空回复不能提交", [])).rejects.toThrow("CONVERSATION_REPLY_INVALID");
+  });
+
+  it("leaves the responder unconfigured unless development mode is explicit", async () => {
+    expect(createConversationResponderForMode(undefined, "development")).toBeUndefined();
+    expect(createConversationResponderForMode("", "development")).toBeUndefined();
+    expect(() => createConversationResponderForMode("development", "production")).toThrow(
+      "DEVELOPMENT_ADAPTER_DISABLED",
+    );
+    expect(() => createConversationResponderForMode("unexpected", "development")).toThrow(
+      "CONVERSATION_RESPONDER_MODE_UNSUPPORTED",
+    );
+
+    const responder = createConversationResponderForMode("development", "development");
+    expect(responder).toBeTypeOf("function");
+    await expect(responder?.("本机验收", [
+      { id: "request-1:user", role: "user", text: "本机验收", requestId: "request-1" },
+    ])).resolves.toMatch(/基于 1 条对话上下文摘要/);
   });
 });

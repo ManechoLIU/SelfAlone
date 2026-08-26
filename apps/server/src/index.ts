@@ -17,6 +17,7 @@ import { createTextAnnotationRuntime } from "./text-annotation-runtime";
 import { migrateTextAnnotationSchema } from "./text-annotation-migration";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
+import { createConversationResponderForMode } from "./conversation-responder";
 import { ConversationStore } from "./conversation-store";
 import { migrateConversationSelectionSchema } from "./conversation-selection-migration";
 import { ConversationSelectionStore } from "./conversation-selection-store";
@@ -93,16 +94,24 @@ try {
   await conversationMigrationDatabase.end();
 }
 const conversationSql = postgres(databaseUrl, { max: 4 });
-const conversation = new ConversationStore(conversationSql, {
-  createSession: createConversationSession,
-  updateDraft: updateConversationDraft,
-  appendContext: appendConversationContext,
-  startRun: startConversationRun,
-  recordWork: recordConversationWork,
-  settleRun: settleConversationRun,
-  deleteSession: deleteConversationSession,
-  isSendLocked: isConversationSendLocked,
-});
+const conversationResponder = createConversationResponderForMode(
+  process.env.CONVERSATION_RESPONDER_MODE,
+  process.env.APP_ENV,
+);
+const conversation = new ConversationStore(
+  conversationSql,
+  {
+    createSession: createConversationSession,
+    updateDraft: updateConversationDraft,
+    appendContext: appendConversationContext,
+    startRun: startConversationRun,
+    recordWork: recordConversationWork,
+    settleRun: settleConversationRun,
+    deleteSession: deleteConversationSession,
+    isSendLocked: isConversationSendLocked,
+  },
+  conversationResponder ? { responder: conversationResponder } : {},
+);
 const conversationSelectionMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateConversationSelectionSchema(conversationSelectionMigrationDatabase);

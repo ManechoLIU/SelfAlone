@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ConversationRuntimeContextEntry } from "./conversation-runtime";
+import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
 
 /**
  * The smallest chat input shared by the conversation store and a text-model
@@ -35,6 +36,8 @@ export type ConversationResponder = (
 export const CONVERSATION_RESPONDER_NOT_CONFIGURED =
   "CONVERSATION_RESPONDER_NOT_CONFIGURED" as const;
 export const CONVERSATION_REPLY_INVALID = "CONVERSATION_REPLY_INVALID" as const;
+export const CONVERSATION_RESPONDER_MODE_UNSUPPORTED =
+  "CONVERSATION_RESPONDER_MODE_UNSUPPORTED" as const;
 
 /**
  * Adapts the TECH text-model chat method to the store's narrow responder port.
@@ -89,4 +92,22 @@ export function createDevelopmentTextModelAdapter(): ChatResponderPort {
 
 export function createDevelopmentConversationResponder(): ConversationResponder {
   return createConversationResponder(createDevelopmentTextModelAdapter());
+}
+
+/**
+ * Resolves the local responder composition seam. The fake is opt-in and is
+ * rejected outside development; an absent mode deliberately leaves the store
+ * on its fail-closed responder until a real configured adapter is available.
+ */
+export function createConversationResponderForMode(
+  mode: string | undefined,
+  environment: string | undefined,
+): ConversationResponder | undefined {
+  const normalizedMode = mode?.trim();
+  if (!normalizedMode) return undefined;
+  if (normalizedMode !== "development") {
+    throw new Error(CONVERSATION_RESPONDER_MODE_UNSUPPORTED);
+  }
+  assertDevelopmentAdapterAllowed(environment);
+  return createDevelopmentConversationResponder();
 }
