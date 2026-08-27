@@ -35,6 +35,12 @@ describe("DeepSeek credential validation seam", () => {
     const request = fetcher.mock.calls[0]?.[1];
     expect(String(request?.body)).toContain('"model":"fake-deepseek-model"');
     expect(String(request?.body)).not.toContain("endpoint");
+    expect(JSON.parse(String(request?.body))).toMatchObject({
+      model: "fake-deepseek-model",
+      thinking: { type: "disabled" },
+      max_tokens: 1,
+      stream: false,
+    });
   });
 
   it("maps provider HTTP failures and malformed success to a stable validation error without echoing the key", async () => {

@@ -82,6 +82,7 @@ export function createDeepSeekTextModelAdapter(
           body: JSON.stringify({
             model: options.catalog.model,
             messages: [{ role: "user", content: "Reply with OK." }],
+            thinking: { type: "disabled" },
             max_tokens: 1,
             stream: false,
           }),
