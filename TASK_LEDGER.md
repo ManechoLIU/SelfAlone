@@ -6,7 +6,7 @@
 
 - **Goal（当前里程碑 `BLOCKED / STAGE-READ-NOTES-V1-B LOCAL DISPLAY UNLOCK`）**：Server PUT、Mini PUT恢复、main / 唯一f312集成及相称测试 / 构建均已通过；只剩真实可见Reader notes交互SELF。连续四个Goal回合实时均为显示锁定且安全内部恢复路径已穷尽，按系统状态机等待用户解锁后恢复；不含production外部门、PDF或跨端父阶段DONE。
 - 当前执行波次：`STAGE-READ-NOTES-V1-B / UNIQUE F312 BUILD PASS → INTERACTIVE SELF`。Server、Mini业务代码与逻辑字节门均已main PASS并进入唯一f312；内部测试 / 构建门已清空，仅剩可见Reader notes交互SELF。
-- 当前活动项：`STAGE-READ-NOTES-V1-B / EXTERNAL WAKE = LOCAL DISPLAY UNLOCK`
+- 当前活动项：无
 - 协调下一动作：逻辑字节门已顺序成为main代码提交`5c51931`与唯一f312提交`d4f3dd0`；f312保留既有v2 / v3 / v4过期资产裁剪，Mini20文件 / 164项、全仓typecheck、生产build、累计diff-check均PASS，逻辑包1,879,482 bytes。DevTools既有唯一项目在05:13自动重载`pages/reader/index`并两次到达`webview page ready`；当前系统实时为`IOConsoleLocked=Yes / UserIsActive=0`，故可见交互SELF等待本地显示解锁。root复核仓库无运行时SELF hook、CLI服务端口关闭，内部监听端口需私有令牌；不启用持久服务端口、不绕过锁屏、不新增入口。
 - **已加载规则基线**：真实仓库`/Users/echoman/Documents/SelfAlone`、`main@4731086`及受保护现场已对账；总控与build-gate writer均已加载当前`AGENTS.md` blob `c114733fccd2d83430ba289fb9b7c4a4cdb83cee`及adaptive-delivery正式提交`2d175c03a4a342bb51de911d1e690e3d74d6d0bf`对应安装文件：`SKILL.md` SHA-256 `5b441a744dd3250d78879caf734ca23725ba4a7775e93f02ee9eb9714849e1ec`、`context-governance.md` SHA-256 `21b4a05a0ca6f5582cb92f8c76aa9eba9939f6c0a9a78e8aa7d26b6011ee3919`、`long-task-governance.md` SHA-256 `b1bfbdb5d4690c9634d1d27c6de72df85a6b1024663bf2996a00bc51ac0b584f`；build writer delivered loaded ACK闭合后已释放。
 - **活动实现 / 复验线**：当前无live writer / reviewer，root等待精确外部唤醒，3个执行槽可用于恢复后复验；Server / Mini业务代码与size gate均main PASS；唯一f312为`d4f3dd0`且仅保留既有project.config / lock / QA保护现场，当前`BUILD PASS / INTERACTIVE SELF WAIT LOCAL DISPLAY UNLOCK`。只读恢复任务`/root/f312_reader_self_unblock`连续两次无delivered ACK，消息送达 / running / 无checkpoint / 无写入现场后回收，`previous_status=running`；root窄诊断未发现可授权内部替代路径。顺序集成流CANDIDATE WIP=0。
