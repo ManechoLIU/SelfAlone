@@ -6,6 +6,11 @@ import {
   type ConversationTransport,
 } from "./adapters/conversation";
 import {
+  createAnnotationsApiClient,
+  type AnnotationTransport,
+  type AnnotationsApiClient,
+} from "./core/annotations-api";
+import {
   createMiniAuthClient,
   type MiniAuthClient,
   type MiniAuthTransport,
@@ -19,6 +24,7 @@ export type MiniappGlobalData = {
   client: MiniappClient;
   authClient: MiniAuthClient;
   conversationClient: ConversationApiClient;
+  annotationsClient: AnnotationsApiClient;
   session: Session;
   sessionStore: ReturnType<typeof createSessionStore>;
   pptIntentStore: ReturnType<typeof createPptIntentStore>;
@@ -31,6 +37,7 @@ export type MiniappRuntimeOptions = SessionStoreOptions & {
   storage?: KeyValueStorage;
   authTransport?: MiniAuthTransport;
   conversationTransport?: ConversationTransport;
+  annotationsTransport?: AnnotationTransport;
   wxLogin?: MiniWxLogin;
   environment?: string;
 };
@@ -59,12 +66,23 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     },
     transport: options.conversationTransport,
   });
+  const annotationsClient = createAnnotationsApiClient({
+    baseUrl: options.apiBaseUrl,
+    authProvider: () => sessionStore.restore(),
+    onUnauthorized: (status) => {
+      if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
+        composedGlobalData.session = { kind: "signed-out" };
+      }
+    },
+    transport: options.annotationsTransport,
+  });
   const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });
 
   const globalData: MiniappGlobalData = {
     client,
     authClient,
     conversationClient,
+    annotationsClient,
     session: sessionStore.restore(),
     sessionStore,
     pptIntentStore,

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { BookDetail } from "../../adapters/client";
+import { AnnotationsApiError } from "../../core/annotations-api";
 import readerWxml from "./index.wxml?raw";
 import readerWxss from "./index.wxss?raw";
 import {
@@ -41,6 +42,12 @@ let readerPageDefinition: ReaderPageHarness;
 let readerClient: {
   getBook: ReturnType<typeof vi.fn>;
   savePosition: ReturnType<typeof vi.fn>;
+};
+let annotationsClient: {
+  getAnnotations: ReturnType<typeof vi.fn>;
+  createNote: ReturnType<typeof vi.fn>;
+  updateNote: ReturnType<typeof vi.fn>;
+  deleteNote: ReturnType<typeof vi.fn>;
 };
 
 function createReaderPage(): ReaderPageHarness {
@@ -98,10 +105,17 @@ beforeAll(async () => {
       version: Number(input.expectedVersion ?? 0) + 1,
     })),
   };
+  annotationsClient = {
+    getAnnotations: vi.fn(async () => ({ fileVersion: 1, highlights: [], notes: [] })),
+    createNote: vi.fn(),
+    updateNote: vi.fn(),
+    deleteNote: vi.fn(),
+  };
   vi.stubGlobal("Page", (definition: ReaderPageHarness) => { readerPageDefinition = definition; });
   vi.stubGlobal("getApp", () => ({
     globalData: {
       client: readerClient,
+      annotationsClient,
       developmentAdapter: true,
       pptIntentStore: { selectBook: vi.fn() },
     },
@@ -461,29 +475,127 @@ describe("reader page state", () => {
     expect(readerWxss).toContain(".note-editor-actions");
   });
 
-  it("keeps the note draft through fail-closed save, retry, close and reopen", () => {
+  it("keeps the note draft through API save failure, retry, close and reopen", async () => {
     const page = createReaderPage();
     readerClient.savePosition.mockClear();
+    page.data = {
+      ...page.data,
+      developmentAdapter: false,
+      detail: readerDetailWithBackground("light"),
+      noteHydrationState: "ready",
+    };
+    annotationsClient.createNote.mockResolvedValue({
+      status: "failed",
+      errorCode: "NOTE_SAVE_FAILED",
+      retainedDraft: { body: "保留这段草稿" },
+    });
 
     page.openNoteComposer();
     expect(page.data.noteEditorState).toBe("editing");
     page.onContentDraftInput({ detail: { value: "保留这段草稿" }, currentTarget: { dataset: { tab: "notes" } } });
-    page.saveNote();
+    await page.saveNote();
 
     expect(page.data).toMatchObject({
       noteEditorState: "failed",
       contentDrafts: { notes: "保留这段草稿" },
     });
-    expect(page.data.noteSaveError).toContain("保存接口尚未接入");
+    expect(page.data.noteSaveError).toContain("保存暂时失败");
+    expect(page.data.noteSaveError).not.toContain("接口尚未接入");
+    expect(annotationsClient.createNote).toHaveBeenCalledWith(
+      "reader-page-test-book",
+      expect.objectContaining({ body: "保留这段草稿", idempotencyKey: expect.any(String) }),
+    );
+    const firstIdempotencyKey = annotationsClient.createNote.mock.calls[0]?.[1].idempotencyKey;
     expect(readerClient.savePosition).not.toHaveBeenCalled();
 
-    page.saveNote();
+    await page.saveNote();
     expect(page.data.noteEditorState).toBe("failed");
     expect(page.data.contentDrafts.notes).toBe("保留这段草稿");
+    expect(annotationsClient.createNote.mock.calls[1]?.[1].idempotencyKey).toBe(firstIdempotencyKey);
 
     page.closeNoteComposer();
     expect(page.data).toMatchObject({ noteEditorState: "closed", contentDrafts: { notes: "保留这段草稿" } });
     page.openNoteComposer();
     expect(page.data).toMatchObject({ noteEditorState: "editing", contentDrafts: { notes: "保留这段草稿" } });
+  });
+
+  it("hydrates notes and sends expected versions for update and delete", async () => {
+    const page = createReaderPage();
+    const detail = readerDetailWithBackground("light");
+    const note = {
+      id: "note-1",
+      bookId: detail.book.id,
+      body: "原始笔记",
+      source: null,
+      version: 1,
+      createdAt: "2030-01-01T00:00:00.000Z",
+      updatedAt: "2030-01-01T00:00:00.000Z",
+    };
+    page.data = { ...page.data, developmentAdapter: false, detail, noteHydrationState: "loading" };
+    page.readerLoadRequestId = 1;
+    annotationsClient.getAnnotations.mockResolvedValueOnce({ fileVersion: 1, highlights: [], notes: [note] });
+
+    await page.hydrateNotes(detail, 1);
+
+    expect(page.data.noteHydrationState).toBe("ready");
+    expect(page.data.detail.notes).toEqual([{ id: "note-1", body: "原始笔记", meta: "读书笔记" }]);
+
+    annotationsClient.updateNote.mockResolvedValueOnce({ status: "saved", note: { ...note, body: "改过的笔记", version: 2 } });
+    page.openNoteEditor({ currentTarget: { dataset: { noteId: note.id } } });
+    page.onContentDraftInput({ detail: { value: "改过的笔记" }, currentTarget: { dataset: { tab: "notes" } } });
+    await page.saveNote();
+
+    expect(annotationsClient.updateNote).toHaveBeenCalledWith(detail.book.id, note.id, {
+      expectedVersion: 1,
+      body: "改过的笔记",
+      source: null,
+    });
+    expect(page.data.detail.notes[0]).toMatchObject({ id: note.id, body: "改过的笔记" });
+
+    annotationsClient.deleteNote.mockResolvedValueOnce({ status: "deleted", id: note.id });
+    page.openNoteActions({ currentTarget: { dataset: { noteId: note.id } } });
+    await page.deleteNote({ currentTarget: { dataset: { noteId: note.id } } });
+
+    expect(annotationsClient.deleteNote).toHaveBeenCalledWith(detail.book.id, note.id, { expectedVersion: 2 });
+    expect(page.data.detail.notes).toEqual([]);
+  });
+
+  it("refreshes the note version after a conflict while retaining the draft for retry", async () => {
+    const page = createReaderPage();
+    const detail = readerDetailWithBackground("light");
+    const note = {
+      id: "note-conflict",
+      bookId: detail.book.id,
+      body: "并发前的笔记",
+      source: null,
+      version: 1,
+      createdAt: "2030-01-01T00:00:00.000Z",
+      updatedAt: "2030-01-01T00:00:00.000Z",
+    };
+    const latestNote = { ...note, body: "另一页已更新", version: 2 };
+    page.data = { ...page.data, developmentAdapter: false, detail, noteHydrationState: "ready" };
+    page.readerLoadRequestId = 2;
+    page.noteRecords = new Map([[note.id, note]]);
+    annotationsClient.updateNote.mockRejectedValueOnce(new AnnotationsApiError(409, "STALE_VERSION", false));
+    annotationsClient.getAnnotations.mockResolvedValueOnce({ fileVersion: 1, highlights: [], notes: [latestNote] });
+
+    page.openNoteEditor({ currentTarget: { dataset: { noteId: note.id } } });
+    page.onContentDraftInput({ detail: { value: "我的并发修改" }, currentTarget: { dataset: { tab: "notes" } } });
+    await page.saveNote();
+
+    expect(page.data.noteEditorState).toBe("failed");
+    expect(page.data.contentDrafts.notes).toBe("我的并发修改");
+    expect(page.data.noteSaveError).toContain("版本已更新");
+    expect(page.noteRecords.get(note.id).version).toBe(2);
+
+    annotationsClient.updateNote.mockResolvedValueOnce({ status: "saved", note: { ...latestNote, body: "我的并发修改", version: 3 } });
+    await page.saveNote();
+
+    expect(annotationsClient.updateNote).toHaveBeenLastCalledWith(detail.book.id, note.id, {
+      expectedVersion: 2,
+      body: "我的并发修改",
+      source: null,
+    });
+    expect(page.data.noteEditorState).toBe("closed");
   });
 });

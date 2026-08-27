@@ -1,5 +1,5 @@
 import type { MiniappApp } from "../../app";
-import type { BookDetail, DevelopmentState, ReadingBackground } from "../../adapters/client";
+import type { BookContentItem, BookDetail, DevelopmentState, ReadingBackground } from "../../adapters/client";
 import { parseDevelopmentState } from "../../adapters/client";
 import {
   buildReaderBlocks,
@@ -13,6 +13,14 @@ import {
   type ReaderBlockGeometry,
 } from "../../core/reader-state";
 import { createViewportTracker, viewportPresentation } from "../../core/viewport-state";
+import {
+  AnnotationsApiError,
+  type AnnotationsApiClient,
+  type NoteCreateResult,
+  type NoteDeleteResult,
+  type NoteUpdateResult,
+  type TextNote,
+} from "../../core/annotations-api";
 import { readableError } from "../../platform";
 import {
   READER_SWIPE_HINT_DISMISS_MS,
@@ -66,7 +74,15 @@ type ReaderData = {
   contentScrollTops: Record<ReaderContentTab, number>;
   contentDrafts: Record<ReaderContentTab, string>;
   noteEditorState: ReaderNoteEditorState;
+  noteEditorMode: ReaderNoteEditorMode;
+  noteEditingId: string;
+  noteHydrationState: ReaderNoteHydrationState;
+  noteHydrationError: string;
+  noteSaving: boolean;
   noteSaveError: string;
+  noteActionId: string;
+  noteDeletingId: string;
+  noteDeleteError: string;
   panelState: DevelopmentState;
   theme: ReadingBackground;
   progressLabel: string;
@@ -80,6 +96,8 @@ type ReaderData = {
 };
 
 type ReaderNoteEditorState = "closed" | "editing" | "failed";
+type ReaderNoteEditorMode = "create" | "edit";
+type ReaderNoteHydrationState = "idle" | "loading" | "ready" | "failed";
 
 const covers = [
   "/assets/book-covers/local-default-celadon-ink-v1.png",
@@ -88,6 +106,7 @@ const covers = [
 ];
 
 const initialContentContext = createReaderContentContext();
+let noteIdempotencySequence = 0;
 
 const readerFixtureCopy = {
   introduction: "一段适合慢慢阅读、随手记录的内容。",
@@ -145,6 +164,48 @@ function readerErrorForDisplay(error: unknown): string {
     : message;
 }
 
+function noteForDisplay(note: TextNote): BookContentItem {
+  return {
+    id: note.id,
+    body: note.body,
+    ...(note.source?.quote ? { quote: note.source.quote } : {}),
+    meta: "读书笔记",
+  };
+}
+
+function nextNoteIdempotencyKey(): string {
+  noteIdempotencySequence += 1;
+  return `mini-note-${Date.now()}-${noteIdempotencySequence}`;
+}
+
+function noteErrorForDisplay(error: unknown, action: "保存" | "删除"): string {
+  if (error instanceof AnnotationsApiError) {
+    if (error.status === 409 || error.code === "STALE_VERSION") {
+      return `笔记版本已更新，内容已保留；请重试${action}。`;
+    }
+    if (error.status === 401) return "登录状态已失效，内容已保留；请重新登录后重试。";
+    if (error.status === 0 || error.status >= 500) {
+      return `${action}暂时失败，内容已保留；请稍后重试。`;
+    }
+  }
+  return `${action}暂时失败，内容已保留；请稍后重试。`;
+}
+
+function isNoteConflict(error: unknown): boolean {
+  return error instanceof AnnotationsApiError && (error.status === 409 || error.code === "STALE_VERSION");
+}
+
+function noteHydrationErrorForDisplay(error: unknown): string {
+  if (error instanceof AnnotationsApiError && error.status === 401) {
+    return "登录状态已失效，请重新登录后重试。";
+  }
+  return "笔记暂时无法载入，请稍后重试。";
+}
+
+function noteFailedResultMessage(action: "保存" | "删除"): string {
+  return `${action}暂时失败，内容已保留；请稍后重试。`;
+}
+
 Page<ReaderData>({
   data: {
     phase: "loading",
@@ -169,7 +230,15 @@ Page<ReaderData>({
     contentScrollTops: initialContentContext.scrollTop,
     contentDrafts: initialContentContext.drafts,
     noteEditorState: "closed",
+    noteEditorMode: "create",
+    noteEditingId: "",
+    noteHydrationState: "idle",
+    noteHydrationError: "",
+    noteSaving: false,
     noteSaveError: "",
+    noteActionId: "",
+    noteDeletingId: "",
+    noteDeleteError: "",
     panelState: "normal",
     theme: "light",
     progressLabel: "0%",
@@ -247,11 +316,13 @@ Page<ReaderData>({
     }
     const requestId = (this.readerLoadRequestId ?? 0) + 1;
     this.readerLoadRequestId = requestId;
+    this.noteMutationRequestId = (this.noteMutationRequestId ?? 0) + 1;
     const requestRevision = this.readerStateRevision ?? 0;
     const existingDetail = this.data.detail;
     const retryContext = this.data.failureContext;
-    if (options?.preserveShell && existingDetail) this.setData({ error: "" });
-    else this.setData({ phase: "loading", error: "", retrying: false, failureContext: null });
+    const resetNoteActions = { noteSaving: false, noteDeletingId: "", noteActionId: "", noteDeleteError: "" };
+    if (options?.preserveShell && existingDetail) this.setData({ error: "", ...resetNoteActions });
+    else this.setData({ phase: "loading", error: "", retrying: false, failureContext: null, ...resetNoteActions });
     let recoveryDetail = existingDetail;
     try {
       const client = getApp<MiniappApp>().globalData.client;
@@ -271,7 +342,10 @@ Page<ReaderData>({
           blocks: [],
           sectionBlockIndexes: [],
           blockGeometry: [],
+          noteHydrationState: this.data.developmentAdapter ? "ready" : "loading",
+          noteHydrationError: "",
         });
+        await this.hydrateNotes(detail, requestId);
         return;
       }
       this.latestPositionVersion = detail.position?.version ?? 0;
@@ -297,10 +371,13 @@ Page<ReaderData>({
         progressLabel: recovered.progressLabel,
         scrollIntoView: preserveLocalReaderState ? this.data.scrollIntoView : recovered.scrollIntoView,
         coverAsset: covers[Math.abs(detail.book.coverVariant) % covers.length]!,
+        noteHydrationState: this.data.developmentAdapter ? "ready" : "loading",
+        noteHydrationError: "",
       }, () => {
         this.measureIntroHeight();
         this.measureReaderGeometry();
       });
+      await this.hydrateNotes(detail, requestId);
     } catch (error) {
       if (requestId !== this.readerLoadRequestId) return;
       const message = readerErrorForDisplay(error);
@@ -344,6 +421,44 @@ Page<ReaderData>({
         hasLoadedContent: this.data.blocks.length > 0,
       } : null;
       this.setData(preserveReaderFailureContext(context, message));
+    }
+  },
+  async hydrateNotes(detail: BookDetail, requestId: number) {
+    const annotationsClient: AnnotationsApiClient | undefined = getApp<MiniappApp>().globalData.annotationsClient;
+    if (this.data.developmentAdapter || !annotationsClient) {
+      if (requestId === this.readerLoadRequestId && !this.isUnloaded) {
+        this.setData({ noteHydrationState: "ready", noteHydrationError: "" });
+      }
+      return;
+    }
+    const hydrationRequestId = (this.noteHydrationRequestId ?? 0) + 1;
+    this.noteHydrationRequestId = hydrationRequestId;
+    this.setData({ noteHydrationState: "loading", noteHydrationError: "" });
+    try {
+      const annotations = await annotationsClient.getAnnotations(detail.book.id);
+      if (
+        this.isUnloaded
+        || requestId !== this.readerLoadRequestId
+        || hydrationRequestId !== this.noteHydrationRequestId
+      ) return;
+      this.noteRecords = new Map(annotations.notes.map((note) => [note.id, note] as const));
+      const currentDetail = this.data.detail;
+      if (!currentDetail || currentDetail.book.id !== detail.book.id) return;
+      this.setData({
+        detail: { ...currentDetail, notes: annotations.notes.map(noteForDisplay) },
+        noteHydrationState: "ready",
+        noteHydrationError: "",
+      });
+    } catch (error) {
+      if (
+        this.isUnloaded
+        || requestId !== this.readerLoadRequestId
+        || hydrationRequestId !== this.noteHydrationRequestId
+      ) return;
+      this.setData({
+        noteHydrationState: "failed",
+        noteHydrationError: noteHydrationErrorForDisplay(error),
+      });
     }
   },
   bookPresentation(detail: BookDetail) {
@@ -575,20 +690,195 @@ Page<ReaderData>({
     });
   },
   openNoteComposer() {
-    this.setData({ noteEditorState: "editing", noteSaveError: "" });
+    this.setData({
+      noteEditorState: "editing",
+      noteEditorMode: "create",
+      noteEditingId: "",
+      noteSaving: false,
+      noteSaveError: "",
+    });
+  },
+  openNoteEditor(event: MiniappEvent) {
+    const noteId = String(event.currentTarget.dataset.noteId ?? "");
+    const note = this.noteRecords instanceof Map ? this.noteRecords.get(noteId) : undefined;
+    if (!note) return;
+    const next = rememberReaderContentContext(this.contentContext(), { drafts: { notes: note.body } });
+    this.readerContentContext = next;
+    this.setData({
+      contentDrafts: next.drafts,
+      noteEditorState: "editing",
+      noteEditorMode: "edit",
+      noteEditingId: noteId,
+      noteSaving: false,
+      noteSaveError: "",
+      noteActionId: "",
+      noteDeleteError: "",
+    });
   },
   closeNoteComposer() {
-    this.setData({ noteEditorState: "closed", noteSaveError: "" });
+    this.setData({
+      noteEditorState: "closed",
+      noteSaving: false,
+      noteEditingId: "",
+      noteSaveError: "",
+    });
   },
-  saveNote() {
-    if (!this.data.contentDrafts.notes.trim()) {
+  async saveNote() {
+    const draft = this.data.contentDrafts.notes.trim();
+    if (!draft) {
       this.setData({ noteEditorState: "editing", noteSaveError: "先写下想法，再尝试保存。" });
       return;
     }
+    if (this.data.noteSaving) return;
+    const detail = this.data.detail;
+    const annotationsClient: AnnotationsApiClient | undefined = getApp<MiniappApp>().globalData.annotationsClient;
+    if (!detail || !annotationsClient) {
+      this.setData({
+        noteEditorState: "failed",
+        noteSaveError: "笔记保存暂不可用，内容已保留；请稍后重试。",
+      });
+      return;
+    }
+
+    const mutationRequestId = (this.noteMutationRequestId ?? 0) + 1;
+    this.noteMutationRequestId = mutationRequestId;
+    const mode = this.data.noteEditorMode;
+    const editingId = this.data.noteEditingId;
+    this.setData({ noteSaving: true, noteSaveError: "" });
+    try {
+      let result: NoteCreateResult | NoteUpdateResult;
+      if (mode === "edit") {
+        const note = this.noteRecords instanceof Map ? this.noteRecords.get(editingId) : undefined;
+        if (!note) throw new AnnotationsApiError(0, "NOTE_NOT_FOUND", false);
+        result = await annotationsClient.updateNote(detail.book.id, editingId, {
+          expectedVersion: note.version,
+          body: draft,
+          source: note.source,
+        });
+      } else {
+        if (this.noteCreateIdempotencyBody !== draft || !this.noteCreateIdempotencyKey) {
+          this.noteCreateIdempotencyKey = nextNoteIdempotencyKey();
+          this.noteCreateIdempotencyBody = draft;
+        }
+        result = await annotationsClient.createNote(detail.book.id, {
+          idempotencyKey: this.noteCreateIdempotencyKey,
+          body: draft,
+        });
+      }
+      if (this.isUnloaded || mutationRequestId !== this.noteMutationRequestId) return;
+      if (result.status === "failed") {
+        if (mode === "create" && result.retainedDraft?.idempotencyKey) {
+          this.noteCreateIdempotencyKey = result.retainedDraft.idempotencyKey;
+          this.noteCreateIdempotencyBody = result.retainedDraft.body ?? draft;
+        }
+        this.retainNoteDraft(result.retainedDraft?.body);
+        this.setData({
+          noteEditorState: "failed",
+          noteSaveError: noteFailedResultMessage("保存"),
+        });
+        return;
+      }
+      this.noteCreateIdempotencyKey = undefined;
+      this.noteCreateIdempotencyBody = undefined;
+      this.commitNote(result.note);
+      const next = rememberReaderContentContext(this.contentContext(), { drafts: { notes: "" } });
+      this.readerContentContext = next;
+      this.setData({
+        contentDrafts: next.drafts,
+        noteEditorState: "closed",
+        noteEditorMode: "create",
+        noteEditingId: "",
+        noteSaveError: "",
+      });
+    } catch (error) {
+      if (isNoteConflict(error)) {
+        await this.hydrateNotes(detail, this.readerLoadRequestId ?? 0);
+      }
+      if (this.isUnloaded || mutationRequestId !== this.noteMutationRequestId) return;
+      this.setData({
+        noteEditorState: "failed",
+        noteSaveError: noteErrorForDisplay(error, "保存"),
+      });
+    } finally {
+      if (!this.isUnloaded && mutationRequestId === this.noteMutationRequestId) {
+        this.setData({ noteSaving: false });
+      }
+    }
+  },
+  openNoteActions(event: MiniappEvent) {
+    const noteId = String(event.currentTarget.dataset.noteId ?? "");
+    if (!noteId) return;
     this.setData({
-      noteEditorState: "failed",
-      noteSaveError: "笔记保存接口尚未接入，内容已保留；请稍后重试。",
+      noteActionId: this.data.noteActionId === noteId ? "" : noteId,
+      noteDeleteError: "",
     });
+  },
+  async deleteNote(event: MiniappEvent) {
+    const noteId = String(event.currentTarget.dataset.noteId ?? "");
+    if (!noteId || this.data.noteDeletingId) return;
+    const detail = this.data.detail;
+    const note = this.noteRecords instanceof Map ? this.noteRecords.get(noteId) : undefined;
+    const annotationsClient: AnnotationsApiClient | undefined = getApp<MiniappApp>().globalData.annotationsClient;
+    if (!detail || !note || !annotationsClient) {
+      this.setData({ noteActionId: noteId, noteDeleteError: "笔记删除暂不可用，内容已保留；请稍后重试。" });
+      return;
+    }
+
+    const mutationRequestId = (this.noteMutationRequestId ?? 0) + 1;
+    this.noteMutationRequestId = mutationRequestId;
+    this.setData({ noteDeletingId: noteId, noteActionId: noteId, noteDeleteError: "" });
+    try {
+      const result: NoteDeleteResult = await annotationsClient.deleteNote(detail.book.id, noteId, {
+        expectedVersion: note.version,
+      });
+      if (this.isUnloaded || mutationRequestId !== this.noteMutationRequestId) return;
+      if (result.status === "failed") {
+        this.setData({
+          noteDeleteError: noteFailedResultMessage("删除"),
+          noteActionId: noteId,
+        });
+        return;
+      }
+      this.removeNote(noteId);
+      this.setData({ noteActionId: "", noteDeleteError: "" });
+    } catch (error) {
+      if (isNoteConflict(error)) {
+        await this.hydrateNotes(detail, this.readerLoadRequestId ?? 0);
+      }
+      if (this.isUnloaded || mutationRequestId !== this.noteMutationRequestId) return;
+      this.setData({ noteDeleteError: noteErrorForDisplay(error, "删除"), noteActionId: noteId });
+    } finally {
+      if (!this.isUnloaded && mutationRequestId === this.noteMutationRequestId) {
+        this.setData({ noteDeletingId: "" });
+      }
+    }
+  },
+  retryDeleteNote() {
+    const noteId = this.data.noteActionId;
+    if (!noteId) return;
+    void this.deleteNote({ currentTarget: { dataset: { noteId } } } as unknown as MiniappEvent);
+  },
+  commitNote(note: TextNote) {
+    if (!(this.noteRecords instanceof Map)) this.noteRecords = new Map<string, TextNote>();
+    this.noteRecords.set(note.id, note);
+    const notes = [...this.noteRecords.values()];
+    const detail = this.data.detail;
+    if (detail) this.setData({ detail: { ...detail, notes: notes.map(noteForDisplay) } });
+  },
+  removeNote(noteId: string) {
+    if (!(this.noteRecords instanceof Map)) return;
+    this.noteRecords.delete(noteId);
+    const detail = this.data.detail;
+    if (detail) {
+      this.setData({ detail: { ...detail, notes: [...this.noteRecords.values()].map(noteForDisplay) } });
+    }
+    if (this.data.noteEditingId === noteId) this.closeNoteComposer();
+  },
+  retainNoteDraft(retainedBody?: string) {
+    const body = typeof retainedBody === "string" ? retainedBody : this.data.contentDrafts.notes;
+    const next = rememberReaderContentContext(this.contentContext(), { drafts: { notes: body } });
+    this.readerContentContext = next;
+    this.setData({ contentDrafts: next.drafts });
   },
   jumpToSection(event: MiniappEvent) {
     const blockIndex = Number(event.currentTarget.dataset.blockIndex);
@@ -616,7 +906,18 @@ Page<ReaderData>({
     this.readerContentContext = next;
     this.setData({ contentTab: next.activeTab, contentScrollTops: next.scrollTop, contentDrafts: next.drafts });
   },
-  retryPanel() { this.setData({ panelState: "normal" }); },
+  retryNotes() {
+    const detail = this.data.detail;
+    if (!detail) return;
+    void this.hydrateNotes(detail, this.readerLoadRequestId ?? 0);
+  },
+  retryPanel() {
+    if (this.data.contentTab === "notes" && this.data.noteHydrationState === "failed") {
+      this.retryNotes();
+      return;
+    }
+    this.setData({ panelState: "normal" });
+  },
   chooseTheme(event: MiniappEvent) {
     const theme = normalizeReaderBackground(event.currentTarget.dataset.theme);
     this.readerStateRevision = (this.readerStateRevision ?? 0) + 1;

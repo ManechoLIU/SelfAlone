@@ -127,8 +127,12 @@
                <view class="content-row" wx:for="{{detail.highlights}}" wx:key="id"><view class="content-quote">{{item.quote}}</view><view class="content-body">{{item.body}}</view><view class="content-meta">{{item.meta}}</view></view>
              </block>
              <block wx:elif="{{contentTab === 'notes'}}">
-               <view class="content-notes-toolbar"><button class="content-create-note" bindtap="openNoteComposer" aria-label="新建笔记">新建笔记</button></view>
-               <view class="content-row content-row--note" wx:for="{{detail.notes}}" wx:key="id"><view wx:if="{{item.quote}}" class="content-quote">{{item.quote}}</view><view class="content-row__main"><view class="content-body">{{item.body}}</view><button class="content-more" bindtap="noop" aria-label="更多笔记操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button></view><view class="content-meta">{{item.meta}}</view></view>
+               <view wx:if="{{noteHydrationState === 'loading'}}" class="sheet-state"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view></view><text>正在加载笔记</text></view>
+               <view wx:elif="{{noteHydrationState === 'failed'}}" class="sheet-state"><view class="state-panel__title">笔记加载失败</view><text role="alert">{{noteHydrationError}}</text><button class="state-panel__action" bindtap="retryNotes">重试</button></view>
+               <block wx:else>
+                 <view class="content-notes-toolbar"><button class="content-create-note" bindtap="openNoteComposer" aria-label="新建笔记">新建笔记</button><view wx:if="{{noteDeleteError}}" class="note-editor-error" role="alert">{{noteDeleteError}}</view><button wx:if="{{noteDeleteError}}" class="state-panel__action" bindtap="retryDeleteNote" disabled="{{noteDeletingId !== ''}}">重试删除</button></view>
+                 <view class="content-row content-row--note" wx:for="{{detail.notes}}" wx:key="id"><view wx:if="{{item.quote}}" class="content-quote">{{item.quote}}</view><view class="content-row__main"><view class="content-body">{{item.body}}</view><button class="content-more" data-note-id="{{item.id}}" bindtap="openNoteActions" aria-label="更多笔记操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button></view><view class="content-meta">{{item.meta}}</view><view wx:if="{{noteActionId === item.id}}" class="content-row__actions"><button bindtap="openNoteEditor" data-note-id="{{item.id}}">编辑</button><button bindtap="deleteNote" data-note-id="{{item.id}}" disabled="{{noteDeletingId === item.id}}">{{noteDeletingId === item.id ? '正在删除' : '删除'}}</button></view></view>
+               </block>
              </block>
             <view wx:else class="works-grid">
               <view class="work-item" wx:for="{{detail.works}}" wx:key="id"><view class="work-preview"><text>{{item.title}}</text></view><view class="work-meta"><text>{{item.meta}}</text><button wx:if="{{item.status === 'completed'}}" class="work-download" bindtap="showDownloadBoundary" aria-label="下载作品"><image src="/assets/icons/download.svg" mode="aspectFit" aria-hidden="true"></image></button></view></view>
@@ -140,20 +144,20 @@
 
     <view wx:if="{{noteEditorState !== 'closed'}}" class="note-editor-layer note-editor-layer--{{noteEditorState}}">
       <view class="note-editor-mask" catchtap="closeNoteComposer"></view>
-      <view class="note-editor-surface" catchtap="noop" role="dialog" aria-label="新建笔记编辑">
+      <view class="note-editor-surface" catchtap="noop" role="dialog" aria-label="{{noteEditorMode === 'edit' ? '编辑笔记' : '新建笔记编辑'}}">
         <view class="note-editor-header">
-          <button class="note-editor-close" bindtap="closeNoteComposer" aria-label="关闭新建笔记"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
-          <view class="note-editor-title">新建笔记</view>
+          <button class="note-editor-close" bindtap="closeNoteComposer" aria-label="关闭笔记编辑"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
+          <view class="note-editor-title">{{noteEditorMode === 'edit' ? '编辑笔记' : '新建笔记'}}</view>
           <view class="note-editor-header-spacer" aria-hidden="true"></view>
         </view>
         <view class="note-editor-body">
           <view wx:if="{{noteSaveError}}" class="note-editor-error" role="alert">{{noteSaveError}}</view>
-          <textarea class="note-editor-input" data-tab="notes" value="{{contentDrafts.notes}}" bindinput="onContentDraftInput" placeholder="写下你的想法" maxlength="4000" focus="{{noteEditorState === 'editing'}}"></textarea>
+          <textarea class="note-editor-input" data-tab="notes" value="{{contentDrafts.notes}}" bindinput="onContentDraftInput" placeholder="写下你的想法" maxlength="4000" focus="{{noteEditorState === 'editing' && !noteSaving}}"></textarea>
           <view class="note-editor-hint">草稿会保留在当前阅读中，关闭后仍可继续编辑。</view>
         </view>
         <view class="note-editor-actions">
           <button class="note-editor-action note-editor-action--secondary" bindtap="closeNoteComposer">关闭</button>
-          <button class="note-editor-action note-editor-action--primary" bindtap="saveNote">{{noteEditorState === 'failed' ? '重试保存' : '保存'}}</button>
+          <button class="note-editor-action note-editor-action--primary" bindtap="saveNote" disabled="{{noteSaving}}">{{noteSaving ? '正在保存' : (noteEditorState === 'failed' ? '重试保存' : (noteEditorMode === 'edit' ? '保存修改' : '保存'))}}</button>
         </view>
       </view>
     </view>
