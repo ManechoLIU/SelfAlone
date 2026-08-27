@@ -405,9 +405,6 @@ export function createApp(dependencies: AppDependencies) {
     if (message === "WECHAT_LOGIN_UNAVAILABLE") {
       return reply.code(503).send({ code: message });
     }
-    if (message === "INVALID_WECHAT_SUBJECT" || message === "AUTH_IDENTITY_UNAVAILABLE") {
-      return reply.code(502).send({ code: message });
-    }
     if (message === "EMAIL_ALREADY_REGISTERED") {
       return reply.code(409).send({ code: message });
     }

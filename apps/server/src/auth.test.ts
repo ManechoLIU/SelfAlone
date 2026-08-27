@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { hashOpaqueToken } from "@selfalone/domain";
+import type { AuthAccount } from "@selfalone/contracts";
 import { createApp } from "./app";
 import {
   createArgon2idPasswordHasher,
@@ -261,6 +262,61 @@ describe("M1-F1-A email authentication", () => {
     expect(exchangeCalls).toBe(0);
   });
 
+  it("keeps provider-only accounts compatible with the shared nullable email contract", () => {
+    const account: AuthAccount = { id: "wechat-account", email: null };
+    expect(account.email).toBeNull();
+  });
+
+  it("fails closed with a stable unavailable response when the Mini Program exchange seam is absent", async () => {
+    const app = await setup();
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "mini-code-no-exchange" },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ code: "WECHAT_LOGIN_UNAVAILABLE" });
+  });
+
+  it("fails closed with the same unavailable response when the provider exchange fails", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => {
+        throw new Error("provider network failure");
+      },
+    });
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "mini-code-provider-failure" },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ code: "WECHAT_LOGIN_UNAVAILABLE" });
+  });
+
+  it("normalizes unexpected identity failures to the declared internal error contract", async () => {
+    const app = createApp({
+      readiness: () => Promise.resolve(true),
+      auth: {
+        isProductionEnvironment: () => false,
+        getAccount: async () => null,
+        loginWechatMiniapp: async () => {
+          throw new Error("AUTH_IDENTITY_UNAVAILABLE");
+        },
+      },
+    } as never);
+    apps.push(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "mini-code-identity-error" },
+    });
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ code: "INTERNAL_ERROR" });
+  });
+
   it("creates an independent account for an unknown Mini Program subject and stores only a session digest", async () => {
     const app = await setup({
       wechatMiniappCodeExchange: async (code) => `subject:${code}`,
@@ -340,6 +396,65 @@ describe("M1-F1-A email authentication", () => {
       WHERE provider = 'wechat_miniapp'
     `);
     expect(identityCount?.count).toBe(1);
+  });
+
+  it("serializes concurrent logins for one subject without leaving a loser account", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => "wechat-subject-concurrent",
+    });
+
+    const [first, second] = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: "/api/v1/auth/wechat/miniapp",
+        payload: { code: "concurrent-code-1" },
+      }),
+      app.inject({
+        method: "POST",
+        url: "/api/v1/auth/wechat/miniapp",
+        payload: { code: "concurrent-code-2" },
+      }),
+    ]);
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(first.json().account).toEqual(second.json().account);
+    expect(first.json().sessionToken).not.toBe(second.json().sessionToken);
+
+    const database = databases.at(-1);
+    if (!database) throw new Error("TEST_DATABASE_NOT_READY");
+    const [identityCount] = await database.administration.unsafe<Array<{ count: number }>>(`
+      SELECT count(*)::int AS count
+      FROM "${database.schema}".login_identities
+      WHERE provider = 'wechat_miniapp'
+    `);
+    const [accountCount] = await database.administration.unsafe<Array<{ count: number }>>(`
+      SELECT count(*)::int AS count
+      FROM "${database.schema}".accounts
+    `);
+    const [sessionCount] = await database.administration.unsafe<Array<{ count: number }>>(`
+      SELECT count(*)::int AS count
+      FROM "${database.schema}".sessions
+      WHERE account_id = '${first.json().account.id}'
+        AND revoked_at IS NULL
+        AND expires_at > now()
+    `);
+    expect(identityCount?.count).toBe(1);
+    expect(accountCount?.count).toBe(1);
+    expect(sessionCount?.count).toBe(2);
+
+    const firstAccount = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: `Bearer ${first.json().sessionToken as string}` },
+    });
+    const secondAccount = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: `Bearer ${second.json().sessionToken as string}` },
+    });
+    expect(firstAccount.statusCode).toBe(200);
+    expect(secondAccount.statusCode).toBe(200);
   });
 
   it("authenticates business routes with Bearer sessions and ignores a forged owner header", async () => {

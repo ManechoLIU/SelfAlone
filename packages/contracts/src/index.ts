@@ -187,7 +187,7 @@ export type TextAnnotationError = { code: TextAnnotationErrorCode };
 
 export type AuthAccount = {
   id: string;
-  email: string;
+  email: string | null;
 };
 
 /** An account returned to a provider-only client may not have an email identity. */
@@ -222,7 +222,6 @@ export type AuthErrorCode =
   | "AUTH_REQUIRED"
   | "AUTH_AMBIGUOUS"
   | "WECHAT_LOGIN_UNAVAILABLE"
-  | "INVALID_WECHAT_SUBJECT"
   | "INVALID_CREDENTIALS"
   | "INVALID_EMAIL"
   | "INVALID_PASSWORD"

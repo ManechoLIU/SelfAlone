@@ -237,11 +237,16 @@ export class AuthRuntime {
     if (!code || code.length > 512) throw new Error("INVALID_REQUEST");
     if (!this.#wechatMiniappCodeExchange) throw new Error("WECHAT_LOGIN_UNAVAILABLE");
 
-    const exchangedSubject = await this.#wechatMiniappCodeExchange(code);
-    if (typeof exchangedSubject !== "string") throw new Error("INVALID_WECHAT_SUBJECT");
+    let exchangedSubject: string;
+    try {
+      exchangedSubject = await this.#wechatMiniappCodeExchange(code);
+    } catch {
+      throw new Error("WECHAT_LOGIN_UNAVAILABLE");
+    }
+    if (typeof exchangedSubject !== "string") throw new Error("WECHAT_LOGIN_UNAVAILABLE");
     const providerSubject = exchangedSubject.trim();
     if (!providerSubject || providerSubject.length > 512) {
-      throw new Error("INVALID_WECHAT_SUBJECT");
+      throw new Error("WECHAT_LOGIN_UNAVAILABLE");
     }
 
     const sessionToken = createOpaqueToken();
