@@ -7,7 +7,7 @@
 - **Goal（当前里程碑 `ACTIVE / OPEN`）**：唯一总控任务`01a03c61-5dd2-7553-968b-a3bc2f5777c9`的`get_goal`已于本事件恢复为`active`。实时系统证据为`IOConsoleLocked=No / UserIsActive=1`；先前看到的是Passwords本地认证提示而非系统锁屏。该本地认证门现已关闭，DeepSeek配置验证1/3已通过；未完成两轮真实对话与刷新恢复前不写DONE。
 - 当前执行波次：`STAGE-CHAT-V1 / DESKTOP H4 REAL CONVERSATION`。核心线只闭合同一真实账户的Desktop DeepSeek H4；M2-F1本地子门已闭合，Mini production H3为独立外部门且不再占当前执行。密钥已从Passwords经本机剪贴板直接进入本地配置API，返回后剪贴板立即清空；禁止进入聊天、工具参数、源码、`.env`、日志、截图或台账。
 - 当前活动项：`STAGE-CHAT-V1`
-- 协调下一动作：root在真实Chrome复核配置脱敏状态，进入Conversation发送首轮并取得真实回复（调用2/3），随后同session第二轮验证上下文（调用3/3）并刷新确认不新增调用。`/root/h4_route_audit`只读核对精确路由与调用计数，不读取密钥、不外调。
+- 协调下一动作：H4只读路由审查已完成；current-main对话 / 配置 / 失败恢复定向5文件36项、Server / Web typecheck与build均PASS。root等待用户确认精确测试文本后，在真实Chrome发送首轮并取得真实回复（调用2/3），随后同session第二轮验证上下文（调用3/3）并刷新确认不新增调用。
 - **已加载规则基线**：真实仓库`/Users/echoman/Documents/SelfAlone`、`main@be0cd2f21ef323430e1c6430354f49d4dee5db18`（Mini auth代码提交`9f11b8956deedbb65b53846352bd863e9822412e`）及受保护现场已对账；总控已加载`AGENTS.md`来源提交`43610f69bd2a769d4a3cde588ca28bc0ca8bc4d4`（blob`3d3f25f5b7de7398d41b6677c342843080529d37`）与adaptive-delivery正式提交`2d175c03a4a342bb51de911d1e690e3d74d6d0bf`对应安装文件：`SKILL.md` SHA-256 `5b441a744dd3250d78879caf734ca23725ba4a7775e93f02ee9eb9714849e1ec`、`context-governance.md` SHA-256 `21b4a05a0ca6f5582cb92f8c76aa9eba9939f6c0a9a78e8aa7d26b6011ee3919`、`long-task-governance.md` SHA-256 `b1bfbdb5d4690c9634d1d27c6de72df85a6b1024663bf2996a00bc51ac0b584f`。受影响Server writer / Reviewer与Mini恢复writer均已loaded exact版本；H4路由审查`/root/h4_route_audit`已在只读边界完成并释放，当前live仅root。
 - **活动实现 / 复验线**：DeepSeek provider已在main且默认fail-closed；H4调用1/3已由真实`deepseek-v4-flash`验证并加密保存配置，剪贴板已清空。Mini Conversation API与M2-F1 auth已分别进入`main@9f11b89`和唯一`f312@04b5f03`，main / f312代码回归与真实fail-closed Case PASS。两处main误写测试字节哈希前后不变，只读保护且未夹带提交。
 - **Mini WIP恢复（一行）**：main与mchatapi两处测试WIP均为同一writer在额度中断前先用相对路径误写main、再用绝对路径写mchatapi；main`page-state.test.ts`还重复应用一次。唯一写入权固定为mchatapi，main两文件只读保护；规则ACK轮次曾因四个窗口无回执而回收1次（`previous_status=running`），同一任务已从153行RED恢复，未丢结果、未新增writer。
@@ -73,7 +73,7 @@
 | --- | --- | --- | --- | --- | --- |
 | `M1-F3A-A` | `DONE` · `MAIN MERGED 5f3b1bf + FIX 0b1402f / H3 PASS` | clean候选`dsk1@4410e6e`的24文件文本模型加密配置 / 校验provider seam已顺序进main；root真实Case另发现撤销成功文案误称AI仍可用、PostgreSQL `bigint`字符串导致修订号`9→91`，均以失败回归和最小修复关闭。本包只关闭产品内安全配置入口，不代表自由聊天 | root在隔离schema完成空Key、无效Key、development fake保存、刷新脱敏、替换与撤销；修订号保存`2221→2222`、撤销`2222→2223`，墓碑密文 / nonce / auth tag均0。本事件真实DeepSeek配置验证1/3已PASS | main候选24文件 + root四文件修复；凭证仅AES-256-GCM密文与脱敏提示入库，剪贴板已清空，测试 / 日志 / UI无真实Key | 定向11文件46项、全仓typecheck、全仓build、diff-check通过；官方模型 / 计费与responder候选均已闭合代码门，H4还需两轮真实会话，不得把配置验证写成自由聊天DONE |
 | `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立可选配置、检测、撤销和设置 UI 闭环；不成为无图 PPT 前置 | A；图片供应商范围未确认或产生付费调用时暂停 | CORE、API、DB、WEB、QA | 文本 / 图片配置互不覆盖；撤销不影响历史数据和无图 PPT；失败保留输入；未产生；通过后释放 V1 |
-| `M1-F3A-V1` | `VERIFY / H4 1 OF 3 PASS` / 项目总控 | 完成模型配置本地闭环，并以DeepSeek取得脱敏H4真实两轮对话收据 | A；官方合同已核为`deepseek-v4-flash`与`/chat/completions`，三次短调用总上限≤¥1；Passwords已解锁并完成安全摄入 | 当前main隔离schema / API4212 / Web4276、真实Chrome；不写Key | fake与失败恢复已证明保存 / 撤销 / 草稿 / 重试；真实配置验证1/3 PASS，继续首轮+第二轮，成功刷新不新增调用，仅记供应商 / 模型 / 次数 / 结果与费用上限，不记录密钥 |
+| `M1-F3A-V1` | `VERIFY / H4 1 OF 3 PASS` / 项目总控 | 完成模型配置本地闭环，并以DeepSeek取得脱敏H4真实两轮对话收据 | A；官方合同已核为`deepseek-v4-flash`与`/chat/completions`，三次短调用总上限≤¥1；Passwords已解锁并完成安全摄入 | 当前main隔离schema / API4212 / Web4276、真实Chrome；不写Key | current-main对话 / 配置 / 失败恢复定向5文件36项、Server / Web typecheck与build PASS；真实配置验证1/3 PASS，继续首轮+第二轮，成功刷新不新增调用，仅记供应商 / 模型 / 次数 / 结果与费用上限，不记录密钥 |
 
 ### 3.4 `M1-F3B` 桌面对话与 AI
 
