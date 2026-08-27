@@ -1014,19 +1014,23 @@ export function registerTextAnnotationRoutes(
       return sendAnnotationError(error, reply);
     }
   });
-  app.patch("/api/v1/books/:bookId/notes/:noteId", async (request, reply) => {
-    try {
-      const { bookId, noteId } = noteParameters.parse(request.params);
-      const result = await runtime.updateNote(
-        resolveAccountId(request.headers),
-        bookId,
-        noteId,
-        noteUpdateSchema.parse(request.body),
-      );
-      return reply.code(result.status === "saved" ? 200 : 503).send(result);
-    } catch (error) {
-      return sendAnnotationError(error, reply);
-    }
+  app.route({
+    method: ["PATCH", "PUT"],
+    url: "/api/v1/books/:bookId/notes/:noteId",
+    handler: async (request, reply) => {
+      try {
+        const { bookId, noteId } = noteParameters.parse(request.params);
+        const result = await runtime.updateNote(
+          resolveAccountId(request.headers),
+          bookId,
+          noteId,
+          noteUpdateSchema.parse(request.body),
+        );
+        return reply.code(result.status === "saved" ? 200 : 503).send(result);
+      } catch (error) {
+        return sendAnnotationError(error, reply);
+      }
+    },
   });
   app.delete("/api/v1/books/:bookId/notes/:noteId", async (request, reply) => {
     try {

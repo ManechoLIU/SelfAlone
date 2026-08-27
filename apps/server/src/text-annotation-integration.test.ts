@@ -102,7 +102,7 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
     await Promise.all(objectDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
   });
 
-  it("persists highlight/thought and titleless note CRUD, then keeps owners and file versions isolated", async () => {
+  it("persists annotations and keeps PATCH/PUT note updates version-safe across restarts", async () => {
     const schema = `text_annotation_${randomUUID().replaceAll("-", "")}`;
     const administration = postgres(baseDatabaseUrl, { max: 1 });
     await administration.unsafe(`CREATE SCHEMA "${schema}"`);
@@ -305,6 +305,27 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
     expect(editedNote.statusCode).toBe(200);
     expect(editedNote.json()).toMatchObject({ status: "saved", note: { version: 2, body: "改过的独立记录。" } });
 
+    const putEditedNote = await app.inject({
+      method: "PUT",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2, body: "PUT 兼容更新的独立记录。" },
+    });
+    expect(putEditedNote.statusCode).toBe(200);
+    expect(putEditedNote.json()).toMatchObject({
+      status: "saved",
+      note: { version: 3, body: "PUT 兼容更新的独立记录。" },
+    });
+
+    const stalePutEditedNote = await app.inject({
+      method: "PUT",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2, body: "过期 PUT 不得覆盖当前记录。" },
+    });
+    expect(stalePutEditedNote.statusCode).toBe(409);
+    expect(stalePutEditedNote.json()).toEqual({ code: "STALE_VERSION" });
+
     apps.pop();
     await app.close();
     annotations.pop();
@@ -327,7 +348,7 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
       expect.objectContaining({ id: highlightId, thought: "回头再读一次。" }),
     ]));
     expect(afterRestart.json().notes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: noteId, body: "改过的独立记录。" }),
+      expect.objectContaining({ id: noteId, body: "PUT 兼容更新的独立记录。", version: 3 }),
     ]));
 
     const foreign = await restoredApp.inject({
@@ -444,7 +465,7 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
       method: "DELETE",
       url: `/api/v1/books/${imported.id}/notes/${noteId}`,
       headers: { "x-selfalone-account": "account-a" },
-      payload: { expectedVersion: 2 },
+      payload: { expectedVersion: 3 },
     });
     expect(deletedNote.statusCode).toBe(200);
     expect(deletedNote.json()).toEqual({ status: "deleted", id: noteId });
