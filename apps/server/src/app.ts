@@ -57,6 +57,26 @@ function readSessionCookie(cookieHeader: string | undefined) {
   return undefined;
 }
 
+function readBearerToken(authorizationHeader: string | undefined) {
+  if (typeof authorizationHeader !== "string") return undefined;
+  const match = /^Bearer\s+(\S+)$/i.exec(authorizationHeader.trim());
+  return match?.[1];
+}
+
+function hasBearerCredential(authorizationHeader: string | undefined) {
+  return typeof authorizationHeader === "string"
+    && /^Bearer(?:\s|$)/i.test(authorizationHeader.trim());
+}
+
+function readRequestSessionToken(request: { headers: { cookie?: string; authorization?: string } }) {
+  const cookieToken = readSessionCookie(request.headers.cookie);
+  const bearerToken = readBearerToken(request.headers.authorization);
+  if (cookieToken && hasBearerCredential(request.headers.authorization)) {
+    throw new Error("AUTH_AMBIGUOUS");
+  }
+  return bearerToken ?? cookieToken;
+}
+
 function sessionCookie(token: string, secure: boolean) {
   return `${sessionCookieName}=${encodeURIComponent(token)}; Max-Age=2592000; Path=/; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
@@ -102,8 +122,9 @@ export function createApp(dependencies: AppDependencies) {
     const secureCookie = auth.isProductionEnvironment();
 
     app.addHook("preHandler", async (request) => {
+      const sessionToken = readRequestSessionToken(request);
       if (isPublicPath(request.url)) return;
-      const account = await auth.getAccount(readSessionCookie(request.headers.cookie));
+      const account = await auth.getAccount(sessionToken);
       if (!account) throw new Error("AUTH_REQUIRED");
       // Existing resource runtimes accept a session-neutral owner resolver. The
       // value is injected only after a valid HttpOnly session is verified.
@@ -124,6 +145,12 @@ export function createApp(dependencies: AppDependencies) {
       return reply.code(200).send({ account: result.account });
     });
 
+    app.post("/api/v1/auth/wechat/miniapp", async (request, reply) => {
+      const body = z.object({ code: z.string().trim().min(1).max(512) }).strict().parse(request.body);
+      const result = await auth.loginWechatMiniapp(body.code);
+      return reply.code(200).send(result);
+    });
+
     app.post("/api/v1/auth/refresh", async (request, reply) => {
       const result = await auth.refresh(readSessionCookie(request.headers.cookie));
       reply.header("set-cookie", sessionCookie(result.sessionToken, secureCookie));
@@ -131,13 +158,13 @@ export function createApp(dependencies: AppDependencies) {
     });
 
     app.post("/api/v1/auth/logout", async (request, reply) => {
-      await auth.logout(readSessionCookie(request.headers.cookie));
+      await auth.logout(readRequestSessionToken(request));
       reply.header("set-cookie", clearSessionCookie(secureCookie));
       return reply.code(204).send();
     });
 
     app.get("/api/v1/account", async (request, reply) => {
-      const account = await auth.getAccount(readSessionCookie(request.headers.cookie));
+      const account = await auth.getAccount(readRequestSessionToken(request));
       if (!account) throw new Error("AUTH_REQUIRED");
       return reply.send({ account });
     });
@@ -371,6 +398,15 @@ export function createApp(dependencies: AppDependencies) {
     }
     if (message === "AUTH_REQUIRED" || message === "INVALID_CREDENTIALS") {
       return reply.code(401).send({ code: message });
+    }
+    if (message === "AUTH_AMBIGUOUS") {
+      return reply.code(400).send({ code: message });
+    }
+    if (message === "WECHAT_LOGIN_UNAVAILABLE") {
+      return reply.code(503).send({ code: message });
+    }
+    if (message === "INVALID_WECHAT_SUBJECT" || message === "AUTH_IDENTITY_UNAVAILABLE") {
+      return reply.code(502).send({ code: message });
     }
     if (message === "EMAIL_ALREADY_REGISTERED") {
       return reply.code(409).send({ code: message });

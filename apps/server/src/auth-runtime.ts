@@ -4,14 +4,16 @@ import {
   createOpaqueToken,
   hashOpaqueToken,
   normalizeEmail,
+  planIdentityAssociation,
   SESSION_TTL_SECONDS,
   validatePassword,
   type PasswordHasher,
 } from "@selfalone/domain";
-import type { AuthAccount } from "@selfalone/contracts";
+import type { AuthAccount, WechatMiniappAuthResponse } from "@selfalone/contracts";
 import postgres, { type Sql, type TransactionSql } from "postgres";
 
 const EMAIL_PROVIDER = "email";
+const WECHAT_MINIAPP_PROVIDER = "wechat_miniapp";
 const DUMMY_PASSWORD = "selfalone-dummy-password-probe";
 
 export const ARGON2ID_OPTIONS = {
@@ -27,15 +29,24 @@ type AuthRuntimeOptions = {
   appEnv?: string;
   passwordHasher?: PasswordHasher;
   accountInitializer?: (accountId: string) => Promise<void>;
+  wechatMiniappCodeExchange?: WechatMiniappCodeExchange;
 };
 
 type RuntimeConstructorOptions = {
   appEnv: string;
   passwordHasher: PasswordHasher;
   accountInitializer?: (accountId: string) => Promise<void>;
+  wechatMiniappCodeExchange?: WechatMiniappCodeExchange;
 };
 
 type AccountRow = AuthAccount;
+type AuthenticatedAccount = {
+  id: string;
+  email: string | null;
+};
+
+/** Development or test seam; production wiring must provide an authorized adapter. */
+export type WechatMiniappCodeExchange = (code: string) => Promise<string>;
 
 function isUniqueViolation(error: unknown) {
   return typeof error === "object"
@@ -83,6 +94,7 @@ export class AuthRuntime {
   readonly #appEnv: string;
   readonly #passwordHasher: PasswordHasher;
   readonly #accountInitializer: ((accountId: string) => Promise<void>) | undefined;
+  readonly #wechatMiniappCodeExchange: WechatMiniappCodeExchange | undefined;
   #dummyPasswordHashPromise: Promise<string> | undefined;
 
   constructor(sql: Sql, options: RuntimeConstructorOptions) {
@@ -90,6 +102,7 @@ export class AuthRuntime {
     this.#appEnv = options.appEnv;
     this.#passwordHasher = options.passwordHasher;
     this.#accountInitializer = options.accountInitializer;
+    this.#wechatMiniappCodeExchange = options.wechatMiniappCodeExchange;
     if (this.#appEnv !== "development" && this.#passwordHasher.algorithm !== "argon2id") {
       throw new Error("ARGON2ID_REQUIRED");
     }
@@ -218,6 +231,99 @@ export class AuthRuntime {
     };
   }
 
+  async loginWechatMiniapp(codeInput: string): Promise<WechatMiniappAuthResponse> {
+    if (typeof codeInput !== "string") throw new Error("INVALID_REQUEST");
+    const code = codeInput.trim();
+    if (!code || code.length > 512) throw new Error("INVALID_REQUEST");
+    if (!this.#wechatMiniappCodeExchange) throw new Error("WECHAT_LOGIN_UNAVAILABLE");
+
+    const exchangedSubject = await this.#wechatMiniappCodeExchange(code);
+    if (typeof exchangedSubject !== "string") throw new Error("INVALID_WECHAT_SUBJECT");
+    const providerSubject = exchangedSubject.trim();
+    if (!providerSubject || providerSubject.length > 512) {
+      throw new Error("INVALID_WECHAT_SUBJECT");
+    }
+
+    const sessionToken = createOpaqueToken();
+    const result = await this.#sql.begin(async (transaction) => {
+      const [existingIdentity] = await transaction<Array<{ accountId: string }>>`
+        SELECT account_id AS "accountId"
+        FROM login_identities
+        WHERE provider = ${WECHAT_MINIAPP_PROVIDER}
+          AND provider_subject = ${providerSubject}
+        LIMIT 1
+        FOR UPDATE
+      `;
+      const newAccountId = randomUUID();
+      const association = planIdentityAssociation({
+        identityAccount: existingIdentity
+          ? { id: existingIdentity.accountId, hasData: false }
+          : undefined,
+        newAccountId,
+        reverified: false,
+      });
+
+      let accountId: string;
+      if (association.kind === "create_independent_account") {
+        accountId = association.accountId;
+        await transaction`INSERT INTO accounts (id) VALUES (${accountId})`;
+        const [insertedIdentity] = await transaction<Array<{ accountId: string }>>`
+          INSERT INTO login_identities (
+            id, account_id, provider, provider_subject, email, password_hash
+          ) VALUES (
+            ${randomUUID()}, ${accountId}, ${WECHAT_MINIAPP_PROVIDER}, ${providerSubject}, NULL, NULL
+          )
+          ON CONFLICT (provider, provider_subject) DO NOTHING
+          RETURNING account_id AS "accountId"
+        `;
+        if (insertedIdentity) {
+          accountId = insertedIdentity.accountId;
+        } else {
+          const [racedIdentity] = await transaction<Array<{ accountId: string }>>`
+            SELECT account_id AS "accountId"
+            FROM login_identities
+            WHERE provider = ${WECHAT_MINIAPP_PROVIDER}
+              AND provider_subject = ${providerSubject}
+            LIMIT 1
+            FOR UPDATE
+          `;
+          if (!racedIdentity) throw new Error("AUTH_IDENTITY_UNAVAILABLE");
+          await transaction`DELETE FROM accounts WHERE id = ${accountId}`;
+          accountId = racedIdentity.accountId;
+        }
+      } else {
+        accountId = association.accountId;
+      }
+
+      const [account] = await transaction<Array<{ id: string; email: string | null }>>`
+        SELECT account.id, email_identity.email
+        FROM accounts AS account
+        LEFT JOIN login_identities AS email_identity
+          ON email_identity.account_id = account.id
+          AND email_identity.provider = ${EMAIL_PROVIDER}
+        WHERE account.id = ${accountId}
+        LIMIT 1
+      `;
+      if (!account) throw new Error("AUTH_IDENTITY_UNAVAILABLE");
+
+      const expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1_000);
+      await this.#insertSession(transaction, accountId, sessionToken, expiresAt);
+      return {
+        account,
+        sessionToken,
+        expiresAt: expiresAt.toISOString(),
+      };
+    });
+
+    try {
+      await this.#initializeAccount(result.account.id);
+    } catch (error) {
+      await this.logout(result.sessionToken);
+      throw error;
+    }
+    return result;
+  }
+
   async refresh(sessionToken: string | undefined): Promise<AuthSessionResult> {
     if (!sessionToken) throw new Error("AUTH_REQUIRED");
     const nextToken = createOpaqueToken();
@@ -253,13 +359,13 @@ export class AuthRuntime {
     `;
   }
 
-  async getAccount(sessionToken: string | undefined): Promise<AccountRow | null> {
+  async getAccount(sessionToken: string | undefined): Promise<AuthenticatedAccount | null> {
     if (!sessionToken) return null;
-    const [account] = await this.#sql<AccountRow[]>`
+    const [account] = await this.#sql<AuthenticatedAccount[]>`
       SELECT account.id, identity.email
       FROM sessions AS session
       JOIN accounts AS account ON account.id = session.account_id
-      JOIN login_identities AS identity
+      LEFT JOIN login_identities AS identity
         ON identity.account_id = account.id AND identity.provider = ${EMAIL_PROVIDER}
       WHERE session.token_digest = ${hashOpaqueToken(sessionToken)}
         AND session.revoked_at IS NULL
@@ -281,14 +387,19 @@ export class AuthRuntime {
     await this.#sql.end();
   }
 
-  async #insertSession(sql: Sql | TransactionSql, accountId: string, token: string) {
+  async #insertSession(
+    sql: Sql | TransactionSql,
+    accountId: string,
+    token: string,
+    expiresAt = new Date(Date.now() + SESSION_TTL_SECONDS * 1_000),
+  ) {
     await sql`
       INSERT INTO sessions (id, account_id, token_digest, expires_at)
       VALUES (
         ${randomUUID()},
         ${accountId},
         ${hashOpaqueToken(token)},
-        ${new Date(Date.now() + SESSION_TTL_SECONDS * 1_000)}
+        ${expiresAt}
       )
     `;
   }
@@ -312,6 +423,7 @@ export async function createAuthRuntime(options: AuthRuntimeOptions) {
     appEnv,
     passwordHasher,
     accountInitializer: options.accountInitializer,
+    wechatMiniappCodeExchange: options.wechatMiniappCodeExchange,
   });
   await runtime.initialize();
   return runtime;

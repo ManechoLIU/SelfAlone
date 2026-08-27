@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
+import { hashOpaqueToken } from "@selfalone/domain";
 import { createApp } from "./app";
 import {
   createArgon2idPasswordHasher,
@@ -43,13 +44,16 @@ describe("M1-F1-A email authentication", () => {
     return url.toString();
   }
 
-  async function setup() {
+  async function setup(options: {
+    wechatMiniappCodeExchange?: (code: string) => Promise<string>;
+  } = {}) {
     const databaseUrl = await isolatedDatabase();
     const auth = await createAuthRuntime({
       databaseUrl,
       appEnv: "development",
       passwordHasher: createTestPasswordHasher(),
-    });
+      ...options,
+    } as Parameters<typeof createAuthRuntime>[0]);
     authRuntimes.push(auth);
     const app = createApp({ readiness: () => auth.ready(), auth });
     apps.push(app);
@@ -235,5 +239,231 @@ describe("M1-F1-A email authentication", () => {
     });
     expect(anonymous.statusCode).toBe(401);
     expect(anonymous.json()).toEqual({ code: "AUTH_REQUIRED" });
+  });
+
+  it("rejects an empty Mini Program code before invoking the provider exchange seam", async () => {
+    let exchangeCalls = 0;
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => {
+        exchangeCalls += 1;
+        return "wechat-subject-never-used";
+      },
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "" },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(exchangeCalls).toBe(0);
+  });
+
+  it("creates an independent account for an unknown Mini Program subject and stores only a session digest", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async (code) => `subject:${code}`,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "mini-code-new" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{
+      account: { id: string; email: string | null };
+      sessionToken: string;
+      expiresAt: string;
+    }>();
+    expect(body).toMatchObject({
+      account: { id: expect.any(String), email: null },
+      sessionToken: expect.any(String),
+      expiresAt: expect.any(String),
+    });
+    expect(Number.isNaN(Date.parse(body.expiresAt))).toBe(false);
+
+    const database = databases.at(-1);
+    if (!database) throw new Error("TEST_DATABASE_NOT_READY");
+    const [session] = await database.administration.unsafe<Array<{
+      accountId: string;
+      digest: string;
+      expiresAt: Date;
+    }>>(`
+      SELECT account_id AS "accountId", token_digest AS digest, expires_at AS "expiresAt"
+      FROM "${database.schema}".sessions
+    `);
+    expect(session).toMatchObject({
+      accountId: body.account.id,
+      digest: hashOpaqueToken(body.sessionToken),
+    });
+    expect(session?.digest).not.toContain(body.sessionToken);
+    expect(session?.expiresAt.toISOString()).toBe(body.expiresAt);
+
+    const account = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: `Bearer ${body.sessionToken}` },
+    });
+    expect(account.statusCode).toBe(200);
+    expect(account.json()).toEqual({ account: body.account });
+  });
+
+  it("reuses an existing Mini Program subject while issuing a fresh opaque session", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => "wechat-subject-reused",
+    });
+
+    const first = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "first-code" },
+    });
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "second-code" },
+    });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(200);
+    expect(second.json().account).toEqual(first.json().account);
+    expect(second.json().sessionToken).not.toBe(first.json().sessionToken);
+
+    const database = databases.at(-1);
+    if (!database) throw new Error("TEST_DATABASE_NOT_READY");
+    const [identityCount] = await database.administration.unsafe<Array<{ count: number }>>(`
+      SELECT count(*)::int AS count
+      FROM "${database.schema}".login_identities
+      WHERE provider = 'wechat_miniapp'
+    `);
+    expect(identityCount?.count).toBe(1);
+  });
+
+  it("authenticates business routes with Bearer sessions and ignores a forged owner header", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => "wechat-subject-owner",
+    });
+    const calls: string[] = [];
+    const businessApp = createApp({
+      readiness: () => Promise.resolve(true),
+      auth: authRuntimes.at(-1)!,
+      library: {
+        async listBooks(accountId: string) {
+          calls.push(accountId);
+          return [];
+        },
+      },
+    } as never);
+    apps.push(businessApp);
+
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "owner-code" },
+    });
+    const token = login.json().sessionToken as string;
+    const books = await businessApp.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-selfalone-account": "attacker-selected-account",
+      },
+    });
+
+    expect(books.statusCode).toBe(200);
+    expect(calls).toEqual([login.json().account.id]);
+  });
+
+  it("rejects invalid, expired, and revoked Bearer sessions", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => "wechat-subject-revocation",
+    });
+    const login = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "revocation-code" },
+    });
+    const token = login.json().sessionToken as string;
+
+    const invalid = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: "Bearer forged-token" },
+    });
+    expect(invalid.statusCode).toBe(401);
+
+    const database = databases.at(-1);
+    if (!database) throw new Error("TEST_DATABASE_NOT_READY");
+    await database.administration.unsafe(`
+      UPDATE "${database.schema}".sessions
+      SET expires_at = now() - interval '1 minute'
+      WHERE token_digest = '${hashOpaqueToken(token)}'
+    `);
+    const expired = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(expired.statusCode).toBe(401);
+
+    const secondLogin = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "revocation-code-2" },
+    });
+    const secondToken = secondLogin.json().sessionToken as string;
+    const logout = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/logout",
+      headers: { authorization: `Bearer ${secondToken}` },
+    });
+    expect(logout.statusCode).toBe(204);
+    const revoked = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { authorization: `Bearer ${secondToken}` },
+    });
+    expect(revoked.statusCode).toBe(401);
+  });
+
+  it("retains Web cookie auth and rejects an ambiguous cookie-plus-Bearer request", async () => {
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => "wechat-subject-cookie",
+    });
+    const email = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/email/register",
+      payload: { email: "cookie-regression@example.com", password: "correct horse battery" },
+    });
+    const cookie = email.headers["set-cookie"] as string;
+    const cookieAccount = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: { cookie },
+    });
+    expect(cookieAccount.statusCode).toBe(200);
+    expect(cookieAccount.json()).toEqual({
+      account: { id: email.json().account.id, email: "cookie-regression@example.com" },
+    });
+
+    const mini = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/wechat/miniapp",
+      payload: { code: "cookie-mini-code" },
+    });
+    const ambiguous = await app.inject({
+      method: "GET",
+      url: "/api/v1/account",
+      headers: {
+        cookie,
+        authorization: `Bearer ${mini.json().sessionToken as string}`,
+      },
+    });
+    expect(ambiguous.statusCode).toBe(400);
+    expect(ambiguous.json()).toEqual({ code: "AUTH_AMBIGUOUS" });
   });
 });

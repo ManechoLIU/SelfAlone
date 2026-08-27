@@ -190,6 +190,22 @@ export type AuthAccount = {
   email: string;
 };
 
+/** An account returned to a provider-only client may not have an email identity. */
+export type WechatMiniappAccount = {
+  id: string;
+  email: string | null;
+};
+
+export type WechatMiniappAuthRequest = {
+  code: string;
+};
+
+export type WechatMiniappAuthResponse = {
+  account: WechatMiniappAccount;
+  sessionToken: string;
+  expiresAt: string;
+};
+
 export type EmailAuthCredentials = {
   email: string;
   password: string;
@@ -204,6 +220,9 @@ export type AuthAccountResponse = {
 
 export type AuthErrorCode =
   | "AUTH_REQUIRED"
+  | "AUTH_AMBIGUOUS"
+  | "WECHAT_LOGIN_UNAVAILABLE"
+  | "INVALID_WECHAT_SUBJECT"
   | "INVALID_CREDENTIALS"
   | "INVALID_EMAIL"
   | "INVALID_PASSWORD"
