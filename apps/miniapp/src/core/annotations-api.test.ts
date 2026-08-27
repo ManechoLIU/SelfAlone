@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   AnnotationsApiError,
   createAnnotationsApiClient,
+  createWxAnnotationsTransport,
   type AnnotationHttpRequest,
   type AnnotationHttpResponse,
   type TextAnnotationList,
@@ -41,7 +42,7 @@ describe("miniapp text annotations API adapter", () => {
       requests.push(request);
       if (request.method === "GET") return response(annotationList());
       if (request.method === "POST") return response({ status: "saved", note }, 201);
-      if (request.method === "PATCH") return response({ status: "saved", note: { ...note, body: "改过了", version: 2 } });
+      if (request.method === "PUT") return response({ status: "saved", note: { ...note, body: "改过了", version: 2 } });
       return response({ status: "deleted", id: note.id });
     });
     const client = createAnnotationsApiClient({
@@ -76,7 +77,7 @@ describe("miniapp text annotations API adapter", () => {
       },
       {
         url: "https://api.example.test/api/v1/books/book-a/notes/note-1",
-        method: "PATCH",
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           accept: "application/json",
@@ -171,5 +172,63 @@ describe("miniapp text annotations API adapter", () => {
     });
 
     await expect(client.createNote("book-a", failed.retainedDraft)).resolves.toEqual(failed);
+  });
+
+  it("passes PUT and DELETE through wx.request with object data", async () => {
+    const wxRequests: Array<{
+      url: string;
+      method: string;
+      header: Record<string, string>;
+      data?: unknown;
+    }> = [];
+    const wxRequest = vi.fn((request: {
+      url: string;
+      method: string;
+      header: Record<string, string>;
+      data?: unknown;
+      success: (response: { statusCode: number; data: unknown }) => void;
+    }) => {
+      wxRequests.push({
+        url: request.url,
+        method: request.method,
+        header: request.header,
+        ...(request.data === undefined ? {} : { data: request.data }),
+      });
+      request.success({ statusCode: 200, data: { ok: true } });
+    });
+    vi.stubGlobal("wx", { request: wxRequest });
+
+    try {
+      const transport = createWxAnnotationsTransport();
+      await transport({
+        url: "https://api.example.test/api/v1/books/book-a/notes/note-1",
+        method: "PUT",
+        headers: { Authorization: "Bearer token", "content-type": "application/json" },
+        body: { expectedVersion: 2, body: "改过了" },
+      });
+      await transport({
+        url: "https://api.example.test/api/v1/books/book-a/notes/note-1",
+        method: "DELETE",
+        headers: { Authorization: "Bearer token", "content-type": "application/json" },
+        body: { expectedVersion: 2 },
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(wxRequests).toEqual([
+      {
+        url: "https://api.example.test/api/v1/books/book-a/notes/note-1",
+        method: "PUT",
+        header: { Authorization: "Bearer token", "content-type": "application/json" },
+        data: { expectedVersion: 2, body: "改过了" },
+      },
+      {
+        url: "https://api.example.test/api/v1/books/book-a/notes/note-1",
+        method: "DELETE",
+        header: { Authorization: "Bearer token", "content-type": "application/json" },
+        data: { expectedVersion: 2 },
+      },
+    ]);
   });
 });

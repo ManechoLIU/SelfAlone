@@ -34,7 +34,7 @@ type MiniappKeyboardHeightEvent = { height: number; duration?: number };
 type MiniappRequestResponse = { statusCode: number; data: unknown };
 type MiniappRequestOptions = {
   url: string;
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   header?: Record<string, string>;
   data?: unknown;
   success?: (response: MiniappRequestResponse) => void;

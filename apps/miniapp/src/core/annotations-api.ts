@@ -77,7 +77,7 @@ export type NoteCreateResult = SavedNoteResult | FailedNoteResult;
 export type NoteUpdateResult = SavedNoteResult | FailedNoteResult;
 export type NoteDeleteResult = DeletedNoteResult | FailedNoteResult;
 
-export type AnnotationHttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type AnnotationHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 export type AnnotationHttpRequest = {
   url: string;
@@ -192,7 +192,7 @@ export function createAnnotationsApiClient(
     request<NoteCreateResult>(notesPath(bookId), "POST", input, true);
 
   const updateNote = (bookId: string, noteId: string, input: UpdateNoteInput) =>
-    request<NoteUpdateResult>(notesPath(bookId, noteId), "PATCH", input, true);
+    request<NoteUpdateResult>(notesPath(bookId, noteId), "PUT", input, true);
 
   const deleteNote = (bookId: string, noteId: string, input: DeleteNoteInput) =>
     request<NoteDeleteResult>(notesPath(bookId, noteId), "DELETE", input, true);
@@ -210,9 +210,7 @@ export function createWxAnnotationsTransport(): AnnotationTransport {
   return (request) => new Promise((resolve, reject) => {
     wx.request({
       url: request.url,
-      // WeChat accepts PATCH and DELETE at runtime; the local wx declaration
-      // predates these annotation routes, so retain the narrow declaration cast.
-      method: request.method as "GET" | "POST",
+      method: request.method,
       header: { ...request.headers },
       ...(request.body === undefined ? {} : { data: request.body }),
       success: (response) => resolve({ status: response.statusCode, body: response.data }),
