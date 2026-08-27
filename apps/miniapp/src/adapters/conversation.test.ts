@@ -24,6 +24,14 @@ function response(body: unknown, status = 200): ConversationHttpResponse {
   return { status, body };
 }
 
+function authenticated(token: string) {
+  return {
+    kind: "authenticated" as const,
+    token,
+    expiresAt: 1_900_000_000_000,
+  };
+}
+
 describe("miniapp conversation API adapter", () => {
   it("uses the stable hydrate/create/send JSON routes and injected auth headers", async () => {
     const requests: ConversationHttpRequest[] = [];
@@ -41,7 +49,7 @@ describe("miniapp conversation API adapter", () => {
     });
     const client = createConversationApiClient({
       baseUrl: "https://api.example.test/",
-      authHeaders: { "x-m2-session": "opaque-test-token" },
+      authProvider: () => authenticated("opaque-test-token-1234567890"),
       transport,
     });
 
@@ -54,7 +62,7 @@ describe("miniapp conversation API adapter", () => {
         url: "https://api.example.test/api/v1/conversations/conversation-a",
         method: "GET",
         headers: {
-          "x-m2-session": "opaque-test-token",
+          Authorization: "Bearer opaque-test-token-1234567890",
           accept: "application/json",
         },
       },
@@ -62,7 +70,7 @@ describe("miniapp conversation API adapter", () => {
         url: "https://api.example.test/api/v1/conversations",
         method: "POST",
         headers: {
-          "x-m2-session": "opaque-test-token",
+          Authorization: "Bearer opaque-test-token-1234567890",
           accept: "application/json",
           "content-type": "application/json",
         },
@@ -72,7 +80,7 @@ describe("miniapp conversation API adapter", () => {
         url: "https://api.example.test/api/v1/conversations/conversation-a/messages",
         method: "POST",
         headers: {
-          "x-m2-session": "opaque-test-token",
+          Authorization: "Bearer opaque-test-token-1234567890",
           accept: "application/json",
           "content-type": "application/json",
         },
@@ -91,6 +99,53 @@ describe("miniapp conversation API adapter", () => {
     expect(transport).not.toHaveBeenCalled();
   });
 
+  it("reads the current authenticated session for every request", async () => {
+    let currentSession = authenticated("opaque-first-session-token-123456");
+    const requests: ConversationHttpRequest[] = [];
+    const client = createConversationApiClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => currentSession,
+      transport: async (request) => {
+        requests.push(request);
+        return response({ session: session() });
+      },
+    });
+
+    await client.getSession("conversation-a");
+    currentSession = authenticated("opaque-second-session-token-123456");
+    await client.getSession("conversation-a");
+
+    expect(requests.map((request) => request.headers.Authorization)).toEqual([
+      "Bearer opaque-first-session-token-123456",
+      "Bearer opaque-second-session-token-123456",
+    ]);
+  });
+
+  it("fails closed after logout and clears the session on a 401", async () => {
+    let currentSession: ReturnType<typeof authenticated> | { kind: "signed-out" } = authenticated(
+      "opaque-current-session-token-123456",
+    );
+    const clearOnUnauthorized = vi.fn(() => {
+      currentSession = { kind: "signed-out" };
+    });
+    const transport = vi.fn(async () => response({ code: "AUTH_REQUIRED" }, 401));
+    const client = createConversationApiClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => currentSession,
+      onUnauthorized: clearOnUnauthorized,
+      transport,
+    });
+
+    await expect(client.getSession("conversation-a")).rejects.toEqual(
+      new ConversationApiError(401, "AUTH_REQUIRED", false),
+    );
+    expect(clearOnUnauthorized).toHaveBeenCalledOnce();
+    await expect(client.getSession("conversation-a")).rejects.toEqual(
+      new ConversationApiError(0, "CONVERSATION_API_UNAVAILABLE", false),
+    );
+    expect(transport).toHaveBeenCalledOnce();
+  });
+
   it("returns the server failed result so the page can retain its draft", async () => {
     const failed = {
       status: "failed" as const,
@@ -100,7 +155,7 @@ describe("miniapp conversation API adapter", () => {
     };
     const client = createConversationApiClient({
       baseUrl: "https://api.example.test",
-      authHeaders: { "x-m2-session": "opaque-test-token" },
+      authProvider: () => authenticated("opaque-test-token-1234567890"),
       transport: async () => response(failed, 503),
     });
 
@@ -112,7 +167,7 @@ describe("miniapp conversation API adapter", () => {
     const requests: ConversationHttpRequest[] = [];
     const client = createConversationApiClient({
       baseUrl: "https://api.example.test",
-      authHeaders: { "x-m2-session": "opaque-test-token" },
+      authProvider: () => authenticated("opaque-test-token-1234567890"),
       transport: async (request) => {
         requests.push(request);
         return request.method === "GET"

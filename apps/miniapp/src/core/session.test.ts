@@ -10,6 +10,9 @@ function memoryStorage(): KeyValueStorage {
   };
 }
 
+const sessionToken = "opaque-mini-session-token-1234567890";
+const now = 1_700_000_000_000;
+
 describe("miniapp session security", () => {
   it("starts signed out and refuses a development session outside development", () => {
     const store = createSessionStore(memoryStorage(), { developmentAdapter: false });
@@ -31,5 +34,36 @@ describe("miniapp session security", () => {
     store.saveEmailDraft("reader@example.com");
     expect(store.restoreEmailDraft()).toBe("reader@example.com");
     expect(store.restore()).toEqual({ kind: "signed-out" });
+  });
+
+  it("restores a live authenticated session and clears an expired record", () => {
+    const storage = memoryStorage();
+    let currentTime = now;
+    const store = createSessionStore(storage, { developmentAdapter: false }, { now: () => currentTime });
+
+    expect(store.saveAuthenticatedSession(sessionToken, now + 60_000)).toEqual({
+      kind: "authenticated",
+      token: sessionToken,
+      expiresAt: now + 60_000,
+    });
+    expect(store.restore()).toEqual({
+      kind: "authenticated",
+      token: sessionToken,
+      expiresAt: now + 60_000,
+    });
+
+    currentTime = now + 60_001;
+    expect(store.restore()).toEqual({ kind: "signed-out" });
+    expect(storage.get("selfalone.miniapp.session.v2")).toBeUndefined();
+  });
+
+  it("clears the authenticated session when a protected request returns 401", () => {
+    const storage = memoryStorage();
+    const store = createSessionStore(storage, { developmentAdapter: false }, { now: () => now });
+    store.saveAuthenticatedSession(sessionToken, now + 60_000);
+
+    expect(store.clearOnUnauthorized(401)).toBe(true);
+    expect(store.restore()).toEqual({ kind: "signed-out" });
+    expect(store.clearOnUnauthorized(500)).toBe(false);
   });
 });

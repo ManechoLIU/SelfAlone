@@ -40,6 +40,11 @@ type MiniappRequestOptions = {
   success?: (response: MiniappRequestResponse) => void;
   fail?: () => void;
 };
+type MiniappLoginResponse = { code: string };
+type MiniappLoginOptions = {
+  success?: (response: MiniappLoginResponse) => void;
+  fail?: () => void;
+};
 type MiniappSelectorQuery = {
   select(selector: string): {
     boundingClientRect(callback: (rect: MiniappClientRect | null) => void): MiniappSelectorQuery;
@@ -51,6 +56,7 @@ type MiniappSelectorQuery = {
 };
 
 declare const wx: {
+  login(options: MiniappLoginOptions): void;
   request(options: MiniappRequestOptions): void;
   createSelectorQuery(): MiniappSelectorQuery;
   getStorageSync(key: string): unknown;

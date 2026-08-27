@@ -1,19 +1,23 @@
 import { createClientAdapter } from "./adapters/index.js";
 import type { MiniappClient } from "./adapters/client";
-import { createConversationApiClient, type ConversationApiClient } from "./adapters/conversation";
+import {
+  createConversationApiClient,
+  type ConversationApiClient,
+  type ConversationTransport,
+} from "./adapters/conversation";
+import {
+  createMiniAuthClient,
+  type MiniAuthClient,
+  type MiniAuthTransport,
+  type MiniWxLogin,
+} from "./adapters/auth";
 import { createPptIntentStore } from "./core/ppt-intent";
-import { createSessionStore, type Session } from "./core/session";
+import { createSessionStore, type KeyValueStorage, type Session, type SessionStoreOptions } from "./core/session";
 import { currentEnvironment, wxStorage } from "./platform";
-
-const client = createClientAdapter(currentEnvironment());
-// M2-F1 supplies the base URL and exact auth headers at its composition seam.
-// Keeping the default unconfigured makes production fail closed until then.
-const conversationClient = createConversationApiClient();
-const sessionStore = createSessionStore(wxStorage, { developmentAdapter: client.development });
-const pptIntentStore = createPptIntentStore(wxStorage, { developmentAdapter: client.development });
 
 export type MiniappGlobalData = {
   client: MiniappClient;
+  authClient: MiniAuthClient;
   conversationClient: ConversationApiClient;
   session: Session;
   sessionStore: ReturnType<typeof createSessionStore>;
@@ -21,14 +25,56 @@ export type MiniappGlobalData = {
   developmentAdapter: boolean;
 };
 
-const globalData: MiniappGlobalData = {
-  client,
-  conversationClient,
-  session: sessionStore.restore(),
-  sessionStore,
-  pptIntentStore,
-  developmentAdapter: client.development,
+export type MiniappRuntimeOptions = SessionStoreOptions & {
+  /** Explicit host-provided API origin; omitted means fail closed. */
+  apiBaseUrl?: string;
+  storage?: KeyValueStorage;
+  authTransport?: MiniAuthTransport;
+  conversationTransport?: ConversationTransport;
+  wxLogin?: MiniWxLogin;
+  environment?: string;
 };
+
+export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): MiniappGlobalData {
+  const storage = options.storage ?? wxStorage;
+  const client = createClientAdapter(options.environment ?? currentEnvironment());
+  const sessionStore = createSessionStore(
+    storage,
+    { developmentAdapter: client.development },
+    { now: options.now },
+  );
+  const authClient = createMiniAuthClient({
+    baseUrl: options.apiBaseUrl,
+    transport: options.authTransport,
+    wxLogin: options.wxLogin,
+  });
+  let composedGlobalData: MiniappGlobalData | undefined;
+  const conversationClient = createConversationApiClient({
+    baseUrl: options.apiBaseUrl,
+    authProvider: () => sessionStore.restore(),
+    onUnauthorized: (status) => {
+      if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
+        composedGlobalData.session = { kind: "signed-out" };
+      }
+    },
+    transport: options.conversationTransport,
+  });
+  const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });
+
+  const globalData: MiniappGlobalData = {
+    client,
+    authClient,
+    conversationClient,
+    session: sessionStore.restore(),
+    sessionStore,
+    pptIntentStore,
+    developmentAdapter: client.development,
+  };
+  composedGlobalData = globalData;
+  return globalData;
+}
+
+const globalData = createMiniappGlobalData();
 
 App({
   globalData,

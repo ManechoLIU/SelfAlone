@@ -56,12 +56,20 @@ export type ConversationTransport = (
   request: ConversationHttpRequest,
 ) => Promise<ConversationHttpResponse>;
 
+export type ConversationAuthSession = {
+  kind: "authenticated";
+  token: string;
+  expiresAt?: number;
+};
+
+export type ConversationAuthProvider = () => ConversationAuthSession | { kind: "signed-out" | "development" } | null | undefined;
+
 export type ConversationApiOptions = {
   baseUrl?: string;
-  /** M2-F1 supplies the exact session header; this adapter does not invent one. */
-  authHeaders?: Readonly<Record<string, string>>;
-  /** Alias kept for parity with the desktop client seam. */
-  headers?: Readonly<Record<string, string>>;
+  /** Read the current Mini session immediately before each request. */
+  authProvider?: ConversationAuthProvider;
+  /** Clear the session after a protected request is rejected. */
+  onUnauthorized?: (status: number) => void;
   transport?: ConversationTransport;
 };
 
@@ -94,14 +102,13 @@ export class ConversationApiError extends Error {
 
 /**
  * Thin client for the already-stable conversation HTTP routes. Authentication
- * is deliberately injected by the M2-F1 bridge; no token is translated into
- * a guessed header here.
+ * is read from the M2-F1 provider for each request so logout and expiry take
+ * effect without rebuilding the client.
  */
 export function createConversationApiClient(
   options: ConversationApiOptions = {},
 ): ConversationApiClient {
   const baseUrl = normalizeBaseUrl(options.baseUrl);
-  const authHeaders = cleanHeaders(options.authHeaders ?? options.headers);
   const transport = options.transport ?? createWxConversationTransport();
 
   async function request<T>(
@@ -110,7 +117,11 @@ export function createConversationApiClient(
     body?: unknown,
     allowFailedResult = false,
   ): Promise<T> {
-    if (!baseUrl || !Object.keys(authHeaders).length) {
+    if (!baseUrl) {
+      throw new ConversationApiError(0, "CONVERSATION_API_UNAVAILABLE", false);
+    }
+    const authHeaders = currentAuthHeaders(options.authProvider);
+    if (!authHeaders) {
       throw new ConversationApiError(0, "CONVERSATION_API_UNAVAILABLE", false);
     }
 
@@ -131,6 +142,7 @@ export function createConversationApiClient(
       throw new ConversationApiError(0, "CONVERSATION_NETWORK_FAILED", true);
     }
 
+    if (response.status === 401) options.onUnauthorized?.(response.status);
     if (response.status >= 200 && response.status < 300) return response.body as T;
     if (allowFailedResult && isFailedResult(response.body)) return response.body as T;
 
@@ -197,11 +209,22 @@ function normalizeBaseUrl(value: string | undefined) {
   return normalized.replace(/\/+$/, "");
 }
 
-function cleanHeaders(value: Readonly<Record<string, string>> | undefined) {
-  if (!value) return {};
-  return Object.fromEntries(
-    Object.entries(value).filter(([, headerValue]) => typeof headerValue === "string" && headerValue.trim()),
-  );
+function currentAuthHeaders(provider: ConversationAuthProvider | undefined): Readonly<Record<string, string>> | null {
+  if (!provider) return null;
+  let session: ReturnType<ConversationAuthProvider>;
+  try {
+    session = provider();
+  } catch {
+    return null;
+  }
+  if (!session || session.kind !== "authenticated") return null;
+  const token = session.token.trim();
+  if (!token) return null;
+  if (
+    session.expiresAt !== undefined
+    && (!Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now())
+  ) return null;
+  return { Authorization: `Bearer ${token}` };
 }
 
 function isFailedResult(value: unknown): value is Extract<ConversationApiSendResult, { status: "failed" }> {
