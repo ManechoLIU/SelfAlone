@@ -295,6 +295,38 @@ describe("M1-F1-A email authentication", () => {
     expect(response.json()).toEqual({ code: "WECHAT_LOGIN_UNAVAILABLE" });
   });
 
+  it("rejects blank or oversized exchanged subjects without creating account or session rows", async () => {
+    let exchangedSubject = "   ";
+    const app = await setup({
+      wechatMiniappCodeExchange: async () => exchangedSubject,
+    });
+
+    for (const subject of ["   ", "x".repeat(513)]) {
+      exchangedSubject = subject;
+      const response = await app.inject({
+        method: "POST",
+        url: "/api/v1/auth/wechat/miniapp",
+        payload: { code: `invalid-subject-${subject.length}` },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ code: "WECHAT_LOGIN_UNAVAILABLE" });
+    }
+
+    const database = databases.at(-1);
+    if (!database) throw new Error("TEST_DATABASE_NOT_READY");
+    const [rows] = await database.administration.unsafe<Array<{
+      accounts: number;
+      identities: number;
+      sessions: number;
+    }>>(`
+      SELECT
+        (SELECT count(*)::int FROM "${database.schema}".accounts) AS accounts,
+        (SELECT count(*)::int FROM "${database.schema}".login_identities) AS identities,
+        (SELECT count(*)::int FROM "${database.schema}".sessions) AS sessions
+    `);
+    expect(rows).toEqual({ accounts: 0, identities: 0, sessions: 0 });
+  });
+
   it("normalizes unexpected identity failures to the declared internal error contract", async () => {
     const app = createApp({
       readiness: () => Promise.resolve(true),
