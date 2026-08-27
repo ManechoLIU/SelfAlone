@@ -3,6 +3,11 @@ import {
   type TextModelAdapter,
   type TextModelCredentialValidationInput,
 } from "@selfalone/domain";
+import type {
+  ChatInput,
+  ChatResponderPort,
+  ChatResult,
+} from "./conversation-responder";
 
 export type DeepSeekCatalog = {
   /** Server-owned base URL. It is never accepted from the browser. */
@@ -12,13 +17,34 @@ export type DeepSeekCatalog = {
   validationPath?: string;
 };
 
+export const DEFAULT_DEEPSEEK_CATALOG: DeepSeekCatalog = Object.freeze({
+  endpoint: "https://api.deepseek.com",
+  model: "deepseek-v4-flash",
+});
+
+export type DeepSeekCredentialLease = {
+  readonly provider: "deepseek";
+  readonly apiKey: string;
+  readonly workspaceId?: string;
+};
+
+export type DeepSeekCredentialProvider = {
+  withVerifiedTextModelCredential<T>(
+    accountId: string,
+    consume: (lease: DeepSeekCredentialLease) => Promise<T>,
+  ): Promise<T>;
+};
+
 export type DeepSeekTextModelAdapterOptions = {
   catalog: DeepSeekCatalog;
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  credentialProvider?: DeepSeekCredentialProvider;
 };
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+export const DEEPSEEK_CREDENTIAL_UNAVAILABLE = "DEEPSEEK_CREDENTIAL_UNAVAILABLE" as const;
+export const DEEPSEEK_CHAT_FAILED = "DEEPSEEK_CHAT_FAILED" as const;
 
 /**
  * DeepSeek validation is intentionally a small injected seam. Production
@@ -27,7 +53,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  */
 export function createDeepSeekTextModelAdapter(
   options: DeepSeekTextModelAdapterOptions,
-): TextModelAdapter {
+): TextModelAdapter & ChatResponderPort {
   const fetcher = options.fetcher ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   if (!fetcher || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
@@ -75,6 +101,52 @@ export function createDeepSeekTextModelAdapter(
         clearTimeout(timeout);
       }
     },
+    async chat(input: ChatInput, signal: AbortSignal): Promise<ChatResult> {
+      if (!options.credentialProvider) {
+        throw new Error(DEEPSEEK_CREDENTIAL_UNAVAILABLE);
+      }
+      if (signal.aborted) throw new Error(DEEPSEEK_CHAT_FAILED);
+
+      try {
+        return await options.credentialProvider.withVerifiedTextModelCredential(
+          input.accountId,
+          async (lease) => {
+            if (
+              lease.provider !== "deepseek"
+              || typeof lease.apiKey !== "string"
+              || !lease.apiKey.trim()
+            ) {
+              throw new Error(DEEPSEEK_CREDENTIAL_UNAVAILABLE);
+            }
+            return requestChat({
+              fetcher,
+              endpoint,
+              model: options.catalog.model,
+              timeoutMs,
+              input,
+              apiKey: lease.apiKey,
+              signal,
+            });
+          },
+        );
+      } catch (error) {
+        if (
+          error instanceof Error
+          && (
+            error.message === DEEPSEEK_CREDENTIAL_UNAVAILABLE
+            || error.message === "MODEL_CREDENTIAL_NOT_CONFIGURED"
+            || error.message === "MODEL_CREDENTIAL_UNAVAILABLE"
+            || error.message === "MODEL_CREDENTIAL_PROVIDER_UNSUPPORTED"
+          )
+        ) {
+          throw new Error(DEEPSEEK_CREDENTIAL_UNAVAILABLE);
+        }
+        if (error instanceof Error && error.message === DEEPSEEK_CHAT_FAILED) {
+          throw error;
+        }
+        throw new Error(DEEPSEEK_CHAT_FAILED);
+      }
+    },
   };
 }
 
@@ -117,6 +189,67 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+async function requestChat(input: {
+  fetcher: typeof fetch;
+  endpoint: string;
+  model: string;
+  timeoutMs: number;
+  input: ChatInput;
+  apiKey: string;
+  signal: AbortSignal;
+}): Promise<ChatResult> {
+  const controller = new AbortController();
+  const forwardAbort = () => controller.abort();
+  if (input.signal.aborted) {
+    controller.abort();
+  } else {
+    input.signal.addEventListener("abort", forwardAbort, { once: true });
+  }
+  const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+  try {
+    const response = await input.fetcher(input.endpoint, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        authorization: `Bearer ${input.apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: input.model,
+        messages: input.input.context.map((entry) => ({
+          role: entry.role,
+          content: entry.text,
+        })),
+        thinking: { type: "disabled" },
+        max_tokens: 128,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(DEEPSEEK_CHAT_FAILED);
+    const text = extractChatText(await readJson(response));
+    if (!text) throw new Error(DEEPSEEK_CHAT_FAILED);
+    return { text };
+  } catch {
+    throw new Error(DEEPSEEK_CHAT_FAILED);
+  } finally {
+    clearTimeout(timeout);
+    input.signal.removeEventListener("abort", forwardAbort);
+  }
+}
+
+function extractChatText(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || !("choices" in value)) return undefined;
+  const choices = (value as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || choices.length === 0) return undefined;
+  const first = choices[0];
+  if (!first || typeof first !== "object" || !("message" in first)) return undefined;
+  const message = (first as { message?: unknown }).message;
+  if (!message || typeof message !== "object" || !("content" in message)) return undefined;
+  const content = (message as { content?: unknown }).content;
+  return typeof content === "string" && content.trim() ? content : undefined;
 }
 
 function hasCompletion(value: unknown): boolean {

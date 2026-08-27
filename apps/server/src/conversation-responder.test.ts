@@ -24,8 +24,8 @@ describe("conversation responder contract", () => {
       { id: "assistant-1", role: "assistant" as const, text: "先前的回答", requestId: "request-1" },
     ];
 
-    await expect(responder("当前的问题", context)).resolves.toBe("来自模型适配器");
-    expect(received).toEqual({ text: "当前的问题", context });
+    await expect(responder("account-a", "当前的问题", context)).resolves.toBe("来自模型适配器");
+    expect(received).toEqual({ accountId: "account-a", text: "当前的问题", context });
     expect(receivedSignal).toBeInstanceOf(AbortSignal);
     expect(receivedSignal?.aborted).toBe(false);
   });
@@ -33,8 +33,8 @@ describe("conversation responder contract", () => {
   it("makes the explicit development fake depend on the complete context", async () => {
     const responder = createDevelopmentConversationResponder();
     const priorText = "旧上下文是一段不应被逐字复述的阅读讨论";
-    const withoutHistory = await responder("同一个问题", []);
-    const withHistory = await responder("同一个问题", [
+    const withoutHistory = await responder("account-a", "同一个问题", []);
+    const withHistory = await responder("account-a", "同一个问题", [
       { id: "user-1", role: "user", text: priorText, requestId: "request-1" },
     ]);
 
@@ -47,7 +47,7 @@ describe("conversation responder contract", () => {
   it("fails closed when the model adapter is not configured", async () => {
     const responder = createConversationResponder();
 
-    await expect(responder("没有模型", [])).rejects.toThrow(
+    await expect(responder("account-a", "没有模型", [])).rejects.toThrow(
       "CONVERSATION_RESPONDER_NOT_CONFIGURED",
     );
   });
@@ -59,7 +59,7 @@ describe("conversation responder contract", () => {
       },
     });
 
-    await expect(responder("空回复不能提交", [])).rejects.toThrow("CONVERSATION_REPLY_INVALID");
+    await expect(responder("account-a", "空回复不能提交", [])).rejects.toThrow("CONVERSATION_REPLY_INVALID");
   });
 
   it("leaves the responder unconfigured unless development mode is explicit", async () => {
@@ -74,7 +74,7 @@ describe("conversation responder contract", () => {
 
     const responder = createConversationResponderForMode("development", "development");
     expect(responder).toBeTypeOf("function");
-    await expect(responder?.("本机验收", [
+    await expect(responder?.("account-a", "本机验收", [
       { id: "request-1:user", role: "user", text: "本机验收", requestId: "request-1" },
     ])).resolves.toMatch(/基于 1 条对话上下文摘要/);
   });

@@ -18,11 +18,15 @@ import { migrateTextAnnotationSchema } from "./text-annotation-migration";
 import {
   createDeepSeekTextModelAdapter,
   createDevelopmentTextModelValidator,
+  DEFAULT_DEEPSEEK_CATALOG,
 } from "./deepseek-text-model-adapter";
 import { createModelConfigRuntime } from "./model-config-runtime";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
-import { createConversationResponderForMode } from "./conversation-responder";
+import {
+  createConversationResponder,
+  createConversationResponderForMode,
+} from "./conversation-responder";
 import { ConversationStore } from "./conversation-store";
 import { migrateConversationSelectionSchema } from "./conversation-selection-migration";
 import { ConversationSelectionStore } from "./conversation-selection-store";
@@ -69,14 +73,7 @@ if (modelConfigValidatorMode === "fake" && process.env.APP_ENV !== "development"
 }
 const modelConfigValidator = modelConfigValidatorMode === "fake"
   ? createDevelopmentTextModelValidator(process.env.MODEL_CONFIG_FAKE_KEY)
-  : process.env.DEEPSEEK_VALIDATION_ENDPOINT && process.env.DEEPSEEK_VALIDATION_MODEL
-    ? createDeepSeekTextModelAdapter({
-      catalog: {
-        endpoint: process.env.DEEPSEEK_VALIDATION_ENDPOINT,
-        model: process.env.DEEPSEEK_VALIDATION_MODEL,
-      },
-    })
-    : undefined;
+  : createDeepSeekTextModelAdapter({ catalog: DEFAULT_DEEPSEEK_CATALOG });
 const modelConfig = await createModelConfigRuntime({
   databaseUrl,
   appEnv: process.env.APP_ENV,
@@ -119,10 +116,16 @@ try {
   await conversationMigrationDatabase.end();
 }
 const conversationSql = postgres(databaseUrl, { max: 4 });
-const conversationResponder = createConversationResponderForMode(
+const developmentConversationResponder = createConversationResponderForMode(
   process.env.CONVERSATION_RESPONDER_MODE,
   process.env.APP_ENV,
 );
+const deepSeekChatAdapter = createDeepSeekTextModelAdapter({
+  catalog: DEFAULT_DEEPSEEK_CATALOG,
+  credentialProvider: modelConfig,
+});
+const conversationResponder = developmentConversationResponder
+  ?? createConversationResponder(deepSeekChatAdapter);
 const conversation = new ConversationStore(
   conversationSql,
   {

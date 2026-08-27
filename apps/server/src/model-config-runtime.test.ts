@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TextModelAdapter, TextModelCredentialInput } from "@selfalone/domain";
 import { TextModelConfigurationError } from "@selfalone/domain";
 import { createApp } from "./app";
 import { createAuthRuntime, createTestPasswordHasher, type AuthRuntime } from "./auth-runtime";
+import { createConversationResponder } from "./conversation-responder";
+import { createDeepSeekTextModelAdapter } from "./deepseek-text-model-adapter";
 import {
   createModelConfigRuntime,
   parseModelEncryptionKey,
@@ -254,6 +256,56 @@ describe("account-scoped model credential runtime", () => {
     });
     expect(emailChange.statusCode).toBe(202);
     expect(calls.email).toBe(1);
+  });
+
+  it("leases only the verified account envelope into a DeepSeek responder and fails closed across accounts and revoke", async () => {
+    const harness = await setup();
+    const first = await register(harness.app, "encrypted-chat-first@example.com");
+    const second = await register(harness.app, "encrypted-chat-second@example.com");
+    const key = "unit-only-encrypted-chat-secret";
+    await put(harness.app, first.cookie, { provider: "deepseek", apiKey: key });
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        choices: [{ message: { content: "来自已验证账户的真实文本" } }],
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const adapter = createDeepSeekTextModelAdapter({
+      fetcher,
+      catalog: {
+        endpoint: "https://fake.deepseek.invalid",
+        model: "fake-deepseek-model",
+      },
+      credentialProvider: harness.runtime,
+    });
+    const responder = createConversationResponder(adapter);
+    const context = [
+      { id: "user-1", role: "user" as const, text: "历史问题", requestId: "request-1" },
+      { id: "assistant-1", role: "assistant" as const, text: "历史回答", requestId: "request-1" },
+      { id: "user-2", role: "user" as const, text: "当前问题", requestId: "request-2" },
+    ];
+
+    await expect(responder(first.accountId, "当前问题", context))
+      .resolves.toBe("来自已验证账户的真实文本");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
+      authorization: `Bearer ${key}`,
+    });
+
+    const secondError = await responder(second.accountId, "当前问题", context)
+      .catch((error) => error);
+    expect(secondError).toBeInstanceOf(Error);
+    expect(String(secondError)).not.toContain(key);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    await harness.runtime.revoke(first.accountId);
+    const revokedError = await responder(first.accountId, "当前问题", context)
+      .catch((error) => error);
+    expect(revokedError).toBeInstanceOf(Error);
+    expect(String(revokedError)).not.toContain(key);
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 });
 

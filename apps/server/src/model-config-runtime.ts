@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import {
   maskTextModelApiKey,
   normalizeTextModelCredentialInput,
@@ -14,6 +14,14 @@ import { migrateModelConfigSchema } from "./model-config-migration";
 
 export const MODEL_CREDENTIALS_ENCRYPTION_KEY_ENV = "MODEL_CREDENTIALS_ENCRYPTION_KEY";
 export const MODEL_ENCRYPTION_KEY_VERSION = "v1";
+export const MODEL_CREDENTIAL_NOT_CONFIGURED = "MODEL_CREDENTIAL_NOT_CONFIGURED" as const;
+export const MODEL_CREDENTIAL_UNAVAILABLE = "MODEL_CREDENTIAL_UNAVAILABLE" as const;
+
+export type VerifiedTextModelCredential = {
+  readonly provider: "deepseek";
+  readonly apiKey: string;
+  readonly workspaceId?: string;
+};
 
 export type ModelConfigRuntimeOptions = {
   databaseUrl: string;
@@ -35,6 +43,16 @@ type ModelCredentialRow = {
   workspaceId: string | null;
   catalogVersion: string;
   verifiedAt: Date | null;
+  status: "verified" | "revoked";
+};
+
+type ModelCredentialSecretRow = {
+  provider: string | null;
+  ciphertext: Buffer | null;
+  nonce: Buffer | null;
+  authTag: Buffer | null;
+  keyVersion: string | null;
+  workspaceId: string | null;
   status: "verified" | "revoked";
 };
 
@@ -104,6 +122,81 @@ export class ModelConfigRuntime {
       verifiedAt: row.verifiedAt.toISOString(),
       catalogVersion: row.catalogVersion,
     };
+  }
+
+  /**
+   * Resolve one verified account credential for one operation. The decrypted
+   * value never leaves this callback boundary and is cleared as soon as the
+   * consumer settles.
+   */
+  async withVerifiedTextModelCredential<T>(
+    accountId: string,
+    consume: (credential: VerifiedTextModelCredential) => Promise<T>,
+  ): Promise<T> {
+    assertAccountId(accountId);
+    const [row] = await this.#sql<ModelCredentialSecretRow[]>`
+     SELECT provider,
+            ciphertext,
+            nonce,
+            auth_tag AS "authTag",
+            key_version AS "keyVersion",
+            workspace_id AS "workspaceId",
+            status
+     FROM model_credentials
+      WHERE account_id = ${accountId}
+     LIMIT 1
+    `;
+    if (
+      !row
+      || row.status !== "verified"
+      || row.provider !== "deepseek"
+      || row.keyVersion !== MODEL_ENCRYPTION_KEY_VERSION
+      || !row.ciphertext
+      || !row.nonce
+      || !row.authTag
+      || row.nonce.byteLength !== 12
+      || row.authTag.byteLength !== 16
+    ) {
+      throw new Error(MODEL_CREDENTIAL_NOT_CONFIGURED);
+    }
+
+    let plaintext: Buffer | undefined;
+    try {
+      const decipher = createDecipheriv(
+        "aes-256-gcm",
+        this.#encryptionKey,
+        Buffer.from(row.nonce),
+      );
+      decipher.setAAD(Buffer.from(accountId + ":" + row.keyVersion, "utf8"));
+      decipher.setAuthTag(Buffer.from(row.authTag));
+      plaintext = Buffer.concat([
+        decipher.update(Buffer.from(row.ciphertext)),
+        decipher.final(),
+      ]);
+      const apiKey = plaintext.toString("utf8");
+      if (!apiKey.trim() || apiKey.length > 4_096) {
+        throw new Error(MODEL_CREDENTIAL_UNAVAILABLE);
+      }
+      return await consume({
+        provider: "deepseek",
+        apiKey,
+        ...(row.workspaceId ? { workspaceId: row.workspaceId } : {}),
+      });
+    } catch (error) {
+      if (
+        error instanceof Error
+        && (
+          error.message === MODEL_CREDENTIAL_NOT_CONFIGURED
+          || error.message === MODEL_CREDENTIAL_UNAVAILABLE
+          || error.message.startsWith("DEEPSEEK_")
+        )
+      ) {
+        throw error;
+      }
+      throw new Error(MODEL_CREDENTIAL_UNAVAILABLE);
+    } finally {
+      plaintext?.fill(0);
+    }
   }
 
   /** Validate first, then replace the account's envelope in one transaction. */

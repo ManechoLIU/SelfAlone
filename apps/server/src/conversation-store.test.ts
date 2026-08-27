@@ -81,8 +81,10 @@ describe("conversation store", () => {
   it("passes the ordered context, including the current user entry, to the responder", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_context");
     const contexts: Array<readonly unknown[]> = [];
+    const accountIds: string[] = [];
     const store = new ConversationStore(setup.sql, domainStateMachine, {
-      responder: async (_text, context) => {
+      responder: async (accountId, _text, context) => {
+        accountIds.push(accountId);
         contexts.push(context);
         return `上下文：${context.map((entry) => entry.text).join(" / ")}`;
       },
@@ -112,6 +114,7 @@ describe("conversation store", () => {
         { id: "request-context-2:user", role: "user", text: "第二轮", requestId: "request-context-2" },
       ],
     ]);
+    expect(accountIds).toEqual(["account-a", "account-a"]);
     expect(second).toMatchObject({
       status: "completed",
       reply: "上下文：第一轮 / 上下文：第一轮 / 第二轮",

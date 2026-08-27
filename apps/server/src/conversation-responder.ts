@@ -8,6 +8,7 @@ import { assertDevelopmentAdapterAllowed } from "./runtime-policy";
  * ordered context, including the current user entry.
  */
 export type ChatInput = {
+  accountId: string;
   text: string;
   context: readonly ConversationRuntimeContextEntry[];
 };
@@ -28,6 +29,7 @@ export type ChatResponderPort = {
 export type TextModelChatAdapter = ChatResponderPort;
 
 export type ConversationResponder = (
+  accountId: string,
   text: string,
   context: readonly ConversationRuntimeContextEntry[],
   signal?: AbortSignal,
@@ -47,11 +49,12 @@ export const CONVERSATION_RESPONDER_MODE_UNSUPPORTED =
 export function createConversationResponder(
   adapter?: ChatResponderPort,
 ): ConversationResponder {
-  return async (text, context, signal = new AbortController().signal) => {
+  return async (accountId, text, context, signal = new AbortController().signal) => {
     if (!adapter) throw new Error(CONVERSATION_RESPONDER_NOT_CONFIGURED);
 
     const result = await adapter.chat(
       {
+        accountId,
         text,
         context: context.map((entry) => ({ ...entry })),
       },

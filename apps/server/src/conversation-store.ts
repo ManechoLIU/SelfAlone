@@ -211,7 +211,7 @@ export class ConversationStore {
     if (initialSave === "stale") throw new ConversationStoreError("STALE_REVISION");
 
     try {
-      const reply = await this.#respond(input.text, running.context);
+      const reply = await this.#respond(input.accountId, input.text, running.context);
       const assistantEntry: ConversationRuntimeContextEntry = {
         id: `${input.requestId}:assistant`,
         role: "assistant",
