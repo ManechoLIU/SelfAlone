@@ -38,6 +38,12 @@ export type ConversationStateStorage = {
   set(key: string, value: unknown): void;
 };
 
+export type ConversationLocalStoreOptions = {
+  enabled: boolean;
+  /** A non-secret local namespace, such as a hash of the authenticated token. */
+  scope?: string;
+};
+
 export const developmentConversationId = "development-current";
 export const defaultSelectionIds = ["full-book"] as const;
 
@@ -99,7 +105,8 @@ function isConversationLocalState(value: unknown): value is ConversationLocalSta
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ConversationLocalState>;
   return candidate.version === 1
-    && candidate.conversationId === developmentConversationId
+    && typeof candidate.conversationId === "string"
+    && candidate.conversationId.trim().length > 0
     && (candidate.intentTaskId === null || typeof candidate.intentTaskId === "string")
     && typeof candidate.draft === "string"
     && Array.isArray(candidate.attachmentPaths)
@@ -114,12 +121,19 @@ function isConversationLocalState(value: unknown): value is ConversationLocalSta
 
 export function createConversationLocalStore(
   storage: ConversationStateStorage,
-  enabled: boolean,
+  enabledOrOptions: boolean | ConversationLocalStoreOptions,
 ) {
+  const options: ConversationLocalStoreOptions = typeof enabledOrOptions === "boolean"
+    ? { enabled: enabledOrOptions }
+    : enabledOrOptions;
+  const storageKey = options.scope?.trim()
+    ? `${conversationStateKey}.${safeStorageScope(options.scope)}`
+    : conversationStateKey;
+
   return {
     restore(): ConversationLocalState | null {
-      if (!enabled) return null;
-      const saved = storage.get(conversationStateKey);
+      if (!options.enabled) return null;
+      const saved = storage.get(storageKey);
       if (!isConversationLocalState(saved)) return null;
       return {
         ...saved,
@@ -131,10 +145,10 @@ export function createConversationLocalStore(
       };
     },
     save(state: ConversationLocalState) {
-      if (!enabled) return;
-      storage.set(conversationStateKey, {
+      if (!options.enabled) return;
+      storage.set(storageKey, {
         version: 1,
-        conversationId: developmentConversationId,
+        conversationId: state.conversationId.trim() || developmentConversationId,
         intentTaskId: state.intentTaskId,
         draft: state.draft,
         attachmentPaths: validAttachmentPaths(state.attachmentPaths),
@@ -146,6 +160,23 @@ export function createConversationLocalStore(
       } satisfies ConversationLocalState);
     },
   };
+}
+
+function safeStorageScope(value: string) {
+  let hash = 2_166_136_261;
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+export function conversationStorageScope(session: {
+  kind: "signed-out" | "development" | "authenticated";
+  token?: string;
+}) {
+  if (session.kind === "authenticated") return `authenticated-${safeStorageScope(session.token ?? "")}`;
+  return session.kind;
 }
 
 export function nextConversationSendId(messages: readonly ConversationMessage[]): string {

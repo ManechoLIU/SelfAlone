@@ -13,6 +13,11 @@ let pageDefinition: ConversationPageHarness;
 let storedIntent: PptConversationIntent | null;
 let storedConversationState: unknown;
 let developmentAdapter = true;
+let session: { kind: "development" } | { kind: "authenticated"; token: string } = { kind: "development" };
+let productionConversationClient: {
+  hydrateOrCreateSession: ReturnType<typeof vi.fn>;
+  sendText: ReturnType<typeof vi.fn>;
+};
 let intentStore: {
   restore: ReturnType<typeof vi.fn>;
   confirm: ReturnType<typeof vi.fn>;
@@ -46,6 +51,10 @@ beforeAll(async () => {
     phase: "awaiting-confirmation",
   };
   storedConversationState = undefined;
+  productionConversationClient = {
+    hydrateOrCreateSession: vi.fn(async () => { throw new Error("CONVERSATION_API_UNAVAILABLE"); }),
+    sendText: vi.fn(async () => { throw new Error("CONVERSATION_API_UNAVAILABLE"); }),
+  };
   intentStore = {
     restore: vi.fn(() => storedIntent),
     confirm: vi.fn(() => {
@@ -60,9 +69,10 @@ beforeAll(async () => {
   vi.stubGlobal("getApp", () => ({
     globalData: {
       developmentAdapter,
-      session: { kind: "development" },
-      sessionStore: { restore: () => ({ kind: "development" }) },
+      session,
+      sessionStore: { restore: () => session },
       pptIntentStore: intentStore,
+      conversationClient: productionConversationClient,
     },
   }));
   vi.stubGlobal("wx", {
@@ -84,6 +94,11 @@ beforeEach(() => {
   storedIntent = storedIntent ? { ...storedIntent, phase: "awaiting-confirmation" } : storedIntent;
   storedConversationState = undefined;
   developmentAdapter = true;
+  session = { kind: "development" };
+  productionConversationClient = {
+    hydrateOrCreateSession: vi.fn(async () => { throw new Error("CONVERSATION_API_UNAVAILABLE"); }),
+    sendText: vi.fn(async () => { throw new Error("CONVERSATION_API_UNAVAILABLE"); }),
+  };
   intentStore.confirm.mockClear();
   intentStore.workspaceUrl.mockClear();
   (wx as unknown as { navigateTo: ReturnType<typeof vi.fn> }).navigateTo.mockClear();
@@ -274,6 +289,181 @@ describe("conversation normal shell contract", () => {
     const productionPage = createPage();
     productionPage.onLoad({ developmentSendFailure: "1" });
     expect(productionPage.developmentSendFailure).toBe(false);
+  });
+
+  it("fails closed in production without calling a real conversation API", async () => {
+    developmentAdapter = false;
+    session = { kind: "authenticated", token: "opaque-mini-session-token-1234567890" };
+    const page = createPage();
+    page.onLoad();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "生产环境不可假装发送" }, currentTarget: { dataset: {} } });
+    await settleLocalSend();
+
+    expect(productionConversationClient.hydrateOrCreateSession).toHaveBeenCalledTimes(1);
+    expect(productionConversationClient.sendText).not.toHaveBeenCalled();
+    expect(page.data.draft).toBe("生产环境不可假装发送");
+    expect(page.data.boundaryMessage).toContain("保留");
+  });
+
+  it("shares the initial production hydration with an immediate send", async () => {
+    developmentAdapter = false;
+    session = { kind: "authenticated", token: "opaque-mini-session-token-1234567890" };
+    const makeSession = (id: string) => ({
+      id,
+      revision: 0,
+      draft: null,
+      context: [],
+      activeRun: null,
+      tasks: [],
+      works: [],
+      deleted: false,
+    });
+    type TestSession = ReturnType<typeof makeSession>;
+    const hydrateResolvers: Array<(value: TestSession) => void> = [];
+    productionConversationClient.hydrateOrCreateSession.mockImplementation(
+      () => new Promise<TestSession>((resolve) => hydrateResolvers.push(resolve)),
+    );
+    productionConversationClient.sendText.mockImplementation(async (conversationId: string) => ({
+      status: "completed" as const,
+      session: makeSession(conversationId),
+      reply: "发送完成",
+    }));
+
+    const page = createPage();
+    page.onLoad();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "首屏立即发送" }, currentTarget: { dataset: {} } });
+    page.sendDraft();
+
+    if (hydrateResolvers.length > 1) {
+      hydrateResolvers[1](makeSession("conversation-sent"));
+      await settleLocalSend();
+      hydrateResolvers[0](makeSession("conversation-late"));
+    } else {
+      hydrateResolvers[0]?.(makeSession("conversation-sent"));
+    }
+    await settleLocalSend();
+
+    expect(productionConversationClient.hydrateOrCreateSession).toHaveBeenCalledTimes(1);
+    expect(page.data.conversationId).toBe("conversation-sent");
+    expect(page.data.pendingSend).toBeNull();
+    expect(page.data.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "assistant", text: "发送完成" }),
+    ]));
+  });
+
+  it("persists a production draft and pending context across a refreshed page", async () => {
+    developmentAdapter = false;
+    session = { kind: "authenticated", token: "opaque-mini-session-token-1234567890" };
+    const page = createPage();
+    page.onLoad();
+    page.onShow();
+    page.onDraftInput({ detail: { value: "刷新后仍保留的生产草稿" }, currentTarget: { dataset: {} } });
+    await settleLocalSend();
+
+    const refreshed = createPage();
+    refreshed.onLoad();
+    refreshed.onShow();
+    await settleLocalSend();
+
+    expect(refreshed.data.draft).toBe("刷新后仍保留的生产草稿");
+    expect(refreshed.data.boundaryMessage).toContain("保留");
+  });
+
+  it("maps a failed API result to a retained draft and retries with the same request id", async () => {
+    developmentAdapter = false;
+    session = { kind: "authenticated", token: "opaque-mini-session-token-1234567890" };
+    productionConversationClient.hydrateOrCreateSession.mockResolvedValue({
+      id: "conversation-production",
+      revision: 0,
+      draft: null,
+      context: [],
+      activeRun: null,
+      tasks: [],
+      works: [],
+      deleted: false,
+    });
+    productionConversationClient.sendText
+      .mockResolvedValueOnce({
+        status: "failed",
+        session: {
+          id: "conversation-production",
+          revision: 1,
+          draft: { text: "接口失败后仍保留", attachments: [] },
+          context: [{ id: "conversation-send-1:user", role: "user", text: "接口失败后仍保留", requestId: "conversation-send-1" }],
+          activeRun: null,
+          tasks: [],
+          works: [],
+          deleted: false,
+        },
+        errorCode: "CONVERSATION_REPLY_FAILED",
+        retainedDraft: { text: "接口失败后仍保留", attachments: [] },
+      })
+      .mockResolvedValueOnce({
+        status: "completed",
+        session: {
+          id: "conversation-production",
+          revision: 2,
+          draft: null,
+          context: [
+            { id: "conversation-send-1:user", role: "user", text: "接口失败后仍保留", requestId: "conversation-send-1" },
+            { id: "conversation-send-1:assistant", role: "assistant", text: "重试成功", requestId: "conversation-send-1" },
+          ],
+          activeRun: null,
+          tasks: [],
+          works: [],
+          deleted: false,
+        },
+        reply: "重试成功",
+      });
+
+    const page = createPage();
+    page.onLoad();
+    page.onShow();
+    await settleLocalSend();
+    page.onDraftInput({ detail: { value: "接口失败后仍保留" }, currentTarget: { dataset: {} } });
+    page.sendDraft();
+    await settleLocalSend();
+
+    expect(page.data.sendStatus).toBe("failed");
+    expect(page.data.draft).toBe("接口失败后仍保留");
+    const firstRequest = productionConversationClient.sendText.mock.calls[0];
+    expect(firstRequest?.[0]).toBe("conversation-production");
+    expect(firstRequest?.[1]).toMatchObject({ requestId: expect.any(String), text: "接口失败后仍保留" });
+
+    productionConversationClient.hydrateOrCreateSession.mockResolvedValue({
+      id: "conversation-production",
+      revision: 2,
+      draft: null,
+      context: [
+        { id: "conversation-send-1:user", role: "user", text: "接口失败后仍保留", requestId: "conversation-send-1" },
+        { id: "conversation-send-1:assistant", role: "assistant", text: "服务端已完成", requestId: "conversation-send-1" },
+      ],
+      activeRun: null,
+      tasks: [],
+      works: [],
+      deleted: false,
+    });
+    const refreshed = createPage();
+    refreshed.onLoad();
+    refreshed.onShow();
+    await settleLocalSend();
+    expect(refreshed.data.pendingSend).toBeNull();
+    expect(refreshed.data.draft).toBe("");
+    expect(refreshed.data.messages).toHaveLength(2);
+    expect(productionConversationClient.sendText).toHaveBeenCalledTimes(1);
+
+    page.retrySend();
+    await settleLocalSend();
+
+    expect(productionConversationClient.sendText).toHaveBeenCalledTimes(2);
+    expect(productionConversationClient.sendText.mock.calls[1]?.[1].requestId)
+      .toBe(firstRequest?.[1].requestId);
+    expect(page.data.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "assistant", text: "重试成功" }),
+    ]));
+    expect(page.data.pendingSend).toBeNull();
   });
 
   it("keeps the deterministic long drawer list behind the development adapter", () => {

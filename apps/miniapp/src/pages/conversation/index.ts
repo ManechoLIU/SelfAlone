@@ -1,10 +1,15 @@
 import type { MiniappApp } from "../../app";
+import type {
+  ConversationApiSendResult,
+  ConversationApiSession,
+} from "../../adapters/conversation";
 import type { PptConversationIntent } from "../../core/ppt-intent";
 import { createViewportTracker, viewportPresentation } from "../../core/viewport-state";
 import { wxStorage } from "../../platform";
 import {
   canConfirmSelection,
   completeConversationSend,
+  conversationStorageScope,
   createConversationLocalStore,
   defaultSelectionIds,
   developmentConversationReply,
@@ -24,6 +29,7 @@ import {
 type ConversationData = {
   drawerOpen: boolean;
   drawerConversations: DrawerConversation[];
+  conversationId: string;
   draft: string;
   canSend: boolean;
   boundaryMessage: string;
@@ -71,6 +77,91 @@ type ConversationImagePicker = {
 const defaultSelectionOptions = selectionOptionsFor(defaultSelectionIds);
 
 const DEVELOPMENT_LONG_LIST_SIZE = 18;
+const productionConversationPlaceholder = "production-pending-conversation";
+
+type ConversationApiFailure = Extract<ConversationApiSendResult, { status: "failed" }>;
+
+type ConversationSendOutcome =
+  | { status: "completed"; reply: string; session?: ConversationApiSession }
+  | ConversationApiFailure;
+
+function createConversationStore(app: MiniappApp) {
+  const { session } = app.globalData;
+  return createConversationLocalStore(wxStorage, {
+    enabled: session.kind !== "signed-out",
+    ...(session.kind === "authenticated" ? { scope: conversationStorageScope(session) } : {}),
+  });
+}
+
+function pendingFromApiSession(session: ConversationApiSession): ConversationPendingSend | null {
+  const lastUser = [...session.context]
+    .reverse()
+    .find((entry) => entry.role === "user" && Boolean(entry.requestId));
+  const requestId = lastUser?.requestId ?? session.activeRun?.requestId;
+  const draftText = session.draft?.text ?? lastUser?.text;
+  if (!requestId || draftText === undefined) return null;
+  if (!session.draft && !session.activeRun) return null;
+  return {
+    id: requestId,
+    draft: draftText,
+    attachmentPaths: [...(session.draft?.attachments ?? [])],
+  };
+}
+
+function mapApiSessionMessages(
+  session: ConversationApiSession,
+  fallback: readonly ConversationMessage[],
+  pending: ConversationPendingSend | null,
+): ConversationMessage[] {
+  const pendingId = pending?.id;
+  const mapped = session.context
+    .filter((entry) => entry.role === "user" || entry.role === "assistant")
+    .map((entry): ConversationMessage => {
+      const isPending = Boolean(
+        pendingId
+        && (entry.requestId === pendingId
+          || entry.id === `${pendingId}:user`
+          || entry.id === `${pendingId}:assistant`),
+      );
+      const role: ConversationMessage["role"] = entry.role === "user" ? "user" : "assistant";
+      const id = isPending && pendingId && role === "user"
+        ? pendingId
+        : isPending && pendingId && role === "assistant"
+          ? `${pendingId}-reply`
+          : entry.id;
+      return {
+        id,
+        role,
+        text: entry.text,
+        attachments: isPending && role === "user" ? [...(pending?.attachmentPaths ?? [])] : [],
+        status: "sent",
+        ...(role === "assistant" && (entry.requestId || isPending)
+          ? { replyTo: entry.requestId ?? pendingId }
+          : {}),
+      };
+    });
+  return mapped.length ? mapped : [...fallback];
+}
+
+function apiReplyFor(
+  session: ConversationApiSession,
+  pending: ConversationPendingSend | null,
+) {
+  if (!pending) return undefined;
+  return session.context.find((entry) => entry.role === "assistant"
+    && (entry.requestId === pending.id || entry.id === `${pending.id}:assistant`))?.text;
+}
+
+function markPendingMessage(
+  messages: readonly ConversationMessage[],
+  pending: ConversationPendingSend | null,
+  status: "sending" | "failed",
+) {
+  if (!pending) return [...messages];
+  return messages.map((message) => message.id === pending.id && message.role === "user"
+    ? { ...message, status }
+    : message);
+}
 
 function createDevelopmentLongConversationList(): DrawerConversation[] {
   return Array.from({ length: DEVELOPMENT_LONG_LIST_SIZE }, (_, index) => {
@@ -91,6 +182,7 @@ Page<ConversationData>({
   data: {
     drawerOpen: false,
     drawerConversations: [] as DrawerConversation[],
+    conversationId: "",
     draft: "",
     canSend: false,
     boundaryMessage: "",
@@ -114,6 +206,7 @@ Page<ConversationData>({
 
   onLoad(options: { developmentSendFailure?: string; developmentLongList?: string } = {}) {
     this.isUnloaded = false;
+    this.conversationHydrationGeneration = 0;
     const app = getApp<MiniappApp>();
     const longListEnabled = app.globalData.developmentAdapter
       && options.developmentLongList === "1";
@@ -122,10 +215,7 @@ Page<ConversationData>({
     this.setData({
       drawerConversations: longListEnabled ? createDevelopmentLongConversationList() : [],
     });
-    this.conversationStore = createConversationLocalStore(
-      wxStorage,
-      app.globalData.developmentAdapter,
-    );
+    this.conversationStore = createConversationStore(app);
     this.releaseViewport = createViewportTracker(wx, (geometry) => {
       if (this.isUnloaded) return;
       this.setData(viewportPresentation(geometry));
@@ -140,10 +230,7 @@ Page<ConversationData>({
       return;
     }
 
-    this.conversationStore ??= createConversationLocalStore(
-      wxStorage,
-      app.globalData.developmentAdapter,
-    );
+    this.conversationStore = createConversationStore(app);
     const saved = this.conversationStore.restore();
     const pptIntent = app.globalData.pptIntentStore.restore();
     const intentTaskId = pptIntent?.taskId ?? null;
@@ -160,6 +247,12 @@ Page<ConversationData>({
       : confirmedSelectionIds;
     const selectionSheetOpen = pptIntent?.phase === "awaiting-confirmation"
       && (savedForIntent ? savedForIntent.selectionSheetOpen : true);
+    const restoredConversationId = saved?.conversationId;
+    const conversationId = app.globalData.developmentAdapter
+      ? restoredConversationId ?? pptIntent?.conversationId ?? developmentConversationId
+      : restoredConversationId && restoredConversationId !== developmentConversationId
+        ? restoredConversationId
+        : productionConversationPlaceholder;
     const draft = saved?.draft ?? this.data.draft;
     const attachments = saved?.attachmentPaths ?? this.data.attachments;
     const pendingSend = saved?.pendingSend ?? null;
@@ -169,6 +262,7 @@ Page<ConversationData>({
       : restoredMessages;
 
     this.setData({
+      conversationId,
       draft,
       canSend: Boolean(draft.trim() || attachments.length),
       attachments,
@@ -188,6 +282,11 @@ Page<ConversationData>({
       boundaryMessage: pendingSend ? "这次没有发出去，内容还在这里。可以再试一次。" : "",
     });
     this.persistLocalState();
+    if (!app.globalData.developmentAdapter) {
+      void this.hydrateProductionConversation(
+        conversationId === productionConversationPlaceholder ? undefined : conversationId,
+      );
+    }
   },
 
   toggleDrawer() { this.setData({ drawerOpen: !this.data.drawerOpen }); },
@@ -338,6 +437,105 @@ Page<ConversationData>({
     this.beginSend();
   },
 
+  async hydrateProductionConversation(localConversationId?: string) {
+    const generation = (this.conversationHydrationGeneration ?? 0) + 1;
+    this.conversationHydrationGeneration = generation;
+    try {
+      const session = await this.getProductionConversationSession(localConversationId);
+      if (this.isUnloaded || generation !== this.conversationHydrationGeneration) return;
+      this.applyConversationApiSession(session);
+    } catch {
+      if (this.isUnloaded || generation !== this.conversationHydrationGeneration) return;
+      if (this.data.sending && this.data.pendingSend) return;
+      const hasRetainedInput = Boolean(
+        this.data.draft.trim() || this.data.attachments.length || this.data.pendingSend,
+      );
+      this.setData({
+        sending: false,
+        sendStatus: this.data.pendingSend ? "failed" : "idle",
+        canSend: Boolean(this.data.draft.trim() || this.data.attachments.length),
+        boundaryMessage: hasRetainedInput
+          ? "会话暂时无法连接，当前输入仍保留。"
+          : "会话暂时无法载入，请稍后重试。",
+      }, () => this.persistLocalState());
+    }
+  },
+
+  getProductionConversationSession(localConversationId?: string): Promise<ConversationApiSession> {
+    if (this.conversationHydrationPromise) return this.conversationHydrationPromise;
+    let request: Promise<ConversationApiSession>;
+    try {
+      request = getApp<MiniappApp>().globalData.conversationClient.hydrateOrCreateSession(
+        localConversationId,
+      );
+    } catch (error) {
+      request = Promise.reject(error);
+    }
+    this.conversationHydrationPromise = request.finally(() => {
+      this.conversationHydrationPromise = undefined;
+    });
+    return this.conversationHydrationPromise;
+  },
+
+  applyConversationApiSession(session: ConversationApiSession) {
+    const localSendInFlight = Boolean(this.data.sending && this.data.pendingSend);
+    const persistedPending = this.data.pendingSend;
+    const completedReply = apiReplyFor(session, persistedPending);
+    const completedPending = persistedPending && completedReply !== undefined
+      ? persistedPending
+      : null;
+    const pendingForMapping = persistedPending ?? pendingFromApiSession(session);
+    const pendingSend = completedPending ? null : pendingForMapping;
+    const activeRun = Boolean(session.activeRun);
+    const serverMessages = localSendInFlight
+      ? this.data.messages
+      : mapApiSessionMessages(session, this.data.messages, pendingForMapping);
+    const messages = completedPending
+      ? completeConversationSend(serverMessages, completedPending, completedReply ?? "")
+      : markPendingMessage(
+        serverMessages,
+        pendingSend,
+        activeRun ? "sending" : "failed",
+      );
+    const draft = localSendInFlight
+      ? this.data.draft
+      : completedPending
+        ? ""
+        : pendingSend?.draft ?? session.draft?.text ?? this.data.draft;
+    const attachments = localSendInFlight
+      ? [...this.data.attachments]
+      : completedPending
+        ? []
+        : pendingSend
+          ? [...pendingSend.attachmentPaths]
+          : session.draft
+            ? [...session.draft.attachments]
+            : [...this.data.attachments];
+    const lastMessage = messages[messages.length - 1];
+    this.setData({
+      conversationId: session.id,
+      draft,
+      attachments,
+      messages,
+      pendingSend,
+      sending: localSendInFlight || (activeRun && !completedPending),
+      sendStatus: localSendInFlight
+        ? "sending"
+        : activeRun
+          ? "sending"
+          : pendingSend
+            ? "failed"
+            : "idle",
+      canSend: !localSendInFlight && !activeRun && Boolean(draft.trim() || attachments.length),
+      boundaryMessage: localSendInFlight
+        ? ""
+        : pendingSend && !activeRun
+          ? "这次没有发出去，内容还在这里。可以再试一次。"
+          : "",
+      messageAnchor: lastMessage ? conversationMessageAnchor(lastMessage.id) : "",
+    }, () => this.persistLocalState());
+  },
+
   beginSend() {
     const next = startConversationSend(
       this.data.messages,
@@ -356,9 +554,47 @@ Page<ConversationData>({
       messageAnchor: conversationMessageAnchor(pendingSend.id),
     }, () => this.persistLocalState());
 
-    void this.performDevelopmentSend(pendingSend)
-      .then((reply: string) => this.completeSend(pendingSend, reply))
+    const app = getApp<MiniappApp>();
+    const send = app.globalData.developmentAdapter
+      ? this.performDevelopmentSend(pendingSend).then((reply: string) => ({
+        status: "completed" as const,
+        reply,
+      }))
+      : this.performConversationSend(pendingSend);
+    void send
+      .then((result: ConversationSendOutcome) => {
+        if (result.status === "completed") {
+          this.completeSend(pendingSend, result.reply, result.session);
+          return;
+        }
+        this.failApiSend(pendingSend, result);
+      })
       .catch(() => this.failSend(pendingSend));
+  },
+
+  async performConversationSend(pendingSend: ConversationPendingSend): Promise<ConversationApiSendResult> {
+    if (pendingSend.attachmentPaths.length) {
+      throw new Error("CONVERSATION_ATTACHMENTS_UNAVAILABLE");
+    }
+    const app = getApp<MiniappApp>();
+    let conversationId = this.data.conversationId;
+    if (this.conversationHydrationPromise) {
+      const session = await this.conversationHydrationPromise;
+      if (this.isUnloaded) throw new Error("CONVERSATION_PAGE_UNLOADED");
+      conversationId = session.id;
+      if (this.data.conversationId !== conversationId) {
+        this.setData({ conversationId }, () => this.persistLocalState());
+      }
+    } else if (!conversationId || conversationId === productionConversationPlaceholder) {
+      const session = await this.getProductionConversationSession();
+      if (this.isUnloaded) throw new Error("CONVERSATION_PAGE_UNLOADED");
+      conversationId = session.id;
+      this.setData({ conversationId }, () => this.persistLocalState());
+    }
+    return app.globalData.conversationClient.sendText(conversationId, {
+      requestId: pendingSend.id,
+      text: pendingSend.draft,
+    });
   },
 
   performDevelopmentSend(pendingSend: ConversationPendingSend): Promise<string> {
@@ -375,11 +611,19 @@ Page<ConversationData>({
     });
   },
 
-  completeSend(pendingSend: ConversationPendingSend, reply: string) {
+  completeSend(
+    pendingSend: ConversationPendingSend,
+    reply: string,
+    session?: ConversationApiSession,
+  ) {
     if (this.isUnloaded || !this.data.sending || this.data.pendingSend?.id !== pendingSend.id) return;
-    const messages = completeConversationSend(this.data.messages, pendingSend, reply);
+    const serverMessages = session
+      ? mapApiSessionMessages(session, this.data.messages, pendingSend)
+      : this.data.messages;
+    const messages = completeConversationSend(serverMessages, pendingSend, reply);
     const lastMessage = messages[messages.length - 1];
     this.setData({
+      conversationId: session?.id ?? this.data.conversationId,
       messages,
       pendingSend: null,
       sending: false,
@@ -389,6 +633,29 @@ Page<ConversationData>({
       canSend: false,
       boundaryMessage: "",
       messageAnchor: lastMessage ? conversationMessageAnchor(lastMessage.id) : "",
+    }, () => this.persistLocalState());
+  },
+
+  failApiSend(pendingSend: ConversationPendingSend, result: ConversationApiFailure) {
+    if (this.isUnloaded || !this.data.sending || this.data.pendingSend?.id !== pendingSend.id) return;
+    const retained: ConversationPendingSend = {
+      ...pendingSend,
+      draft: result.retainedDraft.text,
+      attachmentPaths: [...result.retainedDraft.attachments],
+    };
+    const serverMessages = mapApiSessionMessages(result.session, this.data.messages, retained);
+    const messages = failConversationSend(serverMessages, pendingSend.id);
+    this.setData({
+      conversationId: result.session.id,
+      messages,
+      pendingSend: retained,
+      sending: false,
+      sendStatus: "failed",
+      draft: retained.draft,
+      attachments: [...retained.attachmentPaths],
+      canSend: Boolean(retained.draft.trim() || retained.attachmentPaths.length),
+      boundaryMessage: "这次没有发出去，内容还在这里。可以再试一次。",
+      messageAnchor: conversationMessageAnchor(pendingSend.id),
     }, () => this.persistLocalState());
   },
 
@@ -432,9 +699,14 @@ Page<ConversationData>({
 
   persistLocalState() {
     if (!this.conversationStore) return;
+    const app = getApp<MiniappApp>();
+    const conversationId = this.data.conversationId
+      || (app.globalData.developmentAdapter
+        ? this.data.pptIntent?.conversationId ?? developmentConversationId
+        : productionConversationPlaceholder);
     const state: ConversationLocalState = {
       version: 1,
-      conversationId: this.data.pptIntent?.conversationId ?? developmentConversationId,
+      conversationId,
       intentTaskId: this.data.pptIntent?.taskId ?? null,
       draft: this.data.draft,
       attachmentPaths: this.data.attachments,

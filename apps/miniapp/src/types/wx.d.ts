@@ -31,6 +31,15 @@ type MiniappWindowInfo = {
 };
 type MiniappWindowResizeEvent = { size: MiniappWindowInfo };
 type MiniappKeyboardHeightEvent = { height: number; duration?: number };
+type MiniappRequestResponse = { statusCode: number; data: unknown };
+type MiniappRequestOptions = {
+  url: string;
+  method?: "GET" | "POST";
+  header?: Record<string, string>;
+  data?: unknown;
+  success?: (response: MiniappRequestResponse) => void;
+  fail?: () => void;
+};
 type MiniappSelectorQuery = {
   select(selector: string): {
     boundingClientRect(callback: (rect: MiniappClientRect | null) => void): MiniappSelectorQuery;
@@ -42,6 +51,7 @@ type MiniappSelectorQuery = {
 };
 
 declare const wx: {
+  request(options: MiniappRequestOptions): void;
   createSelectorQuery(): MiniappSelectorQuery;
   getStorageSync(key: string): unknown;
   setStorageSync(key: string, value: unknown): void;

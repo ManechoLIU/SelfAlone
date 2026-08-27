@@ -59,6 +59,43 @@ describe("conversation selection and local recovery state", () => {
     });
   });
 
+  it("restores a production conversation draft instead of rejecting its non-development id", () => {
+    let saved: unknown;
+    const storage = {
+      get: () => saved,
+      set: (_key: string, value: unknown) => { saved = value; },
+    };
+    const store = createConversationLocalStore(storage, true);
+    store.save({
+      version: 1,
+      conversationId: "conversation-production",
+      intentTaskId: null,
+      draft: "生产环境刷新后仍要保留",
+      attachmentPaths: [],
+      selectionDraftIds: [],
+      confirmedSelectionIds: [],
+      selectionSheetOpen: false,
+      messages: [{
+        id: "request-production",
+        role: "user",
+        text: "生产环境刷新后仍要保留",
+        attachments: [],
+        status: "failed",
+      }],
+      pendingSend: {
+        id: "request-production",
+        draft: "生产环境刷新后仍要保留",
+        attachmentPaths: [],
+      },
+    });
+
+    expect(store.restore()).toMatchObject({
+      conversationId: "conversation-production",
+      draft: "生产环境刷新后仍要保留",
+      pendingSend: { id: "request-production" },
+    });
+  });
+
   it("keeps input and the in-progress selection when a send or confirmation fails", () => {
     expect(preserveConversationFailure({
       draft: "不要丢掉这段话",
