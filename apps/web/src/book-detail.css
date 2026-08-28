@@ -130,7 +130,7 @@
 .book-detail-book-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 8px 0 0 !important; color: var(--reader-muted, #5f6f69) !important; font-size: 14px !important; line-height: 22px; }
 .book-detail-description { max-width: 760px; margin: 12px 0 0 !important; color: var(--reader-muted, #5f6f69) !important; font-size: 14px !important; line-height: 1.7; }
 .book-detail-header-actions { flex-direction: row; align-items: flex-start; justify-content: flex-end; }
-.book-detail-header { min-height: 148px; padding: 24px 0 20px; gap: 20px; }
+.book-detail-header { width: min(1188px, calc(100% - 48px)); min-height: 148px; padding: 24px 0 20px; gap: 20px; }
 .book-detail-book-context { gap: 18px; }
 .book-detail-cover { width: 88px; border-radius: 4px 7px 7px 4px; }
 .book-detail-cover strong { margin: 26px 9px 0; font-size: 12px; -webkit-line-clamp: 5; }

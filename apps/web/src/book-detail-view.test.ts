@@ -63,6 +63,10 @@ describe("private book detail notes view", () => {
     expect(bookDetailCss).toContain("inset: 0 0 0 var(--reader-rail, 184px)");
   });
 
+  it("aligns the desktop detail header with the tabs and content flow", () => {
+    expect(bookDetailCss).toMatch(/\.book-detail-header \{\s+width: min\(1188px, calc\(100% - 48px\)\);\s+min-height: 148px;/);
+  });
+
   it("hides the inactive tab panel from visual, pointer and accessibility flow", () => {
     const snapshot = {
       open: true,
