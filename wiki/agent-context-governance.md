@@ -1,6 +1,6 @@
 # Agent 长任务上下文治理与台账粒度
 
-> 状态：已编译；最后核验：2026-08-26。本文是治理方法知识页，不是 SelfAlone 产品、视觉、技术或任务状态的权威事实源。项目执行仍以 `AGENTS.md`、当前权威事实源和 `TASK_LEDGER.md` 为准。
+> 状态：已编译；最后核验：2026-08-28。本文是治理方法知识页，不是 SelfAlone 产品、视觉、技术或任务状态的权威事实源。项目执行仍以 `AGENTS.md`、当前权威事实源和 `TASK_LEDGER.md` 为准。
 
 ## 1. 五层分工与证据链
 
@@ -63,4 +63,4 @@ Wiki 是知识编译层，不自动改变产品规则或任务状态。新资料
 
 原始资料见 [`../raw_sources/context-governance/README.md`](../raw_sources/context-governance/README.md)。三篇文章共同支持“五层运行分工 + Wiki 内部 Raw Sources + 贯穿式证据链”和动态混合粒度。
 
-当前全局 `adaptive-delivery` 的 `context-governance.md` 仍使用“六层分工”，把 Raw Sources 提升为并列层；这是与原文分类不同的实现表述，后续应在全局 Skill 的独立修改中校正。本文记录差异，但不在项目 Wiki 内覆盖全局 Skill。
+当前全局 `adaptive-delivery` 的 `context-governance.md` 已统一为五层：当前上下文、Compact、Wiki、长期记忆和任务台账。Raw Sources 明确归入 Wiki 的原始资料层，证据链贯穿五层，不再作为并列的第六层。Task Navigator 若启用，只提供任务续接索引和标题/最近进展提示，不替代其中任何一层，也不成为 SelfAlone 的项目事实源。
