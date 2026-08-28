@@ -4,12 +4,12 @@
 
 ## 1. 当前控制面
 
-- 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；用户在桌面阅读中选中文字→点击“和老己聊聊”→书籍 / 位置 / 精确引用进入当前会话可编辑草稿→用户发送→失败保留并可重试→刷新后恢复；不得自动发送。PDF、Mini、PPT、图片、视觉重设计与成本系统不改变本 Goal 的共同验收条件。
+- 当前 Goal：`STAGE-READ-NOTES-V1-I ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
 - 当前活动项：`SHARED-WEREAD-SYNC`
-- 下一可见检查点：Reader current-main 同账户真选区已证明书名 / bookId / 精确章节与字位 / quote 进入可编辑草稿且不自动发送；刷新保留，发送失败原位可重试且同 requestId 不重复。既有 Desktop DeepSeek H4 在服务端 / Provider 未变化前提下继续有效，不重复付费调用；当前 Goal 待本事件机器门与状态回写后收口。
+- 下一可见检查点：完成 current-main 同账户“书籍引用→明确要求整理→新笔记直接出现在本书笔记区→编辑 / 删除→刷新恢复”的首个真实 Case；先由只读诊断锁定现状、首个 RED 与共享合同 / Server / Desktop 互斥文件边界，再释放唯一 writer。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@95f782f` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次业务父项展示与状态回写不改变两名 live writer 的文件边界或停止条件，未作无关广播。
-- 容量 / READY：root + shared WeRead rework writer + 成本 recovery writer 为3/4，1槽可用；两者文件互斥。shared writer 已完整 rework ACK；成本包由原非作者 reviewer 切换为 recovery writer承接单文件WIP，完整 writer ACK 前不冒充 ACTIVE，且其实施后须另派最终 reviewer。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead 与 production 身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini 会话 / 阅读与 Desktop PPT；AppID / GUI / 域名仅阻塞其依赖包，不用“下一 Goal”排除项目级 READY。
+- 容量 / READY：root + shared WeRead rework writer + 成本 recovery writer + `M1-F3B-D` 只读诊断为4/4；shared writer 已完整 rework ACK，后两项完整 ACK 前不冒充 ACTIVE。三项文件 / 职责互斥；成本 writer 实施后须另派最终 reviewer。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead 与 production 身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini 会话 / 阅读与 Desktop PPT；AppID / GUI / 域名仅阻塞其依赖包，不用“下一 Goal”排除项目级 READY。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -46,7 +46,7 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话与明确请求后的AI笔记新增 / 定向修改 | 依赖 A 与 M1-F2-D；失败不得丢讨论和笔记内容 |
+| `M1-F3B-D` | `RECOVERING / READ-ONLY DIAGNOSIS DISPATCHED / ACK PENDING` / `/root/cost_ledger_recovery2` | 当前 Goal 的业务包：书籍引用对话→明确请求后直接新增无标题老己笔记；仅明确引用已有笔记时定向修改，并覆盖查看 / 编辑 / 删除 / 刷新与失败保留 | A与M1-F2-D已具备；只读诊断锁首个RED、共享合同 / Server / Desktop互斥边界与1包vs顺序拆分后，立即释放唯一writer；不得调用付费模型或扩大Mini / PDF / PPT /视觉 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE 695f6b0 + UNCOMMITTED MIGRATION CHECKPOINT / NONAUTHOR NO-GO` / `/root/cost_candidate_review` | 4文件范围；原定向5项、Server158项、typecheck、diff-check绿，但非作者真实探针发现部分同名表可误标迁移、TRUNCATE可清审计、audit operation / 金额可与 reservation 不一致、settled 后 release 终态不对称 | 前两次 recovery handshake 未交字段级 ACK并留下仅 migration.ts 的WIP；现由原 reviewer切换为writer承接 checkpoint，完整writer ACK前不得写。实施后其不再具备最终非作者身份，候选须另派窄复核；账户删除归M3，真实付费仍需授权 |
@@ -98,6 +98,7 @@
 | `STAGE-READ-NOTES-V1-B` | `DONE / SERVER f7cf45c / MINI 82f6b84 / F312 d4f3dd0` | PUT / PATCH兼容、开发适配器notes失败保留 / 重试；production门未冒充通过 |
 | `STAGE-READ-NOTES-V1-C` | `DONE / CURRENT-MAIN READER 200% + DPR2` | `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `STAGE-READ-NOTES-V1-D` | `DONE / MAIN e36bc37 / CURRENT-MAIN PASS` | Book Detail动作SVG、focus、overflow、console；真实下载未覆盖 |
+| `STAGE-READ-NOTES-V1-H` | `DONE / MAIN 95f782f / CURRENT-MAIN PASS` | TXT真选区携带书籍 / 精确位置 / quote到当前会话可编辑草稿且不自动发送；刷新、失败原位重试与同requestId不重复通过，既有Desktop H4在Provider未变化前提下复用 |
 | `M1-F2-R1` | `DONE / 0204@9783628 READ-ONLY` | 38路径对账，无唯一未吸收实现；status `3bbbcce3…e79cbb` |
 | `M1-F2-R2` | `DONE / TECHNICAL PDF BOUNDARY` | 文本 / 图片 / 加密 / 损坏PDF边界冻结；`67d77d7`仅种子 |
 | `M1-F2-A-PROGRESS` | `DONE / MAIN 9c18842` | 批量进度、UTF-16、owner / stale / 非文本合同；15项与DB证据 |
