@@ -59,6 +59,7 @@ describe("cost ledger store", () => {
     await expect(store.reserve(reservationInput)).resolves.toMatchObject({ status: "reserved" });
     await expect(store.settle({ ...reservationInput, actualMicros: 400_000 })).resolves.toMatchObject({ status: "settled" });
     await expect(store.settle({ ...reservationInput, actualMicros: 400_000 })).resolves.toMatchObject({ status: "settled" });
+    await expect(store.release(reservationInput)).rejects.toMatchObject({ code: "COST_RESERVATION_TERMINAL" });
     await expect(store.getBalance("account-a")).resolves.toMatchObject({ committedMicros: 400_000, reservedMicros: 0 });
 
     const audit = await setup.sql<{ event: string; count: number }[]>`
@@ -82,6 +83,17 @@ describe("cost ledger store", () => {
     await expect(store.release(releasedInput)).resolves.toMatchObject({ status: "released" });
     await expect(store.release(releasedInput)).resolves.toMatchObject({ status: "released" });
     await expect(store.getBalance("account-a")).resolves.toMatchObject({ committedMicros: 400_000, reservedMicros: 0 });
+
+    const releaseAudit = await setup.sql<{ event: string; count: number }[]>`
+      SELECT event, count(*)::int AS count
+      FROM cost_ledger_audit
+      WHERE account_id = 'account-a' AND reservation_id = 'res-release'
+      GROUP BY event ORDER BY event
+    `;
+    expect(releaseAudit).toEqual([
+      { event: "release", count: 1 },
+      { event: "reserve", count: 1 },
+    ]);
   });
 
   it("keeps account totals isolated and fails closed when actual cost needs cap-exceeding top-up", async () => {

@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
-import { costLedgerMigrationName, migrateCostLedgerSchema } from "./cost-ledger-migration";
+import {
+  CostLedgerMigrationError,
+  costLedgerMigrationName,
+  migrateCostLedgerSchema,
+} from "./cost-ledger-migration";
 
 const baseDatabaseUrl =
   process.env.DATABASE_URL ?? "postgres://selfalone:selfalone@127.0.0.1:55432/selfalone";
@@ -73,16 +77,57 @@ describe("cost ledger schema migration", () => {
         (account_id, operation_id, reservation_id, event, amount_micros)
       VALUES ('account-a', 'migration-op', 'migration-res', 'reserve', 1)
     `;
+    await expect(setup.sql`TRUNCATE cost_ledger_audit`).rejects.toMatchObject({ code: "P0001" });
+    await expect(setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'wrong-operation', 'migration-res', 'reserve', 999)
+    `).rejects.toMatchObject({ code: "23514" });
+
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `;
+    await expect(setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'settle', 4)
+    `).rejects.toMatchObject({ code: "23514" });
+
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status)
+      VALUES ('account-a', 'release-op', 'release-res', 7, 'released')
+    `;
+    await expect(setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'release-op', 'release-res', 'release', 6)
+    `).rejects.toMatchObject({ code: "23514" });
+
     await expect(setup.sql`UPDATE cost_ledger_audit SET amount_micros = 1`).rejects.toMatchObject({
       code: "P0001",
     });
     await expect(setup.sql`DELETE FROM cost_ledger_audit`).rejects.toMatchObject({ code: "P0001" });
+  });
+
+  it("rejects a same-name partial ledger table before recording the migration marker", async () => {
+    const setup = await isolatedDatabase(databases, "cost_ledger_partial", false);
+    await setup.sql`CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    await setup.sql`CREATE TABLE cost_ledger_accounts (account_id text PRIMARY KEY)`;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toBeInstanceOf(CostLedgerMigrationError);
+    await expect(setup.sql`
+      SELECT 1 FROM schema_migrations WHERE name = ${costLedgerMigrationName}
+    `).resolves.toEqual([]);
   });
 });
 
 async function isolatedDatabase(
   databases: Array<{ administration: Sql; schema: string; sql: Sql }>,
   prefix: string,
+  migrate = true,
 ) {
   const schema = `${prefix}_${randomUUID().replaceAll("-", "")}`;
   const administration = postgres(baseDatabaseUrl, { max: 1 });
@@ -93,5 +138,6 @@ async function isolatedDatabase(
   databases.push({ administration, schema, sql });
   await sql`CREATE TABLE accounts (id text PRIMARY KEY, created_at timestamptz NOT NULL DEFAULT now())`;
   await sql`INSERT INTO accounts (id) VALUES ('account-a'), ('account-b')`;
+  if (migrate) await migrateCostLedgerSchema(sql);
   return { sql };
 }

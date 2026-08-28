@@ -223,7 +223,10 @@ export class CostLedgerStore {
       const account = await lockAccount(transaction, accountId);
       const reservation = await findReservation(transaction, accountId, reservationId);
       assertOperation(reservation, operationId);
-      if (reservation.status !== "reserved") return toReservation(reservation, account);
+      if (reservation.status === "released") return toReservation(reservation, account);
+      if (reservation.status === "settled") {
+        throw new CostLedgerError("COST_RESERVATION_TERMINAL");
+      }
 
       const reservedMicros = toMicros(reservation.reservedMicros);
       const accountReservedMicros = toMicros(account.reservedMicros);
