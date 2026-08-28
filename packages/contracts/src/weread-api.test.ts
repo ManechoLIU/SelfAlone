@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEREAD_API_CONTRACT_VERSION } from "./weread-api";
+import { WEREAD_API_CONTRACT_VERSION } from "./index";
 import type {
   WeReadAnnotationsSnapshotResponse,
   WeReadAnnotationsSyncRequest,
@@ -19,7 +19,7 @@ import type {
   WeReadAnnotationsSyncRunProjection,
   WeReadSyncRunProjection,
   WeReadSyncStatusResponse,
-} from "./weread-api";
+} from "./index";
 
 const connection: WeReadConnectionProjection = {
   connectionId: "connection-a",

@@ -289,3 +289,4 @@ export type TextModelCredentialErrorCode =
   | "STALE_VERSION";
 
 export * from "./weread-sync";
+export * from "./weread-api";
