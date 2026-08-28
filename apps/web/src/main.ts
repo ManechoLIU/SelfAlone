@@ -1163,12 +1163,12 @@ function renderConversationChat(session: ConversationChatSession) {
       : undefined,
     onDraftCommit: claimedHandoff && handoffStore
       ? (sentText) => {
-          const handoffDraft = formatTextReaderChatDraft(claimedHandoff.handoff);
-          if (sentText === handoffDraft) {
+          const currentDraft = handoffStore.draftFor(session.id) ?? claimedHandoff.draft;
+          if (sentText === currentDraft) {
             handoffStore.complete(session.id);
             return undefined;
           }
-          return handoffStore.draftFor(session.id) ?? claimedHandoff.draft;
+          return currentDraft;
         }
       : undefined,
   });

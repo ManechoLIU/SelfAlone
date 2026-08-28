@@ -46,6 +46,7 @@ export function createConversationChatController(
   let localEpoch = initialDraft ? 1 : 0;
   let hydrateGeneration = 0;
   let initialDraftPending = Boolean(initialDraft);
+  let handoffDraftActive = Boolean(initialDraft);
 
   function publish(nextState: ConversationChatState) {
     state = nextState;
@@ -73,7 +74,7 @@ export function createConversationChatController(
       if (draft !== initialDraft) initialDraftPending = false;
       localEpoch += 1;
       publish(updateConversationDraft(state, draft));
-      options.onDraftChange?.(draft);
+      if (handoffDraftActive) options.onDraftChange?.(draft);
     },
 
     async hydrate() {
@@ -86,6 +87,7 @@ export function createConversationChatController(
         const serverDraft = session.draft?.text;
         if (typeof serverDraft === "string" && serverDraft.length > 0) {
           initialDraftPending = false;
+          handoffDraftActive = false;
         } else if (initialDraftPending && state.draft === initialDraft && state.revision === null) {
           nextState = updateConversationDraft(nextState, initialDraft);
           initialDraftPending = false;
@@ -123,7 +125,12 @@ export function createConversationChatController(
         publish(nextState);
         if (result.status === "completed") {
           const restoredDraft = options.onDraftCommit?.(text);
-          if (restoredDraft !== undefined) publish(updateConversationDraft(nextState, restoredDraft));
+          if (restoredDraft !== undefined) {
+            handoffDraftActive = true;
+            publish(updateConversationDraft(nextState, restoredDraft));
+          } else {
+            handoffDraftActive = false;
+          }
         }
         return result;
       } catch (error) {

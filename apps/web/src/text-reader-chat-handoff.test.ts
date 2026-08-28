@@ -142,13 +142,13 @@ describe("text reader chat handoff", () => {
       conversationId: "conversation-a",
       initialDraft: refreshed.draftFor("conversation-a") ?? undefined,
       onDraftChange: (nextDraft) => { refreshed.updateDraft("conversation-a", nextDraft); },
-      onDraftCommit: (sentText?: string) => {
-        if (sentText === handoffDraft) {
+      onDraftCommit: (sentText: string) => {
+        const currentDraft = refreshed.draftFor("conversation-a") ?? handoffDraft;
+        if (sentText === currentDraft) {
           refreshed.complete("conversation-a");
           return undefined;
         }
-        refreshed.updateDraft("conversation-a", handoffDraft);
-        return refreshed.draftFor("conversation-a") ?? handoffDraft;
+        return currentDraft;
       },
       client: {
         async getSession(): Promise<ConversationChatSession> {
@@ -199,6 +199,101 @@ describe("text reader chat handoff", () => {
     expect(accountB.complete("conversation-a")).toBe(false);
     expect(accountA.peek()).toEqual(handoff);
     expect(createTextReaderChatHandoffStore("account-a", persisted).peek()).toEqual(handoff);
+  });
+
+  it("clears the Reader handoff after sending an edited handoff draft", async () => {
+    const persisted = storage();
+    const store = createTextReaderChatHandoffStore("account-a", persisted);
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const editedDraft = `${handoffDraft}我的问题是：这句话让我想到了什么？`;
+    store.publish(handoff);
+    store.claim("conversation-a", handoffDraft);
+
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: handoffDraft,
+      onDraftChange: (draft) => { store.updateDraft("conversation-a", draft); },
+      onDraftCommit: (sentText) => {
+        const currentDraft = store.draftFor("conversation-a") ?? handoffDraft;
+        if (sentText === currentDraft) {
+          store.complete("conversation-a");
+          return undefined;
+        }
+        return currentDraft;
+      },
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return session("conversation-a");
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+          return {
+            status: "completed",
+            session: {
+              ...session("conversation-a"),
+              revision: 2,
+              context: [{ id: `${input.requestId}:user`, role: "user", text: input.text, requestId: input.requestId }],
+            },
+            reply: "已收到。",
+          };
+        },
+      },
+    });
+
+    await controller.hydrate();
+    controller.setDraft(editedDraft);
+    await controller.send();
+
+    expect(store.draftFor("conversation-a")).toBeNull();
+    expect(controller.getState().draft).toBe("");
+  });
+
+  it("does not persist edits to a server retry draft over the Reader handoff", async () => {
+    const persisted = storage();
+    const store = createTextReaderChatHandoffStore("account-a", persisted);
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const serverDraft = "服务端保留的失败问题";
+    const editedServerDraft = `${serverDraft}（用户修改）`;
+    store.publish(handoff);
+    store.claim("conversation-a", handoffDraft);
+
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: handoffDraft,
+      onDraftChange: (draft) => { store.updateDraft("conversation-a", draft); },
+      onDraftCommit: (sentText) => {
+        const currentDraft = store.draftFor("conversation-a") ?? handoffDraft;
+        if (sentText === currentDraft) {
+          store.complete("conversation-a");
+          return undefined;
+        }
+        return currentDraft;
+      },
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return sessionWithRetry(serverDraft);
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+          return {
+            status: "completed",
+            session: {
+              ...session("conversation-a"),
+              revision: 5,
+              context: [{ id: `${input.requestId}:user`, role: "user", text: input.text, requestId: input.requestId }],
+            },
+            reply: "已收到。",
+          };
+        },
+      },
+    });
+
+    await controller.hydrate();
+    controller.setDraft(editedServerDraft);
+
+    expect(store.draftFor("conversation-a")).toBe(handoffDraft);
+    await controller.send();
+
+    expect(controller.getState().draft).toBe(handoffDraft);
+    expect(store.draftFor("conversation-a")).toBe(handoffDraft);
   });
 
   it("keeps an initial handoff draft when conversation hydration fails without auto-sending", async () => {
