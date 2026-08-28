@@ -4,10 +4,10 @@
 
 ## 1. 当前控制面
 
-- 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` 已顺序进入 `main@b760142` 并通过 root / 非作者代码门与 main 回归；下一输入仍是 current-main 真实账户 Chrome Case。旁路 `SHARED-TEXT-LOCATOR-UTF16` 已以 `main@ef10a9d+5fcd559` 关闭并释放 `M2-F4-B@6f7cc87` 的 root review / 唯一 f312 集成门；`M1-F2-WEREAD` 与 `M2-F2` 已分别取得完整 ACK 并进入首个 no-call 可运行接缝检查点。
-- 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@655caf1` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。总控已加载 `adaptive-delivery@e2f6410919274547f550972284a3be01a1e40838`，installed SKILL / long-task / control-event / ledger-consistency SHA-256 为 `60765a23…b025` / `9dda3590…d31` / `3f01ab3a…10c` / `78bf1db2…9cc`；本次变化只影响总控事件闭合与后续路由，当前 Web Writer Assignment 边界不变且无需广播。
+- 当前 Goal：`STAGE-READ-NOTES-V1-J / M1-F2-WEREAD ACTIVE`；审查并顺序集成 Desktop clean 候选 `dfb0574`，在 current-main 真实账户闭合 Settings 连接 / 修改、Library 同步书籍 / 封面 / 进度 / 划线想法、失败保留与刷新恢复；默认 no-call，不读取真实 WeRead Key，不改 Server / 共享合同，真实 WeRead H4 仍为独立授权门。Mini `M2-F2` 保持独立旁路，不改变本 Goal 完成条件。
+- 下一可见检查点：`M1-F2-WEREAD@dfb0574` 实际 10 文件 diff 与 provider-neutral / no-call 边界经 root 审查后，合格则顺序进入 main、跑相称回归并做 current-main Chrome Case；`M2-F2@73a0f11` 已 clean 冻结，待 Desktop 单候选集成流释放后另开 root review / 唯一 f312 事件。
+- 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。当前 API 的 DeepSeek 配置运行时重绑定仅受 macOS Passwords 本人认证阻塞，不影响 no-call WeRead Goal。各门只阻塞依赖包。
+- 规则版本：总控已从真实 `main@dde0373` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。已加载 `adaptive-delivery@0f0feb95698a264e58fb7fa9bae651ec40057315`，installed SKILL / long-task / lifecycle-hook SHA-256 为 `d3b6b8f1…de73` / `54c9771a…d221` / `67d8fe09…67ca`；controller `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 已登记 canonical main / 唯一台账，`hooks.json` 已配置但尚未由 `/hooks` 信任，故继续执行既有人工 `control_event_guard`，不得宣称自动 Hook 生效。本次变化只影响总控，两名已终止 Writer 无需广播。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -35,16 +35,17 @@
 | `M1-F2-D-TEXT-WEB-ENTRY` | `VERIFY / MAIN 1e7763a / SCOPED FINAL` | 768裁切、旧书 workspace 泄露、恢复 scroll 遮挡与200% / DPR2已关闭 | 文件上传、AI / PPTX与父项仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-E` | `VERIFY / OPEN / SPLIT` / 项目总控 | 业务父闭环：同账户 Web / Mini 共享书籍、位置、划线与笔记；owner / 版本合同已冻结 | E-XEND 依赖真实 F1 会话、M2-F1身份与对应内容能力 |
 | `M1-F2-E-XEND` | `PENDING` / 待分配 | 同账户 Web / Mini 读取同一位置、划线与笔记并失败恢复 | 依赖 E-OWNER、F1、M2-F1、B / C / D；真实 AppID / 身份就绪后验收 |
-| `M1-F2-WEREAD` | `ACTIVE / NO-CALL CLIENT CHECKPOINT` / `/root/m1_f2_weread_web_writer` | `weread-web@c5f4a92` 已完整 ACK：独占 Desktop client / state / view 与既有 Library / Settings 接缝；首个 RED 为书架静态入口且 Settings `weread` action 无处理分支 | 先形成可注入 port 的连接 / 修改、同步状态、书封 / 注释与失败保留；需要具体 Server HTTP 路径、新派生视觉或真实 Key / H4 时停写并报告上游门 |
+| `M1-F2-WEREAD` | `VERIFY / CLEAN CANDIDATE dfb0574 / ROOT REVIEW` / 项目总控 | Desktop Writer 已在约定 10 文件完成 provider-neutral client port、本地 no-call 数据源、Settings / Library 连接修改同步、真实封面路径 / 进度 / 划线想法与失败 / localStorage 恢复；worktree clean、Assignment TERMINAL | Writer 定向 5 文件 43 项、Web 全量 106 文件 705 项、typecheck / build / visual-contract / diff-check PASS；root 现审实际 diff，合格后顺序进 main 并做 current-main Chrome，不把本地 no-call 冒充真实 WeRead H4 |
 | `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
 | `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
+| `M1-F3A-RUNTIME-REBIND` | `BLOCKED / LOCAL AUTH USER ACTION PENDING` / 项目总控 | 本轮保存失败演练重启 current-main API 后需把本机已保存 DeepSeek Key 重新绑定到新运行时加密主密钥；不新增供应商调用，不改变既有 H4 PASS | 唤醒=机主在 macOS Passwords 系统提示以 Touch ID / 系统密码批准；随后仅安全摄入当前本地配置入口并清空剪贴板，Key 不输出、不落源码 / `.env` / 日志 / 截图 / 台账。当前 Passwords 明确为 locked，不绕过认证 |
 | `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立配置、检测、撤销与失败保留 | 图片供应商 / 付费调用未确认；不得成为无图 PPT 前置 |
 | `M1-F3B` | `VERIFY` / 项目总控 | 业务父闭环：同一账户从上下文发起真实连续会话并在失败 / 刷新后恢复 | Desktop 真实文字对话 H4 已闭合；图片消息、书籍上下文、Mini与父级 V1 仍开放 |
 | `M1-F3B-B` | `PENDING` / 待分配 | 最多4图的纯图片 / 图文消息、预检、逐张移除与失败恢复 | 依赖对象存储和模型能力目录 |
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `VERIFY / MAIN b760142 / CURRENT-MAIN CHROME PENDING` / 项目总控 | Server `bac14b8` + Web `3422dc0+b760142` 已顺序进main；累计7文件实际diff经root与非作者PASS，main定向5文件53项、Web34文件272项、typecheck、build、visual-contract与diff-check通过。普通讨论后composer清空但account-scoped handoff跨刷新保留，明确create成功才清理；普通 / 否定 / 无handoff不生成intent且不猜update | root刷新main API / Web后完成真实账户 Reader→普通讨论→刷新→整理笔记→查看 / 编辑 / 删除 / 刷新恢复及失败同requestId重试；真实Case前父Goal保持OPEN |
+| `M1-F3B-D` | `DONE / MAIN b760142 / CURRENT-MAIN CHROME PASS` | Server `bac14b8` + Web `3422dc0+b760142` 已顺序进main且代码门通过；同一真实账户 TXT 真选区把书名 / bookId / 第1节“第一章” / UTF-16 42–46字 / quote 带入可编辑草稿且0 auto-send，明确“请整理成笔记”后1次真实 DeepSeek 回复并直接新增本书无标题笔记 | current-main Chrome 查看→编辑→刷新恢复→删除→刷新删除均 PASS；API 中断时保存正文与重试入口保留，恢复后原动作成功并清理验收笔记；最终会话请求 / 回复刷新仍在，console warn / error 0。Key 未输出；PDF / Mini / 图片 / PPT 不在本包 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE f53c930 NONAUTHOR FAIL` / 项目总控 | 两个cost-ledger migration文件的并发 / 回滚局部证据保留；FAIL为运行期可直接插入终态reservation且audit反序历史未被拒绝，`f53c930` 不得合main | recovery动作：root先审清已到的Mini / WeRead候选并释放一个既有Agent lease，再复用该Agent在原 `quota-cost` 两文件边界补RED与最小修复；检查点为新ACK，不以当前Goal或旧4/4为理由等待 |
@@ -73,7 +74,7 @@
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
 | `SHARED-WEREAD-API` | `DONE / MAIN 1f922ba / CONTRACT PASS` / 项目总控 | `81f1624+86726fd+1775e21+1f922ba` 已顺序进入main：PUT显式CAS（首次为`null`）、local / provider ID、多记录 / opaque cursor / last-success失败保留与公开package导出均已审 | contracts 11项、typecheck、diff-check PASS；本包只冻结共享JSON契约，不扩HTTP / Key / H4，下游实现已释放 |
-| `M2-F2` | `ACTIVE / NO-CALL CLIENT CHECKPOINT` / `/root/m2_f2_weread_mini_writer` | `weread-mini@c5f4a92` 已完整 ACK：独占 Mini core / adapter 与 Library / Settings 既有接缝；首个 RED 为 `showWeReadBoundary` / `showBoundary` 仍仅返回静态提示 | 禁止触碰 `library-http` 候选、Server / contracts与唯一f312；需要具体 HTTP、派生视觉、AppID / DevTools或真实 Key / H4 时停写并报告精确依赖 |
+| `M2-F2` | `VERIFY / CLEAN CANDIDATE 73a0f11 / ROOT REVIEW + F312 PENDING` / 项目总控 | Mini Writer 已在约定 10 文件完成 route-agnostic no-call port、连接 / 修改 / CAS / 同步、书籍封面 / 进度 / 注释状态映射及失败保留；未触碰 library-http、Server、contracts、WXSS、main、f312或真实服务，worktree clean、Assignment TERMINAL | Mini 全量 25 文件 188 项、typecheck / build / visual-contract / diff-check PASS；Desktop候选流关闭后另开 actual-diff review，合格才顺序进入唯一 f312 做 DevTools Case，AppID / 域名只阻塞production H4 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
 | `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
