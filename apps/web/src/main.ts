@@ -82,6 +82,12 @@ import {
 } from "./conversation-chat-state";
 import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
+import {
+  chooseConversationForTextReaderHandoff,
+  formatTextReaderChatDraft,
+  textReaderChatHandoffStore,
+  type TextReaderChatHandoff,
+} from "./text-reader-chat-handoff";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
 import { icons } from "./ui/icons";
 import { renderSettingsPage } from "./settings-page";
@@ -152,6 +158,7 @@ let conversationFocusKey: string | null = null;
 let lastTextReaderPptScrollIntent: TextReaderPptIntent | null = null;
 let routeRenderFrame: number | undefined;
 let conversationChatSession: ConversationChatSession | null = null;
+let conversationChatLastSessionId: string | null = null;
 let conversationChatSessions: ConversationChatSession[] = [];
 let conversationChatSearchQuery = "";
 let conversationChatDirectoryViewState: ConversationChatDirectoryViewState = { loading: true };
@@ -1034,7 +1041,11 @@ function destroyConversationSelection() {
   conversationSelectionHydrated = false;
 }
 
-function destroyConversationChat() {
+function destroyConversationChat(options: { preserveLastSession?: boolean } = {}) {
+  if (options.preserveLastSession !== false && conversationChatSession) {
+    conversationChatLastSessionId = conversationChatSession.id;
+  }
+  if (options.preserveLastSession === false) conversationChatLastSessionId = null;
   const cleanup = conversationChatCleanup ?? conversationSelectionCleanup;
   cleanup?.();
   conversationChatCleanup = null;
@@ -1103,6 +1114,14 @@ function renderConversationChatError() {
 }
 
 function renderConversationChat(session: ConversationChatSession) {
+  const pendingHandoff = textReaderChatHandoffStore.peek();
+  const activeHandoff = textReaderChatHandoffStore.active();
+  const claimedHandoff = pendingHandoff
+    ? textReaderChatHandoffStore.claim(session.id, formatTextReaderChatDraft(pendingHandoff))
+    : activeHandoff?.conversationId === session.id
+      ? activeHandoff
+      : null;
+  const initialDraft = claimedHandoff?.draft;
   const previousCleanup = conversationChatCleanup ?? conversationSelectionCleanup;
   previousCleanup?.();
   conversationChatCleanup = null;
@@ -1118,6 +1137,7 @@ function renderConversationChat(session: ConversationChatSession) {
     });
   }
   conversationChatSession = session;
+  conversationChatLastSessionId = session.id;
   conversationChatDirectoryRetry = null;
   conversationChatSessions = [
     session,
@@ -1132,6 +1152,13 @@ function renderConversationChat(session: ConversationChatSession) {
   const controller = createConversationChatController({
     conversationId: session.id,
     client: conversationChatClient,
+    initialDraft,
+    onDraftChange: claimedHandoff
+      ? (draft) => { textReaderChatHandoffStore.updateDraft(session.id, draft); }
+      : undefined,
+    onDraftCommit: claimedHandoff
+      ? () => { textReaderChatHandoffStore.complete(session.id); }
+      : undefined,
   });
   conversationChatCleanup = mountConversationChatView(mainMount, null, controller, {
     title: "老己对话",
@@ -1289,7 +1316,16 @@ async function loadConversationChat(navigationId: number) {
   try {
     conversationChatDirectoryViewState = { loading: true };
     const sessions = await conversationChatClient.listSessions({ query: conversationChatSearchQuery });
-    const session = sessions[0] ?? await conversationChatClient.createSession();
+    const pendingHandoff = textReaderChatHandoffStore.peek();
+    const activeHandoff = textReaderChatHandoffStore.active();
+    const selected = pendingHandoff || activeHandoff
+      ? chooseConversationForTextReaderHandoff(
+        sessions,
+        conversationChatLastSessionId,
+        activeHandoff?.conversationId ?? null,
+      )
+      : sessions[0] ?? null;
+    const session = selected ?? await conversationChatClient.createSession();
     if (navigationId !== routeGeneration || !isConversationRoute()) return;
     conversationChatSessions = sessions.length ? sessions : [session];
     conversationChatDirectoryViewState = { loading: false };
@@ -2140,6 +2176,12 @@ function destroyTextReader() {
   activeTextReader = null;
 }
 
+function handleTextReaderChatHandoff(handoff: TextReaderChatHandoff) {
+  if (!textReaderChatHandoffStore.publish(handoff)) return;
+  window.history.pushState(null, "", "#/conversation");
+  scheduleRouteRender();
+}
+
 async function openTextReader(bookId: string, navigationId: number, initialDetailOpen = false) {
   app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
   const api = createTextReaderApi(bookId);
@@ -2167,6 +2209,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
       accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
+      onChatHandoff: handleTextReaderChatHandoff,
       cacheScope: {
         accountId: authState.account?.id ?? "account-development-local",
         bookId,
@@ -2181,6 +2224,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
       accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
+      onChatHandoff: handleTextReaderChatHandoff,
     });
   }
 }
@@ -2215,7 +2259,9 @@ function renderRoute() {
   const readingBookId = readingBookIdFromHash(window.location.hash);
   const bookDetailId = bookDetailIdFromHash(window.location.hash);
   const legacyConversationRoute = isLegacyConversationRoute();
-  if (!isConversationRoute() || legacyConversationRoute) destroyConversationChat();
+  if (!isConversationRoute() || legacyConversationRoute) {
+    destroyConversationChat({ preserveLastSession: !legacyConversationRoute });
+  }
   if (bookDetailId) {
     destroyTextReader();
     void openTextReader(bookDetailId, navigationId, true);

@@ -95,6 +95,36 @@ describe("conversation chat controller", () => {
     });
   });
 
+  it("keeps an existing server retry draft instead of replacing it with a Reader handoff", async () => {
+    const handoffDraft = "来自《雨后山亭》的原文：\n“灯塔亮了，海风从窗边经过。”\n\n";
+    const serverDraft = "发送失败后保留的原文";
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: handoffDraft,
+      client: {
+        async getSession() {
+          return session({
+            revision: 4,
+            draft: { text: serverDraft, attachments: [] },
+            context: [{ id: "request-failed:user", role: "user", text: serverDraft, requestId: "request-failed" }],
+          });
+        },
+        async sendText(): Promise<ConversationChatSendResult> {
+          throw new Error("NOT_EXPECTED");
+        },
+      },
+    });
+
+    await controller.hydrate();
+
+    expect(controller.getState()).toMatchObject({
+      draft: serverDraft,
+      retryRequestId: "request-failed",
+      retryText: serverDraft,
+      status: "idle",
+    });
+  });
+
   it("reuses a failed request id only while the retained draft is unchanged", async () => {
     const requestIds: string[] = [];
     const client = {

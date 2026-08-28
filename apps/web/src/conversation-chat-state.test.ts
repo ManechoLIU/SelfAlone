@@ -13,6 +13,7 @@ import {
 describe("conversation chat state", () => {
   it("keeps stage and book handoff hashes on the legacy workspace route", () => {
     expect(classifyConversationRoute("#/conversation")).toBe("chat");
+    expect(classifyConversationRoute("#/conversation?readerHandoff=1")).toBe("chat");
     expect(classifyConversationRoute("#/conversation?stage=requirements")).toBe("workspace");
     expect(classifyConversationRoute("#/conversation?stage=outline&book=book-1&bookTitle=书")).toBe("workspace");
   });

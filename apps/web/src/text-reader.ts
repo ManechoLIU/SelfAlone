@@ -200,7 +200,7 @@ export function mountTextReader(
     const hasSelection = Boolean(selectedTextInside(root));
     const button = root.querySelector<HTMLButtonElement>("[data-reader-copy]");
     if (button) button.disabled = !hasSelection;
-    const chat = root.querySelector<HTMLAnchorElement>("[data-reader-chat]");
+    const chat = root.querySelector<HTMLButtonElement>("[data-reader-chat]");
     if (chat) chat.hidden = !hasSelection;
   };
 
@@ -339,6 +339,13 @@ export function mountTextReader(
       if (!text) return;
       const writeClipboard = options.writeClipboard ?? ((value: string) => navigator.clipboard.writeText(value));
       void copyReaderSelection(text, writeClipboard).then(setCopyStatus);
+    });
+    const chat = root.querySelector<HTMLButtonElement>("[data-reader-chat]");
+    chat?.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+    });
+    chat?.addEventListener("click", () => {
+      annotationController.requestChatHandoff();
     });
     root.querySelector<HTMLButtonElement>("[data-reader-reload]")?.addEventListener("click", () => {
       void load();

@@ -26,20 +26,33 @@ import {
   type TextAnnotationSelection,
 } from "./text-annotation-state";
 import { renderTextAnnotationLayer } from "./text-annotation-view";
+import type { TextReaderChatHandoff } from "./text-reader-chat-handoff";
 
 export type TextAnnotationRequestError = Error & {
   code: string;
   retainedDraft?: unknown;
 };
 
-export type TextAnnotationChatHandoff = (selection: TextAnnotationSelection) => void;
+export type TextAnnotationChatHandoff = (handoff: TextReaderChatHandoff) => void;
+
+export type TextAnnotationChatHandoffContext = {
+  bookId: string;
+  bookTitle: string;
+  author: string | null;
+};
 
 export function requestTextAnnotationChatHandoff(
   handoff: TextAnnotationChatHandoff | undefined,
   selection: TextAnnotationSelection | null,
+  context?: TextAnnotationChatHandoffContext,
 ) {
-  if (!handoff || !selection) return false;
-  handoff(selection);
+  if (!handoff || !selection || !context) return false;
+  handoff({
+    quote: selection.source.quote,
+    bookId: context.bookId,
+    bookTitle: context.bookTitle,
+    author: context.author?.trim() || null,
+  });
   return true;
 }
 
@@ -362,7 +375,7 @@ export function createTextAnnotationController(options: {
     currentRoot = root;
     const layer = root.querySelector<HTMLElement>("[data-text-annotation-root]");
     if (layer) layer.innerHTML = renderTextAnnotationLayer(model.snapshot, {
-      chatHandoffAvailable: Boolean(options.onChatHandoff),
+      chatHandoffAvailable: Boolean(options.onChatHandoff && options.getReaderContext().reading),
     });
     const detailHost = root.querySelector<HTMLElement>("[data-book-detail-host]");
     if (detailHost) {
@@ -447,6 +460,16 @@ export function createTextAnnotationController(options: {
     options.onDetailClose?.();
   };
 
+  const requestChatHandoff = () => {
+    const reading = options.getReaderContext().reading;
+    if (!reading) return false;
+    return requestTextAnnotationChatHandoff(options.onChatHandoff, model.snapshot.selection, {
+      bookId: options.bookId,
+      bookTitle: reading.title,
+      author: reading.author,
+    });
+  };
+
   const refreshBoth = async () => {
     try {
       await model.load();
@@ -503,7 +526,7 @@ export function createTextAnnotationController(options: {
       requestAnimationFrame(() => root.querySelector<HTMLTextAreaElement>("[data-annotation-thought-input]")?.focus());
     });
     root.querySelector<HTMLButtonElement>('[data-annotation-chat]')?.addEventListener("click", () => {
-      requestTextAnnotationChatHandoff(options.onChatHandoff, model.snapshot.selection);
+      requestChatHandoff();
     });
     root.querySelector<HTMLButtonElement>('[data-annotation-thought-cancel]')?.addEventListener("click", () => {
       model.snapshot = { ...model.snapshot, composer: null, saveError: "" };
@@ -620,6 +643,7 @@ export function createTextAnnotationController(options: {
     },
     openDetails,
     closeDetails,
+    requestChatHandoff,
   };
 }
 

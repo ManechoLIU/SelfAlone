@@ -21,6 +21,9 @@ export type ConversationChatControllerOptions = {
   conversationId: string;
   client: ConversationChatControllerClient;
   requestIdFactory?: () => string;
+  initialDraft?: string;
+  onDraftChange?: (draft: string) => void;
+  onDraftCommit?: () => void;
 };
 
 export type ConversationChatStateListener = (state: ConversationChatState) => void;
@@ -37,9 +40,12 @@ export function createConversationChatController(
   options: ConversationChatControllerOptions,
 ): ConversationChatController {
   let state = createConversationChatState(options.conversationId);
+  const initialDraft = options.initialDraft ?? "";
+  if (initialDraft) state = updateConversationDraft(state, initialDraft);
   const listeners = new Set<ConversationChatStateListener>();
-  let localEpoch = 0;
+  let localEpoch = initialDraft ? 1 : 0;
   let hydrateGeneration = 0;
+  let initialDraftPending = Boolean(initialDraft);
 
   function publish(nextState: ConversationChatState) {
     state = nextState;
@@ -64,8 +70,10 @@ export function createConversationChatController(
 
     setDraft(draft) {
       if (state.status === "sending") return;
+      if (draft !== initialDraft) initialDraftPending = false;
       localEpoch += 1;
       publish(updateConversationDraft(state, draft));
+      options.onDraftChange?.(draft);
     },
 
     async hydrate() {
@@ -74,7 +82,15 @@ export function createConversationChatController(
       try {
         const session = await options.client.getSession(options.conversationId);
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
-        const nextState = applyConversationSnapshot(state, session);
+        let nextState = applyConversationSnapshot(state, session);
+        const serverDraft = session.draft?.text;
+        if (typeof serverDraft === "string" && serverDraft.length > 0) {
+          initialDraftPending = false;
+          if (serverDraft !== initialDraft) options.onDraftChange?.(serverDraft);
+        } else if (initialDraftPending && state.draft === initialDraft && state.revision === null) {
+          nextState = updateConversationDraft(nextState, initialDraft);
+          initialDraftPending = false;
+        }
         publish(nextState);
       } catch (error) {
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
@@ -95,6 +111,7 @@ export function createConversationChatController(
       const id = state.retryRequestId && state.retryText === text
         ? state.retryRequestId
         : requestId();
+      initialDraftPending = false;
       localEpoch += 1;
       publish(beginConversationSend(state, id));
       try {
@@ -103,7 +120,10 @@ export function createConversationChatController(
           text,
         });
         localEpoch += 1;
-        publish(applyConversationSendResult(state, result));
+        const nextState = applyConversationSendResult(state, result);
+        publish(nextState);
+        if (result.status === "completed") options.onDraftCommit?.();
+        else options.onDraftChange?.(nextState.draft);
         return result;
       } catch (error) {
         localEpoch += 1;

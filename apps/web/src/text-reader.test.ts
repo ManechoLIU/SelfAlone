@@ -268,6 +268,12 @@ describe("M1-F2-B desktop text reader view", () => {
     expect(html).toMatch(/data-reader-book-detail[^>]*>[\s\S]*<svg/);
   });
 
+  it("keeps the selected-text chat action as an in-app handoff instead of a bare route link", () => {
+    const html = renderTextReader(snapshot);
+    expect(html).toContain('<button class="text-reader-selected-chat" data-reader-chat type="button"');
+    expect(html).not.toContain('data-reader-chat href="#/conversation"');
+  });
+
   it("renders persisted highlights as real marks without turning the first line into a title", () => {
     const html = renderTextReader({
       ...snapshot,

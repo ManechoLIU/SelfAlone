@@ -12,6 +12,7 @@ import {
 } from "./text-annotation";
 import { renderTextAnnotationLayer } from "./text-annotation-view";
 import type { TextAnnotationSnapshot, TextAnnotationSelection } from "./text-annotation-state";
+import type { TextReaderChatHandoff } from "./text-reader-chat-handoff";
 
 const selection: TextAnnotationSelection = {
   source: {
@@ -112,12 +113,42 @@ describe("desktop text annotation API", () => {
   });
 
   it("exposes the selected source to the future shared chat seam", () => {
-    let received: TextAnnotationSelection | null = null;
-    expect(requestTextAnnotationChatHandoff((value) => { received = value; }, selection)).toBe(true);
-    expect(received).toEqual(selection);
+    let received: TextReaderChatHandoff | null = null;
+    expect(requestTextAnnotationChatHandoff((value) => { received = value; }, selection, {
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+    })).toBe(true);
+    expect(received).toEqual({
+      quote: selection.source.quote,
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+    });
     const html = renderTextAnnotationLayer(annotationSnapshot, { chatHandoffAvailable: true });
     expect(html).toContain('data-annotation-quote="灯塔亮了"');
     expect(html).not.toContain("disabled");
+  });
+
+  it("hands the exact quote and reader book identity to shared chat", () => {
+    let received: TextReaderChatHandoff | null = null;
+    const request = requestTextAnnotationChatHandoff as unknown as (
+      handoff: (value: TextReaderChatHandoff) => void,
+      value: TextAnnotationSelection | null,
+      context: { bookId: string; bookTitle: string; author: string | null },
+    ) => boolean;
+
+    expect(request((value) => { received = value; }, selection, {
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+    })).toBe(true);
+    expect(received).toEqual({
+      quote: selection.source.quote,
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+    });
   });
 
   it("removes every keyboard listener after repeated attach and detach", () => {

@@ -142,7 +142,7 @@ export function renderTextReader(snapshot: TextReaderSnapshot) {
           <button class="text-reader-icon" type="button" data-reader-directory aria-label="打开目录"${directoryControls} aria-expanded="${snapshot.directoryOpen}"${unavailable}>${readerIcons.directory}</button>
           <button class="text-reader-icon" type="button" data-reader-background aria-label="切换阅读背景" aria-pressed="${background === "dark"}"${unavailable}>${readerIcons.background}</button>
           <button class="text-reader-icon text-reader-copy" type="button" data-reader-copy aria-label="复制所选正文" disabled>${readerIcons.copy}<span>复制所选</span></button>
-          <a class="text-reader-selected-chat" data-reader-chat href="#/conversation" aria-label="把所选正文交给老己" hidden>${icons.chat}<span>和老己聊聊</span></a>
+          <button class="text-reader-selected-chat" data-reader-chat type="button" aria-label="把所选正文交给老己" hidden>${icons.chat}<span>和老己聊聊</span></button>
           <button class="text-reader-icon" type="button" data-reader-book-detail aria-label="打开划线与笔记">${icons.file}<span>划线与笔记</span></button>
           <button class="text-reader-icon" type="button" data-reader-focus aria-label="${focusLabel}" aria-pressed="${snapshot.focusMode}"${unavailable}>${readerIcons.focus}</button>
         </div>
