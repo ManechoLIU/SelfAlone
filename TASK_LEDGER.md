@@ -5,7 +5,7 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` 的 Web Assignment `M1-F3B-D-WEB-01` 已在 `noteweb@dc02e91` 完整ACK并通过租约门；Writer先交“当前controller/client只发送requestId/text、claimed Reader handoff不生成noteIntent”的RED，再冻结单一clean Web候选供root审查与顺序集成。
+- 下一可见检查点：`M1-F3B-D` 已顺序进入 `main@b760142` 并通过 root / 非作者代码门与 main 回归；下一输入是 current-main 真实账户 Chrome Case：Reader 普通讨论→刷新→明确整理→笔记创建 / 编辑 / 删除 / 刷新恢复，以及模型 / 保存失败原位重试。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@655caf1` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。总控已加载 `adaptive-delivery@e2f6410919274547f550972284a3be01a1e40838`，installed SKILL / long-task / control-event / ledger-consistency SHA-256 为 `60765a23…b025` / `9dda3590…d31` / `3f01ab3a…10c` / `78bf1db2…9cc`；本次变化只影响总控事件闭合与后续路由，当前 Web Writer Assignment 边界不变且无需广播。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
@@ -44,7 +44,7 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `ACTIVE / M1-F3B-D-WEB-01` / `/root/m1_f3bd_web_writer` | Server链已在main `bac14b8` PASS；Web Assignment为 `noteweb@dc02e91`、7个conversation / handoff文件，complete delivered ACK与lease guard PASS。只允许active同会话Reader handoff + 明确正向“整理成/为笔记”生成create intent；普通、否定、无handoff不生成，禁止自由文本猜update | Writer先RED后最小接线，失败 / 刷新保留book / quote / draft并以同requestId+同intent重试；交clean candidate后root审实际diff、顺序进main并做真实账户Chrome create / edit / delete / refresh / failure retry，父Goal保持OPEN |
+| `M1-F3B-D` | `VERIFY / MAIN b760142 / CURRENT-MAIN CHROME PENDING` / 项目总控 | Server `bac14b8` + Web `3422dc0+b760142` 已顺序进main；累计7文件实际diff经root与非作者PASS，main定向5文件53项、Web34文件272项、typecheck、build、visual-contract与diff-check通过。普通讨论后composer清空但account-scoped handoff跨刷新保留，明确create成功才清理；普通 / 否定 / 无handoff不生成intent且不猜update | root刷新main API / Web后完成真实账户 Reader→普通讨论→刷新→整理笔记→查看 / 编辑 / 删除 / 刷新恢复及失败同requestId重试；真实Case前父Goal保持OPEN |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE f53c930 NONAUTHOR FAIL` / 项目总控 | 两个cost-ledger migration文件的并发 / 回滚局部证据保留；FAIL为运行期可直接插入终态reservation且audit反序历史未被拒绝，`f53c930` 不得合main | recovery动作：root先审清已到的Mini / WeRead候选并释放一个既有Agent lease，再复用该Agent在原 `quota-cost` 两文件边界补RED与最小修复；检查点为新ACK，不以当前Goal或旧4/4为理由等待 |
