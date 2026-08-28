@@ -195,11 +195,34 @@ let conversationSelectionConversationId: string | null = null;
 let conversationSelectionHydrated = false;
 let settingsState: SettingsState = createSettingsState();
 const wereadStoragePrefix = "selfalone:m1:weread-state";
+const wereadQaFailOncePrefix = "selfalone:m1:weread-qa-fail-once";
 function wereadStorageKey(accountId: string): string;
 function wereadStorageKey(accountId: string | null | undefined): string;
 function wereadStorageKey(accountId: string | null | undefined) {
   const normalized = accountId?.trim();
   return `${wereadStoragePrefix}:${normalized ? encodeURIComponent(normalized) : "anonymous"}`;
+}
+
+function wereadQaFailOnceStorageKey(accountId: string) {
+  return `${wereadQaFailOncePrefix}:${encodeURIComponent(accountId)}`;
+}
+
+function shouldInjectWeReadQaFailure(accountId: string | null) {
+  if (!accountId || !import.meta.env.DEV || !["localhost", "127.0.0.1"].includes(window.location.hostname)) return false;
+  if (new URLSearchParams(window.location.search).get("wereadQa") !== "fail-once") return false;
+  try {
+    return window.localStorage.getItem(wereadQaFailOnceStorageKey(accountId)) !== "consumed";
+  } catch {
+    return true;
+  }
+}
+
+function markWeReadQaFailureConsumed(accountId: string) {
+  try {
+    window.localStorage.setItem(wereadQaFailOnceStorageKey(accountId), "consumed");
+  } catch {
+    // The local QA flag remains one-shot in memory when storage is unavailable.
+  }
 }
 
 function readPersistedWeReadSeed(accountId: string | null | undefined): NoCallWeReadSeed | undefined {
@@ -233,7 +256,16 @@ function activateWeReadAccount(accountId: string | null | undefined) {
   wereadRequestVersion += 1;
   wereadRequestInFlight = false;
   wereadClientAccountId = normalized;
-  wereadClient = createNoCallWeReadClient(readPersistedWeReadSeed(normalized));
+  const failOnce = normalized && shouldInjectWeReadQaFailure(normalized);
+  wereadClient = createNoCallWeReadClient(
+    readPersistedWeReadSeed(normalized),
+    failOnce
+      ? {
+          failOnceOperation: "books",
+          onFailOnceConsumed: () => markWeReadQaFailureConsumed(normalized),
+        }
+      : undefined,
+  );
   wereadState = createWeReadState();
 }
 

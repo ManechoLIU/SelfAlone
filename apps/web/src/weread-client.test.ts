@@ -165,6 +165,23 @@ describe("desktop WeRead client port", () => {
       .rejects.toThrow("VALIDATION_FAILED");
   });
 
+  it("supports an explicit no-call fail-once seam and accepts the same request id on retry", async () => {
+    let consumed = 0;
+    const client = createNoCallWeReadClient(
+      { connection, books: [book], annotations: [annotation] },
+      {
+        failOnceOperation: "books",
+        onFailOnceConsumed: () => { consumed += 1; },
+      },
+    );
+
+    await expect(client.syncBooks({ requestId: "retry-books-1" })).rejects.toThrow("EXTERNAL_SERVICE_FAILED");
+    await expect(client.syncBooks({ requestId: "retry-books-1" })).resolves.toMatchObject({
+      run: { requestId: "retry-books-1", operation: "books", status: "completed" },
+    });
+    expect(consumed).toBe(1);
+  });
+
   it("never returns the raw key when a local connection is replaced", async () => {
     const client = createNoCallWeReadClient({ connection: null, books: [], annotations: [] });
 

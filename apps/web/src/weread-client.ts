@@ -46,6 +46,11 @@ export type NoCallWeReadSeed = {
   annotations: readonly WeReadAnnotation[];
 };
 
+export type NoCallWeReadOptions = {
+  failOnceOperation?: "books";
+  onFailOnceConsumed?: () => void;
+};
+
 const localTimestamp = "2026-08-28T00:00:00.000Z";
 
 const emptySeed: NoCallWeReadSeed = {
@@ -102,13 +107,17 @@ function runProjection(
   };
 }
 
-export function createNoCallWeReadClient(seed: NoCallWeReadSeed = emptySeed): WeReadClient {
+export function createNoCallWeReadClient(
+  seed: NoCallWeReadSeed = emptySeed,
+  options: NoCallWeReadOptions = {},
+): WeReadClient {
   const initial = cloneSeed(seed);
   let connection = initial.connection;
   let books = [...initial.books];
   let annotations = [...initial.annotations];
   let revision = Number(connection?.revision.match(/(\d+)$/)?.[1] ?? "1");
   let latestRun: WeReadSyncRunProjection | null = null;
+  let failOnceOperation = options.failOnceOperation;
 
   function requireConnection() {
     if (!connection) throw localError("EXTERNAL_AUTH_REQUIRED");
@@ -157,6 +166,11 @@ export function createNoCallWeReadClient(seed: NoCallWeReadSeed = emptySeed): We
 
     async syncBooks(input) {
       const current = requireConnection();
+      if (failOnceOperation === "books") {
+        failOnceOperation = undefined;
+        options.onFailOnceConsumed?.();
+        throw localError("EXTERNAL_SERVICE_FAILED");
+      }
       const booksRun = runProjection("books", current, input.requestId) as Extract<WeReadSyncRunProjection, { operation: "books" }>;
       latestRun = booksRun;
       return { run: booksRun };
