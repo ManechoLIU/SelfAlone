@@ -84,6 +84,7 @@ import { renderConversationView } from "./conversation-view";
 import { createTextReaderApi, mountTextReader } from "./text-reader";
 import {
   chooseConversationForTextReaderHandoff,
+  deriveTextReaderChatNoteIntent,
   formatTextReaderChatDraft,
   getTextReaderChatHandoffStore,
   type TextReaderChatHandoff,
@@ -1158,13 +1159,16 @@ function renderConversationChat(session: ConversationChatSession) {
     conversationId: session.id,
     client: conversationChatClient,
     initialDraft,
+    noteIntentFactory: claimedHandoff
+      ? (draft) => deriveTextReaderChatNoteIntent(claimedHandoff.handoff, draft)
+      : undefined,
     onDraftChange: claimedHandoff && handoffStore
       ? (draft) => { handoffStore.updateDraft(session.id, draft); }
       : undefined,
     onDraftCommit: claimedHandoff && handoffStore
-      ? (sentText) => {
+      ? (sentText, noteIntent) => {
           const currentDraft = handoffStore.draftFor(session.id) ?? claimedHandoff.draft;
-          if (sentText === currentDraft) {
+          if (noteIntent?.kind === "create" || sentText === currentDraft) {
             handoffStore.complete(session.id);
             return undefined;
           }

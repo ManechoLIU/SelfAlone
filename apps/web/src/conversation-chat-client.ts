@@ -2,7 +2,7 @@ import type {
   ConversationChatSendResult,
   ConversationChatSession,
 } from "./conversation-chat-state";
-import type { TrialQuotaStatus } from "@selfalone/contracts";
+import type { ConversationNoteIntent, TrialQuotaStatus } from "@selfalone/contracts";
 
 export class ConversationChatClientError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -78,7 +78,7 @@ export function createConversationChatClient(options: ConversationChatClientOpti
 
     async sendText(
       conversationId: string,
-      input: { requestId?: string; text: string },
+      input: { requestId?: string; text: string; noteIntent?: ConversationNoteIntent },
     ): Promise<ConversationChatSendResult> {
       return request<ConversationChatSendResult>(
         fetcher,

@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   chooseConversationForTextReaderHandoff,
   createTextReaderChatHandoffStore,
+  deriveTextReaderChatNoteIntent,
   formatTextReaderChatDraft,
   type TextReaderChatHandoff,
 } from "./text-reader-chat-handoff";
 import { createConversationChatController } from "./conversation-chat-controller";
 import type { ConversationChatSendResult, ConversationChatSession } from "./conversation-chat-state";
+import type { ConversationNoteIntent } from "@selfalone/contracts";
 
 const handoff: TextReaderChatHandoff = {
   quote: "灯塔亮了，海风从窗边经过。",
@@ -74,6 +76,29 @@ describe("text reader chat handoff", () => {
     expect(draft).toContain(`《${handoff.bookTitle}》`);
     expect(draft).toContain(handoff.author);
     expect(draft.match(new RegExp(handoff.quote, "g"))).toHaveLength(1);
+  });
+
+  it("derives a create intent from an explicit positive request and exact reader source only", () => {
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const expected = {
+      kind: "create" as const,
+      bookId: handoff.bookId,
+      source: {
+        locator: {
+          kind: "text" as const,
+          fileVersion: handoff.location.fileVersion,
+          sectionId: handoff.location.sectionId,
+          offset: handoff.location.start,
+        },
+        endOffset: handoff.location.end,
+        quote: handoff.quote,
+      },
+    };
+
+    expect(deriveTextReaderChatNoteIntent(handoff, `${handoffDraft}请整理成笔记`)).toEqual(expected);
+    expect(deriveTextReaderChatNoteIntent(handoff, `${handoffDraft}请整理为笔记`)).toEqual(expected);
+    expect(deriveTextReaderChatNoteIntent(handoff, `${handoffDraft}请解释这段话`)).toBeUndefined();
+    expect(deriveTextReaderChatNoteIntent(handoff, `${handoffDraft}不要整理成笔记`)).toBeUndefined();
   });
 
   it("shows the stable reader section and character range, then keeps it after reload", () => {
@@ -149,6 +174,84 @@ describe("text reader chat handoff", () => {
 
     const afterSend = createTextReaderChatHandoffStore("account-a", persisted);
     expect(afterSend.draftFor("conversation-a")).toBeNull();
+  });
+
+  it("retains the note handoff across a failed request and clears it after note success", async () => {
+    const persisted = storage();
+    const store = createTextReaderChatHandoffStore("account-a", persisted);
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const draft = `${handoffDraft}请整理成笔记`;
+    store.publish(handoff);
+    store.claim("conversation-a", draft);
+    const requests: Array<{ requestId?: string; text: string; noteIntent?: ConversationNoteIntent }> = [];
+    let attempts = 0;
+
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: draft,
+      noteIntentFactory: (text) => deriveTextReaderChatNoteIntent(handoff, text),
+      onDraftChange: (nextDraft) => { store.updateDraft("conversation-a", nextDraft); },
+      onDraftCommit: (_sentText, noteIntent) => {
+        if (noteIntent?.kind === "create") {
+          store.complete("conversation-a");
+          return undefined;
+        }
+        return store.draftFor("conversation-a") ?? undefined;
+      },
+      requestIdFactory: () => "request-note-retry",
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return session("conversation-a");
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string; noteIntent?: ConversationNoteIntent }): Promise<ConversationChatSendResult> {
+          requests.push({ ...input });
+          attempts += 1;
+          if (attempts === 1) {
+            return {
+              status: "failed",
+              session: sessionWithRetry(draft),
+              errorCode: "NOTE_SAVE_FAILED",
+              retainedDraft: { text: draft, attachments: [] },
+            };
+          }
+          return {
+            status: "completed",
+            session: sessionWithRetryResult(draft, input.requestId ?? "request-note-retry"),
+            reply: "已整理。",
+          };
+        },
+      },
+    });
+
+    await controller.hydrate();
+    await controller.send();
+
+    expect(store.active()).toMatchObject({
+      conversationId: "conversation-a",
+      draft,
+      handoff,
+    });
+    expect(controller.getState()).toMatchObject({ draft, status: "error" });
+
+    await controller.send();
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[1]?.noteIntent).toMatchObject({
+      kind: "create",
+      bookId: handoff.bookId,
+      source: {
+        locator: {
+          kind: "text",
+          fileVersion: handoff.location.fileVersion,
+          sectionId: handoff.location.sectionId,
+          offset: handoff.location.start,
+        },
+        endOffset: handoff.location.end,
+        quote: handoff.quote,
+      },
+    });
+    expect(store.active()).toBeNull();
   });
 
   it("keeps the Reader handoff when a server retry draft is hydrated and sent", async () => {

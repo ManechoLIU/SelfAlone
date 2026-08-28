@@ -3,6 +3,7 @@ import type {
   ConversationChatSendResult,
   ConversationChatSession,
 } from "./conversation-chat-state";
+import type { ConversationNoteIntent } from "@selfalone/contracts";
 import { createConversationChatController } from "./conversation-chat-controller";
 
 function session(overrides: Partial<ConversationChatSession> = {}): ConversationChatSession {
@@ -93,6 +94,67 @@ describe("conversation chat controller", () => {
       status: "error",
       errorCode: "CONVERSATION_REQUEST_FAILED",
     });
+  });
+
+  it("derives a note intent once and reuses it with the request id for an unchanged retry", async () => {
+    const noteIntent: ConversationNoteIntent = {
+      kind: "create",
+      bookId: "book-7",
+      source: {
+        locator: {
+          kind: "text",
+          fileVersion: 2,
+          sectionId: "epub:two",
+          offset: 3,
+        },
+        endOffset: 15,
+        quote: "灯塔亮了，海风从窗边经过。",
+      },
+    };
+    const requests: Array<{ requestId?: string; text: string; noteIntent?: ConversationNoteIntent }> = [];
+    let attempts = 0;
+    const text = "来自《雨后山亭》的原文\n请整理成笔记";
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        async getSession() {
+          return session();
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string; noteIntent?: ConversationNoteIntent }): Promise<ConversationChatSendResult> {
+          requests.push(input);
+          attempts += 1;
+          if (attempts === 1) {
+            return {
+              status: "failed",
+              session: session({ revision: 2, draft: { text, attachments: [] } }),
+              errorCode: "NOTE_SAVE_FAILED",
+              retainedDraft: { text, attachments: [] },
+            };
+          }
+          return {
+            status: "completed",
+            session: session({ revision: 3 }),
+            reply: "已整理。",
+          };
+        },
+      },
+      requestIdFactory: () => "request-note",
+      noteIntentFactory: () => noteIntent,
+    });
+
+    controller.setDraft(text);
+    await controller.send();
+    expect(controller.getState()).toMatchObject({
+      draft: text,
+      status: "error",
+      retryRequestId: "request-note",
+    });
+
+    await controller.send();
+
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[1]).toMatchObject({ requestId: "request-note", text, noteIntent });
   });
 
   it("keeps an existing server retry draft instead of replacing it with a Reader handoff", async () => {

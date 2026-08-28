@@ -8,12 +8,13 @@ import {
   type ConversationChatSession,
   type ConversationChatState,
 } from "./conversation-chat-state";
+import type { ConversationNoteIntent } from "@selfalone/contracts";
 
 export type ConversationChatControllerClient = {
   getSession(conversationId: string): Promise<ConversationChatSession>;
   sendText(
     conversationId: string,
-    input: { requestId?: string; text: string },
+    input: { requestId?: string; text: string; noteIntent?: ConversationNoteIntent },
   ): Promise<ConversationChatSendResult>;
 };
 
@@ -21,9 +22,10 @@ export type ConversationChatControllerOptions = {
   conversationId: string;
   client: ConversationChatControllerClient;
   requestIdFactory?: () => string;
+  noteIntentFactory?: (draft: string) => ConversationNoteIntent | undefined;
   initialDraft?: string;
   onDraftChange?: (draft: string) => void;
-  onDraftCommit?: (sentText: string) => string | undefined;
+  onDraftCommit?: (sentText: string, noteIntent?: ConversationNoteIntent) => string | undefined;
 };
 
 export type ConversationChatStateListener = (state: ConversationChatState) => void;
@@ -47,6 +49,8 @@ export function createConversationChatController(
   let hydrateGeneration = 0;
   let initialDraftPending = Boolean(initialDraft);
   let handoffDraftActive = Boolean(initialDraft);
+  let retryNoteIntentText: string | null = null;
+  let retryNoteIntent: ConversationNoteIntent | undefined;
 
   function publish(nextState: ConversationChatState) {
     state = nextState;
@@ -72,6 +76,10 @@ export function createConversationChatController(
     setDraft(draft) {
       if (state.status === "sending") return;
       if (draft !== initialDraft) initialDraftPending = false;
+      if (state.retryRequestId === null || state.retryText !== draft) {
+        retryNoteIntentText = null;
+        retryNoteIntent = undefined;
+      }
       localEpoch += 1;
       publish(updateConversationDraft(state, draft));
       if (handoffDraftActive) options.onDraftChange?.(draft);
@@ -84,6 +92,10 @@ export function createConversationChatController(
         const session = await options.client.getSession(options.conversationId);
         if (requestEpoch !== localEpoch || requestGeneration !== hydrateGeneration) return state;
         let nextState = applyConversationSnapshot(state, session);
+        if (nextState.retryText !== retryNoteIntentText) {
+          retryNoteIntentText = null;
+          retryNoteIntent = undefined;
+        }
         const serverDraft = session.draft?.text;
         if (typeof serverDraft === "string" && serverDraft.length > 0) {
           initialDraftPending = false;
@@ -109,9 +121,15 @@ export function createConversationChatController(
       const text = state.draft;
       if (!text.trim()) return undefined;
 
-      const id = state.retryRequestId && state.retryText === text
-        ? state.retryRequestId
+      const canRetrySameRequest = state.retryRequestId !== null && state.retryText === text;
+      const id = canRetrySameRequest
+        ? state.retryRequestId!
         : requestId();
+      if (!canRetrySameRequest || retryNoteIntentText !== text) {
+        retryNoteIntentText = text;
+        retryNoteIntent = options.noteIntentFactory?.(text);
+      }
+      const noteIntent = retryNoteIntentText === text ? retryNoteIntent : undefined;
       initialDraftPending = false;
       localEpoch += 1;
       publish(beginConversationSend(state, id));
@@ -119,12 +137,13 @@ export function createConversationChatController(
         const result = await options.client.sendText(options.conversationId, {
           requestId: id,
           text,
+          ...(noteIntent ? { noteIntent } : {}),
         });
         localEpoch += 1;
         const nextState = applyConversationSendResult(state, result);
         publish(nextState);
         if (result.status === "completed") {
-          const restoredDraft = options.onDraftCommit?.(text);
+          const restoredDraft = options.onDraftCommit?.(text, noteIntent);
           if (restoredDraft !== undefined) {
             handoffDraftActive = true;
             publish(updateConversationDraft(nextState, restoredDraft));

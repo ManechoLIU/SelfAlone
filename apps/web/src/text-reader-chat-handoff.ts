@@ -1,3 +1,4 @@
+import type { ConversationNoteIntent } from "@selfalone/contracts";
 import type { ConversationChatSession } from "./conversation-chat-state";
 
 export type TextReaderChatHandoff = {
@@ -104,6 +105,61 @@ export function formatTextReaderChatDraft(handoff: TextReaderChatHandoff) {
   const book = author ? `《${handoff.bookTitle}》（${author}）` : `《${handoff.bookTitle}》`;
   const location = handoff.location;
   return `来自${book}的原文（书籍 ID：${handoff.bookId}）：\n位置：第 ${location.sectionOrder + 1} 节「${location.sectionTitle}」（第 ${location.start + 1}–${location.end} 字）\n“${handoff.quote}”\n\n`;
+}
+
+/** Derive only an explicit positive note request from the active Reader handoff. */
+export function deriveTextReaderChatNoteIntent(
+  handoff: TextReaderChatHandoff,
+  draft: string,
+): ConversationNoteIntent | undefined {
+  const handoffDraft = formatTextReaderChatDraft(handoff);
+  const phrasePattern = /整理(?:成|为)笔记/g;
+  let match: RegExpExecArray | null;
+  let positiveRequest = false;
+  while ((match = phrasePattern.exec(draft)) !== null) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (isInsideHandoffDraft(draft, handoffDraft, start, end)) continue;
+    if (isNegatedNoteRequest(draft, start)) return undefined;
+    positiveRequest = true;
+  }
+  if (!positiveRequest) return undefined;
+
+  return {
+    kind: "create",
+    bookId: handoff.bookId,
+    source: {
+      locator: {
+        kind: "text",
+        fileVersion: handoff.location.fileVersion,
+        sectionId: handoff.location.sectionId,
+        offset: handoff.location.start,
+      },
+      endOffset: handoff.location.end,
+      quote: handoff.quote,
+    },
+  };
+}
+
+function isInsideHandoffDraft(draft: string, handoffDraft: string, start: number, end: number) {
+  const handoffStart = draft.indexOf(handoffDraft);
+  return handoffStart >= 0
+    && start >= handoffStart
+    && end <= handoffStart + handoffDraft.length;
+}
+
+function isNegatedNoteRequest(draft: string, phraseStart: number) {
+  const sentenceStart = Math.max(
+    draft.lastIndexOf("\n", phraseStart - 1),
+    draft.lastIndexOf("。", phraseStart - 1),
+    draft.lastIndexOf("！", phraseStart - 1),
+    draft.lastIndexOf("？", phraseStart - 1),
+    draft.lastIndexOf(".", phraseStart - 1),
+    draft.lastIndexOf("!", phraseStart - 1),
+    draft.lastIndexOf("?", phraseStart - 1),
+  ) + 1;
+  const prefix = draft.slice(sentenceStart, phraseStart);
+  return /(?:不要|别|勿|无需|不必|不需要|不想|不用|不)(?:[\s\u3000]*|[^，。！？!?\n]{0,8})$/.test(prefix);
 }
 
 export function chooseConversationForTextReaderHandoff(

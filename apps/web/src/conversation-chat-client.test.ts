@@ -24,6 +24,42 @@ describe("conversation chat client", () => {
     ]);
   });
 
+  it("serializes a note intent only when the caller explicitly provides one", async () => {
+    const bodies: unknown[] = [];
+    const client = createConversationChatClient({
+      fetch: async (_input, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ status: "completed" }), { status: 200 });
+      },
+    });
+    const noteIntent = {
+      kind: "create" as const,
+      bookId: "book-7",
+      source: {
+        locator: {
+          kind: "text" as const,
+          fileVersion: 2,
+          sectionId: "epub:two",
+          offset: 3,
+        },
+        endOffset: 15,
+        quote: "灯塔亮了，海风从窗边经过。",
+      },
+    };
+
+    await client.sendText("conversation-a", { requestId: "ordinary", text: "普通问题" });
+    await client.sendText("conversation-a", {
+      requestId: "note-request",
+      text: "请整理成笔记",
+      noteIntent,
+    });
+
+    expect(bodies).toEqual([
+      { requestId: "ordinary", text: "普通问题" },
+      { requestId: "note-request", text: "请整理成笔记", noteIntent },
+    ]);
+  });
+
   it("lists existing conversations and creates the first persisted session", async () => {
     const requests: Array<{ url: string; method: string }> = [];
     const client = createConversationChatClient({
