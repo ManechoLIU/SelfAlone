@@ -5,15 +5,15 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；Desktop TXT / EPUB 选中正文经现有“和老己聊聊”带入当前会话可编辑草稿，不自动发送；发送、失败保留 / 重试与刷新恢复复用已稳定真实会话能力。PDF、Mini、PPT、图片、视觉重设计与成本系统不在本 Goal。
-- 当前活动项：`M1-F2-D`、`M2-F4-A`
-- 下一可见检查点：readchat账户隔离与server retry后恢复handoff两项已GREEN（2文件17项），全量后冻结新候选并由root续做真实GUI Selection→chat Case；Mini已写progress单位与app接线RED测试，待精确失败结果。
+- 当前活动项：`M1-F4-B`
+- 下一可见检查点：root已审Reader候选 `1112db3` 实际11文件累计diff并接受C/D修复，下一步顺序合main、跑main回归与真实GUI Selection→chat；Mini候选 `c393489` 因真实 `onSearch` 未把query交给production client而返原writer锁RED；成本账本从既有4文件checkpoint恢复。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，installed SKILL `f6c44270…94e93`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`、routing `b6a34bde…40865`；worktree 生命周期规则已加载 `main@0cfc0d7` / AGENTS SHA `793edfede970f9a8b4425ed5ddef4c985f4bec9f68085a34de15a61bf4854ab2`，唯一受影响 writer 已 delivered loaded ACK。
-- 容量 / READY：root + `reader_chat_handoff_recovery` + `mini_library_runtime_rework` 为3/4，名义可用1；当前产品实际返回 `agent thread limit reached`，故已完整ACK的 `M1-F4-B` 以4文件RED checkpoint保持READY，任一active子任务释放后立即恢复。不得用当前Goal排除其余开放包。
+- 容量 / READY：root + `mini_library_runtime_rework` + 复用任务 `/root/library_states_early_review` 的成本recovery为3/4，名义可用1；`M1-F4-B` 已获完整delivered ACK并从4文件RED checkpoint恢复。Reader候选由root顺序集成；不得用当前Goal排除其余开放包，空槽继续扫描不依赖AppID / GUI / readchat文件的Mini / shared READY。
 
 ## 2. 开放工作包
 
-`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前没有 `ACTIVE`，有 1 个 `RECOVERING`。
+`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前有 1 个 `ACTIVE`、1 个 `RECOVERING` 与 1 个待root顺序集成的 `VERIFY` 候选。
 
 | ID | 状态 / owner | 固定边界与当前证据 | 依赖、阻塞与下一步 |
 | --- | --- | --- | --- |
@@ -28,7 +28,7 @@
 | `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
 | `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
-| `M1-F2-D` | `ACTIVE / ROOT REWORK GREEN / FINAL VALIDATION` / `reader_chat_handoff_recovery` | 账户A/B handoff namespace隔离，server retry draft/requestId/text保留且成功后恢复Reader handoff；只有对应handoff成功发送才清理；定向2文件17项PASS | 同一worktree跑Web全量并冻结新候选；仍只可标ROOT SELF未决，提交 / 废弃后由总控同事件移除worktree |
+| `M1-F2-D` | `VERIFY / CANDIDATE 1112db3 / ROOT DIFF PASS` / `reader_chat_handoff_recovery` | 累计11文件实际diff已审；账户隔离、server retry后恢复handoff、编辑后的handoff成功发送清理与retry编辑不覆盖引用均有回归；Web34文件265项、typecheck / build / visual-contract / diff-check绿 | root顺序合main后跑相称回归与真实GUI Selection→chat；未完成前不写DONE，提交 / 废弃后同事件移除readchat worktree |
 | `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
 | `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
 | `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
@@ -47,7 +47,7 @@
 | `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话与明确请求后的AI笔记新增 / 定向修改 | 依赖 A 与 M1-F2-D；失败不得丢讨论和笔记内容 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 免费体验与成本父闭环 | A已完成；B / C / V1未开始 |
-| `M1-F4-B` | `READY / DELIVERED ACK / RED WIP PROTECTED` / `m1_f4b_cost_ledger` | 与readchat/Mini文件和环境无冲突；4个owned成本账本文件锁并发cap、幂等reserve/settle/release、审计和账户隔离，首跑因实现模块尚缺而RED；不含真实付费 | 当前唯一未派发原因是产品 `agent thread limit reached`；任一active子任务释放后从checkpoint恢复，真实费用仍需授权 |
+| `M1-F4-B` | `ACTIVE / DELIVERED ACK / RED WIP` / `/root/library_states_early_review`（成本recovery） | 与readchat/Mini文件和环境无冲突；唯一writer已ACK `quota-cost@ce6c4e5`、4个owned成本账本文件、规则版本与停止条件；锁并发cap、幂等reserve/settle/release、审计和账户隔离，不含真实付费 | 从既有WIP审实际diff并运行首个RED；定向 / 相关Server / typecheck / diff-check后只交candidate，真实费用仍需授权 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 桌面 PPT 与真实可编辑 PPTX 父闭环 | F4-V1、对话选择、阅读与外部生成边界 |
@@ -79,7 +79,7 @@
 | `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY AUTH BLOCKED` | 统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实接线依赖M2-F1；不返工已通过Reader |
-| `M2-F4-A` | `ACTIVE / 813b703 / DELIVERED ACK` / `mini_library_runtime_rework` | 20d61d6 actual-diff确认GET/import方向可复用，但缺app composition、动态Bearer/401清理、wx transport，且把服务端progressPercent误读为progress；clean rebase外无源码写入 | 不依赖AppID/GUI；从813b703先锁progressPercent与app/401 RED，再补runtime/query/current-main测试，之后由root顺序放唯一f312 |
+| `M2-F4-A` | `RECOVERING / CANDIDATE c393489 ROOT FAIL` / `mini_library_runtime_rework` | production composition、动态Bearer / 401清理、wx transport、progressPercent与import保持可复用；但真实 `onSearch` 仅本地present，测试手工调用 `loadBooks` 绕过用户事件，故query接缝未闭合 | 原writer先锁 `onSearch` production query、失败保持与stale fencing RED并最小修复；新candidate前不进唯一f312，release apiBaseUrl / AppID / 域名仍为独立H3 |
 | `M2-F4-B` | `PENDING` / 待分配 | 连续正文、目录 / 设置 / 操作层、笔记与跨端位置恢复 | 依赖B / C / D / E内容合同及真实身份；四宽、键盘、安全区 |
 | `M2-F5` | `PENDING` / 待分配 | 账户、模型与退出的Mini端闭环 | 微信读书消费已归 `M2-F2`；其余依赖M2-F1～F3，高风险流程按场景细拆 |
 | `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
