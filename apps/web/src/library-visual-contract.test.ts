@@ -93,32 +93,58 @@ describe("library binding visual contract", () => {
   });
 
   it("uses the independent approved right-canvas mountain without masks or global fading", async () => {
-    const styles = await readFile(stylesPath, "utf8");
-    const mainSceneryRule = styles.match(/\.library-main::after\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const responsiveSceneryRules = [...styles.matchAll(/\.library-main::after\s*\{([\s\S]*?)\n\}/g)]
+    const [styles, main] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(mainPath, "utf8"),
+    ]);
+    const mainSceneryRule = styles.match(/\.library-scenery\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+    const responsiveSceneryRules = [...styles.matchAll(/\.library-scenery\s*\{([\s\S]*?)\n\}/g)]
       .map((match) => match[1] ?? "")
       .join("\n");
-    const companionRule = styles.match(/\.library-companion\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const at1200 = styles.match(/@media \(max-width: 1200px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const at1024 = styles.match(/@media \(max-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
-    const at768 = styles.match(/@media \(max-width: 768px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
 
-    expect(mainSceneryRule).toContain('background-image: url("/backgrounds/desktop-right-distant-mountains-transparent-v1.png");');
-    expect(mainSceneryRule).not.toContain("desktop-left-rail-vintage-transparent-v2.png");
+    expect(main).toContain('/backgrounds/desktop-right-distant-mountains-transparent-v1.png');
     expect(mainSceneryRule).toContain("right: 0;");
     expect(mainSceneryRule).toContain("bottom: 0;");
     expect(mainSceneryRule).toContain("width: 680px;");
     expect(mainSceneryRule).toContain("height: 136px;");
-    expect(mainSceneryRule).toContain("background-size: contain;");
-    expect(mainSceneryRule).toContain("background-position: right bottom;");
-    expect(mainSceneryRule).toContain("background-repeat: no-repeat;");
     expect(mainSceneryRule).toContain("pointer-events: none;");
     expect(mainSceneryRule).toContain("opacity: 1;");
     expect(responsiveSceneryRules).not.toMatch(/mask|blur|filter/);
-    expect(at1200).toContain(".library-main::after { width: 560px; height: 112px; }");
-    expect(at1024).toContain(".library-main::after { width: 420px; height: 84px; }");
-    expect(at768).toContain(".library-main::after { display: none; }");
-    expect(companionRule).toContain("z-index: 12;");
+    expect(styles).toContain(".library-scenery { width: 560px; height: 112px; }");
+    expect(styles).toContain(".library-scenery { width: 420px; height: 84px; }");
+    expect(styles).toContain(".library-scenery { display: none; }");
+  });
+
+  it("replaces the library right scenery pseudo-element with an explicit scenery node", async () => {
+    const [styles, main] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(mainPath, "utf8"),
+    ]);
+
+    expect(styles).not.toMatch(/\.library-main::after/);
+    expect(main).toContain('class="library-scenery"');
+    expect(main).toContain('/backgrounds/desktop-right-distant-mountains-transparent-v1.png');
+  });
+
+  it("renders progress and parse capability through explicit DOM instead of badge pseudos", async () => {
+    const [styles, main] = await Promise.all([
+      readFile(stylesPath, "utf8"),
+      readFile(mainPath, "utf8"),
+    ]);
+
+    expect(styles).not.toMatch(/\.parse-badge::(?:before|after)/);
+    expect(main).toContain("libraryReadingProgress(book)");
+    expect(main).toContain('class="progress-track"');
+    expect(main).toContain('class="progress-fill"');
+    expect(main).toContain('class="parse-status"');
+  });
+
+  it("keeps the WeChat service row honest and free of engineering copy", async () => {
+    const main = await readFile(mainPath, "utf8");
+
+    expect(main).toContain("连接微信读书");
+    expect(main).not.toContain("开发中");
+    expect(main).not.toContain("连接能力将在账户与设置闭环中开放");
   });
 
   it("ships the byte-identical approved transparent right-canvas asset", async () => {
@@ -222,15 +248,12 @@ describe("library binding visual contract", () => {
     expect(badgeRule).toContain("inset: auto 0 0;");
     expect(badgeRule).toContain("height: 24px;");
     expect(badgeRule).toContain("background: rgba(241,241,239,.48);");
-    expect(badgeRule).toContain("background-image: linear-gradient(to left, rgba(241,241,239,.52) 0 62px, transparent 88px);");
     expect(badgeRule).toContain("font-size: 12px;");
     expect(badgeRule).toContain("line-height: 18px;");
     expect(badgeRule).toContain("font-weight: 500;");
-    expect(badgeRule).not.toContain("backdrop-filter");
-    expect(badgeRule).not.toContain("border-top:");
-    expect(styles).toContain("linear-gradient(rgba(23,76,63,.20), rgba(23,76,63,.20)), rgba(241,241,239,.82)");
-    expect(styles).toContain("background: #174c3f;");
-    expect(styles).toContain("height: 3px;");
+    expect(styles).toContain(".progress-track { min-width: 0; flex: 1; height: 3px;");
+    expect(styles).toContain(".progress-fill { display: block; height: 100%;");
+    expect(styles).not.toMatch(/\.parse-badge::(?:before|after)/);
   });
 
   it("keeps the search progress local and the WeChat service copy in one left-aligned cluster", async () => {
@@ -242,10 +265,11 @@ describe("library binding visual contract", () => {
     expect(main).toContain('aria-busy="${libraryState.searching}"');
     expect(main).toContain('class="library-search-status" role="status" aria-live="polite"');
     expect(main).toContain("正在搜索…");
-    expect(main).toContain("开发中");
+    expect(main).toContain("连接微信读书");
+    expect(main).not.toContain("开发中");
     expect(styles).toContain(".weread-note { width: min(944px, 100%);");
     expect(styles).toContain("justify-content: flex-start;");
-    expect(styles).toContain("margin: 0 0 0 20px;");
+    expect(styles).toContain(".weread-note span { color: #174c3f; font-size: 13px; }");
   });
 
   it("restores the approved seated companion and 44px conversation bubble", async () => {

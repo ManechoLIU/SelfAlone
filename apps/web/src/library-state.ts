@@ -140,6 +140,28 @@ export function coverStatusLabel(status: BookParseStatus, errorCode: string | nu
   return "解析失败";
 }
 
+export type LibraryReadingProgress = {
+  percent: number;
+  label: string;
+};
+
+export function libraryReadingProgress(
+  book: Pick<LibraryBookSummary, "parseStatus" | "progressPercent">,
+): LibraryReadingProgress | null {
+  const percent = book.progressPercent;
+  if (
+    book.parseStatus !== "ready_text"
+    || typeof percent !== "number"
+    || !Number.isInteger(percent)
+    || percent < 0
+    || percent > 100
+  ) return null;
+  return {
+    percent,
+    label: percent === 0 ? "0% · 未开始" : `${percent}% · 阅读进度`,
+  };
+}
+
 export function libraryBookHref(book: LibraryBookSummary) {
   return book.parseStatus === "ready_text"
     ? `#/reading/${encodeURIComponent(book.id)}`

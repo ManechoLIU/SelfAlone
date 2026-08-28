@@ -53,6 +53,7 @@ import {
   coverStatusLabel,
   createLibraryPollingScheduler,
   createLatestLibraryRequest,
+  libraryReadingProgress,
   libraryViewState,
   libraryBookDetailHref,
   bookDetailIdFromHash,
@@ -1504,7 +1505,12 @@ function libraryShell(content: string) {
   return `
     <div class="library-shell" data-active-section="library">
       ${renderDesktopRail({ activeSection: "library", conversationHref: conversationRoute })}
-      <main class="library-main">${content}</main>
+      <main class="library-main">
+        <div class="library-scenery" aria-hidden="true">
+          <img src="/backgrounds/desktop-right-distant-mountains-transparent-v1.png" alt="" />
+        </div>
+        ${content}
+      </main>
       <div class="library-companion">
         <img src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
         <a class="library-companion-button" href="${conversationRoute}" aria-label="和老己聊聊">${icons.chat}</a>
@@ -1549,16 +1555,22 @@ function libraryGrid(books: LibraryBookSummary[]) {
     ${books.map((book) => {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
-      const coverStatus = coverStatusLabel(book.parseStatus, book.errorCode);
+      const progress = libraryReadingProgress(book);
+      const coverStatus = progress?.label
+        ?? (book.parseStatus === "ready_text" ? "阅读进度未同步" : coverStatusLabel(book.parseStatus, book.errorCode));
+      const statusLabel = progress ? `阅读进度：${progress.label}` : `解析状态：${status}`;
       const href = libraryBookDetailHref(book);
       const tag = href ? "a" : "article";
       const target = href ? ` href="${href}"` : "";
-      return `<${tag} class="book-item ${book.parseStatus}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(status)}">
+      const progressMarkup = progress
+        ? `<span class="progress-track" role="progressbar" aria-label="阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}"><span class="progress-fill" style="width: ${progress.percent}%"></span></span><span class="progress-label">${escapeHtml(progress.label)}</span>`
+        : `<span class="parse-status">${escapeHtml(coverStatus)}</span>`;
+      return `<${tag} class="book-item ${book.parseStatus}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(statusLabel)}">
         <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
           <strong>${escapeHtml(book.title)}</strong>
           <em>${escapeHtml(author)}</em>
-          <b class="parse-badge" aria-label="解析状态：${escapeHtml(status)}">${escapeHtml(coverStatus)}</b>
+          <div class="parse-badge" aria-label="${escapeHtml(statusLabel)}">${progressMarkup}</div>
         </div>
         <div class="book-caption">
           <span class="book-source">${icons.file}<span>${escapeHtml(book.sourceLabel)}</span></span>
@@ -1601,9 +1613,8 @@ function renderLibrary(preserveSearchFocus = false) {
       </button>
       <input class="visually-hidden" id="book-import" type="file" tabindex="-1" aria-hidden="true" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
     </section>
-    <section class="weread-note" aria-label="微信读书连接状态">
-      <div><strong>连接微信读书</strong><span>开发中</span></div>
-      <p>本地书籍已可导入；连接能力将在账户与设置闭环中开放。</p>
+    <section class="weread-note" aria-label="微信读书连接提示">
+      <span>连接微信读书</span>
     </section>
     ${retainedError}
     ${searchError}

@@ -3,6 +3,7 @@ import {
   authorLabel,
   coverStatusLabel,
   libraryViewState,
+  libraryReadingProgress,
   parseStatusLabel,
   type LibraryLoadState,
 } from "./library-state";
@@ -55,6 +56,19 @@ describe("desktop library state", () => {
     expect(coverStatusLabel("ready_text", null)).toBe("已就绪");
     expect(coverStatusLabel("ready_pages", null)).toBe("页面模式");
     expect(coverStatusLabel("failed", "PDF_INVALID")).toBe("已损坏");
+  });
+
+  it("formats authoritative reading progress only for ready text books", () => {
+    expect(libraryReadingProgress({ parseStatus: "ready_text", progressPercent: 0 }))
+      .toEqual({ percent: 0, label: "0% · 未开始" });
+    expect(libraryReadingProgress({ parseStatus: "ready_text", progressPercent: 37 }))
+      .toEqual({ percent: 37, label: "37% · 阅读进度" });
+    expect(libraryReadingProgress({ parseStatus: "ready_text", progressPercent: 100 }))
+      .toEqual({ percent: 100, label: "100% · 阅读进度" });
+    expect(libraryReadingProgress({ parseStatus: "ready_pages", progressPercent: 37 })).toBeNull();
+    expect(libraryReadingProgress({ parseStatus: "processing", progressPercent: 37 })).toBeNull();
+    expect(libraryReadingProgress({ parseStatus: "failed", progressPercent: 37 })).toBeNull();
+    expect(libraryReadingProgress({ parseStatus: "ready_text", progressPercent: null })).toBeNull();
   });
 
   it("opens only ready text books and safely resolves their reading route", async () => {
