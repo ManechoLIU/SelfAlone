@@ -186,6 +186,29 @@ export type TextAnnotationErrorCode =
 
 export type TextAnnotationError = { code: TextAnnotationErrorCode };
 
+export type ConversationNoteIntent =
+  | {
+      kind: "create";
+      bookId: string;
+      source?: TextAnnotationSource | null;
+    }
+  | {
+      kind: "update";
+      bookId: string;
+      noteId: string;
+      expectedVersion: number;
+    };
+
+export type ConversationNoteOperationStatus = "pending" | "failed" | "completed";
+
+export type ConversationNoteOperation = {
+  requestId: string;
+  body: string;
+  intent: ConversationNoteIntent;
+  status: ConversationNoteOperationStatus;
+  errorCode: string | null;
+};
+
 export type AuthAccount = {
   id: string;
   email: string | null;

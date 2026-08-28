@@ -1,3 +1,9 @@
+import type {
+  ConversationNoteIntent,
+  ConversationNoteOperation,
+  TextAnnotationSource,
+} from "@selfalone/contracts";
+
 export type ConversationRunKind = "response" | "task";
 export type ConversationRunStatus = "running" | "stopped" | "failed" | "completed";
 export type ConversationTaskStatus = ConversationRunStatus;
@@ -43,7 +49,15 @@ export type ConversationSessionState = {
   activeRun: ConversationRun | null;
   tasks: readonly ConversationTask[];
   works: readonly ConversationWork[];
+  /** Optional to keep persisted sessions from before note operations were introduced readable. */
+  noteOperations?: readonly ConversationNoteOperation[];
   deleted: boolean;
+};
+
+export type ConversationNoteOperationInput = {
+  requestId: string;
+  body: string;
+  intent: ConversationNoteIntent;
 };
 
 export type ConversationStateErrorCode =
@@ -54,7 +68,16 @@ export type ConversationStateErrorCode =
   | "STALE_REVISION"
   | "TASK_ALREADY_STARTED"
   | "TASK_NOT_FOUND"
-  | "WORK_ALREADY_RECORDED";
+  | "WORK_ALREADY_RECORDED"
+  | "REQUEST_ID_REQUIRED"
+  | "NOTE_INTENT_REQUIRED"
+  | "NOTE_BODY_REQUIRED"
+  | "NOTE_BOOK_REQUIRED"
+  | "NOTE_ID_REQUIRED"
+  | "NOTE_VERSION_INVALID"
+  | "NOTE_OPERATION_NOT_FOUND"
+  | "REQUEST_ID_CONFLICT"
+  | "NOTE_OPERATION_NOT_RETRYABLE";
 
 export class ConversationStateError extends Error {
   readonly code: ConversationStateErrorCode;
@@ -81,8 +104,106 @@ export function createConversationSession(
     activeRun: null,
     tasks: [],
     works: [],
+    noteOperations: [],
     deleted: false,
   };
+}
+
+export function createConversationNoteOperation(
+  input: ConversationNoteOperationInput,
+): ConversationNoteOperation {
+  const requestId = requiredNoteText(input.requestId, "REQUEST_ID_REQUIRED");
+  const body = requiredNoteText(input.body, "NOTE_BODY_REQUIRED");
+  const intent = normalizeNoteIntent(input.intent);
+
+  return {
+    requestId,
+    body,
+    intent,
+    status: "pending",
+    errorCode: null,
+  };
+}
+
+export function startConversationNoteOperation(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  operation: ConversationNoteOperation,
+): ConversationSessionState {
+  assertWritable(session);
+
+  const noteOperations = session.noteOperations ?? [];
+  const existing = noteOperations.find((candidate) => candidate.requestId === operation.requestId);
+  if (existing) {
+    if (!sameNoteOperation(existing, operation)) {
+      throw new ConversationStateError("REQUEST_ID_CONFLICT");
+    }
+
+    if (existing.status === "completed" || existing.status === "pending") {
+      return cloneSession(session);
+    }
+
+    assertRevision(session, expectedRevision);
+    return nextState(session, {
+      noteOperations: noteOperations.map((candidate) =>
+        candidate.requestId === operation.requestId
+          ? { ...cloneNoteOperation(operation), status: "pending", errorCode: null }
+          : candidate,
+      ),
+    });
+  }
+
+  assertRevision(session, expectedRevision);
+  return nextState(session, {
+    noteOperations: [...noteOperations, cloneNoteOperation({ ...operation, status: "pending", errorCode: null })],
+  });
+}
+
+export function failConversationNoteOperation(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  requestId: string,
+  errorCode: string,
+): ConversationSessionState {
+  assertWritable(session);
+  assertRevision(session, expectedRevision);
+  const noteOperations = session.noteOperations ?? [];
+  const existing = noteOperations.find((operation) => operation.requestId === requestId);
+  if (!existing) throw new ConversationStateError("NOTE_OPERATION_NOT_FOUND");
+  if (existing.status === "completed") return cloneSession(session);
+  if (existing.status === "failed" && existing.errorCode === errorCode) {
+    return cloneSession(session);
+  }
+
+  return nextState(session, {
+    noteOperations: noteOperations.map((operation) =>
+      operation.requestId === requestId
+        ? { ...cloneNoteOperation(operation), status: "failed", errorCode: requiredNoteText(errorCode, "NOTE_OPERATION_NOT_RETRYABLE") }
+        : operation,
+    ),
+  });
+}
+
+export function completeConversationNoteOperation(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  requestId: string,
+): ConversationSessionState {
+  assertWritable(session);
+  const noteOperations = session.noteOperations ?? [];
+  const existing = noteOperations.find((operation) => operation.requestId === requestId);
+  if (!existing) throw new ConversationStateError("NOTE_OPERATION_NOT_FOUND");
+  if (existing.status === "completed") return cloneSession(session);
+  assertRevision(session, expectedRevision);
+  if (existing.status === "failed") throw new ConversationStateError("NOTE_OPERATION_NOT_RETRYABLE");
+
+  return nextState(session, {
+    noteOperations: noteOperations.map((operation) =>
+      operation.requestId === requestId
+        ? { ...cloneNoteOperation(operation), status: "completed", errorCode: null }
+        : operation,
+    ),
+  });
 }
 
 export function updateConversationDraft(
@@ -234,6 +355,9 @@ function nextState(
     context: patch.context ? patch.context.map(cloneContextEntry) : session.context.map(cloneContextEntry),
     tasks: patch.tasks ? patch.tasks.map((task) => ({ ...task })) : session.tasks.map((task) => ({ ...task })),
     works: patch.works ? patch.works.map(cloneWork) : session.works.map(cloneWork),
+    noteOperations: patch.noteOperations
+      ? patch.noteOperations.map(cloneNoteOperation)
+      : (session.noteOperations ?? []).map(cloneNoteOperation),
     activeRun: patch.activeRun ? { ...patch.activeRun } : patch.activeRun === null ? null : session.activeRun
       ? { ...session.activeRun }
       : null,
@@ -250,4 +374,89 @@ function cloneContextEntry(entry: ConversationContextEntry): ConversationContext
 
 function cloneWork(work: ConversationWork): ConversationWork {
   return work.metadata ? { ...work, metadata: { ...work.metadata } } : { ...work };
+}
+
+function requiredNoteText(value: unknown, errorCode: ConversationStateErrorCode): string {
+  if (typeof value !== "string") throw new ConversationStateError(errorCode);
+  const normalized = value.trim();
+  if (!normalized) throw new ConversationStateError(errorCode);
+  return normalized;
+}
+
+function normalizeNoteIntent(input: ConversationNoteIntent): ConversationNoteIntent {
+  if (!input || typeof input !== "object") {
+    throw new ConversationStateError("NOTE_INTENT_REQUIRED");
+  }
+
+  const bookId = requiredNoteText(input.bookId, "NOTE_BOOK_REQUIRED");
+  if (input.kind === "create") {
+    return {
+      kind: "create",
+      bookId,
+      source: input.source ? cloneSource(input.source) : null,
+    };
+  }
+
+  if (input.kind !== "update") throw new ConversationStateError("NOTE_INTENT_REQUIRED");
+  const noteId = requiredNoteText(input.noteId, "NOTE_ID_REQUIRED");
+  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+    throw new ConversationStateError("NOTE_VERSION_INVALID");
+  }
+  return { kind: "update", bookId, noteId, expectedVersion: input.expectedVersion };
+}
+
+function cloneSession(session: ConversationSessionState): ConversationSessionState {
+  return {
+    ...session,
+    draft: cloneDraft(session.draft),
+    context: session.context.map(cloneContextEntry),
+    tasks: session.tasks.map((task) => ({ ...task })),
+    works: session.works.map(cloneWork),
+    noteOperations: (session.noteOperations ?? []).map(cloneNoteOperation),
+    activeRun: session.activeRun ? { ...session.activeRun } : null,
+  };
+}
+
+function cloneNoteOperation(operation: ConversationNoteOperation): ConversationNoteOperation {
+  return {
+    ...operation,
+    intent: operation.intent.kind === "create"
+      ? {
+          ...operation.intent,
+          source: operation.intent.source ? cloneSource(operation.intent.source) : null,
+        }
+      : { ...operation.intent },
+  };
+}
+
+function cloneSource(source: TextAnnotationSource): TextAnnotationSource {
+  return {
+    locator: { ...source.locator },
+    endOffset: source.endOffset,
+    quote: source.quote,
+  };
+}
+
+function sameNoteOperation(
+  left: ConversationNoteOperation,
+  right: ConversationNoteOperation,
+): boolean {
+  if (left.requestId !== right.requestId || left.body !== right.body) return false;
+  if (left.intent.kind !== right.intent.kind || left.intent.bookId !== right.intent.bookId) return false;
+  if (left.intent.kind === "update" && right.intent.kind === "update") {
+    return left.intent.noteId === right.intent.noteId
+      && left.intent.expectedVersion === right.intent.expectedVersion;
+  }
+  if (left.intent.kind !== "create" || right.intent.kind !== "create") return false;
+  return sameSource(left.intent.source ?? null, right.intent.source ?? null);
+}
+
+function sameSource(left: TextAnnotationSource | null, right: TextAnnotationSource | null): boolean {
+  if (!left || !right) return left === right;
+  return left.endOffset === right.endOffset
+    && left.quote === right.quote
+    && left.locator.kind === right.locator.kind
+    && left.locator.fileVersion === right.locator.fileVersion
+    && left.locator.sectionId === right.locator.sectionId
+    && left.locator.offset === right.locator.offset;
 }

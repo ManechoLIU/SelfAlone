@@ -1,16 +1,99 @@
 import { describe, expect, it } from "vitest";
+import type { TextAnnotationSource } from "@selfalone/contracts";
 import {
   appendConversationContext,
+  completeConversationNoteOperation,
+  createConversationNoteOperation,
   createConversationSession,
   deleteConversationSession,
+  failConversationNoteOperation,
   isConversationSendLocked,
   recordConversationWork,
   settleConversationRun,
+  startConversationNoteOperation,
   startConversationRun,
   updateConversationDraft,
 } from "./conversation-session";
 
+const source: TextAnnotationSource = {
+  locator: { kind: "text", fileVersion: 3, sectionId: "txt:00000000", offset: 3 },
+  endOffset: 7,
+  quote: "灯塔亮了",
+};
+
 describe("conversation session state", () => {
+  it("creates a titleless note operation with book identity and an optional source", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-create-1",
+      body: "海面退潮后，路才显出来。",
+      intent: { kind: "create", bookId: "book-1", source },
+    });
+
+    expect(operation).toEqual({
+      requestId: "note-create-1",
+      body: "海面退潮后，路才显出来。",
+      intent: { kind: "create", bookId: "book-1", source },
+      status: "pending",
+      errorCode: null,
+    });
+    expect(operation.intent).not.toHaveProperty("title");
+  });
+
+  it("requires an explicit note id and expected version for updates", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-update-1",
+      body: "修改后的笔记正文。",
+      intent: { kind: "update", bookId: "book-1", noteId: "note-1", expectedVersion: 2 },
+    });
+
+    expect(operation.intent).toEqual({
+      kind: "update",
+      bookId: "book-1",
+      noteId: "note-1",
+      expectedVersion: 2,
+    });
+    expect(() => createConversationNoteOperation({
+      requestId: "note-update-missing-id",
+      body: "不能猜目标。",
+      intent: { kind: "update", bookId: "book-1", expectedVersion: 2 } as never,
+    })).toThrow("NOTE_ID_REQUIRED");
+  });
+
+  it("keeps a failed note operation retryable and idempotent by request id", () => {
+    const input = {
+      requestId: "note-retry-1",
+      body: "请把这段讨论整理成笔记。",
+      intent: { kind: "create" as const, bookId: "book-1", source: null },
+    };
+    const operation = createConversationNoteOperation(input);
+    const started = startConversationNoteOperation(createConversationSession("conversation-a"), 0, operation);
+    const failed = failConversationNoteOperation(started, started.revision, operation.requestId, "NOTE_SAVE_FAILED");
+
+    expect(failed.noteOperations).toEqual([{ ...operation, status: "failed", errorCode: "NOTE_SAVE_FAILED" }]);
+
+    const retried = startConversationNoteOperation(failed, failed.revision, operation);
+    expect(retried.noteOperations).toEqual([operation]);
+
+    const completed = completeConversationNoteOperation(retried, retried.revision, operation.requestId);
+    const replayed = startConversationNoteOperation(completed, 0, operation);
+    expect(replayed).toEqual(completed);
+    expect(replayed.noteOperations).toEqual([{ ...operation, status: "completed", errorCode: null }]);
+  });
+
+  it("hydrates a legacy session without note operation history", () => {
+    const current = createConversationSession("conversation-legacy");
+    const { noteOperations: _legacyNoteOperations, ...legacy } = current;
+    const operation = createConversationNoteOperation({
+      requestId: "note-legacy-1",
+      body: "兼容旧会话状态。",
+      intent: { kind: "create", bookId: "book-legacy" },
+    });
+
+    const hydrated = startConversationNoteOperation(legacy, legacy.revision, operation);
+
+    expect(hydrated.noteOperations).toEqual([operation]);
+  });
+
   it("keeps draft and context independent while locking only the active session", () => {
     const first = createConversationSession("conversation-a");
     const second = createConversationSession("conversation-b");
