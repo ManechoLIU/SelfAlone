@@ -139,11 +139,17 @@ export function appendConversationNoteBody(
   body: string,
 ): ConversationSessionState {
   assertWritable(session);
-  const normalizedBody = requiredNoteText(body, "NOTE_BODY_REQUIRED");
   const noteOperations = session.noteOperations ?? [];
   const existing = noteOperations.find((operation) => operation.requestId === requestId);
   if (!existing) throw new ConversationStateError("NOTE_OPERATION_NOT_FOUND");
+  if (existing.status === "failed") {
+    throw new ConversationStateError("NOTE_OPERATION_NOT_RETRYABLE");
+  }
+  const normalizedBody = requiredNoteText(body, "NOTE_BODY_REQUIRED");
   validateNoteBody(normalizedBody, existing.intent);
+  if (existing.status === "completed" && existing.body === null) {
+    throw new ConversationStateError("NOTE_OPERATION_NOT_RETRYABLE");
+  }
   if (existing.body !== null) {
     if (existing.body !== normalizedBody) throw new ConversationStateError("REQUEST_ID_CONFLICT");
     return cloneSession(session);

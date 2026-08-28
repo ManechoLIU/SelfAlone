@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ConversationNoteOperation, TextAnnotationSource } from "@selfalone/contracts";
 import {
+  appendConversationNoteBody,
+  bindConversationNoteIntent,
   appendConversationContext,
   completeConversationNoteOperation,
   createConversationNoteOperation,
@@ -226,6 +228,46 @@ describe("conversation session state", () => {
     const replayed = startConversationNoteOperation(completed, 0, operation);
     expect(replayed).toEqual(completed);
     expect(replayed.noteOperations).toEqual([{ ...operation, status: "completed", errorCode: null }]);
+  });
+
+  it("rejects a late body after a null-body operation failed until retry starts it", () => {
+    const input = {
+      requestId: "note-late-body",
+      intent: { kind: "create" as const, bookId: "book-1", source: null },
+    };
+    const initial = createConversationSession("conversation-late-body");
+    const bound = bindConversationNoteIntent(initial, initial.revision, input);
+    const failed = failConversationNoteOperation(bound, bound.revision, input.requestId, "MODEL_FAILED");
+
+    expect(() => appendConversationNoteBody(
+      failed,
+      failed.revision,
+      input.requestId,
+      "迟到的模型正文",
+    )).toThrow("NOTE_OPERATION_NOT_RETRYABLE");
+
+    const retried = startConversationNoteOperation(failed, failed.revision, {
+      requestId: input.requestId,
+      body: null,
+      intent: input.intent,
+      status: "pending",
+      errorCode: null,
+    });
+    const withBody = appendConversationNoteBody(
+      retried,
+      retried.revision,
+      input.requestId,
+      "重试后的模型正文",
+    );
+    const completed = completeConversationNoteOperation(withBody, withBody.revision, input.requestId);
+
+    expect(completed.noteOperations).toEqual([{
+      requestId: input.requestId,
+      body: "重试后的模型正文",
+      intent: input.intent,
+      status: "completed",
+      errorCode: null,
+    }]);
   });
 
   it("hydrates a legacy session without note operation history", () => {

@@ -1,5 +1,5 @@
 CREATE TABLE note_update_idempotency (
-  idempotency_key text PRIMARY KEY
+  idempotency_key text NOT NULL
     CHECK (char_length(btrim(idempotency_key)) > 0 AND char_length(idempotency_key) <= 128),
   account_id text NOT NULL,
   book_id text NOT NULL,
@@ -9,6 +9,7 @@ CREATE TABLE note_update_idempotency (
   source_payload jsonb,
   result jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_id, idempotency_key),
   FOREIGN KEY (account_id, book_id)
     REFERENCES books(account_id, id) ON DELETE RESTRICT
 );

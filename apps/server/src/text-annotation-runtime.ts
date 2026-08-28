@@ -805,8 +805,14 @@ export class PostgresTextAnnotationRepository implements TextAnnotationRepositor
     return this.sql.begin(async (transaction) => {
       const idempotencyKey = input.idempotencyKey;
       if (idempotencyKey !== undefined) {
+        const [ownedBook] = await transaction<Array<{ id: string }>>`
+          SELECT id
+          FROM books
+          WHERE account_id = ${input.accountId} AND id = ${input.bookId}
+        `;
+        if (!ownedBook) throw new Error("BOOK_NOT_FOUND");
         await transaction`
-          SELECT pg_advisory_xact_lock(hashtext(${"text-note-update:" + idempotencyKey}))
+          SELECT pg_advisory_xact_lock(hashtext(${"text-note-update:" + input.accountId + ":" + idempotencyKey}))
         `;
         const [replayed] = await transaction<Array<{
           idempotencyKey: string;
@@ -823,7 +829,7 @@ export class PostgresTextAnnotationRepository implements TextAnnotationRepositor
                  expected_version AS "expectedVersion", body,
                  source_payload AS "sourcePayload", result
           FROM note_update_idempotency
-          WHERE idempotency_key = ${idempotencyKey}
+          WHERE account_id = ${input.accountId} AND idempotency_key = ${idempotencyKey}
           FOR UPDATE
         `;
         if (replayed) {
@@ -978,7 +984,7 @@ export async function bootstrapTextAnnotationSchemaForTest(options: { databaseUr
     `;
     await sql`
       CREATE TABLE IF NOT EXISTS note_update_idempotency (
-        idempotency_key text PRIMARY KEY CHECK (char_length(btrim(idempotency_key)) > 0 AND char_length(idempotency_key) <= 128),
+        idempotency_key text NOT NULL CHECK (char_length(btrim(idempotency_key)) > 0 AND char_length(idempotency_key) <= 128),
         account_id text NOT NULL,
         book_id text NOT NULL,
         note_id text NOT NULL,
@@ -987,6 +993,7 @@ export async function bootstrapTextAnnotationSchemaForTest(options: { databaseUr
         source_payload jsonb,
         result jsonb NOT NULL,
         created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (account_id, idempotency_key),
         FOREIGN KEY (account_id, book_id) REFERENCES books(account_id, id) ON DELETE RESTRICT
       )
     `;
