@@ -176,6 +176,28 @@ describe("library binding visual contract", () => {
     expect(gridRule).toContain("margin-top: 22px;");
   });
 
+  it("keeps the shelf column contract explicit at 1280, 1200, 1024 and 768 CSS pixels", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+
+    expect(styles).toMatch(/@media \(max-width: 1439px\)[\s\S]*?\.book-grid \{[^}]*grid-template-columns: repeat\(4,/);
+    expect(styles).toMatch(/@media \(max-width: 1199px\)[\s\S]*?\.book-grid \{[^}]*grid-template-columns: repeat\(3,/);
+    expect(styles).toMatch(/@media \(max-width: 768px\)[\s\S]*?\.book-grid \{[^}]*grid-template-columns: repeat\(2,/);
+  });
+
+  it("exposes queryable page and card state hooks while retaining failure context", async () => {
+    const main = await readFile(mainPath, "utf8");
+
+    expect(main).toContain('data-library-state="loading"');
+    expect(main).toContain('data-library-state="failure"');
+    expect(main).toContain('data-library-state="filtered_empty"');
+    expect(main).toContain('data-library-state="empty"');
+    expect(main).toContain('data-library-state="normal"');
+    expect(main).toContain('data-library-card-state="${book.parseStatus}"');
+    expect(main).toContain('data-book-id="${escapeHtml(book.id)}"');
+    expect(main).toContain('value="${escapeHtml(libraryState.draftQuery)}"');
+    expect(main).toContain("libraryState.unfilteredBooks.length");
+  });
+
   it("keeps the icon-only import control named and discoverable on narrow screens", async () => {
     const main = await readFile(mainPath, "utf8");
 
@@ -270,6 +292,13 @@ describe("library binding visual contract", () => {
     expect(styles).toContain(".weread-note { width: min(944px, 100%);");
     expect(styles).toContain("justify-content: flex-start;");
     expect(styles).toContain(".weread-note span { color: #174c3f; font-size: 13px; }");
+  });
+
+  it("keeps the search input itself at a 44px keyboard and touch target", async () => {
+    const styles = await readFile(stylesPath, "utf8");
+    const inputRule = styles.match(/\.library-toolbar input\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+
+    expect(inputRule).toContain("min-height: 44px;");
   });
 
   it("restores the approved seated companion and 44px conversation bubble", async () => {

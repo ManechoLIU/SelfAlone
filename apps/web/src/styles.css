@@ -80,7 +80,7 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
 }
 .library-toolbar form:focus-within { background: #fff; border-color: #3f8b75; box-shadow: 0 0 0 3px rgba(63,139,117,.12); }
 .library-toolbar form > span { color: var(--muted); }
-.library-toolbar input { min-width: 0; border: 0; outline: 0; background: transparent; color: #21312d; font-size: 16px; }
+.library-toolbar input { min-width: 0; min-height: 44px; border: 0; outline: 0; background: transparent; color: #21312d; font-size: 16px; }
 .library-toolbar input::placeholder { color: var(--muted); opacity: 1; }
 .library-search-status { min-width: 0; display: inline-flex; align-items: center; gap: 6px; color: #174c3f; font-size: 12px; white-space: nowrap; }
 .library-search-status:empty { display: none; }
@@ -309,6 +309,7 @@ a.book-item:focus-visible { outline: 2px solid #174c3f; outline-offset: 5px; }
 }
 @media (max-width: 768px) {
   .library-scenery { display: none; }
+  .book-grid { grid-template-columns: repeat(2, minmax(132px, 160px)); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

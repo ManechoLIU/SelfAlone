@@ -1521,27 +1521,27 @@ function libraryShell(content: string) {
 function libraryStatePanel() {
   const view = libraryViewState(libraryState);
   if (view === "loading") {
-    return `<section class="library-state" aria-live="polite">
+    return `<section class="library-state" data-library-state="loading" aria-live="polite">
       <div class="shelf-loading" aria-hidden="true">${Array.from({ length: 5 }, () => "<i></i>").join("")}</div>
       <p>正在取回你的书架…</p>
     </section>`;
   }
   if (view === "failure") {
-    return `<section class="library-state failure" role="alert">
+    return `<section class="library-state failure" data-library-state="failure" role="alert">
       <span>${icons.retry}</span><h2>书架暂时没有载入</h2>
       <p>${escapeHtml(libraryState.error)}</p>
       <button id="retry-library" class="quiet-button" type="button">重新载入</button>
     </section>`;
   }
   if (view === "filtered_empty") {
-    return `<section class="library-state">
+    return `<section class="library-state" data-library-state="filtered_empty">
       <span class="library-state-icon">${icons.search}</span><h2>没有找到“${escapeHtml(libraryState.query)}”</h2>
       <p>换一个书名或作者试试，书架内容不会被改动。</p>
       <button id="clear-search" class="quiet-button" type="button">清除搜索</button>
     </section>`;
   }
   if (view === "empty") {
-    return `<section class="library-state empty">
+    return `<section class="library-state empty" data-library-state="empty">
       <span class="library-state-icon">${icons.book}</span><h2>把第一本书放进来</h2>
       <p>支持 EPUB、TXT 和 PDF；文件会保存到你的账户，再在这里显示解析结果。</p>
       <button id="empty-import-button" class="primary-button state-import" type="button" aria-label="导入一本书">${icons.upload}导入一本书</button>
@@ -1551,7 +1551,7 @@ function libraryStatePanel() {
 }
 
 function libraryGrid(books: LibraryBookSummary[]) {
-  return `<section class="book-grid" aria-label="书架，共 ${books.length} 本书">
+  return `<section class="book-grid" data-library-state="normal" aria-label="书架，共 ${books.length} 本书">
     ${books.map((book) => {
       const author = authorLabel(book.author);
       const status = parseStatusLabel(book.parseStatus, book.errorCode);
@@ -1565,7 +1565,7 @@ function libraryGrid(books: LibraryBookSummary[]) {
       const progressMarkup = progress
         ? `<span class="progress-track" role="progressbar" aria-label="阅读进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}"><span class="progress-fill" style="width: ${progress.percent}%"></span></span><span class="progress-label">${escapeHtml(progress.label)}</span>`
         : `<span class="parse-status">${escapeHtml(coverStatus)}</span>`;
-      return `<${tag} class="book-item ${book.parseStatus}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(statusLabel)}">
+      return `<${tag} class="book-item ${book.parseStatus}" data-library-card-state="${book.parseStatus}" data-book-id="${escapeHtml(book.id)}"${target} aria-label="《${escapeHtml(book.title)}》，${escapeHtml(author)}，${escapeHtml(book.sourceLabel)}，${escapeHtml(statusLabel)}">
         <div class="default-cover" role="img" aria-label="《${escapeHtml(book.title)}》默认封面">
           <img class="default-cover-art" src="${coverAssetForBook(book.id)}" alt="" />
           <strong>${escapeHtml(book.title)}</strong>
