@@ -191,6 +191,9 @@ export class ConversationStore {
       }
       const completedEntry = requestHistory.assistantEntries.at(-1);
       if (completedEntry) {
+        if (input.noteIntent && !existingNoteOperation) {
+          throw new ConversationStoreError("REQUEST_ID_CONFLICT");
+        }
         return {
           status: "completed",
           session: cloneConversationSession(current),

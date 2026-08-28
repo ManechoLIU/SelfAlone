@@ -90,6 +90,121 @@ describe("conversation store", () => {
     ]);
   });
 
+  it("rejects adding a create note intent to an already completed ordinary request", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_replay_create_conflict");
+    let responderCalls = 0;
+    let noteCalls = 0;
+    const noteService = {
+      createNote: async () => {
+        noteCalls += 1;
+        throw new Error("NOTE_SERVICE_MUST_NOT_RUN");
+      },
+      updateNote: async () => {
+        noteCalls += 1;
+        throw new Error("NOTE_SERVICE_MUST_NOT_RUN");
+      },
+    };
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        return "普通消息回答";
+      },
+      textAnnotations: noteService,
+    } as never);
+    await store.createSession("account-a", "conversation-a");
+
+    await expect(store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "ordinary-create-replay",
+      text: "普通消息",
+    })).resolves.toMatchObject({ status: "completed" });
+    const before = await store.getSession("account-a", "conversation-a");
+    const [beforeMessages] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+
+    await expect(store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "ordinary-create-replay",
+      text: "普通消息",
+      noteIntent: { kind: "create", bookId: "book-create" },
+    } as never)).rejects.toMatchObject({ code: "REQUEST_ID_CONFLICT" });
+
+    expect(responderCalls).toBe(1);
+    expect(noteCalls).toBe(0);
+    expect(await store.getSession("account-a", "conversation-a")).toEqual(before);
+    const [afterMessages] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+    expect(afterMessages?.count).toBe(beforeMessages?.count);
+  });
+
+  it("rejects adding an update note intent to an already completed ordinary request", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_replay_update_conflict");
+    let responderCalls = 0;
+    let noteCalls = 0;
+    const noteService = {
+      createNote: async () => {
+        noteCalls += 1;
+        throw new Error("NOTE_SERVICE_MUST_NOT_RUN");
+      },
+      updateNote: async () => {
+        noteCalls += 1;
+        throw new Error("NOTE_SERVICE_MUST_NOT_RUN");
+      },
+    };
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        return "普通消息回答";
+      },
+      textAnnotations: noteService,
+    } as never);
+    await store.createSession("account-a", "conversation-a");
+
+    await expect(store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "ordinary-update-replay",
+      text: "普通消息",
+    })).resolves.toMatchObject({ status: "completed" });
+    const before = await store.getSession("account-a", "conversation-a");
+    const [beforeMessages] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+
+    await expect(store.sendText({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "ordinary-update-replay",
+      text: "普通消息",
+      noteIntent: {
+        kind: "update",
+        bookId: "book-update",
+        noteId: "note-update",
+        expectedVersion: 2,
+      },
+    } as never)).rejects.toMatchObject({ code: "REQUEST_ID_CONFLICT" });
+
+    expect(responderCalls).toBe(1);
+    expect(noteCalls).toBe(0);
+    expect(await store.getSession("account-a", "conversation-a")).toEqual(before);
+    const [afterMessages] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+    expect(afterMessages?.count).toBe(beforeMessages?.count);
+  });
+
   it("uses an explicit note intent to save the responder body with its book source", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_note_create");
     let responderCalls = 0;
