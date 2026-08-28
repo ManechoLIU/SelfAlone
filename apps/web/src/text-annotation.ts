@@ -39,6 +39,15 @@ export type TextAnnotationChatHandoffContext = {
   bookId: string;
   bookTitle: string;
   author: string | null;
+  sections: readonly TextAnnotationReaderSection[];
+};
+
+export type TextAnnotationReaderSection = {
+  sectionId: string;
+  fileVersion: number;
+  title: string;
+  order: number;
+  text: string;
 };
 
 export function requestTextAnnotationChatHandoff(
@@ -47,11 +56,25 @@ export function requestTextAnnotationChatHandoff(
   context?: TextAnnotationChatHandoffContext,
 ) {
   if (!handoff || !selection || !context) return false;
+  const source = selection.source;
+  const section = context.sections.find((candidate) => (
+    candidate.sectionId === source.locator.sectionId
+    && candidate.fileVersion === source.locator.fileVersion
+  ));
+  if (!section) return false;
   handoff({
-    quote: selection.source.quote,
+    quote: source.quote,
     bookId: context.bookId,
     bookTitle: context.bookTitle,
     author: context.author?.trim() || null,
+    location: {
+      sectionId: source.locator.sectionId,
+      fileVersion: source.locator.fileVersion,
+      start: source.locator.offset,
+      end: source.endOffset,
+      sectionTitle: section.title,
+      sectionOrder: section.order,
+    },
   });
   return true;
 }
@@ -292,7 +315,7 @@ export type { TextAnnotationApi } from "./text-annotation-state";
 
 export type TextAnnotationReaderContext = {
   root: HTMLElement;
-  sections: Array<{ sectionId: string; fileVersion: number; text: string }>;
+  sections: Array<TextAnnotationReaderSection>;
   reading: { fileVersion: number; title: string; author: string | null } | null;
 };
 
@@ -461,12 +484,14 @@ export function createTextAnnotationController(options: {
   };
 
   const requestChatHandoff = () => {
-    const reading = options.getReaderContext().reading;
+    const context = options.getReaderContext();
+    const reading = context.reading;
     if (!reading) return false;
     return requestTextAnnotationChatHandoff(options.onChatHandoff, model.snapshot.selection, {
       bookId: options.bookId,
       bookTitle: reading.title,
       author: reading.author,
+      sections: context.sections,
     });
   };
 

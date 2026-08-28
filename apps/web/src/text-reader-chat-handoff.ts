@@ -5,6 +5,16 @@ export type TextReaderChatHandoff = {
   bookId: string;
   bookTitle: string;
   author: string | null;
+  location: TextReaderChatHandoffLocation;
+};
+
+export type TextReaderChatHandoffLocation = {
+  sectionId: string;
+  fileVersion: number;
+  start: number;
+  end: number;
+  sectionTitle: string;
+  sectionOrder: number;
 };
 
 export type TextReaderChatHandoffStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -44,6 +54,27 @@ function defaultStorage(): TextReaderChatHandoffStorage | null {
   }
 }
 
+function isHandoffLocation(value: unknown): value is TextReaderChatHandoffLocation {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<TextReaderChatHandoffLocation>;
+  return typeof candidate.sectionId === "string"
+    && candidate.sectionId.trim().length > 0
+    && typeof candidate.fileVersion === "number"
+    && Number.isSafeInteger(candidate.fileVersion)
+    && candidate.fileVersion > 0
+    && typeof candidate.start === "number"
+    && Number.isSafeInteger(candidate.start)
+    && candidate.start >= 0
+    && typeof candidate.end === "number"
+    && Number.isSafeInteger(candidate.end)
+    && candidate.end > candidate.start
+    && typeof candidate.sectionTitle === "string"
+    && candidate.sectionTitle.trim().length > 0
+    && typeof candidate.sectionOrder === "number"
+    && Number.isSafeInteger(candidate.sectionOrder)
+    && candidate.sectionOrder >= 0;
+}
+
 function isHandoff(value: unknown): value is TextReaderChatHandoff {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<TextReaderChatHandoff>;
@@ -53,7 +84,8 @@ function isHandoff(value: unknown): value is TextReaderChatHandoff {
     && candidate.bookId.trim().length > 0
     && typeof candidate.bookTitle === "string"
     && candidate.bookTitle.trim().length > 0
-    && (candidate.author === null || typeof candidate.author === "string");
+    && (candidate.author === null || typeof candidate.author === "string")
+    && isHandoffLocation(candidate.location);
 }
 
 function isPersistedHandoff(value: unknown, accountId: string): value is PersistedHandoff {
@@ -70,7 +102,8 @@ function isPersistedHandoff(value: unknown, accountId: string): value is Persist
 export function formatTextReaderChatDraft(handoff: TextReaderChatHandoff) {
   const author = handoff.author?.trim();
   const book = author ? `《${handoff.bookTitle}》（${author}）` : `《${handoff.bookTitle}》`;
-  return `来自${book}的原文（书籍 ID：${handoff.bookId}）：\n“${handoff.quote}”\n\n`;
+  const location = handoff.location;
+  return `来自${book}的原文（书籍 ID：${handoff.bookId}）：\n位置：第 ${location.sectionOrder + 1} 节「${location.sectionTitle}」（第 ${location.start + 1}–${location.end} 字）\n“${handoff.quote}”\n\n`;
 }
 
 export function chooseConversationForTextReaderHandoff(

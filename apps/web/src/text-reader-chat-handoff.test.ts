@@ -13,6 +13,14 @@ const handoff: TextReaderChatHandoff = {
   bookId: "book-7",
   bookTitle: "雨后山亭",
   author: "林野",
+  location: {
+    sectionId: "epub:two",
+    fileVersion: 2,
+    start: 3,
+    end: 15,
+    sectionTitle: "山路尽头",
+    sectionOrder: 1,
+  },
 };
 
 function session(id: string): ConversationChatSession {
@@ -66,6 +74,21 @@ describe("text reader chat handoff", () => {
     expect(draft).toContain(`《${handoff.bookTitle}》`);
     expect(draft).toContain(handoff.author);
     expect(draft.match(new RegExp(handoff.quote, "g"))).toHaveLength(1);
+  });
+
+  it("shows the stable reader section and character range, then keeps it after reload", () => {
+    const draft = formatTextReaderChatDraft(handoff);
+    const persisted = storage();
+    const first = createTextReaderChatHandoffStore("account-a", persisted);
+    first.publish(handoff);
+    first.claim("conversation-a", draft);
+
+    expect(draft).toContain("第 2 节");
+    expect(draft).toContain("山路尽头");
+    expect(draft).toContain("第 4–15 字");
+    expect(createTextReaderChatHandoffStore("account-a", persisted).active()).toMatchObject({
+      handoff: { location: handoff.location },
+    });
   });
 
   it("prefers the conversation active before Reader, then the recent session", () => {

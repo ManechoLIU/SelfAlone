@@ -23,6 +23,14 @@ const selection: TextAnnotationSelection = {
   rect: { top: 180, bottom: 224, left: 420, right: 580, width: 160, height: 44 },
 };
 
+const readerSections = [{
+  sectionId: "txt:0",
+  fileVersion: 2,
+  title: "雨停以后",
+  order: 0,
+  text: "0123灯塔亮了",
+}];
+
 const highlight: TextHighlight = {
   id: "highlight-1",
   bookId: "book-1",
@@ -118,16 +126,57 @@ describe("desktop text annotation API", () => {
       bookId: "book-1",
       bookTitle: "雨后山亭",
       author: "林野",
+      sections: readerSections,
     })).toBe(true);
     expect(received).toEqual({
       quote: selection.source.quote,
       bookId: "book-1",
       bookTitle: "雨后山亭",
       author: "林野",
+      location: {
+        sectionId: "txt:0",
+        fileVersion: 2,
+        start: 4,
+        end: 8,
+        sectionTitle: "雨停以后",
+        sectionOrder: 0,
+      },
     });
     const html = renderTextAnnotationLayer(annotationSnapshot, { chatHandoffAvailable: true });
     expect(html).toContain('data-annotation-quote="灯塔亮了"');
     expect(html).not.toContain("disabled");
+  });
+
+  it("derives a stable reader location for the chat handoff", () => {
+    let received: TextReaderChatHandoff | null = null;
+    const context = {
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+      sections: [{
+        sectionId: "txt:0",
+        fileVersion: 2,
+        title: "雨停以后",
+        order: 0,
+        text: "0123灯塔亮了",
+      }],
+    } as unknown as Parameters<typeof requestTextAnnotationChatHandoff>[2];
+
+    expect(requestTextAnnotationChatHandoff((value) => { received = value; }, selection, context)).toBe(true);
+    expect(received).toMatchObject({
+      quote: selection.source.quote,
+      bookId: "book-1",
+      bookTitle: "雨后山亭",
+      author: "林野",
+      location: {
+        sectionId: "txt:0",
+        fileVersion: 2,
+        start: 4,
+        end: 8,
+        sectionTitle: "雨停以后",
+        sectionOrder: 0,
+      },
+    });
   });
 
   it("hands the exact quote and reader book identity to shared chat", () => {
@@ -135,19 +184,33 @@ describe("desktop text annotation API", () => {
     const request = requestTextAnnotationChatHandoff as unknown as (
       handoff: (value: TextReaderChatHandoff) => void,
       value: TextAnnotationSelection | null,
-      context: { bookId: string; bookTitle: string; author: string | null },
+      context: {
+        bookId: string;
+        bookTitle: string;
+        author: string | null;
+        sections: typeof readerSections;
+      },
     ) => boolean;
 
     expect(request((value) => { received = value; }, selection, {
       bookId: "book-1",
       bookTitle: "雨后山亭",
       author: "林野",
+      sections: readerSections,
     })).toBe(true);
     expect(received).toEqual({
       quote: selection.source.quote,
       bookId: "book-1",
       bookTitle: "雨后山亭",
       author: "林野",
+      location: {
+        sectionId: "txt:0",
+        fileVersion: 2,
+        start: 4,
+        end: 8,
+        sectionTitle: "雨停以后",
+        sectionOrder: 0,
+      },
     });
   });
 
