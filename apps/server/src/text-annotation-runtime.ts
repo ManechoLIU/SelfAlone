@@ -51,6 +51,8 @@ export type CreateTextNoteInput = {
 export type UpdateTextNoteInput = {
   expectedVersion: number;
   body: string;
+  /** Optional stable key for replaying one update after an uncertain response. */
+  idempotencyKey?: string;
   /** Echoed by clients so a failed save can restore the complete anchored draft. */
   source?: TextAnnotationSource | null;
 };
@@ -109,7 +111,9 @@ export type TextAnnotationRepository = {
     noteId: string;
     expectedVersion: number;
     body: string;
-    fileVersion: number;
+    fileVersion?: number;
+    idempotencyKey?: string;
+    source?: TextAnnotationSource | null;
   }): Promise<TextNoteRecord | null | "stale">;
   deleteNote(input: {
     accountId: string;
@@ -311,8 +315,42 @@ export class TextAnnotationService {
     if (!Number.isSafeInteger(value.expectedVersion) || value.expectedVersion < 1) {
       throw new Error("INVALID_VERSION");
     }
-    const book = await this.repository.getCurrentTextBook(accountId, bookId);
     const body = normalizeBody(value.body);
+    const idempotencyKey = value.idempotencyKey === undefined
+      ? undefined
+      : normalizeIdempotencyKey(value.idempotencyKey);
+
+    if (idempotencyKey !== undefined) {
+      try {
+        const note = await this.repository.updateNote({
+          accountId,
+          bookId,
+          noteId,
+          expectedVersion: value.expectedVersion,
+          body,
+          idempotencyKey,
+          source: value.source ?? null,
+        });
+        if (note === "stale") throw new Error("STALE_VERSION");
+        if (!note) throw new Error("NOTE_NOT_FOUND");
+        return { status: "saved" as const, note };
+      } catch (error) {
+        if (isControlError(error)) throw error;
+        let source: TextAnnotationSource | null = null;
+        try {
+          source = (await this.repository.getNote(accountId, bookId, noteId))?.source ?? null;
+        } catch {
+          // Keep the retryable operation fail-closed when its source cannot be read.
+        }
+        return {
+          status: "failed" as const,
+          errorCode: "NOTE_SAVE_FAILED" as const,
+          retainedDraft: { body, source },
+        };
+      }
+    }
+
+    const book = await this.repository.getCurrentTextBook(accountId, bookId);
     let existing: TextNoteRecord | null;
     try {
       existing = await this.repository.getNote(accountId, bookId, noteId);
@@ -397,6 +435,17 @@ type NoteRow = {
   updatedAt: DateValue;
 };
 
+type NoteUpdateIdempotencyRow = {
+  idempotencyKey: string;
+  accountId: string;
+  bookId: string;
+  noteId: string;
+  expectedVersion: number;
+  body: string;
+  sourcePayload: TextAnnotationSource | null;
+  result: TextNoteRecord;
+};
+
 function isoDate(value: DateValue) {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
@@ -465,6 +514,38 @@ function sameNote(row: NoteRow, draft: TextNoteDraft) {
   return row.body === draft.body && sourceMatches;
 }
 
+function sameNoteUpdateRequest(
+  row: NoteUpdateIdempotencyRow,
+  input: {
+    accountId: string;
+    bookId: string;
+    noteId: string;
+    expectedVersion: number;
+    body: string;
+    source?: TextAnnotationSource | null;
+  },
+) {
+  return row.accountId === input.accountId
+    && row.bookId === input.bookId
+    && row.noteId === input.noteId
+    && row.expectedVersion === input.expectedVersion
+    && row.body === input.body
+    && sameAnnotationSource(row.sourcePayload, input.source ?? null);
+}
+
+function sameAnnotationSource(
+  left: TextAnnotationSource | null,
+  right: TextAnnotationSource | null,
+) {
+  if (!left || !right) return left === right;
+  return left.locator.kind === right.locator.kind
+    && left.locator.fileVersion === right.locator.fileVersion
+    && left.locator.sectionId === right.locator.sectionId
+    && left.locator.offset === right.locator.offset
+    && left.endOffset === right.endOffset
+    && left.quote === right.quote;
+}
+
 export class PostgresTextAnnotationRepository implements TextAnnotationRepository {
   constructor(private readonly sql: Sql) {}
 
@@ -473,6 +554,7 @@ export class PostgresTextAnnotationRepository implements TextAnnotationRepositor
     try {
       await this.sql`SELECT 1 FROM highlights LIMIT 0`;
       await this.sql`SELECT 1 FROM notes LIMIT 0`;
+      await this.sql`SELECT 1 FROM note_update_idempotency LIMIT 0`;
     } catch {
       throw new Error("TEXT_ANNOTATION_SCHEMA_MISSING");
     }
@@ -716,25 +798,77 @@ export class PostgresTextAnnotationRepository implements TextAnnotationRepositor
     noteId: string;
     expectedVersion: number;
     body: string;
-    fileVersion: number;
+    fileVersion?: number;
+    idempotencyKey?: string;
+    source?: TextAnnotationSource | null;
   }) {
     return this.sql.begin(async (transaction) => {
+      const idempotencyKey = input.idempotencyKey;
+      if (idempotencyKey !== undefined) {
+        await transaction`
+          SELECT pg_advisory_xact_lock(hashtext(${"text-note-update:" + idempotencyKey}))
+        `;
+        const [replayed] = await transaction<Array<{
+          idempotencyKey: string;
+          accountId: string;
+          bookId: string;
+          noteId: string;
+          expectedVersion: number;
+          body: string;
+          sourcePayload: unknown;
+          result: unknown;
+        }>>`
+          SELECT idempotency_key AS "idempotencyKey",
+                 account_id AS "accountId", book_id AS "bookId", note_id AS "noteId",
+                 expected_version AS "expectedVersion", body,
+                 source_payload AS "sourcePayload", result
+          FROM note_update_idempotency
+          WHERE idempotency_key = ${idempotencyKey}
+          FOR UPDATE
+        `;
+        if (replayed) {
+          const replay = {
+            ...replayed,
+            sourcePayload: replayed.sourcePayload as TextAnnotationSource | null,
+            result: replayed.result as TextNoteRecord,
+          } satisfies NoteUpdateIdempotencyRow;
+          if (!sameNoteUpdateRequest(replay, input)) {
+            throw new Error("IDEMPOTENCY_KEY_REUSED");
+          }
+          return replay.result;
+        }
+      }
       const currentFileVersion = await this.lockCurrentTextBook(transaction, input.accountId, input.bookId);
-      if (currentFileVersion !== input.fileVersion) throw new Error("STALE_VERSION");
+      if (input.fileVersion !== undefined && currentFileVersion !== input.fileVersion) {
+        throw new Error("STALE_VERSION");
+      }
       const [row] = await transaction<NoteRow[]>`
         UPDATE notes
         SET body = ${input.body}, version = version + 1, updated_at = now()
         WHERE id = ${input.noteId} AND account_id = ${input.accountId}
           AND book_id = ${input.bookId}
-          AND (file_version IS NULL OR file_version = ${input.fileVersion})
+          AND (file_version IS NULL OR file_version = ${currentFileVersion})
           AND version = ${input.expectedVersion}
         RETURNING id, book_id AS "bookId", body, file_version AS "fileVersion",
                   section_id AS "sectionId", start_offset AS "startOffset",
                   end_offset AS "endOffset", quote, version,
                   created_at AS "createdAt", updated_at AS "updatedAt"
       `;
-      if (row) return noteRecord(row);
-      return this.noteConflict(transaction, input);
+      if (!row) return this.noteConflict(transaction, { ...input, fileVersion: currentFileVersion });
+      const note = noteRecord(row);
+      if (idempotencyKey !== undefined) {
+        await transaction`
+          INSERT INTO note_update_idempotency (
+            idempotency_key, account_id, book_id, note_id,
+            expected_version, body, source_payload, result
+          ) VALUES (
+            ${idempotencyKey}, ${input.accountId}, ${input.bookId}, ${input.noteId},
+            ${input.expectedVersion}, ${input.body},
+            ${transaction.json(input.source ?? null)}, ${transaction.json(note)}
+          )
+        `;
+      }
+      return note;
     });
   }
 
@@ -842,6 +976,24 @@ export async function bootstrapTextAnnotationSchemaForTest(options: { databaseUr
       CREATE INDEX IF NOT EXISTS notes_book_idx
       ON notes (account_id, book_id, created_at DESC, id DESC)
     `;
+    await sql`
+      CREATE TABLE IF NOT EXISTS note_update_idempotency (
+        idempotency_key text PRIMARY KEY CHECK (char_length(btrim(idempotency_key)) > 0 AND char_length(idempotency_key) <= 128),
+        account_id text NOT NULL,
+        book_id text NOT NULL,
+        note_id text NOT NULL,
+        expected_version integer NOT NULL CHECK (expected_version > 0),
+        body text NOT NULL CHECK (char_length(btrim(body)) > 0 AND char_length(body) <= 100000),
+        source_payload jsonb,
+        result jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        FOREIGN KEY (account_id, book_id) REFERENCES books(account_id, id) ON DELETE RESTRICT
+      )
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS note_update_idempotency_account_note_idx
+      ON note_update_idempotency (account_id, book_id, note_id, created_at DESC)
+    `;
   } finally {
     await sql.end();
   }
@@ -915,6 +1067,7 @@ const noteCreateSchema = z.object({
 const noteUpdateSchema = z.object({
   expectedVersion: z.number().int().positive(),
   body: z.string().max(MAX_NOTE_BODY_LENGTH),
+  idempotencyKey: idempotencyKeySchema.optional(),
   source: sourceSchema.nullable().optional(),
 });
 const deleteSchema = z.object({ expectedVersion: z.number().int().positive() });

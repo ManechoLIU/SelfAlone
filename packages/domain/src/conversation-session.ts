@@ -57,7 +57,7 @@ export type ConversationSessionState = {
 
 export type ConversationNoteOperationInput = {
   requestId: string;
-  body: string;
+  body?: string | null;
   intent: ConversationNoteIntent;
 };
 
@@ -116,6 +116,48 @@ export function createConversationNoteOperation(
   return normalizeConversationNoteOperation(input);
 }
 
+/** Bind the explicit note target before a model call has produced its body. */
+export function bindConversationNoteIntent(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  input: { requestId: string; intent: ConversationNoteIntent },
+): ConversationSessionState {
+  return startConversationNoteOperation(session, expectedRevision, {
+    requestId: input.requestId,
+    body: null,
+    intent: input.intent,
+    status: "pending",
+    errorCode: null,
+  });
+}
+
+/** Attach the model body once the already-bound note intent has a response. */
+export function appendConversationNoteBody(
+  session: ConversationSessionState,
+  expectedRevision: number,
+  requestId: string,
+  body: string,
+): ConversationSessionState {
+  assertWritable(session);
+  const normalizedBody = requiredNoteText(body, "NOTE_BODY_REQUIRED");
+  const noteOperations = session.noteOperations ?? [];
+  const existing = noteOperations.find((operation) => operation.requestId === requestId);
+  if (!existing) throw new ConversationStateError("NOTE_OPERATION_NOT_FOUND");
+  validateNoteBody(normalizedBody, existing.intent);
+  if (existing.body !== null) {
+    if (existing.body !== normalizedBody) throw new ConversationStateError("REQUEST_ID_CONFLICT");
+    return cloneSession(session);
+  }
+  assertRevision(session, expectedRevision);
+  return nextState(session, {
+    noteOperations: noteOperations.map((operation) =>
+      operation.requestId === requestId
+        ? { ...cloneNoteOperation(operation), body: normalizedBody }
+        : operation,
+    ),
+  });
+}
+
 export function startConversationNoteOperation(
   session: ConversationSessionState,
   expectedRevision: number,
@@ -131,7 +173,12 @@ export function startConversationNoteOperation(
       throw new ConversationStateError("REQUEST_ID_CONFLICT");
     }
 
-    if (existing.status === "completed" || existing.status === "pending") {
+    if (
+      existing.status === "completed"
+      || (existing.status === "pending" && (
+        existing.body !== null || normalizedOperation.body === null
+      ))
+    ) {
       return cloneSession(session);
     }
 
@@ -139,7 +186,12 @@ export function startConversationNoteOperation(
     return nextState(session, {
       noteOperations: noteOperations.map((candidate) =>
         candidate.requestId === normalizedOperation.requestId
-          ? { ...cloneNoteOperation(normalizedOperation), status: "pending", errorCode: null }
+          ? {
+              ...cloneNoteOperation(normalizedOperation),
+              body: normalizedOperation.body ?? existing.body,
+              status: "pending",
+              errorCode: null,
+            }
           : candidate,
       ),
     });
@@ -186,6 +238,7 @@ export function completeConversationNoteOperation(
   const existing = noteOperations.find((operation) => operation.requestId === requestId);
   if (!existing) throw new ConversationStateError("NOTE_OPERATION_NOT_FOUND");
   if (existing.status === "completed") return cloneSession(session);
+  if (existing.body === null) throw new ConversationStateError("NOTE_BODY_REQUIRED");
   assertRevision(session, expectedRevision);
   if (existing.status === "failed") throw new ConversationStateError("NOTE_OPERATION_NOT_RETRYABLE");
 
@@ -381,14 +434,23 @@ function normalizeConversationNoteOperation(
   if (!isRecord(input)) throw new ConversationStateError("NOTE_INTENT_REQUIRED");
   const candidate = input;
   const requestId = requiredNoteText(candidate.requestId, "REQUEST_ID_REQUIRED");
-  const body = requiredNoteText(candidate.body, "NOTE_BODY_REQUIRED");
+  const body = candidate.body === undefined || candidate.body === null
+    ? null
+    : requiredNoteText(candidate.body, "NOTE_BODY_REQUIRED");
   const intent = normalizeNoteIntent(candidate.intent);
+  if (body !== null) validateNoteBody(body, intent);
+  else if (intent.kind === "create" && intent.source) {
+    createTextNoteDraft({ body: "pending note body", source: intent.source });
+  }
+
+  return { requestId, body, intent, status: "pending", errorCode: null };
+}
+
+function validateNoteBody(body: string, intent: ConversationNoteIntent) {
   createTextNoteDraft({
     body,
     source: intent.kind === "create" ? intent.source : null,
   });
-
-  return { requestId, body, intent, status: "pending", errorCode: null };
 }
 
 function normalizeNoteIntent(input: unknown): ConversationNoteIntent {
@@ -501,7 +563,8 @@ function sameNoteOperation(
   left: ConversationNoteOperation,
   right: ConversationNoteOperation,
 ): boolean {
-  if (left.requestId !== right.requestId || left.body !== right.body) return false;
+  if (left.requestId !== right.requestId) return false;
+  if (left.body !== null && right.body !== null && left.body !== right.body) return false;
   if (left.intent.kind !== right.intent.kind || left.intent.bookId !== right.intent.bookId) return false;
   if (left.intent.kind === "update" && right.intent.kind === "update") {
     return left.intent.noteId === right.intent.noteId

@@ -54,16 +54,23 @@ describe("production text annotation migration", () => {
     annotations.push(annotation);
     await expect(annotation.ready()).resolves.toBe(true);
     const migrationRows = await migrationDatabase<Array<{ name: string }>>`
-      SELECT name FROM schema_migrations WHERE name = '20260825_text_annotations'
+      SELECT name
+      FROM schema_migrations
+      WHERE name IN ('20260825_text_annotations', '20260828_conversation_note_idempotency')
+      ORDER BY name
     `;
-    expect(migrationRows).toEqual([{ name: "20260825_text_annotations" }]);
+    expect(migrationRows).toEqual([
+      { name: "20260825_text_annotations" },
+      { name: "20260828_conversation_note_idempotency" },
+    ]);
     const tables = await migrationDatabase<Array<{ tableName: string }>>`
       SELECT table_name AS "tableName"
       FROM information_schema.tables
-      WHERE table_schema = current_schema() AND table_name IN ('highlights', 'notes')
+      WHERE table_schema = current_schema()
+        AND table_name IN ('highlights', 'notes', 'note_update_idempotency')
       ORDER BY table_name
     `;
-    expect(tables.map((row) => row.tableName)).toEqual(["highlights", "notes"]);
+    expect(tables.map((row) => row.tableName)).toEqual(["highlights", "note_update_idempotency", "notes"]);
   });
 
   it("fails closed on a pre-existing incompatible table without recording the receipt", async () => {
@@ -109,14 +116,20 @@ describe("production text annotation migration", () => {
       migrateTextAnnotationSchema(second),
     ])).resolves.toHaveLength(2);
     const receipts = await first<Array<{ name: string }>>`
-      SELECT name FROM schema_migrations WHERE name = '20260825_text_annotations'
+      SELECT name
+      FROM schema_migrations
+      WHERE name IN ('20260825_text_annotations', '20260828_conversation_note_idempotency')
+      ORDER BY name
     `;
-    expect(receipts).toEqual([{ name: "20260825_text_annotations" }]);
+    expect(receipts).toEqual([
+      { name: "20260825_text_annotations" },
+      { name: "20260828_conversation_note_idempotency" },
+    ]);
     const [constraints] = await first<Array<{ tableName: string }>>`
       SELECT table_name AS "tableName"
       FROM information_schema.tables
-      WHERE table_schema = current_schema() AND table_name = 'highlights'
+      WHERE table_schema = current_schema() AND table_name = 'note_update_idempotency'
     `;
-    expect(constraints?.tableName).toBe("highlights");
+    expect(constraints?.tableName).toBe("note_update_idempotency");
   });
 });

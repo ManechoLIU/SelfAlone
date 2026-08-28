@@ -142,6 +142,8 @@ export type CreateTextNoteRequest = {
 export type UpdateTextNoteRequest = {
   expectedVersion: number;
   body: string;
+  /** Optional stable key for replaying the same update without another version increment. */
+  idempotencyKey?: string;
   /** Optional client echo is only a draft fallback and never the source of truth. */
   source?: TextAnnotationSource | null;
 };
@@ -203,7 +205,8 @@ export type ConversationNoteOperationStatus = "pending" | "failed" | "completed"
 
 export type ConversationNoteOperation = {
   requestId: string;
-  body: string;
+  /** Null while the explicit intent is bound and before the model returns. */
+  body: string | null;
   intent: ConversationNoteIntent;
   status: ConversationNoteOperationStatus;
   errorCode: string | null;

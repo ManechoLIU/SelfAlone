@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { TextAnnotationSource } from "@selfalone/contracts";
+import type { ConversationNoteOperation, TextAnnotationSource } from "@selfalone/contracts";
 import {
   appendConversationContext,
   completeConversationNoteOperation,
@@ -22,6 +22,65 @@ const source: TextAnnotationSource = {
 };
 
 describe("conversation session state", () => {
+  it("binds an explicit note intent before the model body exists", () => {
+    const requestId = "note-before-model";
+    const intent = { kind: "create" as const, bookId: "book-1", source: null };
+    const preModelOperation = {
+      requestId,
+      body: null,
+      intent,
+      status: "pending" as const,
+      errorCode: null,
+    } satisfies ConversationNoteOperation;
+    const initial = createConversationSession("conversation-before-model");
+    let bound: ReturnType<typeof createConversationSession> | undefined;
+    let thrown: unknown;
+    try {
+      bound = startConversationNoteOperation(initial, initial.revision, preModelOperation);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeUndefined();
+    if (!bound) return;
+
+    expect(bound.noteOperations).toEqual([preModelOperation]);
+    const hydrated = JSON.parse(JSON.stringify(bound)) as typeof bound;
+    const hydratedReplay = startConversationNoteOperation(
+      hydrated,
+      hydrated.revision,
+      preModelOperation,
+    );
+    expect(hydratedReplay).toEqual(bound);
+
+    expect(() => startConversationNoteOperation(bound!, bound!.revision, {
+      ...preModelOperation,
+      intent: { kind: "create", bookId: "book-other", source: null },
+    })).toThrow("REQUEST_ID_CONFLICT");
+    expect(() => startConversationNoteOperation(bound!, bound!.revision, {
+      ...preModelOperation,
+      intent: { kind: "create", bookId: "book-1", source },
+    })).toThrow("REQUEST_ID_CONFLICT");
+    expect(() => startConversationNoteOperation(bound!, bound!.revision, {
+      ...preModelOperation,
+      intent: { kind: "update", bookId: "book-1", noteId: "note-1", expectedVersion: 1 },
+    })).toThrow("REQUEST_ID_CONFLICT");
+
+    const withBody = startConversationNoteOperation(bound, bound.revision, {
+      ...preModelOperation,
+      body: "模型生成的唯一正文",
+    });
+    expect(withBody.noteOperations?.[0]?.body).toBe("模型生成的唯一正文");
+    const replayedBody = startConversationNoteOperation(withBody, withBody.revision, {
+      ...preModelOperation,
+      body: "模型生成的唯一正文",
+    });
+    expect(replayedBody).toEqual(withBody);
+    expect(() => startConversationNoteOperation(withBody, withBody.revision, {
+      ...preModelOperation,
+      body: "第二次正文不能覆盖",
+    })).toThrow("REQUEST_ID_CONFLICT");
+  });
+
   it("creates a titleless note operation with book identity and an optional source", () => {
     const operation = createConversationNoteOperation({
       requestId: "note-create-1",

@@ -170,6 +170,45 @@ describe("text annotation service", () => {
     });
   });
 
+  it("replays an idempotent note update without incrementing its version twice", async () => {
+    let updateCalls = 0;
+    let version = 1;
+    let saved: TextNoteRecord | undefined;
+    const baseNote: TextNoteRecord = {
+      id: "note-1",
+      bookId: "book-1",
+      body: "原始正文",
+      source: null,
+      version,
+      createdAt: "2026-08-25T00:00:00.000Z",
+      updatedAt: "2026-08-25T00:00:00.000Z",
+    };
+    const service = new TextAnnotationService(repository({
+      getNote: async () => ({ ...baseNote, version }),
+      updateNote: async (input) => {
+        if (input.idempotencyKey && saved) {
+          return saved;
+        }
+        updateCalls += 1;
+        version += 1;
+        saved = { ...baseNote, body: input.body, version };
+        return saved;
+      },
+    }));
+    const input = {
+      expectedVersion: 1,
+      body: "只应写入一次",
+      idempotencyKey: "note-update-request-1",
+    } as never;
+
+    const first = await service.updateNote("account-a", "book-1", "note-1", input);
+    const replay = await service.updateNote("account-a", "book-1", "note-1", input);
+
+    expect(replay).toEqual(first);
+    expect(updateCalls).toBe(1);
+    expect(version).toBe(2);
+  });
+
   it("fails closed when the existing note source cannot be verified", async () => {
     const source: TextAnnotationSource = {
       locator,

@@ -317,6 +317,140 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
       note: { version: 3, body: "PUT 兼容更新的独立记录。" },
     });
 
+    const idempotentNoteUpdatePayload = {
+      expectedVersion: 3,
+      body: "断线后仍只落一次的更新。",
+      idempotencyKey: "note-update-replay-1",
+    };
+    const idempotentNoteUpdate = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: idempotentNoteUpdatePayload,
+    });
+    expect(idempotentNoteUpdate.statusCode).toBe(200);
+    expect(idempotentNoteUpdate.json()).toMatchObject({
+      status: "saved",
+      note: { id: noteId, version: 4, body: idempotentNoteUpdatePayload.body },
+    });
+
+    const replayedNoteUpdate = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: idempotentNoteUpdatePayload,
+    });
+    expect(replayedNoteUpdate.statusCode).toBe(200);
+    expect(replayedNoteUpdate.json()).toEqual(idempotentNoteUpdate.json());
+
+    const reusedNoteUpdateCases = [
+      {
+        name: "body",
+        headers: { "x-selfalone-account": "account-a" },
+        url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+        payload: { ...idempotentNoteUpdatePayload, body: "换正文不得复用 key。" },
+      },
+      {
+        name: "expected version",
+        headers: { "x-selfalone-account": "account-a" },
+        url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+        payload: { ...idempotentNoteUpdatePayload, expectedVersion: 4 },
+      },
+      {
+        name: "source",
+        headers: { "x-selfalone-account": "account-a" },
+        url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+        payload: {
+          ...idempotentNoteUpdatePayload,
+          source: {
+            locator: { kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: 3 },
+            endOffset: 7,
+            quote: "灯塔亮了",
+          },
+        },
+      },
+      {
+        name: "note",
+        headers: { "x-selfalone-account": "account-a" },
+        url: `/api/v1/books/${imported.id}/notes/another-note`,
+        payload: idempotentNoteUpdatePayload,
+      },
+      {
+        name: "book",
+        headers: { "x-selfalone-account": "account-a" },
+        url: `/api/v1/books/${importedEpub.id}/notes/${noteId}`,
+        payload: idempotentNoteUpdatePayload,
+      },
+      {
+        name: "account",
+        headers: { "x-selfalone-account": "account-b" },
+        url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+        payload: idempotentNoteUpdatePayload,
+      },
+    ] as const;
+    for (const testCase of reusedNoteUpdateCases) {
+      const reused = await app.inject({
+        method: "PATCH",
+        url: testCase.url,
+        headers: testCase.headers,
+        payload: testCase.payload,
+      });
+      expect(reused.statusCode, testCase.name).toBe(409);
+      expect(reused.json(), testCase.name).toEqual({ code: "IDEMPOTENCY_KEY_REUSED" });
+    }
+
+    const concurrentIdempotentUpdates = await Promise.all([1, 2].map(() => app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 4,
+        body: "并发重试仍只落一次。",
+        idempotencyKey: "note-update-concurrent-1",
+      },
+    })));
+    expect(concurrentIdempotentUpdates.map((response) => response.statusCode)).toEqual([200, 200]);
+    expect(concurrentIdempotentUpdates[0]?.json()).toEqual(concurrentIdempotentUpdates[1]?.json());
+    expect(concurrentIdempotentUpdates[0]?.json()).toMatchObject({
+      status: "saved",
+      note: { id: noteId, version: 5, body: "并发重试仍只落一次。" },
+    });
+
+    const secondNote = await app.inject({
+      method: "POST",
+      url: `/api/v1/books/${imported.id}/notes`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { idempotencyKey: "note-create-2", body: "另一条记录不应共享更新状态。" },
+    });
+    expect(secondNote.statusCode).toBe(201);
+    const secondNoteId = secondNote.json().note.id as string;
+    const secondNoteUpdate = await app.inject({
+      method: "PATCH",
+      url: `/api/v1/books/${imported.id}/notes/${secondNoteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        body: "另一条记录只更新一次。",
+        idempotencyKey: "note-update-record-2",
+      },
+    });
+    expect(secondNoteUpdate.statusCode).toBe(200);
+    expect(secondNoteUpdate.json()).toMatchObject({
+      status: "saved",
+      note: { id: secondNoteId, version: 2, body: "另一条记录只更新一次。" },
+    });
+    const idempotencyRows = await administration.unsafe<Array<{ idempotencyKey: string; count: number }>>(`
+      SELECT idempotency_key AS "idempotencyKey", count(*)::int AS count
+      FROM "${schema}".note_update_idempotency
+      GROUP BY idempotency_key
+      ORDER BY idempotency_key
+    `);
+    expect(idempotencyRows).toEqual([
+      { idempotencyKey: "note-update-concurrent-1", count: 1 },
+      { idempotencyKey: "note-update-record-2", count: 1 },
+      { idempotencyKey: "note-update-replay-1", count: 1 },
+    ]);
+
     const stalePutEditedNote = await app.inject({
       method: "PUT",
       url: `/api/v1/books/${imported.id}/notes/${noteId}`,
@@ -348,8 +482,27 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
       expect.objectContaining({ id: highlightId, thought: "回头再读一次。" }),
     ]));
     expect(afterRestart.json().notes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: noteId, body: "PUT 兼容更新的独立记录。", version: 3 }),
+      expect.objectContaining({ id: noteId, body: "并发重试仍只落一次。", version: 5 }),
+      expect.objectContaining({ id: secondNoteId, body: "另一条记录只更新一次。", version: 2 }),
     ]));
+
+    const replayAfterRestart = await restoredApp.inject({
+      method: "PATCH",
+      url: `/api/v1/books/${imported.id}/notes/${noteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: idempotentNoteUpdatePayload,
+    });
+    expect(replayAfterRestart.statusCode).toBe(200);
+    expect(replayAfterRestart.json()).toEqual(idempotentNoteUpdate.json());
+
+    const deletedSecondNote = await restoredApp.inject({
+      method: "DELETE",
+      url: `/api/v1/books/${imported.id}/notes/${secondNoteId}`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2 },
+    });
+    expect(deletedSecondNote.statusCode).toBe(200);
+    expect(deletedSecondNote.json()).toEqual({ status: "deleted", id: secondNoteId });
 
     const foreign = await restoredApp.inject({
       method: "GET",
@@ -465,7 +618,7 @@ describe("M1-F2-D text annotations against real PostgreSQL", () => {
       method: "DELETE",
       url: `/api/v1/books/${imported.id}/notes/${noteId}`,
       headers: { "x-selfalone-account": "account-a" },
-      payload: { expectedVersion: 3 },
+      payload: { expectedVersion: 5 },
     });
     expect(deletedNote.statusCode).toBe(200);
     expect(deletedNote.json()).toEqual({ status: "deleted", id: noteId });
