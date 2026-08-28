@@ -275,20 +275,61 @@ async function assertExistingCostLedgerData(transaction: TransactionSql) {
   const [invalidReservation] = await transaction<Array<{
     reservationId: string;
     status: string;
-    actualMicros: number | string | null;
   }>>`
-    SELECT reservation_id AS "reservationId", status,
-           actual_micros AS "actualMicros"
-    FROM cost_ledger_reservations
-    WHERE (status = 'reserved' AND actual_micros IS NOT NULL)
-       OR (status = 'settled' AND actual_micros IS NULL)
-       OR (status = 'released' AND actual_micros IS NOT NULL)
+    SELECT reservation.reservation_id AS "reservationId", reservation.status
+    FROM cost_ledger_reservations AS reservation
+    LEFT JOIN cost_ledger_audit AS audit
+      ON audit.account_id = reservation.account_id
+     AND audit.reservation_id = reservation.reservation_id
+    GROUP BY reservation.account_id, reservation.reservation_id,
+             reservation.operation_id, reservation.reserved_micros,
+             reservation.status, reservation.actual_micros
+    HAVING COUNT(audit.id) FILTER (WHERE audit.event = 'reserve') <> 1
+       OR COUNT(audit.id) FILTER (
+            WHERE audit.event = 'reserve'
+              AND audit.operation_id IS NOT DISTINCT FROM reservation.operation_id
+              AND audit.amount_micros IS NOT DISTINCT FROM reservation.reserved_micros
+          ) <> 1
+       OR (
+         reservation.status = 'reserved'
+         AND (
+           reservation.actual_micros IS NOT NULL
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'settle') <> 0
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'release') <> 0
+         )
+       )
+       OR (
+         reservation.status = 'settled'
+         AND (
+           reservation.actual_micros IS NULL
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'settle') <> 1
+           OR COUNT(audit.id) FILTER (
+                WHERE audit.event = 'settle'
+                  AND audit.operation_id IS NOT DISTINCT FROM reservation.operation_id
+                  AND audit.amount_micros IS NOT DISTINCT FROM reservation.actual_micros
+              ) <> 1
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'release') <> 0
+         )
+       )
+       OR (
+         reservation.status = 'released'
+         AND (
+           reservation.actual_micros IS NOT NULL
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'release') <> 1
+           OR COUNT(audit.id) FILTER (
+                WHERE audit.event = 'release'
+                  AND audit.operation_id IS NOT DISTINCT FROM reservation.operation_id
+                  AND audit.amount_micros IS NOT DISTINCT FROM reservation.reserved_micros
+              ) <> 1
+           OR COUNT(audit.id) FILTER (WHERE audit.event = 'settle') <> 0
+         )
+       )
     LIMIT 1
   `;
   if (invalidReservation) {
     throw incompatibleSchema(
       "cost_ledger_reservations",
-      `existing reservation ${invalidReservation.reservationId} has invalid ${invalidReservation.status} state`,
+      `existing reservation ${invalidReservation.reservationId} has incomplete ${invalidReservation.status} lifecycle`,
     );
   }
 
@@ -328,6 +369,37 @@ async function assertExistingCostLedgerData(transaction: TransactionSql) {
     throw incompatibleSchema(
       "cost_ledger_audit",
       `existing ${invalidAudit.event} audit does not match reservation ${invalidAudit.reservationId}`,
+    );
+  }
+
+  // Reject complete histories where terminal settle/release audit is ordered before reserve audit
+  // using deterministic ordering (created_at, id). This is the pre-marker validation path.
+  const [chronologyViolation] = await transaction<Array<{ reservationId: string; event: string }>>`
+    SELECT audit.reservation_id AS "reservationId", audit.event
+    FROM cost_ledger_audit AS audit
+    LEFT JOIN cost_ledger_reservations AS reservation
+      ON reservation.account_id = audit.account_id
+     AND reservation.reservation_id = audit.reservation_id
+    WHERE reservation.reservation_id IS NOT NULL
+      AND (audit.event = 'settle' OR audit.event = 'release')
+      AND (
+        -- terminal must be strictly after reserve under (created_at, id)
+        EXISTS (
+          SELECT 1
+          FROM cost_ledger_audit AS prev
+          WHERE prev.account_id = audit.account_id
+            AND prev.reservation_id = audit.reservation_id
+            AND prev.event = 'reserve'
+            AND (prev.created_at, prev.id) > (audit.created_at, audit.id)
+        )
+      )
+    GROUP BY audit.reservation_id, audit.event
+    HAVING COUNT(*) > 0
+  `;
+  if (chronologyViolation) {
+    throw incompatibleSchema(
+      "cost_ledger_audit",
+      `existing ${chronologyViolation.event} audit for reservation ${chronologyViolation.reservationId} has terminal audit before reserve audit`,
     );
   }
 }
@@ -370,7 +442,7 @@ async function ensureAuditConsistency(transaction: TransactionSql) {
       FROM cost_ledger_reservations
       WHERE account_id = NEW.account_id
         AND reservation_id = NEW.reservation_id
-      FOR KEY SHARE;
+      FOR UPDATE;
 
       IF NOT FOUND THEN
         RAISE EXCEPTION 'cost ledger audit reservation is missing'
@@ -415,6 +487,7 @@ async function ensureAuditConsistency(transaction: TransactionSql) {
       BEFORE INSERT ON cost_ledger_audit
       FOR EACH ROW EXECUTE FUNCTION cost_ledger_audit_validate_insert();
   `);
+
 }
 
 async function ensureReservationIntegrity(transaction: TransactionSql) {
@@ -458,5 +531,31 @@ async function ensureReservationIntegrity(transaction: TransactionSql) {
     CREATE TRIGGER cost_ledger_reservation_guard_update
       BEFORE UPDATE ON cost_ledger_reservations
       FOR EACH ROW EXECUTE FUNCTION cost_ledger_reservation_guard_update();
+  `);
+
+  await transaction.unsafe(`
+    CREATE OR REPLACE FUNCTION cost_ledger_reservation_guard_insert()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      IF NEW.status IS DISTINCT FROM 'reserved' THEN
+        RAISE EXCEPTION 'terminal cost ledger reservation cannot be inserted directly'
+          USING ERRCODE = 'P0001';
+      END IF;
+      IF NEW.actual_micros IS NOT NULL THEN
+        RAISE EXCEPTION 'initial cost ledger reservation must have null actual amount'
+          USING ERRCODE = 'P0001';
+      END IF;
+
+      RETURN NEW;
+    END;
+    $function$;
+
+    DROP TRIGGER IF EXISTS cost_ledger_reservation_guard_insert
+      ON cost_ledger_reservations;
+    CREATE TRIGGER cost_ledger_reservation_guard_insert
+      BEFORE INSERT ON cost_ledger_reservations
+      FOR EACH ROW EXECUTE FUNCTION cost_ledger_reservation_guard_insert();
   `);
 }

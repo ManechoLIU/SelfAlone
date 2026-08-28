@@ -87,8 +87,13 @@ describe("cost ledger schema migration", () => {
 
     await setup.sql`
       INSERT INTO cost_ledger_reservations
-        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
-      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+        (account_id, operation_id, reservation_id, reserved_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5)
+    `;
+    await setup.sql`
+      UPDATE cost_ledger_reservations
+      SET status = 'settled', actual_micros = 3
+      WHERE account_id = 'account-a' AND reservation_id = 'settle-res'
     `;
     await expect(setup.sql`
       INSERT INTO cost_ledger_audit
@@ -98,8 +103,13 @@ describe("cost ledger schema migration", () => {
 
     await setup.sql`
       INSERT INTO cost_ledger_reservations
-        (account_id, operation_id, reservation_id, reserved_micros, status)
-      VALUES ('account-a', 'release-op', 'release-res', 7, 'released')
+        (account_id, operation_id, reservation_id, reserved_micros)
+      VALUES ('account-a', 'release-op', 'release-res', 7)
+    `;
+    await setup.sql`
+      UPDATE cost_ledger_reservations
+      SET status = 'released', actual_micros = NULL
+      WHERE account_id = 'account-a' AND reservation_id = 'release-res'
     `;
     await expect(setup.sql`
       INSERT INTO cost_ledger_audit
@@ -224,6 +234,155 @@ describe("cost ledger schema migration", () => {
     });
     await expectMigrationMarker(setup.sql);
   });
+
+  it("rejects a settled reservation whose history is missing the settle audit", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_missing_settle");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'reserve', 5)
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects direct INSERT of settled reservation after migration (proves reserve lifecycle cannot be bypassed)", async () => {
+    const setup = await isolatedDatabase(databases, "cost_ledger_settled_direct");
+    await migrateCostLedgerSchema(setup.sql);
+
+    await expect(setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `).rejects.toMatchObject({ code: "P0001" });
+  });
+
+  it("rejects legacy settled reservation with terminal settle audit before reserve audit (proves chronological audit order)", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_legacy_audit_order");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `;
+
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros, created_at)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'reserve', 5, '2026-01-01T00:00:01Z')
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros, created_at)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'settle', 3, '2026-01-01T00:00:00Z')
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("migrates a settled reservation with a complete reserve and settle audit history", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_complete_settle");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'reserve', 5)
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'settle', 3)
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).resolves.toBeUndefined();
+    await expectMigrationAppliedMarker(setup.sql);
+  });
+
+  it("serializes audit validation before a concurrent reserved-to-settled update", async () => {
+    const setup = await isolatedDatabase(databases, "cost_ledger_audit_lock");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5)
+    `;
+
+    let releaseAuditTransaction!: () => void;
+    let rejectAuditReady!: (error: unknown) => void;
+    let resolveAuditReady!: () => void;
+    const auditReady = new Promise<void>((resolve, reject) => {
+      resolveAuditReady = resolve;
+      rejectAuditReady = reject;
+    });
+    const auditTransaction = setup.sql.begin(async (transaction) => {
+      try {
+        await transaction`
+          INSERT INTO cost_ledger_audit
+            (account_id, operation_id, reservation_id, event, amount_micros)
+          VALUES ('account-a', 'settle-op', 'settle-res', 'reserve', 5)
+        `;
+        resolveAuditReady();
+        await new Promise<void>((resolve) => {
+          releaseAuditTransaction = resolve;
+        });
+      } catch (error) {
+        rejectAuditReady(error);
+        throw error;
+      }
+    });
+
+    try {
+      await auditReady;
+      const updateAttempt = setup.sql.begin(async (transaction) => {
+        await transaction`SET LOCAL lock_timeout = '100ms'`;
+        await transaction`
+          UPDATE cost_ledger_reservations
+          SET status = 'settled', actual_micros = 3
+          WHERE account_id = 'account-a' AND reservation_id = 'settle-res'
+        `;
+      });
+      await expect(updateAttempt).rejects.toMatchObject({ code: "55P03" });
+    } finally {
+      releaseAuditTransaction();
+      await auditTransaction;
+    }
+
+    await setup.sql`
+      UPDATE cost_ledger_reservations
+      SET status = 'settled', actual_micros = 3
+      WHERE account_id = 'account-a' AND reservation_id = 'settle-res'
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 'settle', 3)
+    `;
+    await expect(setup.sql`
+      SELECT status, actual_micros AS "actualMicros",
+             (SELECT count(*) FROM cost_ledger_audit
+              WHERE account_id = 'account-a' AND reservation_id = 'settle-res') AS "auditCount"
+      FROM cost_ledger_reservations
+      WHERE account_id = 'account-a' AND reservation_id = 'settle-res'
+    `).resolves.toEqual([{ status: "settled", actualMicros: "3", auditCount: "2" }]);
+  });
 });
 
 async function createSchemaMigrations(sql: Sql) {
@@ -234,6 +393,12 @@ async function expectMigrationMarker(sql: Sql) {
   await expect(sql`
     SELECT 1 FROM schema_migrations WHERE name = ${costLedgerMigrationName}
   `).resolves.toEqual([]);
+}
+
+async function expectMigrationAppliedMarker(sql: Sql) {
+  await expect(sql`
+    SELECT name FROM schema_migrations WHERE name = ${costLedgerMigrationName}
+  `).resolves.toEqual([{ name: costLedgerMigrationName }]);
 }
 
 async function compatibleUnmigratedDatabase(
