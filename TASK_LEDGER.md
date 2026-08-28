@@ -5,11 +5,11 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；Desktop TXT / EPUB 选中正文经现有“和老己聊聊”带入当前会话可编辑草稿，不自动发送；发送、失败保留 / 重试与刷新恢复复用已稳定真实会话能力。PDF、Mini、PPT、图片、视觉重设计与成本系统不在本 Goal。
-- 当前活动项：无
-- 下一可见检查点：原 `readchat` WIP 保留不重做；恢复 writer 先以失败测试锁定“接管后刷新仍保留未发送引用”及“hydrate 已有失败草稿不被引用覆盖”，修复后冻结单一候选并重新交同状态 Chrome SELF。
+- 当前活动项：`M1-F2-D`
+- 下一可见检查点：恢复 writer 已完成 delivered ACK，现以失败测试锁定“接管后刷新仍保留未发送引用”及“hydrate 已有失败草稿不被引用覆盖”；两项 GREEN 后冻结单一候选并重新交同状态 Chrome SELF。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，SKILL `aeb0246b…e7634`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`；worktree 生命周期规则已加载 `main@0cfc0d7` / AGENTS SHA `793edfede970f9a8b4425ed5ddef4c985f4bec9f68085a34de15a61bf4854ab2`。
-- 容量 / READY：root 1/4、可用 3、live 子任务 0、待审 / 待集成候选 WIP 0。`M1-F2-D` 以原 worktree 恢复，ACK 前不标 ACTIVE；`M1-F4-B` 仍是下一可靠性 Goal候选，不抢占当前返修；其余开放包继续保留在 READY 宇宙。
+- 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，installed SKILL `f6c44270…94e93`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`、routing `b6a34bde…40865`；worktree 生命周期规则已加载 `main@0cfc0d7` / AGENTS SHA `793edfede970f9a8b4425ed5ddef4c985f4bec9f68085a34de15a61bf4854ab2`，唯一受影响 writer 已 delivered loaded ACK。
+- 容量 / READY：root + `reader_chat_handoff_recovery` 2/4、可用 2、待审 / 待集成候选 WIP 0。`M1-F2-D` 在原 worktree ACTIVE 返修；`M1-F4-B` 仍是下一可靠性 Goal候选，不抢占当前返修；其余开放包继续保留在 READY 宇宙。
 
 ## 2. 开放工作包
 
@@ -28,7 +28,7 @@
 | `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
 | `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
-| `M1-F2-D` | `RECOVERING / ROOT REVIEW FAIL / ACK PENDING` / 项目总控 | 原WIP 10文件及既有53项定向测试保留；root实际diff审查确认 handoff 在 render 时即 consume 且仅存内存、hydrate 后 `initialDraft` 覆盖服务端失败草稿 | 原 `readchat` worktree 恢复 writer 以两条数据保留 RED 最小返修；不得新建worktree，提交 / 废弃后由总控同事件移除 |
+| `M1-F2-D` | `ACTIVE / RECOVERY WRITER ACKED` / `reader_chat_handoff_recovery` | 原WIP 10文件及既有53项定向测试保留；root实际diff审查确认 handoff 在 render 时即 consume 且仅存内存、hydrate 后 `initialDraft` 覆盖服务端失败草稿 | 同一 `readchat` worktree 以两条数据保留 RED 最小返修；不得新建worktree，提交 / 废弃后由总控同事件移除 |
 | `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
 | `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
 | `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
@@ -141,5 +141,5 @@
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
-- 当前 worktree 共 3 个：main、RECOVERING `readchat` 与唯一 f312；历史脏现场已归档到可恢复 stash / archive branch，全仓 stash 共12条。reviewer / 占位 / 纯消息任务不新建 worktree；`readchat` 集成或废弃后同事件移除，f312仅在唯一 DevTools入口仍需时保留。
+- 当前 worktree 共 3 个：main、ACTIVE `readchat` 与唯一 f312；历史脏现场已归档到可恢复 stash / archive branch，全仓 stash 共12条。reviewer / 占位 / 纯消息任务不新建 worktree；`readchat` 集成或废弃后同事件移除，f312仅在唯一 DevTools入口仍需时保留。
 - main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为 stash `0bc248683594…`，不作为候选或 PASS；6个DOCX / Word锁文件及3组视觉候选目录继续受保护。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
