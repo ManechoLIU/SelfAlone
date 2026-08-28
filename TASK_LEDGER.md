@@ -5,17 +5,17 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 当前活动项：M1-F3B-D、SHARED-WEREAD-API
+- 当前活动项：M1-F3B-D、M1-F4-B、SHARED-WEREAD-API
 - 下一可见检查点：`M1-F3B-D` Server 首个 RED 收敛为范围单一候选；随后顺序进 main 并释放 Desktop 接缝，最终完成 current-main 同账户“书籍引用→明确要求整理→新笔记直接出现在本书笔记区→编辑 / 删除→刷新恢复”真实 Case。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@d6f9def` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次任务边界不变的 writer 未作无关广播，新派 Server 与 Mini 审查须先回精确版本 ACK。
-- 容量 / READY：root + `M1-F3B-D` Server writer + `M2-F4-B` 只读 readiness reviewer + `M1-F4-B` 非作者候选 reviewer 为4/4。`M1-F4-B` 已实际派发并由 `/root/shared_weread_contract` 以delivered checkpoint冻结 `cb2a51e`，owned `cost-ledger-migration.ts/.test.ts`、`cost-ledger-store.ts/.test.ts` 与当前会话Server文件互斥；不再以“下一 Goal”排除。Mini全量重算已派 `M2-F4-B` 无GUI只读合同审查，先锁定首个不依赖AppID / 域名的代码包或精确释放条件；`M2-F2` 仍顺序依赖 `SHARED-WEREAD-API` 与production身份，`M2-F5` 依赖F1～F3，`M2-F6` 依赖Mini会话 / 阅读与Desktop PPT。WeRead合同由同一原writer在成本候选完成集成事件后返回两文件，不建立重复writer。
+- 容量 / READY：root + `M1-F3B-D` Server writer + `M2-F4-B` 只读 readiness reviewer + `M1-F4-B` 原writer REWORK-3为4/4。`M1-F4-B` 已实际派发且文件与当前会话Server互斥；`cb2a51e` 非作者FAIL后定向返原writer，当前待新包delivered ACK，不以“下一 Goal”排除。Mini全量重算已派 `M2-F4-B` 无GUI只读合同审查，先锁定首个不依赖AppID / 域名的代码包或精确释放条件；`M2-F2` 仍顺序依赖 `SHARED-WEREAD-API` 与production身份，`M2-F5` 依赖F1～F3，`M2-F6` 依赖Mini会话 / 阅读与Desktop PPT。WeRead合同由同一原writer在成本候选完成集成事件后返回两文件，不建立重复writer。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
 ## 2. 开放工作包
 
-`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前有1个Server Writer、1个Mini只读readiness reviewer与1个成本非作者reviewer；Note intent领域合同已MAIN PASS，两个只读审查均不占文件所有权。
+`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前有1个Server Writer、1个成本RECOVERING Writer与1个Mini只读readiness reviewer；Note intent领域合同已MAIN PASS，Mini审查不占文件所有权。
 
 | ID | 状态 / owner | 固定边界与当前证据 | 依赖、阻塞与下一步 |
 | --- | --- | --- | --- |
@@ -49,7 +49,7 @@
 | `M1-F3B-D` | `ACTIVE / DOMAIN MAIN PASS / SERVER RED WIP / ACK FOLLOW-UP` / `/root/reader_chat_handoff_recovery` | Note intent领域合同已以 `9e2b9f8+3c580ab+d6f9def` 顺序进main；Domain 10文件51项、全仓102文件665项、typecheck / build / diff-check绿；clean `noteintent` worktree已回收 | Server writer限conversation route / store / composition文件，当前route RED WIP受保护；须补齐新包delivered ACK后从checkpoint继续，闭合同account / book / note归属、保存失败保留与同requestId不重复模型 / 笔记，再交单一候选 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
-| `M1-F4-B` | `VERIFY / CANDIDATE cb2a51e / NONAUTHOR REVIEW ACTIVE` / `/root/cost_candidate_review` | 原writer `/root/shared_weread_contract` delivered checkpoint：clean `cb2a51e`，实际3文件 `+325/-31`；root已审实际diff，定向2文件11项、Server typecheck、diff-check绿，覆盖精确validated约束、旧audit扫描与reservation绑定保护 | 非作者只复核先前4个FAIL反例；PASS即顺序进main并跑相称main回归，FAIL只返原writer同3文件。账户删除归M3，真实付费仍需授权 |
+| `M1-F4-B` | `RECOVERING / CANDIDATE cb2a51e NONAUTHOR FAIL / REWORK-3 ACK PENDING` / `/root/shared_weread_contract` | root实际diff与11项定向/typecheck/diff-check绿；非作者真实PG反例证明既有数据扫描未检查terminal audit完整性，且audit insert的`FOR KEY SHARE`允许并发非键状态更新穿越验证 | 已返原writer同3文件：补合法reserve+terminal历史与缺terminal audit双向测试，改为能序列化状态更新的锁并做并发PG反例；不错误禁止合法历史reserve audit，不扩store.ts / M3 / 付费。新候选再窄复核 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 业务父闭环：书籍 / 会话带上下文→范围 / 需求→大纲 / 模板→生成→可编辑 PPTX 下载 | F4-V1、对话选择、阅读与外部生成边界 |
