@@ -4,8 +4,8 @@
 
 ## 1. 当前控制面
 
-- 当前 Goal：`STAGE-READ-NOTES-V1-J / M1-F2-WEREAD DONE`；Desktop follow-up 候选 `c2c009d` 的3个 Web 文件实际 diff 已审，顺序进入 `main@ff80382`。候选与 current-main Chrome 均通过未连接空态→no-call连接→首次同步失败保留→点击重试→刷新后维持0本成功态，console warn / error 0；同一 `requestId` 复用由实际状态接缝与定向回归共同证明。定向28项、Web全量291项、typecheck / build / visual-contract / diff-check均通过；真实 WeRead Key / H4 仍为独立授权门。父业务闭环 `M1-F2` 保持 `VERIFY`，不以本子包完成冒充 PDF / Mini / 跨端完成。
-- 下一可见检查点：完成 `STAGE-READ-NOTES-V1-J` 系统 Goal 收口后，以独立候选事件审 `M2-F2@e4ed48e` 实际9文件 diff与合同边界，合格才顺序放入唯一 `f312@4cdce97` 做 no-call production接缝 / 失败恢复 Case；AppID / apiBaseUrl / 域名H3只约束依赖的真实外部门。`M1-F4-B@f53c930` 保持 NONAUTHOR FAIL / RECOVERING，不与本候选夹带集成。
+- 当前 Goal：`STAGE-READ-NOTES-V1-K / M2-F2 VERIFY`；系统 Goal 已 active，唯一共同验收是审清 `M2-F2@e4ed48e` 实际9文件候选，合格后顺序放入唯一 `f312@4cdce97`，完成不调用真实微信读书的连接、书架hydrate、失败保留、同requestId重试与刷新恢复真实DevTools Case，再顺序合main并回归。真实WeRead Key / AppID / apiBaseUrl / 域名H3不在本Goal。
+- 下一可见检查点：root先审 `M2-F2@e4ed48e` 实际diff、认证与共享合同边界；PASS才进入唯一f312，FAIL则按精确反例回原包RECOVERING。`M1-F4-B@f53c930` 保持NONAUTHOR FAIL / RECOVERING，唯一f312候选 `4cdce97` 仅作为共享DevTools入口，不整体合main。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。当前 API 的 DeepSeek 配置运行时重绑定仅受 macOS Passwords 本人认证阻塞，不影响 no-call WeRead Goal。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@46ab1fd` 加载当前 AGENTS（SHA-256 `0cf10094…d0d`）；后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为事实源，Web / Mini 前端 Kimi K3 API 项目级路由授权以 `ba3a7af` 为事实源，普通已验证范围单一 `main` 提交的非强制快进 push 授权以 `46ab1fd` 为事实源。已加载 `adaptive-delivery@d89788638d488fbfcc0fa07dab7949f9927d18aa`；installed SKILL / long-task / control-event / lifecycle SHA-256 为 `d3b6b8f1…de73` / `c1427604…bdf7` / `60eb2506…9211` / `30e58775…e69`，agent-model-routing / external-agent-auth仍为 `ac1a7c45…979e` / `8b594297…b4a80`。新门从本事件起以 `control_event_guard.py --repo` 覆盖全部未合入worktree候选；当前无受影响live子任务。下一次真实 Kimi / Grok 调用继续使用最多两张、每张最多三行的外部执行状态卡；已有 ACTIVE / VERIFY / CANDIDATE 不重做或改派。controller生命周期 Hook已完成Trust并实际续作，仍以带repo的control receipt闭合每个候选事件。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
