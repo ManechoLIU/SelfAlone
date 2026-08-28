@@ -78,13 +78,16 @@ Page<LibraryData>({
     void this.loadBooks();
   },
   async loadBooks() {
+    const generation = (this.libraryLoadGeneration ?? 0) + 1;
+    this.libraryLoadGeneration = generation;
     const state = (this.developmentState ?? "normal") as DevelopmentState;
+    const requestedQuery = this.data.query;
     if (state === "loading") {
-      this.present({ phase: "loading", books: [], query: this.data.query, queryApplied: false });
+      this.present({ phase: "loading", books: [], query: requestedQuery, queryApplied: false });
       wx.stopPullDownRefresh();
       return;
     }
-    if (!this.data.books.length) this.present({ phase: "loading", books: [], query: this.data.query, queryApplied: false });
+    if (!this.data.books.length) this.present({ phase: "loading", books: [], query: requestedQuery, queryApplied: false });
     let recoveryBooks = this.data.books;
     try {
       const app = getApp<MiniappApp>();
@@ -92,14 +95,16 @@ Page<LibraryData>({
       if (state === "failed" && !recoveryBooks.length && app.globalData.developmentAdapter) {
         recoveryBooks = await client.listBooks({ query: "", state: "normal" });
       }
-      const query = state === "filtered-empty" ? "无匹配书名" : this.data.query;
+      const query = state === "filtered-empty" ? "无匹配书名" : requestedQuery;
       const request = app.globalData.developmentAdapter ? { query, state } : { query };
       const books = await client.listBooks(request);
+      if (this.isUnloaded || generation !== this.libraryLoadGeneration) return;
       this.present({ phase: "ready", books, query, queryApplied: true });
       this.setData({ notice: "" });
     } catch (error) {
+      if (this.isUnloaded || generation !== this.libraryLoadGeneration) return;
       const recovered = preserveLibraryOnFailure(
-        { books: recoveryBooks, query: this.data.query, queryApplied: this.data.queryApplied },
+        { books: recoveryBooks, query: requestedQuery, queryApplied: this.data.queryApplied },
         readableError(error),
       );
       this.present(recovered);
@@ -137,9 +142,11 @@ Page<LibraryData>({
       phase: this.data.phase,
       books: this.data.books,
       query,
-      queryApplied: false,
+      // Keep the cached shelf visible while the server applies the new query.
+      queryApplied: true,
       error: this.data.error,
     });
+    return this.loadBooks();
   },
   clearSearch() {
     this.present({ phase: "ready", books: this.data.books, query: "", queryApplied: false });

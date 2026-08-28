@@ -159,4 +159,77 @@ describe("Library initial load failure", () => {
     expect(page.data.books).toEqual([expect.objectContaining({ id: "known-book" })]);
     expect(showModal).toHaveBeenCalledWith(expect.objectContaining({ title: "导入未完成" }));
   });
+
+  it("sends the query from the real search event and preserves the shelf when the request fails", async () => {
+    const listBooks = vi.fn(async (input: { query: string }) => {
+      expect(input).toEqual({ query: "真实搜索" });
+      throw new Error("搜索服务暂时不可用");
+    });
+    vi.stubGlobal("getApp", () => ({ globalData: { client: { listBooks }, developmentAdapter: false } }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+    page.data.queryApplied = true;
+    page.data.books = [{
+      id: "cached-book",
+      title: "未包含搜索词的缓存书",
+      source: "local",
+      sourceLabel: "本地",
+      format: "txt",
+      progress: 0.4,
+      coverVariant: 0,
+    }];
+
+    await page.onSearch({ detail: { value: "真实搜索" }, currentTarget: { dataset: {} } });
+
+    expect(listBooks).toHaveBeenCalledWith({ query: "真实搜索" });
+    expect(page.data).toMatchObject({
+      phase: "ready",
+      kind: "content",
+      query: "真实搜索",
+      queryApplied: true,
+      notice: "搜索服务暂时不可用",
+    });
+    expect(page.data.books).toEqual([expect.objectContaining({ id: "cached-book" })]);
+  });
+
+  it("does not let an older search response overwrite the latest query", async () => {
+    const deferred = new Map<string, { resolve: (books: any[]) => void }>();
+    const listBooks = vi.fn((input: { query: string }) => new Promise<any[]>((resolve) => {
+      deferred.set(input.query, { resolve });
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: { client: { listBooks }, developmentAdapter: false } }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+    page.data.books = [];
+
+    const firstSearch = page.onSearch({ detail: { value: "先搜" }, currentTarget: { dataset: {} } });
+    const secondSearch = page.onSearch({ detail: { value: "后搜" }, currentTarget: { dataset: {} } });
+    deferred.get("先搜")?.resolve([{
+      id: "stale-book",
+      title: "旧结果",
+      source: "local",
+      sourceLabel: "本地",
+      format: "txt",
+      progress: 0,
+      coverVariant: 0,
+    }]);
+    deferred.get("后搜")?.resolve([{
+      id: "current-book",
+      title: "新结果",
+      source: "local",
+      sourceLabel: "本地",
+      format: "txt",
+      progress: 0,
+      coverVariant: 0,
+    }]);
+
+    await Promise.all([firstSearch, secondSearch]);
+
+    expect(listBooks).toHaveBeenNthCalledWith(1, { query: "先搜" });
+    expect(listBooks).toHaveBeenNthCalledWith(2, { query: "后搜" });
+    expect(page.data).toMatchObject({ query: "后搜", queryApplied: true, kind: "content" });
+    expect(page.data.books).toEqual([expect.objectContaining({ id: "current-book" })]);
+  });
 });
