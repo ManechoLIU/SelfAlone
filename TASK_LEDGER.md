@@ -5,15 +5,15 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；Desktop TXT / EPUB 选中正文经现有“和老己聊聊”带入当前会话可编辑草稿，不自动发送；发送、失败保留 / 重试与刷新恢复复用已稳定真实会话能力。PDF、Mini、PPT、图片、视觉重设计与成本系统不在本 Goal。
-- 当前活动项：`M1-F2-D`
-- 下一可见检查点：隔离登录 / TXT+EPUB导入 / 当前会话 / Reader工具栏已到达；用精确 Range 复验完整 quote 预填、0 auto-send与刷新不重复后冻结候选。
+- 当前活动项：无
+- 下一可见检查点：作者WIP已保留；一次性只读非作者 reviewer 先补齐 delivered ACK，再以精确 Range 审实际 diff / Chrome Case并给PASS或代码反例。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，SKILL `aeb0246b…e7634`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`。
-- 容量 / READY：root + 1 个 ACTIVE writer 共 2/4、可用 2、live 子任务 1、待审 / 待集成候选 WIP 0。`M1-F2-D` 正在 SELF；`M1-F4-B` 只读诊断为 READY，但属于下一可靠性 Goal且与当前唯一共同验收无关，不抢占本 Goal核心线；其余开放包继续保留在 READY 宇宙。
+- 容量 / READY：root + 1 个 ACK PENDING reviewer 共 2/4、可用 2、live 子任务 1、待审 / 待集成候选 WIP 1。`M1-F2-D` 正在 RECOVERING；`M1-F4-B` 仍是下一可靠性 Goal候选，不抢占当前复验；其余开放包继续保留在 READY 宇宙。
 
 ## 2. 开放工作包
 
-`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前有 1 个 `ACTIVE`，没有 `RECOVERING`。
+`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前没有 `ACTIVE`，有 1 个 `RECOVERING`。
 
 | ID | 状态 / owner | 固定边界与当前证据 | 依赖、阻塞与下一步 |
 | --- | --- | --- | --- |
@@ -28,7 +28,7 @@
 | `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
 | `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
-| `M1-F2-D` | `ACTIVE / CODE CHECKS PASS / SELF RETRY` / `/root/reader_chat_handoff_recovery` | handoff 53、Web259、typecheck / diff-check PASS；隔离登录、双格式导入、当前会话与工具栏已达 | 首次CUA拖选只得到“亭中只”，属输入不精确而非代码verdict；精确Range复验，不扩代码，随后build / visual-contract与候选 |
+| `M1-F2-D` | `RECOVERING / NONAUTHOR ACK PENDING` / `/root/reader_chat_handoff_nonauthor` | 作者WIP 10文件与测试 / 环境 checkpoint完整；精确Range复验连续无回执后回收 `previous_status=running` | reviewer不得写；审实际diff与同一隔离Chrome，PASS后root冻结候选，FAIL返回原范围修复 |
 | `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
 | `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
 | `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
