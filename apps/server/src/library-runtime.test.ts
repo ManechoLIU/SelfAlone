@@ -5,7 +5,7 @@ import { join } from "node:path";
 import postgres, { type Sql, type TransactionSql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app";
-import { createLibraryRuntime, type LibraryRuntime } from "./library-runtime";
+import { createLibraryRuntime, LibraryRuntime } from "./library-runtime";
 
 const baseDatabaseUrl =
   process.env.DATABASE_URL ?? "postgres://selfalone:selfalone@127.0.0.1:55432/selfalone";
@@ -408,6 +408,101 @@ describe("M1-F2-A local library runtime", () => {
     `);
     const invalid = await restoredRuntime.getBook("account-a", imported.id);
     expect(invalid.progressPercent).toBe(0);
+
+    await administration.unsafe(`
+      UPDATE "${schema}".book_sections
+      SET body = CASE section_id
+        WHEN 'txt:00000000' THEN 'a😀b'
+        ELSE ''
+      END
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}' AND file_version = 1;
+      UPDATE "${schema}".reading_positions
+      SET locator = '{"kind":"text","fileVersion":1,"sectionId":"txt:00000000","offset":3}'
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    const emojiMiddle = await restoredRuntime.getBook("account-a", imported.id);
+    expect(emojiMiddle.progressPercent).toBe(75);
+
+    await administration.unsafe(`
+      UPDATE "${schema}".reading_positions
+      SET locator = '{"kind":"text","fileVersion":1,"sectionId":"txt:00000000","offset":4}'
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    const emojiEnd = await restoredRuntime.getBook("account-a", imported.id);
+    expect(emojiEnd.progressPercent).toBe(100);
+
+    await administration.unsafe(`
+      UPDATE "${schema}".reading_positions
+      SET locator = '{"kind":"text","fileVersion":1,"sectionId":"txt:00000000","offset":5}'
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    const emojiOverflow = await restoredRuntime.getBook("account-a", imported.id);
+    expect(emojiOverflow.progressPercent).toBe(0);
+  });
+
+  it("batches current files, sections and positions for a multi-book shelf", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-progress-batch-"));
+    objectDirectories.push(objectDirectory);
+    const queries: string[] = [];
+    const sql = postgres(isolatedUrl.toString(), {
+      max: 4,
+      debug: (_connection, query) => queries.push(query),
+    });
+    const runtime = new LibraryRuntime(
+      sql,
+      objectDirectory,
+      0,
+      createProgressTextPublisher(),
+    );
+    await runtime.initialize();
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at) VALUES ('account-a', now())
+    `);
+
+    const imported = await Promise.all(
+      Array.from({ length: 10 }, (_, index) => runtime.importBook(
+        "account-a",
+        `进度书-${index}.txt`,
+        Buffer.from(`正文 fixture ${index}`),
+      )),
+    );
+    await Promise.all(imported.map((book) => eventually(
+      () => runtime.getBook("account-a", book.id),
+      (book) => book.parseStatus === "ready_text",
+    )));
+    const positionedBook = imported[0];
+    if (!positionedBook) throw new Error("EXPECTED_BOOK_FIXTURE");
+    await administration.unsafe(`
+      INSERT INTO "${schema}".reading_positions (
+        account_id, book_id, locator, background, version
+      ) VALUES (
+        'account-a', '${positionedBook.id}',
+        '{"kind":"text","fileVersion":1,"sectionId":"txt:00000004","offset":0}',
+        'light', 1
+      )
+    `);
+    queries.length = 0;
+
+    const books = await runtime.listBooks("account-a");
+    expect(books).toHaveLength(10);
+    expect(books.find((book) => book.id === positionedBook.id)?.progressPercent).toBe(67);
+    expect(books.filter((book) => book.id !== positionedBook.id).every((book) => book.progressPercent === 0)).toBe(true);
+    expect(queries).toHaveLength(5);
+    expect(queries.filter((query) => /SELECT book_id AS "bookId", max\(version\)/.test(query))).toHaveLength(1);
+    const sectionQueries = queries.filter((query) => /section_id AS "sectionId"/.test(query));
+    expect(sectionQueries).toHaveLength(1);
+    expect(sectionQueries[0]).toContain("char_length(section.body)");
+    expect(sectionQueries[0]).toContain("regexp_count(section.body");
+    expect(sectionQueries[0]).not.toContain("section.body AS text");
+    expect(queries.filter((query) => /SELECT book_id AS "bookId", locator/.test(query))).toHaveLength(1);
+    expect(queries.filter((query) => /ANY/.test(query))).toHaveLength(3);
   });
 
   it("rejects unsupported files before creating a library record", async () => {

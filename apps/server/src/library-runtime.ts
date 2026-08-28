@@ -11,8 +11,15 @@ export type LibraryBook = LibraryBookSummary;
 type BookRow = Omit<LibraryBook, "sourceLabel" | "createdAt" | "progressPercent"> & { createdAt: Date };
 
 type ProgressSectionRow = {
+  bookId: string;
+  fileVersion: number;
   sectionId: string;
   length: number;
+};
+
+type ProgressFileRow = {
+  bookId: string;
+  fileVersion: number;
 };
 
 type StoredPositionRow = {
@@ -186,10 +193,8 @@ export class LibraryRuntime {
         AND (${query.trim()} = '' OR book.title ILIKE ${search} OR coalesce(book.author, '') ILIKE ${search})
       ORDER BY book.created_at DESC, book.id DESC
     `;
-    return Promise.all(rows.map(async (row) => bookSummary(
-      row,
-      await this.readingProgress(accountId, row.id, row.parseStatus),
-    )));
+    const progress = await this.readingProgress(accountId, rows);
+    return rows.map((row) => bookSummary(row, progress.get(row.id) ?? null));
   }
 
   async getBook(accountId: string, bookId: string): Promise<LibraryBook> {
@@ -204,61 +209,109 @@ export class LibraryRuntime {
         )
     `;
     if (!row) throw new Error("BOOK_NOT_FOUND");
-    return bookSummary(row, await this.readingProgress(accountId, row.id, row.parseStatus));
+    const progress = await this.readingProgress(accountId, [row]);
+    return bookSummary(row, progress.get(row.id) ?? null);
   }
 
   private async readingProgress(
     accountId: string,
-    bookId: string,
-    parseStatus: LibraryBook["parseStatus"],
-  ): Promise<number | null> {
-    if (parseStatus !== "ready_text") return null;
+    books: Array<Pick<BookRow, "id" | "parseStatus">>,
+  ): Promise<Map<string, number | null>> {
+    const progress = new Map<string, number | null>(
+      books.map((book) => [book.id, book.parseStatus === "ready_text" ? 0 : null]),
+    );
+    const readyBookIds = books
+      .filter((book) => book.parseStatus === "ready_text")
+      .map((book) => book.id);
+    if (readyBookIds.length === 0) return progress;
 
-    const [file] = await this.sql<Array<{ fileVersion: number }>>`
-      SELECT version AS "fileVersion"
+    const files = await this.sql<Array<ProgressFileRow>>`
+      SELECT book_id AS "bookId", max(version)::integer AS "fileVersion"
       FROM book_files
-      WHERE account_id = ${accountId} AND book_id = ${bookId}
-      ORDER BY version DESC
-      LIMIT 1
+      WHERE account_id = ${accountId} AND book_id = ANY(${this.sql.array(readyBookIds)})
+      GROUP BY book_id
     `;
-    if (!file || !Number.isSafeInteger(file.fileVersion) || file.fileVersion <= 0) return 0;
-
+    // TextLocator offsets are JavaScript UTF-16 code units. PostgreSQL char_length counts
+    // code points, so add one unit for every non-BMP code point without returning body text.
     const sections = await this.sql<Array<ProgressSectionRow>>`
-      SELECT section_id AS "sectionId", char_length(body)::integer AS length
-      FROM book_sections
-      WHERE account_id = ${accountId} AND book_id = ${bookId}
-        AND file_version = ${file.fileVersion}
-      ORDER BY section_order ASC
+      WITH current_files AS (
+        SELECT book_id, max(version)::integer AS file_version
+        FROM book_files
+        WHERE account_id = ${accountId} AND book_id = ANY(${this.sql.array(readyBookIds)})
+        GROUP BY book_id
+      )
+      SELECT section.book_id AS "bookId", section.file_version AS "fileVersion",
+             section.section_id AS "sectionId",
+             (
+               char_length(section.body)
+               + regexp_count(section.body, U&'[\\+010000-\\+10FFFF]')
+             )::integer AS length
+      FROM book_sections AS section
+      JOIN current_files AS file
+        ON file.book_id = section.book_id AND file.file_version = section.file_version
+      WHERE section.account_id = ${accountId}
+      ORDER BY section.book_id ASC, section.section_order ASC
     `;
-    const [position] = await this.sql<Array<StoredPositionRow>>`
-      SELECT locator
+    const positions = await this.sql<Array<StoredPositionRow & { bookId: string }>>`
+      SELECT book_id AS "bookId", locator
       FROM reading_positions
-      WHERE account_id = ${accountId} AND book_id = ${bookId}
+      WHERE account_id = ${accountId} AND book_id = ANY(${this.sql.array(readyBookIds)})
     `;
-    const locator = storedTextLocator(position?.locator);
-    if (!locator || locator.fileVersion !== file.fileVersion) return 0;
 
-    let precedingLength = 0;
-    let currentSection: ProgressSectionRow | undefined;
+    const fileByBook = new Map(files.map((file) => [file.bookId, file]));
+    const sectionsByBook = new Map<string, ProgressSectionRow[]>();
     for (const section of sections) {
-      if (section.sectionId === locator.sectionId) {
-        currentSection = section;
-        break;
-      }
-      precedingLength += section.length;
+      const bookSections = sectionsByBook.get(section.bookId) ?? [];
+      bookSections.push(section);
+      sectionsByBook.set(section.bookId, bookSections);
     }
-    if (
-      !currentSection
-      || !Number.isSafeInteger(currentSection.length)
-      || currentSection.length < 0
-      || locator.offset > currentSection.length
-    ) return 0;
+    const positionByBook = new Map(positions.map((position) => [position.bookId, position]));
 
-    const totalLength = sections.reduce((total, section) => total + section.length, 0);
-    if (!Number.isSafeInteger(totalLength) || totalLength <= 0) return 0;
+    for (const bookId of readyBookIds) {
+      const file = fileByBook.get(bookId);
+      const bookSections = file
+        ? (sectionsByBook.get(bookId) ?? []).filter((section) => section.fileVersion === file.fileVersion)
+        : [];
+      const locator = storedTextLocator(positionByBook.get(bookId)?.locator);
+      if (!file || !Number.isSafeInteger(file.fileVersion) || file.fileVersion <= 0) {
+        progress.set(bookId, 0);
+        continue;
+      }
+      if (!locator || locator.fileVersion !== file.fileVersion) {
+        progress.set(bookId, 0);
+        continue;
+      }
 
-    const rounded = Math.round(((precedingLength + locator.offset) * 100) / totalLength);
-    return Math.max(0, Math.min(100, rounded));
+      let precedingLength = 0;
+      let currentSection: ProgressSectionRow | undefined;
+      let invalidSection = false;
+      for (const section of bookSections) {
+        if (!Number.isSafeInteger(section.length) || section.length < 0) {
+          invalidSection = true;
+          break;
+        }
+        if (section.sectionId === locator.sectionId) {
+          currentSection = section;
+          break;
+        }
+        precedingLength += section.length;
+      }
+      if (invalidSection || !currentSection || locator.offset > currentSection.length) {
+        progress.set(bookId, 0);
+        continue;
+      }
+
+      const totalLength = bookSections.reduce((total, section) => total + section.length, 0);
+      if (!Number.isSafeInteger(totalLength) || totalLength <= 0) {
+        progress.set(bookId, 0);
+        continue;
+      }
+
+      // The contract exposes whole percentages; Math.round gives nearest integer, ties up.
+      const rounded = Math.round(((precedingLength + locator.offset) * 100) / totalLength);
+      progress.set(bookId, Math.max(0, Math.min(100, rounded)));
+    }
+    return progress;
   }
 
   async importBook(accountId: string, originalFilename: string, bytes: Buffer) {
