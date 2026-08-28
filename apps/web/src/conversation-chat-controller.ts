@@ -48,7 +48,7 @@ export function createConversationChatController(
   let localEpoch = initialDraft ? 1 : 0;
   let hydrateGeneration = 0;
   let initialDraftPending = Boolean(initialDraft);
-  let handoffDraftActive = Boolean(initialDraft);
+  let handoffDraftActive = Boolean(initialDraft) || Boolean(options.onDraftChange);
   let retryNoteIntentText: string | null = null;
   let retryNoteIntent: ConversationNoteIntent | undefined;
 

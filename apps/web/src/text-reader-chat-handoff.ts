@@ -162,6 +162,31 @@ function isNegatedNoteRequest(draft: string, phraseStart: number) {
   return /(?:不要|别|勿|无需|不必|不需要|不想|不用|不)(?:[\s\u3000]*|[^，。！？!?\n]{0,8})$/.test(prefix);
 }
 
+type TextReaderChatHandoffDraftStore = {
+  draftFor(conversationId: string): string | null;
+  updateDraft(conversationId: string, draft: string): boolean;
+  complete(conversationId: string): boolean;
+};
+
+export function resolveTextReaderChatDraftAfterSend(
+  store: TextReaderChatHandoffDraftStore,
+  conversationId: string,
+  fallbackDraft: string,
+  sentText: string,
+  noteIntent?: ConversationNoteIntent,
+) {
+  const currentDraft = store.draftFor(conversationId) ?? fallbackDraft;
+  if (noteIntent?.kind === "create") {
+    store.complete(conversationId);
+    return undefined;
+  }
+  if (sentText === currentDraft) {
+    store.updateDraft(conversationId, "");
+    return "";
+  }
+  return currentDraft;
+}
+
 export function chooseConversationForTextReaderHandoff(
   sessions: readonly ConversationChatSession[],
   currentConversationId: string | null,

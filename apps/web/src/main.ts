@@ -87,6 +87,7 @@ import {
   deriveTextReaderChatNoteIntent,
   formatTextReaderChatDraft,
   getTextReaderChatHandoffStore,
+  resolveTextReaderChatDraftAfterSend,
   type TextReaderChatHandoff,
 } from "./text-reader-chat-handoff";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
@@ -1166,14 +1167,13 @@ function renderConversationChat(session: ConversationChatSession) {
       ? (draft) => { handoffStore.updateDraft(session.id, draft); }
       : undefined,
     onDraftCommit: claimedHandoff && handoffStore
-      ? (sentText, noteIntent) => {
-          const currentDraft = handoffStore.draftFor(session.id) ?? claimedHandoff.draft;
-          if (noteIntent?.kind === "create" || sentText === currentDraft) {
-            handoffStore.complete(session.id);
-            return undefined;
-          }
-          return currentDraft;
-        }
+      ? (sentText, noteIntent) => resolveTextReaderChatDraftAfterSend(
+          handoffStore,
+          session.id,
+          claimedHandoff.draft,
+          sentText,
+          noteIntent,
+        )
       : undefined,
   });
   conversationChatCleanup = mountConversationChatView(mainMount, null, controller, {

@@ -4,6 +4,7 @@ import {
   createTextReaderChatHandoffStore,
   deriveTextReaderChatNoteIntent,
   formatTextReaderChatDraft,
+  resolveTextReaderChatDraftAfterSend,
   type TextReaderChatHandoff,
 } from "./text-reader-chat-handoff";
 import { createConversationChatController } from "./conversation-chat-controller";
@@ -252,6 +253,106 @@ describe("text reader chat handoff", () => {
       },
     });
     expect(store.active()).toBeNull();
+  });
+
+  it("keeps handoff context after an ordinary success so a refreshed conversation can create a note", async () => {
+    const persisted = storage();
+    const first = createTextReaderChatHandoffStore("account-a", persisted);
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const ordinaryDraft = `${handoffDraft}请解释这段话`;
+    first.publish(handoff);
+    first.claim("conversation-a", ordinaryDraft);
+
+    const ordinaryController = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: ordinaryDraft,
+      onDraftChange: (draft) => { first.updateDraft("conversation-a", draft); },
+      onDraftCommit: (sentText, noteIntent) => resolveTextReaderChatDraftAfterSend(
+        first,
+        "conversation-a",
+        ordinaryDraft,
+        sentText,
+        noteIntent,
+      ),
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return session("conversation-a");
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+          return {
+            status: "completed",
+            session: sessionWithRetryResult(input.text, input.requestId ?? "ordinary-request"),
+            reply: "已收到。",
+          };
+        },
+      },
+    });
+
+    await ordinaryController.hydrate();
+    await ordinaryController.send();
+
+    expect(ordinaryController.getState().draft).toBe("");
+    expect(first.active()).toMatchObject({ handoff, conversationId: "conversation-a", draft: "" });
+
+    const refreshed = createTextReaderChatHandoffStore("account-a", persisted);
+    expect(refreshed.active()).toMatchObject({ handoff, conversationId: "conversation-a", draft: "" });
+    const requests: Array<{ requestId?: string; text: string; noteIntent?: ConversationNoteIntent }> = [];
+    const followup = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: refreshed.draftFor("conversation-a") ?? undefined,
+      noteIntentFactory: (text) => deriveTextReaderChatNoteIntent(handoff, text),
+      onDraftChange: (draft) => { refreshed.updateDraft("conversation-a", draft); },
+      onDraftCommit: (sentText, noteIntent) => resolveTextReaderChatDraftAfterSend(
+        refreshed,
+        "conversation-a",
+        "",
+        sentText,
+        noteIntent,
+      ),
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return session("conversation-a");
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string; noteIntent?: ConversationNoteIntent }): Promise<ConversationChatSendResult> {
+          requests.push({ ...input });
+          return {
+            status: "completed",
+            session: sessionWithRetryResult(input.text, input.requestId ?? "note-request"),
+            reply: "已整理。",
+          };
+        },
+      },
+      requestIdFactory: () => "note-request",
+    });
+
+    await followup.hydrate();
+    expect(followup.getState().draft).toBe("");
+    expect(requests).toHaveLength(0);
+
+    followup.setDraft("整理成笔记");
+    expect(requests).toHaveLength(0);
+    expect(refreshed.draftFor("conversation-a")).toBe("整理成笔记");
+    await followup.send();
+
+    expect(requests[0]).toMatchObject({
+      requestId: "note-request",
+      text: "整理成笔记",
+      noteIntent: {
+        kind: "create",
+        bookId: handoff.bookId,
+        source: {
+          locator: {
+            kind: "text",
+            fileVersion: handoff.location.fileVersion,
+            sectionId: handoff.location.sectionId,
+            offset: handoff.location.start,
+          },
+          endOffset: handoff.location.end,
+          quote: handoff.quote,
+        },
+      },
+    });
+    expect(refreshed.active()).toBeNull();
   });
 
   it("keeps the Reader handoff when a server retry draft is hydrated and sent", async () => {
