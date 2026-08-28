@@ -9,7 +9,7 @@
 - 下一可见检查点：完成 current-main 同账户“书籍引用→明确要求整理→新笔记直接出现在本书笔记区→编辑 / 删除→刷新恢复”的首个真实 Case；先由只读诊断锁定现状、首个 RED 与共享合同 / Server / Desktop 互斥文件边界，再释放唯一 writer。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@95f782f` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次业务父项展示与状态回写不改变两名 live writer 的文件边界或停止条件，未作无关广播。
-- 容量 / READY：root + `M1-F3B-D` contract/domain writer + `SHARED-WEREAD-API` contract writer为3/4，1槽可用；两项均已完整 delivered ACK，文件互斥（contracts index仅前者，WeRead只写两新文件）。成本4文件WIP保留但三个恢复通道未给字段级writer ACK，等待首个可靠Agent释放后从checkpoint补派，不准提交或扩写。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead API 与 production身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini会话 / 阅读与Desktop PPT；AppID / GUI / 域名仅阻塞其真实端门，不用“下一 Goal”排除项目级 READY。
+- 容量 / READY：root + `M1-F3B-D` contract/domain writer + `SHARED-WEREAD-API` contract writer为3/4，1槽可用；两项均已完整 delivered ACK，文件互斥（contracts index仅前者，WeRead只写两新文件）。成本4文件WIP保留；`/root/cost_ledger_recovery2` 两次恢复回合仍只宣称ACK而未交必需字段，任务已结束且不标ACTIVE，待两名可靠writer首个释放后从checkpoint补派，不准提交或扩写。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead API 与 production身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini会话 / 阅读与Desktop PPT；AppID / GUI / 域名仅阻塞其真实端门，不用“下一 Goal”排除项目级 READY。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -49,7 +49,7 @@
 | `M1-F3B-D` | `ACTIVE / CONTRACT-DOMAIN WRITER / DELIVERED ACK` / `/root/reader_chat_handoff_recovery` | 当前 Goal 的业务包：书籍引用对话→明确请求后直接新增无标题老己笔记；仅明确引用已有笔记时定向修改，并覆盖查看 / 编辑 / 删除 / 刷新与失败保留 | 诊断已证明现状只发聊天文本、Server不调用note CRUD；首包仅3文件冻结create / explicit-update、book / source、requestId幂等、失败可重试operation与旧hydration兼容。candidate→root审→main后顺序释放Server包，禁止下游猜字段 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
-| `M1-F4-B` | `RECOVERING / CANDIDATE 695f6b0 + UNCOMMITTED MIGRATION CHECKPOINT / NONAUTHOR NO-GO` / `/root/cost_candidate_review` | 4文件范围；原定向5项、Server158项、typecheck、diff-check绿，但非作者真实探针发现部分同名表可误标迁移、TRUNCATE可清审计、audit operation / 金额可与 reservation 不一致、settled 后 release 终态不对称 | 前两次 recovery handshake 未交字段级 ACK并留下仅 migration.ts 的WIP；现由原 reviewer切换为writer承接 checkpoint，完整writer ACK前不得写。实施后其不再具备最终非作者身份，候选须另派窄复核；账户删除归M3，真实付费仍需授权 |
+| `M1-F4-B` | `RECOVERING / CANDIDATE 695f6b0 + PROTECTED 4-FILE WIP / NONAUTHOR NO-GO` / 无合格live owner | 4文件恢复点约 `+285/-10`；非作者真实探针发现部分同名表可误标迁移、TRUNCATE可清审计、audit operation / 金额可与 reservation 不一致、settled 后 release 终态不对称；最近RED为PostgreSQL `status IN`约束规范化 | 本轮恢复任务两次未交字段级writer ACK，未获写权且已结束；等待当前可靠writer首个释放后补派同一worktree / 4文件，先读WIP再恢复。候选须另派窄复核；账户删除归M3，真实付费仍需授权 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 业务父闭环：书籍 / 会话带上下文→范围 / 需求→大纲 / 模板→生成→可编辑 PPTX 下载 | F4-V1、对话选择、阅读与外部生成边界 |
