@@ -6,10 +6,10 @@
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；Desktop TXT / EPUB 选中正文经现有“和老己聊聊”带入当前会话可编辑草稿，不自动发送；发送、失败保留 / 重试与刷新恢复复用已稳定真实会话能力。PDF、Mini、PPT、图片、视觉重设计与成本系统不在本 Goal。
 - 当前活动项：`M1-F2-D`
-- 下一可见检查点：代码定向55项已GREEN；隔离Chrome已到EPUB正文且CDP Range文本精确，但真实Selection为空、入口仍hidden。writer仅再用真实指针/键盘选择复验并完成Web回归；仍不可达则冻结“代码候选 / SELF未决”交root真实GUI恢复。
+- 下一可见检查点：readchat `b6dd837` 经root实际diff审查为REWORK；原writer已ACK“服务端retry成功后不得丢Reader引用”与账户A/B storage隔离两条RED，修复冻结新候选后由root续做真实GUI Selection→chat Case。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，installed SKILL `f6c44270…94e93`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`、routing `b6a34bde…40865`；worktree 生命周期规则已加载 `main@0cfc0d7` / AGENTS SHA `793edfede970f9a8b4425ed5ddef4c985f4bec9f68085a34de15a61bf4854ab2`，唯一受影响 writer 已 delivered loaded ACK。
-- 容量 / READY：root + `reader_chat_handoff_recovery` 2/4、可用 2、待审 / 待集成候选 WIP 0。`M1-F2-D` 在原 worktree ACTIVE 返修；`M1-F4-B` 仍是下一可靠性 Goal候选，不抢占当前返修；其余开放包继续保留在 READY 宇宙。
+- 容量 / READY：root + `reader_chat_handoff_recovery` ACTIVE + `mini_library_runtime_rework` ACK RECOVERING 为3/4，名义可用1；`M1-F4-B` 已派但因ACK前4文件RED WIP暂停，当前 `agent thread limit reached`，任一子任务线程释放后补ACK恢复。Mini旧候选已rebase为 `813b703` 但ACK未先送达，现暂停补闭合；其余开放包继续保留在READY宇宙。
 
 ## 2. 开放工作包
 
@@ -28,7 +28,7 @@
 | `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
 | `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
-| `M1-F2-D` | `ACTIVE / CODE GREEN / SELF RECOVERING` / `reader_chat_handoff_recovery` | 定向5文件55项PASS；隔离Chrome登录、EPUB与精确Range文本可达，console / network无异常，但真实Selection为空且“和老己聊聊”仍hidden | 不改代码，限一次真实指针 / 键盘选择恢复并完成Web回归；仍不可达则候选标SELF未决，提交 / 废弃后由总控同事件移除worktree |
+| `M1-F2-D` | `ACTIVE / CANDIDATE b6dd837 ROOT REWORK` / `reader_chat_handoff_recovery` | 34文件261项/typecheck/build/visual-contract绿；SELF仅到EPUB精确Range，真实Selection未成立；root发现服务端retry成功会清掉未发送引用且storage无账户隔离 | 原writer已ACK两条RED并在同一worktree返修；新候选仍只可标ROOT SELF未决，提交 / 废弃后由总控同事件移除worktree |
 | `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
 | `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
 | `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
@@ -47,7 +47,7 @@
 | `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话与明确请求后的AI笔记新增 / 定向修改 | 依赖 A 与 M1-F2-D；失败不得丢讨论和笔记内容 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 免费体验与成本父闭环 | A已完成；B / C / V1未开始 |
-| `M1-F4-B` | `PENDING` / 待分配 | 成本预占、结算、释放、审计与账户累计¥5硬上限 | 依赖平台适配器；先以确定性适配器验证，真实费用需授权 |
+| `M1-F4-B` | `RECOVERING / ACK INCOMPLETE / RED WIP PROTECTED` / `m1_f4b_cost_ledger` | 与readchat/Mini文件和环境无冲突；隔离worktree已有4个owned成本账本RED文件，因ACK前写入已暂停，不丢弃checkpoint | 当前平台 `agent thread limit reached`；任一live子任务释放后先补全delivered ACK，再从WIP完成确定性适配器，真实费用仍需授权 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 桌面 PPT 与真实可编辑 PPTX 父闭环 | F4-V1、对话选择、阅读与外部生成边界 |
@@ -79,7 +79,7 @@
 | `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY AUTH BLOCKED` | 统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实接线依赖M2-F1；不返工已通过Reader |
-| `M2-F4-A` | `BLOCKED / CANDIDATE 20d61d6 / PRIVATE CONTRACT` | GET query、octet-stream import、映射与失败关闭合同冻结，未接page / runtime | 唤醒：Mini session bridge与runtime transport进入main；再派新writer走唯一f312 |
+| `M2-F4-A` | `RECOVERING / 813b703 REBASED / ACK VIOLATION PAUSED` / `mini_library_runtime_rework` | 20d61d6 actual-diff确认GET/import方向可复用，但缺app composition、动态Bearer/401清理、wx transport，且把服务端progressPercent误读为progress；writer在ACK前仅完成clean rebase | 不依赖AppID/GUI；先补全delivered ACK再从clean 813b703补runtime、query与current-main测试，之后由root顺序放唯一f312 |
 | `M2-F4-B` | `PENDING` / 待分配 | 连续正文、目录 / 设置 / 操作层、笔记与跨端位置恢复 | 依赖B / C / D / E内容合同及真实身份；四宽、键盘、安全区 |
 | `M2-F5` | `PENDING` / 待分配 | 账户、模型与退出的Mini端闭环 | 微信读书消费已归 `M2-F2`；其余依赖M2-F1～F3，高风险流程按场景细拆 |
 | `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
@@ -141,5 +141,5 @@
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
-- 当前 worktree 共 3 个：main、ACTIVE `readchat` 与唯一 f312；历史脏现场已归档到可恢复 stash / archive branch，全仓 stash 共12条。reviewer / 占位 / 纯消息任务不新建 worktree；`readchat` 集成或废弃后同事件移除，f312仅在唯一 DevTools入口仍需时保留。
+- 当前 worktree 共5个：main、唯一f312、ACTIVE `readchat`、ACK PENDING `mini-library` 与RECOVERING `quota-cost`；新增两者都是真实隔离writer现场，不为reviewer / 占位 / 消息任务建树。候选合入或废弃后由总控同事件移除对应clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
 - main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为稳定 stash 对象 `0bc24868359483fe7d52f9061d76b9f7d81a7000`，标题 `archive: unresolved mini conversation test WIP 2026-08-28`；不记录可变序号，不作为候选或 PASS。redesign-v2 顶层3份重复DOCX与3个Word锁文件已移至可恢复废纸篓 `/Users/echoman/.Trash/SelfAlone-redesign-duplicates-20260828-Uxchkc`，原文逐字节SHA与 `raw_sources/context-governance/` 对应文件一致；main 仅余4个未跟踪视觉候选路径，继续受保护且不得作为运行时资产或PASS。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
