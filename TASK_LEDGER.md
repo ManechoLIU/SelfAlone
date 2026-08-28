@@ -5,10 +5,10 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` 上游候选 `ff6d55f` 已由root与非作者复核判定FAIL；返工 Writer `M1-F3B-D-IDEMP-REWORK-ff6d55f-R1` 已完整ACK并从同一clean工作树锁定多账户幂等、failed-null迟到正文与删除后不复活反例，下一检查点为范围单一rework候选。
+- 下一可见检查点：`M1-F3B-D` 返工候选 `0dea8d2` 已从多账户幂等、failed-null迟到正文与删除后重放不复活的RED冻结为clean candidate；root下一检查点为实际五文件增量审查、顺序合main与相称main回归。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@54f5ea5` 加载当前 AGENTS；canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，SKILL SHA-256 `ba04cb073998a60e8779efb79e6a2b7ac58f9798d9b46b3405ba602374ccee80`、long-task SHA-256 `1f0e5a33f45fbf0746a6177957fe8c5fd48ee3f635869c5672a8943a10321633`、lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`；routing扩展不改变当前已ACK Writer scope / stop，未作无关广播。
-- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，但当前collaboration运行时实际硬上限为4个总槽（含root），现为2/4、可用2；新建 `luna_worker` 因本会话root推理档高于Luna运行上限而被工具拒绝，且项目禁止静默模型 / 推理覆盖，先由root清空已到候选审查并释放既有Assignment后复用。活动状态与owner仅以下方任务表为权威，不在顶部重复列举。
+- 规则版本：总控已从真实 `main@b5c371c` 加载当前 AGENTS；canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，SKILL SHA-256 `ba04cb073998a60e8779efb79e6a2b7ac58f9798d9b46b3405ba602374ccee80`、long-task SHA-256 `1f0e5a33f45fbf0746a6177957fe8c5fd48ee3f635869c5672a8943a10321633`、lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`；routing扩展不改变当前已ACK Writer scope / stop，未作无关广播。
+- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为2/4、可用2；新建 `luna_worker` 仍受本会话root推理档高于Luna运行上限约束，不静默覆盖模型 / 推理配置。活动状态与owner仅以下方任务表为权威。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -45,7 +45,7 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `RECOVERING / M1-F3B-D-IDEMP-REWORK-ff6d55f-R1` / `/root/cost_candidate_reviewer_2` | root与非作者在clean `ff6d55f` 实际9文件diff上复核FAIL；定向4文件30项、typecheck / build / diff-check虽绿，但全局幂等键会让不同账户独立请求冲突，failed-null操作可被迟到正文污染 | 同一 `noteidemp` 工作树与5文件边界已完整ACK、lease PASS；先RED锁账户作用域、失败态拒绝与删除后重放不复活，再冻结clean rework候选；`5110ed9` 继续NO-GO且依赖上游MAIN PASS |
+| `M1-F3B-D` | `VERIFY / CANDIDATE 0dea8d2 / ROOT REVIEW READY` / 项目总控 | clean返工候选在 `ff6d55f` 上追加五文件增量：账户作用域幂等、failed-null迟到正文拒绝、删除后重放不复活；Writer定向4文件31项、typecheck / build / diff-check绿 | root审实际增量；PASS则顺序进main并跑相称回归，FAIL返原范围；`5110ed9` 继续NO-GO且只有上游MAIN PASS后才重审 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE f53c930 NONAUTHOR FAIL` / 项目总控 | 两个cost-ledger migration文件的并发 / 回滚局部证据保留；FAIL为运行期可直接插入终态reservation且audit反序历史未被拒绝，`f53c930` 不得合main | recovery动作：root先审清已到的Mini / WeRead候选并释放一个既有Agent lease，再复用该Agent在原 `quota-cost` 两文件边界补RED与最小修复；检查点为新ACK，不以当前Goal或旧4/4为理由等待 |
@@ -73,7 +73,7 @@
 | `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY / LIMITED PASS / H3 OPEN` | Reader与Conversation限定响应式结论保留；Drawer可控矩阵已另闭合 | 软件键盘、游客console与真实PPT preview仍开放 |
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
-| `SHARED-WEREAD-API` | `VERIFY / CANDIDATE b440674 / ROOT REVIEW READY` / 项目总控 | clean候选仅 `weread-api.ts/.test.ts`：区分local `bookId` / provider `bookExternalId`，PUT / DELETE显式expectedRevision；合同11项、typecheck / diff-check绿，无HTTP / Key / H4 | root审实际diff与多记录 / 单位语义，合格才顺序进main并同事件释放clean worktree；不扩runtime / Web / Mini或当前Goal |
+| `SHARED-WEREAD-API` | `VERIFY / CANDIDATE 294bbf0 / ROOT REVIEW QUEUE` / 项目总控 | clean两文件rework使PUT `expectedRevision` 必填且允许 `null` 表达首次连接；local / provider ID、多记录与显式CAS证据保留，contracts 11项、typecheck / diff-check绿 | 当前顺序集成队列先处理 `M1-F3B-D@0dea8d2`；随后root审实际diff与 package public export，合格才进main；不扩HTTP / Key / H4 |
 | `M2-F2` | `PENDING` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | 依赖 `SHARED-WEREAD-API`、M2-F1与 production AppID / 域名；真实 Key / H4独立授权 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
@@ -81,7 +81,8 @@
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY PROD H3` | 阅读与笔记业务父闭环的 Mini 子包：统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实服务仍依赖M2-F1与production环境；不返工已通过Reader |
 | `M2-F4-A` | `VERIFY / F312 4cdce97 / MAIN d2bf9a0 / SCOPED PASS / PROD H3` / 项目总控 | candidate `cda7b4d` 已补真实 `onSearch→listBooks(query)`、失败保留与stale fencing；root审累计diff，唯一f312定向30、Mini194及 main 定向30、Mini177、两处typecheck/build/diff-check全绿；DevTools development态真实从3书筛至1书 | production hydrate / 失败恢复仍由 Bearer / apiBaseUrl / AppID / 域名H3验证，不冒充真实服务PASS；已合候选 worktree 同事件回收 |
-| `M2-F4-B` | `VERIFY / CANDIDATE 6f7cc87 / ROOT REVIEW READY` / 项目总控 | clean候选仅 `library-http.ts/.test.ts`：production reading / sections / position、动态Bearer、nested locator及malformed / stale / 401 / transport失败；定向22、Mini全量183、typecheck / build / diff-check绿 | root审实际diff与共享reading合同，合格才顺序进main并准备唯一f312；真实AppID / GUI / 域名不阻塞代码候选审查 |
+| `M2-F4-B` | `VERIFY / CANDIDATE 6f7cc87 / ROOT REVIEW FAIL / UPSTREAM WAIT` / 项目总控 | root审实际两文件diff与定向22项PASS；Mini / domain按JavaScript UTF-16位置，但Server PUT仍以PostgreSQL `char_length` 校验，含非BMP字符的合法offset会被拒绝，生产位置保存合同失真 | clean候选分支保留、worktree已移除；先由 `SHARED-TEXT-LOCATOR-UTF16` 进入main并复验，再重审6f7cc87及顺序集成 / 唯一f312；AppID / GUI / 域名不阻塞上游修复 |
+| `SHARED-TEXT-LOCATOR-UTF16` | `ACTIVE / SHARED-TEXT-LOCATOR-UTF16-R1` / `/root/mini_reader_adapter_writer` | 独立Server上游合同包仅 `text-reader.ts/.test.ts`；首个RED为emoji正文合法UTF-16 offset的真实PUT+DB Case，当前 `char_length` 预期拒绝 | 新worktree `tlocutf16`、base `b5c371c`、assignment lease与完整ACK已闭合；冻结clean候选后root审diff、顺序进main并同事件释放 `M2-F4-B` |
 | `M2-F5` | `PENDING` / 待分配 | 账户、模型与退出的Mini端闭环 | 微信读书消费已归 `M2-F2`；其余依赖M2-F1～F3，高风险流程按场景细拆 |
 | `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
 | `M2-F6-MINI-PPT-DRAFT-HANDOFF` | `VERIFY / F312 cf6a8c5 / SELF PASS` | 携带bookId / 书名，可编辑预填；发送前不auto-send / sheet / task；失败保留草稿与上下文 | 非作者最终门与完整PPT流仍开放；证据 `mini-ppt-f312-self-cf6a8c5/` |
@@ -144,5 +145,5 @@
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
-- 当前 worktree 共7个：main、唯一f312、待root审候选 `noteidemp` / `quota-cost`、NO-GO恢复点 `noteserver`、ACTIVE `mreaderapi` / `wereadapi`。候选合入 / 废弃后同事件移除clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
+- 当前 worktree 共7个：main、唯一f312、ACTIVE `noteidemp` / `wereadapi` / `tlocutf16`、待恢复候选 `quota-cost` 与NO-GO恢复点 `noteserver`；Mini `6f7cc87` 分支保留但clean `mreaderapi` worktree已移除。候选合入 / 废弃后同事件移除clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
 - main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为稳定 stash 对象 `0bc24868359483fe7d52f9061d76b9f7d81a7000`，标题 `archive: unresolved mini conversation test WIP 2026-08-28`；不记录可变序号，不作为候选或 PASS。redesign-v2 顶层3份重复DOCX与3个Word锁文件已移至可恢复废纸篓 `/Users/echoman/.Trash/SelfAlone-redesign-duplicates-20260828-Uxchkc`，原文逐字节SHA与 `raw_sources/context-governance/` 对应文件一致；main 仅余4个未跟踪视觉候选路径，继续受保护且不得作为运行时资产或PASS。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
