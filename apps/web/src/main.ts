@@ -118,6 +118,18 @@ import {
   type SettingsOverview,
   type SettingsState,
 } from "./settings-state";
+import { createNoCallWeReadClient, type NoCallWeReadSeed } from "./weread-client";
+import {
+  applyWeReadAnnotationsSnapshot,
+  applyWeReadBooksSnapshot,
+  createWeReadState,
+  failWeReadOperation,
+  parseWeReadState,
+  resolveWeReadConnection,
+  serializeWeReadState,
+  type WeReadState,
+} from "./weread-state";
+import { renderWeReadLibrary } from "./weread-view";
 
 const workspaceScreens: WorkspaceScreen[] = ["requirements", "outline", "template", "generating", "completed", "failed", "stopped"];
 const workspaceCacheStorageKey = "selfalone:m1:workspace-cache";
@@ -174,6 +186,29 @@ let conversationSelectionController: ReturnType<typeof createConversationSelecti
 let conversationSelectionConversationId: string | null = null;
 let conversationSelectionHydrated = false;
 let settingsState: SettingsState = createSettingsState();
+const wereadStorageKey = "selfalone:m1:weread-state";
+function readPersistedWeReadSeed(): NoCallWeReadSeed | undefined {
+  try {
+    const recovered = parseWeReadState(window.localStorage.getItem(wereadStorageKey));
+    if (!recovered) return undefined;
+    const annotations = new Map<string, NoCallWeReadSeed["annotations"][number]>();
+    for (const notes of Object.values(recovered.annotations)) {
+      for (const note of notes) annotations.set(note.externalId, note);
+    }
+    return {
+      connection: recovered.connection,
+      books: recovered.books,
+      annotations: [...annotations.values()],
+    };
+  } catch {
+    return undefined;
+  }
+}
+const wereadClient = createNoCallWeReadClient(readPersistedWeReadSeed());
+let wereadState: WeReadState = createWeReadState();
+let wereadRequestInFlight = false;
+let wereadRequestVersion = 0;
+let wereadRequestSequence = 0;
 let settingsRequestInFlight = false;
 let textModelRequestInFlight = false;
 let textModelRequestVersion = 0;
@@ -254,10 +289,242 @@ function settingsShell(content: string) {
   </div>`;
 }
 
+function syncSettingsWeReadOverview() {
+  if (!settingsState.overview) return;
+  const wereadStatus = wereadState.connection
+    ? { connected: true, label: wereadState.phase === "failed" ? "同步失败" : "已连接" }
+    : { connected: false, label: "未连接" };
+  settingsState = {
+    ...settingsState,
+    overview: {
+      ...settingsState.overview,
+      services: { ...settingsState.overview.services, weread: wereadStatus },
+    },
+  };
+}
+
 function renderSettings() {
-  app.innerHTML = settingsShell(renderSettingsPage(settingsState));
+  syncSettingsWeReadOverview();
+  app.innerHTML = settingsShell(renderSettingsPage(settingsState, wereadState));
+  app.innerHTML = settingsShell(renderSettingsPage(settingsState, wereadState));
   bindSettingsInteractions();
+  bindWeReadSettingsInteractions();
   restoreTextModelSecret();
+}
+
+function persistWeReadState() {
+  try {
+    window.localStorage.setItem(wereadStorageKey, serializeWeReadState(wereadState));
+  } catch {
+    // Keep the in-memory snapshot visible when browser storage is unavailable.
+  }
+}
+
+function restoreWeReadState() {
+  try {
+    const recovered = parseWeReadState(window.localStorage.getItem(wereadStorageKey));
+    if (!recovered) return false;
+    wereadState = { ...recovered, view: wereadState.view };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderWeReadSurface() {
+  if (isSettingsRoute()) {
+    renderSettings();
+  } else if (window.location.hash.startsWith("#/library")) {
+    renderLibrary();
+  }
+}
+
+function nextWeReadRequestId(operation: string) {
+  return `desktop-weread-${operation}-${Date.now()}-${++wereadRequestSequence}`;
+}
+
+async function loadWeRead() {
+  if (wereadRequestInFlight || (!isSettingsRoute() && !window.location.hash.startsWith("#/library"))) return;
+  if (restoreWeReadState() && wereadState.phase !== "idle") {
+    renderWeReadSurface();
+    return;
+  }
+  wereadRequestInFlight = true;
+  const requestVersion = wereadRequestVersion;
+  wereadState = { ...wereadState, phase: "loading", operation: "load", error: "" };
+  renderWeReadSurface();
+  try {
+    const connectionResponse = await wereadClient.getConnection();
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = {
+      ...wereadState,
+      connection: connectionResponse.connection,
+      phase: connectionResponse.connection ? "syncing" : "ready",
+      operation: "load",
+      error: "",
+    };
+    if (connectionResponse.connection) {
+      const booksResponse = await wereadClient.getBooksSnapshot();
+      if (requestVersion !== wereadRequestVersion) return;
+      wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
+      for (const book of booksResponse.books) {
+        const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
+        if (requestVersion !== wereadRequestVersion) return;
+        wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
+      }
+    }
+    persistWeReadState();
+  } catch (error) {
+    if (requestVersion === wereadRequestVersion) {
+      wereadState = failWeReadOperation(wereadState, error);
+      persistWeReadState();
+    }
+  } finally {
+    wereadRequestInFlight = false;
+  }
+  if (requestVersion === wereadRequestVersion) renderWeReadSurface();
+}
+
+async function syncWeReadBooks() {
+  if (wereadRequestInFlight || !wereadState.connection) return;
+  wereadRequestInFlight = true;
+  const requestVersion = ++wereadRequestVersion;
+  wereadState = { ...wereadState, phase: "syncing", operation: "books", error: "" };
+  renderWeReadSurface();
+  try {
+    const response = await wereadClient.syncBooks({ requestId: nextWeReadRequestId("books") });
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = { ...wereadState, phase: "syncing", lastRun: response.run };
+    const booksResponse = await wereadClient.getBooksSnapshot();
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
+    for (const book of booksResponse.books) {
+      const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
+      if (requestVersion !== wereadRequestVersion) return;
+      wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
+    }
+    persistWeReadState();
+  } catch (error) {
+    if (requestVersion === wereadRequestVersion) {
+      wereadState = failWeReadOperation(wereadState, error);
+      persistWeReadState();
+    }
+  } finally {
+    wereadRequestInFlight = false;
+  }
+  if (requestVersion === wereadRequestVersion) renderWeReadSurface();
+}
+
+async function loadWeReadAnnotations(bookExternalId: string) {
+  if (wereadRequestInFlight || !wereadState.connection) return;
+  wereadState = { ...wereadState, selectedBookExternalId: bookExternalId, phase: "syncing", operation: "annotations", error: "" };
+  renderWeReadSurface();
+  const requestVersion = ++wereadRequestVersion;
+  wereadRequestInFlight = true;
+  try {
+    const response = await wereadClient.getAnnotationsSnapshot({ bookId: bookExternalId });
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = applyWeReadAnnotationsSnapshot(wereadState, response);
+    persistWeReadState();
+  } catch (error) {
+    if (requestVersion === wereadRequestVersion) {
+      wereadState = failWeReadOperation(wereadState, error);
+      persistWeReadState();
+    }
+  } finally {
+    wereadRequestInFlight = false;
+  }
+  if (requestVersion === wereadRequestVersion) renderWeReadSurface();
+}
+
+async function saveWeReadConnection(form: HTMLFormElement) {
+  if (wereadRequestInFlight) return;
+  const apiKey = String(new FormData(form).get("apiKey") ?? "");
+  const expectedRevision = wereadState.connection?.revision ?? null;
+  if (!apiKey.trim()) {
+    wereadState = failWeReadOperation({ ...wereadState, view: "connection", draftApiKey: apiKey }, new Error("VALIDATION_FAILED"));
+    renderSettings();
+    document.querySelector<HTMLInputElement>("#weread-api-key")?.focus();
+    return;
+  }
+  wereadRequestInFlight = true;
+  const requestVersion = ++wereadRequestVersion;
+  wereadState = { ...wereadState, view: "connection", phase: "saving", operation: "connect", draftApiKey: apiKey, error: "" };
+  renderSettings();
+  try {
+    const response = await wereadClient.putConnection({
+      apiKey,
+      requestId: nextWeReadRequestId("connect"),
+      expectedRevision,
+    });
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = resolveWeReadConnection(wereadState, response);
+    const booksResponse = await wereadClient.getBooksSnapshot();
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
+    for (const book of booksResponse.books) {
+      const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
+      if (requestVersion !== wereadRequestVersion) return;
+      wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
+    }
+    persistWeReadState();
+  } catch (error) {
+    if (requestVersion === wereadRequestVersion) {
+      wereadState = failWeReadOperation(wereadState, error);
+      persistWeReadState();
+    }
+  } finally {
+    wereadRequestInFlight = false;
+  }
+  if (requestVersion === wereadRequestVersion) renderSettings();
+}
+
+async function disconnectWeRead() {
+  const currentConnection = wereadState.connection;
+  if (wereadRequestInFlight || !currentConnection) return;
+  wereadRequestInFlight = true;
+  const requestVersion = ++wereadRequestVersion;
+  wereadState = { ...wereadState, phase: "saving", operation: "disconnect", error: "" };
+  renderSettings();
+  try {
+    await wereadClient.deleteConnection({ expectedRevision: currentConnection.revision });
+    if (requestVersion !== wereadRequestVersion) return;
+    wereadState = { ...wereadState, connection: null, phase: "ready", operation: "disconnect", error: "", lastRun: null };
+    persistWeReadState();
+  } catch (error) {
+    if (requestVersion === wereadRequestVersion) {
+      wereadState = failWeReadOperation(wereadState, error);
+      persistWeReadState();
+    }
+  } finally {
+    wereadRequestInFlight = false;
+  }
+  if (requestVersion === wereadRequestVersion) renderSettings();
+}
+
+function openWeReadSettings() {
+  wereadState = { ...wereadState, view: "connection" };
+  if (!isSettingsRoute()) window.history.pushState(null, "", "#/settings");
+  renderRoute();
+}
+
+function bindWeReadSettingsInteractions() {
+  const form = document.querySelector<HTMLFormElement>("[data-weread-connection-form]");
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void saveWeReadConnection(form);
+  });
+  document.querySelectorAll<HTMLElement>("[data-weread-action]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const action = element.dataset.wereadAction;
+      if (action === "sync-books" || action === "retry-sync") void syncWeReadBooks();
+      if (action === "disconnect") void disconnectWeRead();
+      if (action === "select-book") {
+        const bookId = element.dataset.wereadBookId;
+        if (bookId) void loadWeReadAnnotations(bookId);
+      }
+    });
+  });
 }
 
 function isTextModelSettingsRoute() {
@@ -671,6 +938,7 @@ function bindSettingsInteractions() {
           accountError: "",
           mutation: settingsMutation("idle", "idle"),
         };
+        wereadState = { ...wereadState, view: "overview" };
         lastSettingsFocusField = "email";
         renderSettings();
         document.querySelector<HTMLInputElement>("#settings-email")?.focus();
@@ -681,9 +949,14 @@ function bindSettingsInteractions() {
           accountError: "",
           mutation: settingsMutation("idle", "idle"),
         };
+        wereadState = { ...wereadState, view: "overview" };
         lastSettingsFocusField = null;
         renderSettings();
         document.querySelector<HTMLButtonElement>('[data-settings-action="account"]')?.focus();
+      } else if (action === "weread") {
+        wereadState = { ...wereadState, view: "connection" };
+        renderSettings();
+        document.querySelector<HTMLInputElement>("#weread-api-key")?.focus();
       } else if (action === "text-model") {
         const textModel = settingsState.textModel.status === "success"
           ? createTextModelPageState(settingsState.textModel.credential)
@@ -1666,9 +1939,7 @@ function renderLibrary(preserveSearchFocus = false) {
       </button>
       <input class="visually-hidden" id="book-import" type="file" tabindex="-1" aria-hidden="true" accept=".epub,.txt,.pdf,application/epub+zip,text/plain,application/pdf" ${libraryUploading ? "disabled" : ""} />
     </section>
-    <section class="weread-note" aria-label="微信读书连接提示">
-      <span>连接微信读书</span>
-    </section>
+    ${renderWeReadLibrary(wereadState, "连接微信读书")}
     ${retainedError}
     ${searchError}
     ${libraryStatePanel()}
@@ -1812,6 +2083,17 @@ function bindLibraryInteractions() {
   document.querySelector<HTMLButtonElement>("#retry-library")?.addEventListener("click", () => void loadLibrary("", "initial"));
   document.querySelector<HTMLButtonElement>("#retry-search")?.addEventListener("click", () => void loadLibrary(libraryState.query, "search", true));
   document.querySelector<HTMLButtonElement>("#clear-search")?.addEventListener("click", () => void loadLibrary("", "search", true));
+  document.querySelectorAll<HTMLElement>("[data-weread-action]").forEach((element) => {
+    element.addEventListener("click", () => {
+      const action = element.dataset.wereadAction;
+      if (action === "open-settings") openWeReadSettings();
+      if (action === "sync-books" || action === "retry-sync") void syncWeReadBooks();
+      if (action === "select-book") {
+        const bookId = element.dataset.wereadBookId;
+        if (bookId) void loadWeReadAnnotations(bookId);
+      }
+    });
+  });
 }
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -2298,6 +2580,7 @@ function renderRoute() {
     destroyTextReader();
     renderLibrary();
     if (libraryState.loading) void loadLibrary("", "initial");
+    if (wereadState.phase === "idle" && !wereadRequestInFlight) void loadWeRead();
     return;
   }
   if (isSettingsRoute()) {
@@ -2312,6 +2595,7 @@ function renderRoute() {
     if (settingsView === "text-model" && (settingsState.textModel.status === "loading" || settingsState.textModel.status === "error")) {
       void loadTextModel();
     }
+    if (wereadState.phase === "idle" && !wereadRequestInFlight) void loadWeRead();
     return;
   }
   if (!isConversationRoute()) {

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { renderSettingsPage } from "./settings-page";
 import { createSettingsState, type SettingsOverview } from "./settings-state";
+import { createWeReadState } from "./weread-state";
 
 const settings: SettingsOverview = {
   account: { id: "account-1", email: "reader@example.com" },
@@ -30,6 +31,7 @@ describe("desktop settings page candidate", () => {
     expect(html).toContain("微信读书");
     expect((html.match(/账户与登录方式/g) ?? []).length).toBe(1);
     expect(html.match(/data-settings-action="account"/g)).toHaveLength(1);
+    expect(html.match(/data-settings-action="weread"/g)).toHaveLength(1);
     expect(html.match(/data-settings-action="logout"/g)).toHaveLength(1);
     expect(html.match(/data-settings-row/g)?.length).toBeGreaterThanOrEqual(5);
     expect(html).toContain("DeepSeek");
@@ -86,6 +88,18 @@ describe("desktop settings page candidate", () => {
     expect(html).toContain("验证邮件发送失败，已保留输入，请稍后重试。");
     expect(html.match(/data-settings-primary/g)).toHaveLength(1);
     expect(html).toContain("保存并验证");
+  });
+
+  it("renders the WeRead connection detail inside the authenticated settings shell", () => {
+    const html = renderSettingsPage(
+      createSettingsState(settings),
+      createWeReadState({ view: "connection", phase: "ready" }),
+    );
+
+    expect(html).toContain('data-settings-page="weread"');
+    expect(html).toContain('data-weread-connection-form');
+    expect(html).toContain('data-weread-action="save-connection"');
+    expect(html).toContain("当前接缝使用本地同步数据");
   });
 
   it("renders the text model detail within the authenticated settings shell", () => {

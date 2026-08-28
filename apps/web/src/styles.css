@@ -98,6 +98,41 @@ button:focus-visible, a:focus-visible, textarea:focus-visible, input:focus-visib
   padding: 2px 0 2px 12px; border-left: 2px solid #8fb3a4; background: transparent; color: var(--muted);
 }
 .weread-note span { color: #174c3f; font-size: 13px; }
+.weread-library { width: min(944px, 100%); margin-top: 24px; padding: 20px 0 2px; border-top: 1px solid #d7e4de; }
+.weread-library__heading, .weread-section-heading, .weread-settings-actions, .weread-inline-error { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.weread-library__heading { align-items: flex-start; }
+.weread-library__heading h2, .weread-section-heading h3 { margin: 0; color: #21312d; font: 600 18px/1.4 "Songti SC", serif; }
+.weread-library__heading p, .weread-section-heading span, .weread-empty-note, .weread-form-help, .weread-connection-summary span { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.library-eyebrow { display: block; margin-bottom: 4px; color: #4d7d6b; font-size: 11px; letter-spacing: .08em; }
+.weread-library__actions, .weread-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.weread-inline-action { min-height: 44px; padding: 0 13px; border: 1px solid #9eb8ad; border-radius: 8px; background: transparent; color: #0d6a57; cursor: pointer; font: inherit; font-size: 12px; font-weight: 600; }
+.weread-inline-action:focus-visible, .weread-book-card:focus-visible { outline: 2px solid #174c3f; outline-offset: 3px; }
+.weread-inline-action:disabled { cursor: wait; opacity: .55; }
+.weread-inline-error { margin-top: 16px; align-items: flex-start; padding: 10px 12px; border: 1px solid #e1b9ad; border-radius: 8px; background: #fff4f0; color: #8b3f31; font-size: 13px; line-height: 1.6; }
+.weread-inline-error .weread-inline-action { flex: none; min-height: 36px; }
+.weread-book-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.weread-book-card { min-width: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; border: 1px solid #d7e4de; border-radius: 10px; background: #f8faf6; color: #21312d; text-align: left; cursor: pointer; }
+.weread-book-card.selected { border-color: #4d7d6b; background: #edf5f1; }
+.weread-book-cover { width: 52px; height: 72px; display: block; border-radius: 3px 6px 6px 3px; object-fit: cover; background: #e7eae8; }
+.weread-book-cover--empty { display: grid; place-items: center; padding: 6px; color: var(--muted); font-size: 10px; text-align: center; }
+.weread-book-card__copy { min-width: 0; }
+.weread-book-card__copy strong, .weread-book-card__copy small { display: block; overflow-wrap: anywhere; }
+.weread-book-card__copy strong { font-size: 14px; line-height: 1.5; }
+.weread-book-card__copy small { margin-top: 3px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.weread-settings-detail { max-width: 720px; margin: 0 auto; }
+.weread-connection-summary { display: grid; gap: 2px; margin-bottom: 18px; padding: 14px 16px; border-left: 3px solid #4d7d6b; background: #edf5f1; }
+.weread-connection-summary strong { color: #174c3f; font-size: 14px; }
+.weread-connection-form { display: grid; gap: 12px; padding: 20px; border: 1px solid #cbd8d3; border-radius: 12px; background: #f8faf6; }
+.weread-form-help { margin: 0; }
+.weread-settings-actions { justify-content: flex-start; margin-top: 14px; }
+.weread-settings-data { margin-top: 30px; }
+.weread-annotations { margin-top: 24px; padding-top: 18px; border-top: 1px solid #d7e4de; }
+.weread-annotation { margin-top: 12px; padding: 12px 14px; border-left: 2px solid #9eb8ad; background: #f8faf6; }
+.weread-annotation blockquote { margin: 0; color: #21312d; font: 500 14px/1.7 "Songti SC", serif; }
+.weread-annotation p { margin: 7px 0 0; color: #4f625a; font-size: 13px; line-height: 1.7; }
+.weread-annotation span { display: block; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.weread-library__empty { margin-top: 16px; padding: 18px; border: 1px dashed #cbd8d3; color: var(--muted); font-size: 13px; }
+.weread-library__empty p { margin: 0; }
 .library-inline-error { margin-top: 18px; padding: 12px 16px; border: 1px solid #e1b9ad; border-radius: 8px; background: #fff4f0; color: #8b3f31; }
 .library-search-error { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
 .library-search-error > div { display: flex; flex: none; gap: 8px; }
@@ -306,10 +341,13 @@ a.book-item:focus-visible { outline: 2px solid #174c3f; outline-offset: 5px; }
   .import-button { min-width: 56px; width: 56px; }
   .import-button span { display: none; }
   .book-grid { gap: 34px 20px; margin-top: 38px; }
+  .weread-library__heading { flex-direction: column; }
+  .weread-library__actions { width: 100%; }
 }
 @media (max-width: 768px) {
   .library-scenery { display: none; }
   .book-grid { grid-template-columns: repeat(2, minmax(132px, 160px)); }
+  .weread-book-list { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

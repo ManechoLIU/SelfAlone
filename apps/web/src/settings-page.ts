@@ -1,5 +1,7 @@
 import type { SettingsOverview, SettingsServiceStatus, SettingsState } from "./settings-state";
 import { renderTextModelPage } from "./model-config-page";
+import type { WeReadState } from "./weread-state";
+import { renderWeReadSettings } from "./weread-view";
 
 function escapeHtml(value: string) {
   return value
@@ -142,8 +144,13 @@ function renderLogoutDialog(state: SettingsState) {
   </div>`;
 }
 
-export function renderSettingsPage(state: SettingsState) {
+export function renderSettingsPage(state: SettingsState, wereadState?: WeReadState) {
   const isLoading = state.phase === "loading";
+  if (wereadState?.view === "connection") {
+    return `<main class="settings-page" data-settings-page="weread" data-settings-phase="${wereadState.phase}" aria-busy="${wereadState.phase === "loading" || wereadState.phase === "saving" || wereadState.phase === "syncing"}">
+      ${renderWeReadSettings(wereadState)}
+    </main>`;
+  }
   if (state.view === "text-model") {
     return `<main class="settings-page" data-settings-page="text-model" data-settings-phase="${state.phase}" aria-busy="${state.textModel.status === "loading"}">
       ${renderTextModelPage(state.textModel)}
