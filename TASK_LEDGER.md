@@ -1,255 +1,142 @@
 # SelfAlone 任务台账
 
-> 本文件是唯一执行控制面，只记录当前目标、工作包、状态、阻塞、下一步、验收和证据。行内边界与验收只做执行摘要，不能新增或修改产品、视觉、技术规则；对应定义分别以 [`redesign-v2/SPEC.md`](redesign-v2/SPEC.md)、[`redesign-v2/DESIGN.md`](redesign-v2/DESIGN.md)、目标端规范、[`redesign-v2/design-reference/README.md`](redesign-v2/design-reference/README.md) 与 [`redesign-v2/TECHNICAL.md`](redesign-v2/TECHNICAL.md) 为准。
+> 唯一执行控制面。只记录当前 Goal、活动任务、下一步、真实阻塞、规则版本、任务状态与可复用证据；产品、视觉和技术规则分别以 [SPEC](redesign-v2/SPEC.md)、[DESIGN](redesign-v2/DESIGN.md)、目标端规范、[参考索引](redesign-v2/design-reference/README.md) 与 [TECHNICAL](redesign-v2/TECHNICAL.md) 为准。
 
 ## 1. 当前控制面
 
-- 当前 Goal：`DONE / STAGE-READ-NOTES-V1-G / MAIN REAL PASS`；在`main@91bb8e4`已通过的权威进度normal首屏上，按同一DESIGN-READY闭合Desktop书架initial loading、true empty、filtered empty、failure保留与normal卡级processing / ready_pages / failed，并完成1280 / 1200 / 1024 / 768 CSS、DPR2、100% SELF / EARLY / main Case。排除WeRead真实连接、shared-shell跨页面伪元素、Mini、PDF、ImageGen与其他模块。
-- 当前执行波次：`STAGE-READ-NOTES-V1-G / MAIN REAL PASS → GOAL CLOSE`；F Goal已以`7d1cca1→main ba5a836`、台账`91bb8e4`及current-main真实Chrome完成，系统Goal真实complete后已滚动创建G。
+- 当前 Goal：`NONE / PREVIOUS STAGE-READ-NOTES-V1-G DONE`；代码 `11f9b4a→main 3e1904f`、主线回归与 current-main Chrome 五态 / 四宽 / DPR2 均 PASS，系统 Goal 已真实 complete。
 - 当前活动项：无
-- 当前恢复 / 复验项：`11f9b4a→main 3e1904f`主线回归与current-main真实Case均PASS；四宽为4 / 4 / 3 / 2列，DPR2 / zoom100、搜索输入44px、横溢0；loading、true empty、filtered empty + clear、失败保留12本与“远山”草稿、同请求语义重试GET 200恢复1本均通过；真实隔离schema还验证processing / ready_pages / failed各1并已原样恢复12本ready_text，console error / warn空。
-- 协调下一动作：完成系统Goal；按用户授权正式加载`adaptive-delivery@36f7194`，在下一业务Goal前执行一次仅`TASK_LEDGER.md`的减法迁移、校验并提交，再重算全项目READY并创建下一个增加可观察用户能力或关闭父闭环阻碍的滚动Goal。
-- 规则版本：真实仓库`/Users/echoman/Documents/SelfAlone`、本事件基线`main@d556a49`与受保护现场已对账；总控与writer已loaded canonical `7e2cf021`及对应三哈希；安装目录已同步`36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，恢复reviewer已loaded且用户确认不改变Library文件 / 视觉 / 验收合同；总控按授权在G闭环后、下一Goal前正式加载`36f7194`。
-- **活动实现 / 复验线**：root 1/4、可用3；writer与两条只读reviewer均已释放。`11f9b4a→main 3e1904f`已集成，Desktop顺序集成队列CANDIDATE WIP=0；旧`m2_f1_server_auth_review`遗留`pending_init`已再次回收，previous_status=`pending_init`、无文件 / 结果。
-- **Mini WIP恢复（一行）**：main与mchatapi两处测试WIP均为同一writer在额度中断前先用相对路径误写main、再用绝对路径写mchatapi；main`page-state.test.ts`还重复应用一次。唯一写入权固定为mchatapi，main两文件只读保护；规则ACK轮次曾因四个窗口无回执而回收1次（`previous_status=running`），同一任务已从153行RED恢复，未丢结果、未新增writer。
-- **Reviewer 恢复结论（一行四证简记）**：`/root/drawer_early_verdict_recovery`确认先前已有工具 / 证据进展但缺可用消息回传工具，属消息握手 + 工具故障；`/root/mini_drawer_430_early_reviewer`在follow-up后交`EARLY FAIL`，属运行中ACK迟到 / 等待不足；`/root/desktop_conversation_roles_uiux`在follow-up后交loaded ACK与brief，属握手协议迟延。三者均非工作树冲突或合同不清，不能再笼统写“外部Reviewer通道失败”。
-- **READY 重算**：以`main@4c82bff`台账全部开放包为宇宙，Desktop书架五态 / 四宽已`DONE / MAIN REAL PASS`；Mini production、Auth、PDF及其他开放包仍在READY宇宙。下一业务Goal在36f规则加载与一次减法迁移后按父闭环阻碍和用户可见能力重算，未把旁路从READY宇宙删除；外部门不映射项目停工。
-- **本阶段 closure checklist（父阶段 `OPEN`）**：本Goal的真实TXT、原生200%、DPR2、stable valid/failure shell、长标题 / toolbar / 目录 / 背景 / 笔记入口、专注 / focus / overflow / console、刷新与详情往返恢复已全部PASS；Mini production、PDF与跨端互见继续保持父阶段OPEN。
-- **阶段序列**：`STAGE-CHAT-V1（Desktop H4 + Mini Conversation API边界） → STAGE-READ-NOTES-V1（Shared API / 持久化合同、Desktop UI / 真实Case、Mini UI / 真实Case；API冻结后两端并行，同账户互相可见才可DONE） → STAGE-MINI-CORE-V1（仅Mini身份、导航 / 系统适配及未被业务阶段覆盖的端侧接缝） → STAGE-PPT-V1 → STAGE-VISUAL-CONVERGENCE`。每次仅一个核心阶段Goal；视觉随所属阶段绑定参考并走writer SELF / EARLY / FINAL，最后一阶段只收跨阶段残余。
-- **反馈分诊**：Desktop正常会话H4＝`RETAIN PASS / NO REOPEN`，`934e654+2cddc3c`的10条provider / responder / config路径至`ba5a836`逐路径blob相同，故不重复付费调用。Book Detail动作视觉＝`P1 / CLOSED`，main`e36bc37`与current-main真实视觉收据保留；Mini Reader笔记面板＝`P1 / CLOSED(SCOPED)`，`f312@9766be9→main 7f59698`四状态SELF / 非作者EARLY保留；Desktop书架normal＝`P1 / CURRENT GOAL / CLOSED`，其五态与四宽进入相邻滚动Goal；Mini Drawer游客console、Auth专用资产与其他模块反馈仍为各自P2 / 后续Stage。反馈只重开被新证据否定的门，不机械中断当前闭环。
-- 下一可见检查点：完成G系统Goal与36f规则加载 / 台账减法迁移后，给出下一业务闭环Goal、精确owner / ACK及首个用户可见Case。
-- 当前阻塞：当前Goal无；DeepSeek本机安全认证与Mini production外部门只约束各自开放包，不阻塞本次Desktop EARLY / 集成。
-- **真实阻塞 / 授权门**：官方合同为`https://api.deepseek.com/chat/completions`、`deepseek-v4-flash`、non-thinking；Agent原定3次、用户本人2次、授权恢复重试1次，总观测6次仍远低于¥1。用户已明确后续测试调用无需重复授权，但总费用、安全与项目范围门继续有效；Key不得输出或进入聊天、源码、`.env`、命令参数、日志、截图、台账。
-- **当前可见入口 / revision**：Desktop书架current-main入口为`http://127.0.0.1:4476/#/library`、代码`main@3e1904f`（台账基线`4c82bff`）、隔离schema`libprogress_20260828`；真实Chrome MAIN PASS后已恢复用户原视口，当前1370×698 / DPR2、12本normal、横溢0。Desktop H4既有current-main收据保持`PASS / REAL FIRST + CONTEXT + REFRESH + FAILURE RETRY`，相关10路径逐blob未变，故不重复外调；Book Detail与Mini notes既有入口 / 唯一f312收据保持关闭边界。游客console / AppID只影响production外部门。
-- **本次台账漂移收据**：最早真实状态转换为`8394989`于2026-08-27 15:49:59+08:00形成候选，本次回写前约3小时53分仍停在`678497c/992bf2a`；其中`e5d44eb→d60716a`后约26/21分钟、`main@de92f50`后约9分钟未同步。触发原因三项均成立：前序usage-limit强制中断、恢复后同一turn连续审查/集成/DevTools形成长回合、root把台账回写错误后置到验收末尾。以后以`CANDIDATE WIP=1 + 每次状态转换同事件最小提交`切断漂移。
-- **受保护现场**：main 的短暂 clean 是旧 handoff 搬移造成的假象，既有9组未跟踪路径均仍在。用户本事件确认新增IMG-07候选`mobile-drawer-correction-imagegen-v7-candidate.png`（851×1847、SHA`ab0d5dfb…838a2`）为第7/20次调用；保持未跟踪候选、只供UI/UX拆解，不是运行时整图，不覆盖IMG-06 / v5或其他冻结路径。
+- 下一可见检查点：从全部开放包重算 READY，创建一个能增加可观察用户能力或关闭父业务 / 发布阻碍的滚动 Goal，并取得唯一 writer / reviewer delivered ACK。
+- 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
+- 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，SKILL `aeb0246b…e7634`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`。
+- 容量 / READY：root 1/4、可用 3、live 子任务 0、待审 / 待集成候选 WIP 0。所有开放包仍属 READY 宇宙；当前先完成本次减法迁移，再按父闭环阻碍与用户可见能力派发。
 
-## 2. 路线图与父级功能组（模块级导航，非执行项）
+## 2. 开放工作包
 
-| 功能组 | 汇总状态 | 可交付边界 | 释放条件 / 下一步 |
+`VERIFY` 行保留当前完成边界与精确缺口；`READY / PENDING` 行只保留释放条件；`BLOCKED` 行保留外部唤醒事件。当前没有 `ACTIVE / RECOVERING`。
+
+| ID | 状态 / owner | 固定边界与当前证据 | 依赖、阻塞与下一步 |
 | --- | --- | --- | --- |
-| `M0` 可运行基础 | `DONE` | 工作区、健康检查、确定性本地 PPT 基线 | 证据提交 `2b639e0` |
-| `M1-F2` 桌面书库、阅读与笔记 | `VERIFY` | 本地书导入、阅读、记录、详情与账户隔离 | 当前无active writer；A仅功能完成，B `VERIFY`，C半成品，D-PDF仍开放，Book Detail / D-TEXT handoff scoped FINAL，E-OWNER已完成 |
-| `M1-F1` 桌面账户与设置 | `READY` | 邮箱身份、会话与账户设置闭环 | 本地邮箱 / 会话可先做；owner 接缝由 `M1-F2-E-OWNER` 顺序冻结，不等待完整 `M1-F2-V1` |
-| `M1-F3A` 模型配置 | `VERIFY` | 文本模型加密配置 / 校验provider seam已进main并完成H3；图片模型、真实会话接线与真实调用仍开放 | A已`DONE`；provider实现与H4拆门，代码实现不等待凭证位置，真实H4仍受安全摄入、最多3次与≤¥1门控 |
-| `M1-F3B` 桌面对话与 AI | `VERIFY` | 会话、图文消息、选择与书籍上下文 | A与C限定范围已进main；A2组合checkpoint待下一事件冻结 / main Case，B、D仍按各自依赖 |
-| `M1-F4` 免费体验与成本 | `PENDING` | 一次性领取、成本硬上限与恢复 | `M1-F3B-V1` |
-| `M1-F5` 桌面 PPT 与真实 PPTX | `PENDING` | 单书四阶段、恢复、作品与可编辑 PPTX | `M1-F4-V1` |
-| `M1-V1` 桌面真实闭环 | `PENDING` | 同一账户从登录到可编辑 PPTX | M1 全部功能组 |
-| `M2` 微信小程序与双端闭环 | `VERIFY` | 客户端运行壳与状态先行；当前关闭Mini PPT预发送handoff，Drawer根因brief已就绪，真实身份、notes、AI与PPTX仍逐项接入 | handoff替补writerACTIVE；Drawer返工READY且文件互斥。完整双端V1仍依赖对应M1能力、唯一DevTools / 真机与外部授权 |
-| `M3` 邀请制发布 | `PENDING` | 隐私、恢复、监控、Staging、Web 和小程序发布 | `M2-V1`；执行前再展开并取得授权 |
+| `M1-F1` | `READY` / 项目总控 | 桌面邮箱身份、会话与账户设置父闭环 | A / B 已局部主线 PASS；V1 仍需真实邮箱、找回、修改与数据保持 Case |
+| `M1-F1-A` | `VERIFY / MAIN b6b77ee / MAIN CASE PASS` | 注册、登录、退出与桌面认证 UI 已集成；真实邮件 / 微信与 reduced-motion 未覆盖 | 证据 `auth-early-b7a6894/`、`main-auth-settings-final-d9a3b46/`；保持父包开放 |
+| `M1-F1-A-AUTH-EARLY` | `VERIFY / CANDIDATE faa194d / ASSET BLOCKED` | entry→register→login 状态 SELF PASS；候选仅六个 Auth Web 文件 | ref01 `d49f5a61…a824`；绑定 Auth 专用背景 / Logo seal 后再 EARLY，不得自由设计或临时替代 |
+| `M1-F1-B` | `VERIFY / MAIN a9408ad / P0 MAIN FINAL PASS` | 邮箱 / 密码修改与设置 failure / focus 已闭合；敏感密码不持久化 | 真实邮件、成功换邮、微信绑定与 reduced-motion 仍独立开放；证据 `main-settings-p0-final-a9408ad/` |
+| `M1-F1-B-SETTINGS` | `VERIFY / MAIN a9408ad / REOPEN CLOSED` | legacy v1 清洗密码、失败保留内存字段、刷新 / 新标签仅恢复邮箱 | 定向12项、Web231项；后续只验真实服务边界 |
+| `M1-F1-V1` | `PENDING` / 待分配 | 同一真实邮箱完成注册、重登、找回和账户修改，既有书籍不丢 | 依赖 A / B 与真实邮件授权；真实浏览器、DB、令牌安全 |
+| `M1-F2` | `VERIFY` / 项目总控 | 桌面导入、书架、文本阅读与笔记已有多个 scoped PASS | PDF、引用到会话、跨端互见及父级 V1 仍开放 |
+| `M1-F2-A` | `VERIFY / FUNCTION DONE / VISUAL SUBGATES CLOSED` | 本地 EPUB / TXT / PDF 导入与统一书架功能已在 main；进度、normal、五态 / 四宽子门分别主线 PASS | 父包仍不代表 Reader / PDF / 双端完成；DESIGN-READY `350b86d9…8140` |
+| `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
+| `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
+| `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
+| `M1-F2-D` | `VERIFY / PARENT OPEN` / 项目总控 | 文本标注、想法、手工笔记、详情入口已有 scoped PASS | PDF 标注、引用到会话和父级完整入口仍开放 |
+| `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
+| `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
+| `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
+| `M1-F2-D-TEXT-WEB-ENTRY` | `VERIFY / MAIN 1e7763a / SCOPED FINAL` | 768裁切、旧书 workspace 泄露、恢复 scroll 遮挡与200% / DPR2已关闭 | 文件上传、AI / PPTX与父项仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
+| `M1-F2-E` | `VERIFY / OPEN / SPLIT` / 项目总控 | owner / 版本合同已冻结；跨端真实验收未完成 | E-XEND 依赖真实 F1 会话、M2-F1身份与对应内容能力 |
+| `M1-F2-E-XEND` | `PENDING` / 待分配 | 同账户 Web / Mini 读取同一位置、划线与笔记并失败恢复 | 依赖 E-OWNER、F1、M2-F1、B / C / D；真实 AppID / 身份就绪后验收 |
+| `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
+| `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
+| `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立配置、检测、撤销与失败保留 | 图片供应商 / 付费调用未确认；不得成为无图 PPT 前置 |
+| `M1-F3B` | `VERIFY` / 项目总控 | Desktop 真实文字对话 H4 已闭合；Selection有 scoped PASS | 图片消息、书籍上下文与父级 V1 仍开放 |
+| `M1-F3B-B` | `PENDING` / 待分配 | 最多4图的纯图片 / 图文消息、预检、逐张移除与失败恢复 | 依赖对象存储和模型能力目录 |
+| `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
+| `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
+| `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
+| `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话与明确请求后的AI笔记新增 / 定向修改 | 依赖 A 与 M1-F2-D；失败不得丢讨论和笔记内容 |
+| `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
+| `M1-F4` | `PENDING` / 项目总控 | 免费体验与成本父闭环 | A已完成；B / C / V1未开始 |
+| `M1-F4-B` | `PENDING` / 待分配 | 成本预占、结算、释放、审计与账户累计¥5硬上限 | 依赖平台适配器；先以确定性适配器验证，真实费用需授权 |
+| `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
+| `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
+| `M1-F5` | `PENDING` / 项目总控 | 桌面 PPT 与真实可编辑 PPTX 父闭环 | F4-V1、对话选择、阅读与外部生成边界 |
+| `M1-F5-A` | `PENDING` / 待分配 | 对话 / 书籍双入口、单书来源、范围 / 需求与任务工作区 | 依赖 M1-F4-V1、F2、F3B-C |
+| `M1-F5-B` | `PENDING` / 待分配 | 公开资料补全、大纲生成、分层编辑与自动保存 | 依赖 A与文本模型；联网 / 预算需授权 |
+| `M1-F5-C` | `PENDING` / 待分配 | 三套16:9青瓷模板、真实预览与选择 | 依赖 B；`39b84a4`仅Presenton种子 |
+| `M1-F5-D` | `PENDING` / 待分配 | 任务幂等、Worker租约、停止 / 重启恢复与Presenton适配 | 依赖 C；版本、安全、许可证与真实进度不明时暂停 |
+| `M1-F5-E` | `PENDING` / 待分配 | 生成中、停止、失败、重试、修改大纲、删除与完成瀑布流 | 依赖 D |
+| `M1-F5-F` | `PENDING` / 待分配 | 作品列表、独立再生成、签名下载与可编辑PPTX | 依赖 D / E |
+| `M1-F5-V1` | `PENDING` / 待分配 | 三份中文PPTX在PowerPoint / WPS打开、编辑、重存 | 依赖 C～F；真实软件 / 环境 / 费用需授权 |
+| `M1-V1` | `PENDING` / 待分配 | 同一真实邮箱完成登录→导入→阅读→AI→额度 / 配置→PPTX | 依赖 M1-F1～F5 V1与邮件 / 模型 / Presenton授权 |
+| `M2` | `VERIFY` / 项目总控 | 小程序运行壳与多个开发态 scoped PASS 已进入main / 唯一f312 | 真实身份、production API、跨端互见与完整PPTX仍开放 |
+| `M2-UX-CONTRACT-ALL` | `VERIFY / HISTORICAL CONTRACT DONE / CURRENT DESIGN-READY RETURNED` | 六路由历史合同仅作设计输入；Reader / Drawer最新门已分别回写子包 | 仍缺若干真实键盘、reduced-motion、production与五态；后续只按具体包复验 |
+| `M2-F0-A` | `VERIFY / f312@992bf2a / CONTROLLED VISUAL SCOPED PASS` / 项目总控 | 六页、Drawer、输入 / 键盘层、底部面板与客户端状态 | 软件键盘、游客 clean-console、真实PPT preview及production仍开放；唯一f312 |
+| `M2-F0-A-H3-REWORK` | `BLOCKED / KEYBOARD + CREDENTIAL H3` / 项目总控 | 仅保留真实软件键盘与非游客 clean-console外部门 | 唤醒：真实键盘环境或授权AppID / 非游客DevTools；不再改可控视觉源码 |
+| `M2-F0-A-MINI-CONVERSATION-VISUAL` | `VERIFY / MAIN 11f480a / SCOPED PASS` | normal / selection / attachment、发送 / retry / 恢复视觉已有证据 | 软件键盘、长列表、reduced-motion与真实AI不在本包 |
+| `M2-F0-A-MINI-DRAWER-ASSET` | `VERIFY / F312 f8b3cfc / ASSET SUBEVIDENCE` | IMG-06运行时v5 PNG与slot / mask已进唯一f312 | Alpha / 资产存在不代表整页；运行时资产冻结 `c0086fab…29fdb` |
+| `M2-F0-A-MINI-DRAWER-STRUCTURE` | `VERIFY / F312 992bf2a / SCOPED PASS` | 430 / 390 / 360 / 320 normal与long-list结构证据已并入Drawer结论 | production仍空；只在新证据否定时重开 |
+| `M2-F0-A-MINI-DRAWER-VISUAL` | `BLOCKED / CONTROLLED VISUAL CLOSED / EXTERNAL H3` | ref11四宽normal / long-list、独立滚动、山景 / 底栏与横溢由非作者通过 | 唤醒：真实AppID / 非游客同一f312 clean-console；证据 `mini-drawer-f312-final-992bf2a/` |
+| `M2-F0-A-MINI-SETTINGS-STATE` | `VERIFY / MAIN 14b69dc / SCOPED NO-GO` | normal与fail-closed文案 / 数据行为通过 | 游客 `WAServiceMainContext` 5 errors / 9 warnings未闭合；证据 `mini-main-35bad75-14b69dc-final-review/` |
+| `M2-F0-A-READER-SHORT` | `VERIFY / MAIN 7f59698 / SCOPED EARLY PASS` | refs18～20的notes normal / delete-failure / retry / success / empty与sheet手势闭合 | production / 跨端父门仍开放；DESIGN-READY `59acd56d…b3a58` |
+| `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY / LIMITED PASS / H3 OPEN` | Reader与Conversation限定响应式结论保留；Drawer可控矩阵已另闭合 | 软件键盘、游客console与真实PPT preview仍开放 |
+| `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
+| `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
+| `M2-F2` | `PENDING` / 待分配 | 微信读书Key、首 / 增量同步、恢复与统一书架 | 依赖M2-F1与真实Key授权；外部调用前细拆 |
+| `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
+| `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；main两处Mini测试WIP继续只读保护 |
+| `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
+| `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
+| `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY AUTH BLOCKED` | 统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实接线依赖M2-F1；不返工已通过Reader |
+| `M2-F4-A` | `BLOCKED / CANDIDATE 20d61d6 / PRIVATE CONTRACT` | GET query、octet-stream import、映射与失败关闭合同冻结，未接page / runtime | 唤醒：Mini session bridge与runtime transport进入main；再派新writer走唯一f312 |
+| `M2-F4-B` | `PENDING` / 待分配 | 连续正文、目录 / 设置 / 操作层、笔记与跨端位置恢复 | 依赖B / C / D / E内容合同及真实身份；四宽、键盘、安全区 |
+| `M2-F5` | `PENDING` / 待分配 | 账户、模型、微信读书与退出的Mini端闭环 | 依赖M2-F1～F3；高风险流程按场景细拆 |
+| `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
+| `M2-F6-MINI-PPT-DRAFT-HANDOFF` | `VERIFY / F312 cf6a8c5 / SELF PASS` | 携带bookId / 书名，可编辑预填；发送前不auto-send / sheet / task；失败保留草稿与上下文 | 非作者最终门与完整PPT流仍开放；证据 `mini-ppt-f312-self-cf6a8c5/` |
+| `M2-V1` | `PENDING` / 待分配 | 同账户跨Web / Mini完成身份、书籍、阅读、对话、额度 / 模型与PPTX | 依赖M2-F1～F6、真机、DB与外部授权 |
+| `M3` | `PENDING` / 待分配 | 隐私 / 删除、备份恢复、迁移、监控、Staging、Web与小程序发布 | 依赖M2-V1及法务 / 服务器 / 域名 / 备案 / 平台 / 发布授权 |
 
-## 3. 当前阶段可执行台账（功能闭环；`V1` 为验收场景）
+## 3. 完成历史（压缩）
 
-### 3.1 `M1-F2` 桌面书库、阅读与笔记
+| ID | 状态 / 结果 / 提交 | 证据与边界 |
+| --- | --- | --- |
+| `M0` | `DONE / 2b639e0` | 可运行工作区、健康检查与确定性本地PPT基线 |
+| `STAGE-READ-NOTES-V1-A` | `DONE / CURRENT-MAIN TXT REAL CASE` | 导入→阅读→划线→想法→note CRUD→断服保留 / 重试→刷新恢复；`read_notes_desktop_20260828_b` |
+| `STAGE-READ-NOTES-V1-B` | `DONE / SERVER f7cf45c / MINI 82f6b84 / F312 d4f3dd0` | PUT / PATCH兼容、开发适配器notes失败保留 / 重试；production门未冒充通过 |
+| `STAGE-READ-NOTES-V1-C` | `DONE / CURRENT-MAIN READER 200% + DPR2` | `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
+| `STAGE-READ-NOTES-V1-D` | `DONE / MAIN e36bc37 / CURRENT-MAIN PASS` | Book Detail动作SVG、focus、overflow、console；真实下载未覆盖 |
+| `M1-F2-R1` | `DONE / 0204@9783628 READ-ONLY` | 38路径对账，无唯一未吸收实现；status `3bbbcce3…e79cbb` |
+| `M1-F2-R2` | `DONE / TECHNICAL PDF BOUNDARY` | 文本 / 图片 / 加密 / 损坏PDF边界冻结；`67d77d7`仅种子 |
+| `M1-F2-A-PROGRESS` | `DONE / MAIN 9c18842` | 批量进度、UTF-16、owner / stale / 非文本合同；15项与DB证据 |
+| `M1-F2-A-LIBRARY-NORMAL` | `DONE / MAIN ba5a836` | ref03 normal、真实进度、五列、DPR2；`desktop-library-progress-main-ba5a836/` |
+| `M1-F2-A-LIBRARY-STATES` | `DONE / MAIN 3e1904f / CURRENT-MAIN REAL PASS` | 四宽4/4/3/2、五态、卡级三态、失败保留 / GET重试、focus / overflow / console PASS |
+| `M1-F2-BC-S1` | `DONE / 44b81ea` | fileVersion、文本 / PDF locator、owner FK、条件更新与 `STALE_VERSION` |
+| `M1-F2-B-UX1` | `DONE / 804f952 / FOCUS PASS` | reader浅深 / 专注 / focus合同；200%证据已由Stage C补齐 |
+| `M1-F2-D-TEXT-INTEGRATION` | `DONE / MAIN f85d86c` | 定向19、全仓123、typecheck / build；只关闭共享集成 |
+| `M1-F2-D-TEXT-PPT-HANDOFF-FIX` | `DONE / MAIN 1e7763a` | 当前书匹配 / fail-closed、scroll重置；`dtext-handoff-early-101789e/FINAL-RECEIPT.md` |
+| `M1-F2-D-TEXT-READER-768-FIX` | `DONE / MAIN cc0cec0` | 768 / 1440长标题、toolbar、目录、背景 / 专注 / 笔记与overflow0 |
+| `M1-F2-E-OWNER` | `DONE / MAIN f1334ad / NONAUTHOR PASS` | owner / 版本锁序、两账户、迁移重复 / 回滚、并发与旧版本拒绝 |
+| `M1-F3A-A` | `DONE / MAIN 5f3b1bf + 0b1402f / H3 PASS` | AES-256-GCM、脱敏、替换 / 撤销、revision与失败回归；不等于自由聊天 |
+| `M1-F3A-V1` | `DONE / REAL H4 PASS` | DeepSeek连续上下文、刷新、断网草稿 / 重试；6次观测且≤¥1，Key不落盘明文 |
+| `STAGE-CHAT-V1` | `DONE / DESKTOP REAL H4 PASS` | 已保存配置→首轮→第二轮→刷新→失败保留 / 重试；10消息 / 5 request pairs |
+| `M1-F3B-A` | `DONE / MAIN dea90d7` | Conversation确定性纵切、持久化、失败重试、四宽；`main-conversation-final-dea90d7/` |
+| `M1-F3B-A-CONVERSATION-SLICE` | `DONE / MAIN dea90d7` | new / search / quota、owner、focus、console / overflow；同一纵切证据 |
+| `M1-F3B-A1-CONVERSATION-CORE` | `DONE / MAIN dea90d7` | PG会话 / 消息、API、Web、幂等、发送锁与hydrate竞态 |
+| `M1-F3B-A2-RESPONDER-CONTRACT` | `DONE / MAIN 934e654 + 2cddc3c / REAL H4` | DeepSeek适配、完整context、fail-closed、失败草稿 / 重试 |
+| `M1-F3B-A3-MESSAGE-ROLES-VISUAL` | `DONE / MAIN 27edac8 + 2316a91` | 用户右 / 老己左、头像外置、selection与focus；`main-message-roles-2316a91/` |
+| `M1-F4-A` | `DONE / MAIN ed489a8` | 一次性领取、grant / owner / focus与刷新隐藏；`main-quota-ed489a8/FINAL-RECEIPT.md` |
+| `AUDIT-ALL-1` | `DONE / READ-ONLY` | 25路线包分类与缺口审计；未写代码 / DB |
+| `M1-UX-SYSTEM-AUDIT` | `DONE / b38ed4d / FAIL BRIEF` | F01～F09、参考SHA、文件所有权与验收Case |
+| `M1-WEB-SHELL-01` | `DONE / MAIN deba325 / NONAUTHOR PASS` | 单rail、路由 / 刷新 / 断网恢复、1440 DPR2；`44e66af`候选 |
+| `M2-R0` | `DONE / 42d85fe→925bbc1 READ-ONLY` | 旧Mini候选只作选择性复用种子，不继承工作树 |
+| `M2-F0-A-MINI-DRAWER-UX-BRIEF` | `DONE / EARLY FAIL BRIEF` | ref11 + IMG-07结构 / Token / 响应式；`EARLY-BRIEF.md` SHA `075482b1…2842` |
+| `M2-F0-A-MINI-NOTES-VISUAL-REWORK` | `DONE / MAIN 7f59698 / F312 9766be9` | normal / delete-failure / retry / success / empty；Mini153、visual-contract绿 |
 
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `STAGE-READ-NOTES-V1-A` | `DONE` · `CURRENT-MAIN REAL CASE PASS / NO CODE FIX` | Desktop current-main真实TXT导入→阅读→划线→想法→老己笔记创建 / 修改 / 删除→断服失败保留 / 同草稿重试→刷新恢复；只关闭本滚动Goal，不冒充PDF / Mini production / 跨端父阶段DONE | Shared notes / highlights与owner合同已冻结；真实Case未发现代码缺口，故未派Desktop writer；Mini notes候选独立转下一Goal恢复 | reviewer owned NONE并已释放；main源码未改；隔离schema`read_notes_desktop_20260828_b`、Web4376 / API4321 | current-main代码基线`039868d`（后续至`5501a90`仅台账提交）；真实TXT SHA`806fe3a1…27d6`、book`9bf7ea34…0fa0`、同账户`f967d8e0…055c`；最终DB为2条highlight / 0条note，console无app error / warn；断服时精确草稿保留，重启重试成功，刷新后删除保持 |
-| `STAGE-READ-NOTES-V1-B` | `DONE / MAIN + UNIQUE F312 + DEVELOPMENT-ADAPTER SELF PASS` | 为note update增加微信可用PUT且保留Web PATCH；随后恢复Mini候选并顺序集成main / 唯一f312；不含production外部门、PDF或跨端父阶段DONE | Server / Mini / size gate均main PASS并进入f312；production仍另受apiBaseUrl / AppID / 域名 | Server`42a44fe→main@f7cf45c`；Mini`39e0e0f+a2d8658→main@c54df49+82f6b84→f312@a4be28f+50a6663`；size gate`8d39347→main@5c51931→f312@d4f3dd0` | f312 Mini164项、typecheck、build、diff-check绿，包1,879,482 bytes；唯一DevTools可见SELF完成新建笔记保存失败→草稿保留→同键重试→关闭重开恢复，以及删除失败→原笔记保留→重试。可见编辑动作未单独重跑，production与跨端门保持OPEN |
-| `STAGE-READ-NOTES-V1-C` | `DONE / CURRENT-MAIN REAL CHROME PASS / NO CODE FIX` | current-main真实Chrome关闭Desktop Reader原生200% / DPR2与稳定状态门；不含PDF / Mini production / 跨端 / DeepSeek调用 | 真实TXT与既有reader实现可用；没有代码缺口或外部阻塞，reviewer已释放 | reviewer owned files=NONE；业务代码相对`56740dc`无差异，仅外部visualizations证据 | 原生Chrome200%为685×321 / DPR4 / scale1；valid / failure、目录focus、浅深背景、笔记详情返回focus、专注进出、刷新恢复、body / main横溢0、console error / warn空，Actual Size已还原；证据`desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json`，最终规则`2de3c12 + 94b50c3b + 425e206e + 14034846` loaded |
-| `STAGE-READ-NOTES-V1-D` | `DONE / MAIN e36bc37 / CURRENT-MAIN REAL PASS` | 清理Book Detail动作视觉候选：成熟SVG关闭、新建笔记、三点菜单与PPT下载图标，保持PPT CTA层级；不改Server / DB、Auth资产、书架、Mini或PDF | `41386cb→main@e36bc37`修正1440 header / tabs / flow / CTA右缘，root与非作者在current-main完成真实动作、focus、overflow、console及完成态下载图标视觉复验 | main仅Book Detail四文件 + 两文件对齐修复；writer / reviewer均已释放 | 定向28项、Web246项、typecheck、build、visual-contract、diff-check通过；1440×1024 header / tabs / flow宽1188且右缘1406，close返回focus、横溢0、console空。隔离QA DB仅用于到达PPT完成视觉态，未验证实际下载路由 / 文件，不能扩写为Server行为PASS |
-| `M1-F2-R1` | `DONE` / 主 Agent | 将 `0204` 识别为早期设计探索工作树并只读排除；不修改、搬运、清理或提交其中内容 | 2026-08-24 重验为 38 项：37 项与当前链逐字节一致，唯一剩余是已被 `TASK_LEDGER.md` 替代的旧 `PROJECT_STATUS.md`；状态变化时重验 | DOC、Git / worktree | 核对 HEAD、status、相关 diff、路径逐项字节比较和参考索引；没有唯一未吸收实现或有效视觉事实；`0204` @ `9783628`，status SHA-256 `3bbbcce3b92620050889bc94dc38b49163bf75a80462caa0208a4dfbe1e79cbb`；保持只读排除 |
-| `M1-F2-R2` | `DONE` / 主 Agent | 统一 EPUB / TXT / PDF 导入与界面；PDF 有文本读文本，无文本但页面可渲染则显示页面图，全部不可渲染才失败；不实现阅读器、不引入 OCR | 既定产品规则不变；实现若需要付费服务、伪造正文或改变视觉时暂停 | DOC、候选只读 | 覆盖文本、图片、加密、损坏、单页失败和全部不可渲染 PDF；审查 `SPEC`、`TECHNICAL`、候选 `67d77d7` 差异与链接；技术边界写入 `TECHNICAL.md`；候选拒绝图片型 PDF，仅可作为文本能力种子 |
-| `M1-F2-A` | `VERIFY` · `DONE(function) / DESIGN-READY DONE / FAIL(visual)` / 项目总控 | 本地 EPUB / TXT / PDF 导入、账户归属、解析状态、元信息、动态封面与桌面统一书架功能闭环；不代表视觉或读书模块完成 | UI/UX已按ref03交Desktop书架DESIGN-READY；实现精确依赖为`LibraryBookSummary` / `library-runtime`缺权威阅读进度字段与归一化，禁止客户端把parseStatus猜成进度 | main功能实现保持；只读任务`/root/mini_notes_api_writer_recovery`已完成释放；合同`desktop-library-design-ready-8b78012/DESIGN-READY.md` SHA`350b86d9…8140` | 后续Shared API / technical包先冻结progress语义，再释放唯一书架writer；验收仍为至少10本、两排五列、真实进度、03同态、4视口、DPR2、键盘 / console / overflow与非作者复验；旧视觉PASS仅功能结论有效 |
-| `M1-F2-A-PROGRESS` | `DONE / MAIN PASS 9c18842` | 为Desktop书架normal首屏提供权威`progressPercent`合同；ready_text无有效位置=0，有当前file位置按全书正文序列归一0～100，非文本=null，stale / 非法locator fail-safe且owner隔离 | `d317b4b`首候选经root / 非作者REWORK后以`599bd37`固定批量查询和DB侧UTF-16长度、`6bf4243`补Web fixture，顺序进入main`9d0e3b6+933ecec+9c18842` | root定向15、全仓98文件594项、typecheck/build/diff-checkPASS；10书固定批量、emoji中间/末尾/越界、owner/stale/非文本均有DB证据 | 合同已冻结并释放互斥Desktop writer；Reader保存端astral校验另记P2，不改变本包DONE |
-| `M1-F2-A-LIBRARY-NORMAL` | `DONE / MAIN PASS ba5a836` | 按DESIGN-READY`350b86d9`与ref03`3cee650a`实现Desktop normal首屏：真实DOM权威进度 / 来源、五列密度、正式资产，清除library局部伪元素 | writer候选`7d1cca1`经root审实际5文件diff；DPR2恢复者与EARLY reviewer均未交可用verdict，root未参与实现，按窄审例外闭合SELF / EARLY后顺序进入main；页面五态 / 四宽另入相邻Goal | 真实API 12本含1本14%与11本0%；candidate / main定向32、Web typecheck / build、visual-contract、diff-checkPASS。真实外框1440×900→CSS1440×844 / DPR2 / zoom100，五列、横溢0、console空；1440×1024为CDP真实DOM composition-only非补白 | 证据`desktop-library-progress-self-9c18842/03-04`、`desktop-library-progress-main-ba5a836/`；Book Detail、Mini notes、H4均不因本包重开 |
-| `M1-F2-A-LIBRARY-STATES` | `DONE / MAIN REAL PASS 3e1904f` | writer与两条只读reviewer均已释放；`11f9b4a→main 3e1904f`。保留1440 normal，按DESIGN-READY闭合页面五态、卡级processing / ready_pages / failed及1280 / 1200 / 1024 / 768 DPR2；不实现WeRead、shared-shell、Mini或PDF | 三文件37+/7-、diff`c8517ce5…18a2f`；四宽4/4/3/2列及五态、筛选清除、失败保留与真实GET重试200均SELF / 窄非作者EARLY / current-main PASS | main定向28、Web253、typecheck / build / visual-contract / diff-check PASS；真实隔离schema卡级三态验证后已恢复12本ready_text | current-main DPR2 / zoom100、44px搜索、横溢0、focus保留、console error / warn空；入口`http://127.0.0.1:4476/#/library` |
-| `M1-F2-BC-S1` | `DONE` / 项目总控 | 冻结文本 / PDF 共用的文件版本、稳定定位、阅读位置、API、schema 与模块接缝；不实现阅读 UI | 生产 PDF 渲染依赖仍是 C 完整页面能力的授权门，不阻塞 B 或 C 的安全首包 | `packages/contracts`、迁移、`app.ts` / `index.ts`、共享 Web 入口 / 样式与 Worker 注册只由总控写 | `fileVersion`、文本 `sectionId + offset`、PDF `pageNumber`、复合 owner 外键、条件更新 / `STALE_VERSION`、缓存版本互不混用；`44b81ea` 已写入 `TECHNICAL.md` 5.1.1；B / C 已从该提交分开释放 |
-| `M1-F2-B` | `VERIFY` · `TXT READER 200% / DPR2 CURRENT-MAIN PASS / PARENT OPEN` / 项目总控 | EPUB / TXT 正文、目录、复制、全书位置、专注模式和浅 / 深阅读背景已有可复用实现；不含 D 的划线 / 想法 / 笔记 | focus与原生200% / DPR2稳定shell子合同PASS；PDF、完整父阶段与未覆盖EPUB组合仍不由本收据关闭 | main 已集成 `804f952 → e971ace → ed04dd4 → 08ff046`；本轮无业务代码修复 | 既有真实TXT / EPUB、位置 / 重启 / Selection与本轮current-main真实TXT valid / failure、长标题、目录、浅深、笔记详情、专注、刷新恢复证据合并有效；`desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
-| `M1-F2-B-UX1` | `DONE` · `DONE / FOCUS PASS` / 历史审查结论 | 浅 / 深阅读私有侧栏、无固定桌宠、首帧、焦点、滚动、TXT、复制反馈与完整专注可聚焦集合的非作者合同已闭合；不实现 | 固定 `804f952` 的专注合同已通过；PDF 页面一致性只锁视觉合同、不冒充当前实现；原生200% / DPR2精确视口已由Stage C补证 | 当前系统级审查由有效任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 在 `27df@b38ed4d` 执行，不重开已通过的 focus 结论 | 浅 / 深专注中 rail / toolbar 从视觉、命中、Tab 与 AX tree 退出；三控件、Selection / Range、scrollTop、Esc恢复、console / overflow及本轮200%收据合并有效；完整父项仍为`VERIFY` |
-| `M1-F2-C` | `VERIFY` · `OPEN / VERIFY`（安全首包已集成）/ 项目总控 + 后续待分配 | 文本型 / 图片型 PDF 页面阅读的解析 / 渲染、安全、缓存、恢复与页锚点基础；不 OCR、不伪造正文 | `7856a7a + 059b0ec` 已以 `d7e5ee6 + 589a22b` 合入；真实页面渲染仍需生产依赖、许可证和 Worker 资源授权，不能称 C 完成 | 已集成的 `pdf-reader*` 与 C 证据作为恢复点；共享 contracts / schema / app / Worker / Web 仍由总控在后续包分配单一写入者 | 安全首包覆盖真实样本元数据、部分页失败、过期租约重启、缓存键隔离、旧版本拒绝和异常租约释放；完整门另需 owner / fencing、持久化恢复、续租 / 超时 / 取消、真实渲染、DB / API / Web 与浏览器；非作者修复复审 `PASS`；main 定向 3 文件 / 17 项、`pnpm verify` 16 文件 / 67 项通过。`pdfjs-dist@6.2.108` + `@napi-rs/canvas@1.0.8` 仅为待授权推荐 |
-| `M1-F2-D` | `VERIFY` · `PARENT OPEN` / 项目总控 | 正文标注、想法、手工老己笔记、引用到会话、书籍详情和作品入口父闭环；不含 AI 整理笔记 | 按文本、PDF、入口真实依赖拆分；子项未全部通过前父项不得 `DONE` | 总控独占共享 contracts / schema / route / entry；子项互斥写入 | 文本CRUD / 删除、reader 768 / 原生200% / DPR2与当前书PPT handoff已有scoped PASS；`D-PDF` 等 C，引用到会话与父项其余边界仍开放 |
-| `M1-F2-D-TEXT` | `DONE` · `DESKTOP TXT REAL CASE PASS / NO CODE FIX` | current-main真实TXT经导入UI进入阅读；同一账户完成划线、想法、note创建 / 修改 / 删除、断服失败保留、重试与刷新恢复；旧Network-first删除子证据保留 | 本卡只关闭Desktop TXT纵向功能；PDF、200% / DPR2、Mini production与跨端互见仍属于父阶段后续门 | 只读QA owned files=NONE，源码 / main / 配置 / 锁均未改；reviewer已释放 | schema`read_notes_desktop_20260828_b`、Web4376 / API4321；真实TXT SHA`806fe3a1…27d6`、book`9bf7ea34…0fa0`；最终2条highlight、0条note，刷新一致，console无app error / warn |
-| `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工老己笔记 | C 的真实 PDF 页面 / locator / 渲染与持久化仍未完成 | 后续独立 PDF 私有实现；共享接口由总控 | 真实文本型 / 图片型 PDF、页锚点、失败页保留、刷新恢复；C 页面能力通过后释放，不阻塞 `D-TEXT` |
-| `M1-F2-D-ENTRY` | `VERIFY` · `BOOK DETAIL + HANDOFF SCOPED FINAL / PARENT OPEN` / 项目总控 | 书籍详情、笔记 / 作品入口和五类状态；不实现 PDF 阅读或 AI | Book Detail链至`0cc5d46`；D-TEXT handoff以`1e7763a`关闭旧书泄露与恢复滚动遮挡。真实删除、原生200%与父项其余入口仍未覆盖，故不标父项DONE | main Book Detail 12文件、Server seam与Web handoff 3文件 | Book Detail四宽与真实持久化证据保持；handoff 768 / 1440、旧scroll 90.5→0、匹配 / mismatch、console / overflow PASS；证据`book-detail-main-final-0cc5d46/`与`dtext-handoff-early-101789e/` |
-| `M1-F2-E` | `VERIFY` · `OPEN / SPLIT` / 项目总控 | 原文件、解析结果、位置、划线与笔记的 owner 契约及跨端真实验收父闭环；不重复开发小程序 UI | 已拆 `E-OWNER` 与 `E-XEND`，避免真实微信身份阻塞本地 owner 合同 | 总控独占共享 contracts / schema / app 接缝；真实端实现分配互斥任务 | owner / 版本 / 旧请求防回写与两端读取分别验收；子项全部通过前父项不得 `DONE` |
-| `M1-F2-E-OWNER` | `DONE` · `DONE / NONAUTHOR PASS / MAIN MERGED f1334ad` / 项目总控 | 为书籍、章节、位置和文本标注冻结会话中立的账户 owner、版本条件写入与迁移回退合同 | `owner@9512c40` clean；非作者真实 PostgreSQL 证明发布 v2 阻塞旧 v1 位置写，旧写返回 `409 STALE_VERSION`、stored position 不变、latest v2；发布 / 位置 / 标注与笔记统一 `books FOR UPDATE → book_files` 锁序，两账户、迁移重复 / 回滚、常规并发通过 | 完整链已以 `main@f1334ad` 合入；main owner 4 / 4、全仓 33 files / 187 tests、typecheck / build 通过 | 本子卡只关闭开发会话中立 owner / 版本合同；`x-selfalone-account` 仍是 development adapter，真实认证与跨端恢复不得冒充通过；已释放 `M1-F1-A`；共享 PostgreSQL 两枚旧 reviewer schema 是既有残留，本轮只读审查未删除 |
-| `M1-F2-E-XEND` | `PENDING` / 待分配 | 两个真实客户端会话读取同一位置、划线与笔记并完成失败恢复 | `E-OWNER`、F1 会话、M2-F1 身份以及 B / C / D 对应内容能力 | Web / Miniapp / API / DB / QA；按端分开写入 | 同账户跨端刷新 / 重开恢复、换号隔离、旧请求不可覆盖；真实 AppID / 身份与端侧能力就绪后验收，不反向冻结 `E-OWNER` |
-| `M1-F2-V1` | `PENDING` / 待分配 | 一个隔离测试账户完成导入、书架、文本 / PDF 阅读、划线、笔记和刷新恢复 | A～E | QA、DOC | 真实浏览器、真实文件、PostgreSQL 持久化、视觉对照、可访问性和全 diff 审查；未产生；作为 F2 父闭环验收，不再反向阻塞已 `READY` 的本地邮箱 / owner 工作 |
+## 4. 外部图片调用账本
 
-### 3.2 `M1-F1` 桌面账户与设置
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `M1-F1-A` | `VERIFY` · `MAIN MERGED b6b77ee / MAIN CASE PASS / FINAL BOUNDARIES` / 项目总控 | 邮箱注册、登录、退出、服务端会话和桌面登录 / 注册 UI；微信入口保持主层级但未授权时 fail-closed | Auth两提交已先于 Settings顺序合入；真实邮件 / 微信与真实 reduced-motion未覆盖，故父包不写 DONE | CORE checkpoint + `main.ts`、`styles.css`、`auth-page.ts`、`auth-page.test.ts` | refs 01 / 02；候选四宽 / 弹窗 / failure EARLY PASS；main@d9a3b46隔离注册并进入登录态通过，证据 `auth-early-b7a6894/` 与 `main-auth-settings-final-d9a3b46/` |
-| `M1-F1-B` | `VERIFY` · `MAIN MERGED a9408ad / P0 MAIN FINAL PASS / REOPEN CLOSED` / 项目总控 | 邮箱 / 密码修改与桌面设置闭环；密码只留同页失败内存，跨刷新 / 新标签仅恢复非敏感邮箱；不代表真实邮件送达、微信绑定或完整父包完成 | 本次 P0 已关闭并释放 Conversation shared seam；真实邮件、成功换邮、微信与 reduced-motion 仍是独立边界 | main 已集成 `settings-state{,.test}.ts`、`main.ts` 最小修复 | 候选 legacy v1 / email-only / failure / focus EARLY PASS；main 43 files / 231 tests、typecheck / build与同 Case FINAL PASS；证据 `settings-p0-early-c5d68b5/`、`main-settings-p0-final-a9408ad/` |
-| `M1-F1-V1` | `PENDING` / 待分配 | 同一真实邮箱完成注册、重登、找回和账户修改，既有书籍数据不丢失 | A、B | QA、DOC | 浏览器、数据库、令牌安全、账户 owner 和全 diff 审查；未产生；通过后释放 `M1-F3A-A` |
-
-### 3.3 `M1-F3A` 模型配置
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `M1-F3A-A` | `DONE` · `MAIN MERGED 5f3b1bf + FIX 0b1402f / H3 PASS` | clean候选`dsk1@4410e6e`的24文件文本模型加密配置 / 校验provider seam已顺序进main；root真实Case另发现撤销成功文案误称AI仍可用、PostgreSQL `bigint`字符串导致修订号`9→91`，均以失败回归和最小修复关闭。本包只关闭产品内安全配置入口，不代表自由聊天 | root在隔离schema完成空Key、无效Key、development fake保存、刷新脱敏、替换与撤销；修订号保存`2221→2222`、撤销`2222→2223`，墓碑密文 / nonce / auth tag均0。本事件真实DeepSeek配置验证1/3已PASS | main候选24文件 + root四文件修复；凭证仅AES-256-GCM密文与脱敏提示入库，剪贴板已清空，测试 / 日志 / UI无真实Key | 定向11文件46项、全仓typecheck、全仓build、diff-check通过；官方模型 / 计费与responder候选均已闭合代码门，H4还需两轮真实会话，不得把配置验证写成自由聊天DONE |
-| `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立可选配置、检测、撤销和设置 UI 闭环；不成为无图 PPT 前置 | A；图片供应商范围未确认或产生付费调用时暂停 | CORE、API、DB、WEB、QA | 文本 / 图片配置互不覆盖；撤销不影响历史数据和无图 PPT；失败保留输入；未产生；通过后释放 V1 |
-| `M1-F3A-V1` | `DONE / REAL H4 PASS` / 项目总控 | 完成模型配置本地闭环，并以DeepSeek取得脱敏H4真实连续对话、刷新与失败恢复收据 | A；Passwords安全摄入闭合；Agent3次、用户本人2次、授权恢复重试1次，总观测6次且费用≤¥1 | current-main隔离schema / API4212 / Web4276、真实Chrome；不写Key | current-main定向5文件36项、Server / Web typecheck与build PASS；“已记住”→“青瓷17”上下文PASS，断网草稿保留、恢复后“重试成功”，刷新10条 / 5完整request pairs不变，console无error / warn，密文非空且明文字段0 |
-
-### 3.4 `M1-F3B` 桌面对话与 AI
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `STAGE-CHAT-V1` | `DONE / DESKTOP REAL H4 PASS` | 同一真实账户的已保存DeepSeek配置、真实首轮回复、连续第二轮上下文、刷新恢复及失败草稿保留 / 重试完整闭合；main代码此前已集成，本轮仅补真实端最终验收 | provider代码、用户授权与安全摄入均闭合；Mini生产DevTools另归`STAGE-CHAT-MINI-V1 / H3 BLOCKED`，不把本地代码PASS冒充跨端真实PASS | main Server 10文件、既有Web Conversation与设置入口、隔离H4 schema / API / Web；root独占最终验收 | Agent3次+用户2次+授权恢复重试1次，总观测6次且≤¥1；10条消息 / 5完整request pairs、刷新不增量、failure draft/retry、console / DB / 密钥边界PASS；系统Goal已真实complete |
-| `M1-F3B-A` | `DONE` · `MAIN MERGED dea90d7 / EARLY + MAIN FINAL PASS` / 项目总控 | 输入、发送、确定性回复、刷新恢复、错误保留、new / search / quota与统一对话UI已闭合；不代表真实AI、图片、选择或书籍上下文 | 本子包DONE释放B / C / D各自依赖；真实AI与完整F3B仍开放，不扩大父包完成 | main Conversation CORE / API / DB / Web与shared `main.ts` / `styles.css`等38文件 | main70文件 / 411项；真实注册、发送 / 回复、刷新无重复、断服保留 / 重试、搜索 / 新建、1440 / 1024 focus / console / overflow PASS；证据`desktop-conversation-early-48edb7e/`、`main-conversation-final-dea90d7/` |
-| `M1-F3B-A3-MESSAGE-ROLES-VISUAL` | `DONE` · `MAIN MERGED 27edac8 + 2316a91 / NONAUTHOR FINAL + ROOT MAIN PASS` | 用户消息右对齐、浅青瓷、无头像；老己消息左对齐、暖白、头像外置；selection summary与共享数据模型保持，requirements焦点环可见。只关闭角色视觉子门，不代表真实AI或F3B父项完成 | root核实际`cfb1b3d → 161c384`四文件diff，确认main自共同基线无同文件改动后顺序集成；临时隔离schema / 4212 / 4276只用于main Case，现已关闭。Auth writer已释放取得`styles.css`ownership | main `conversation-view{,.test}.ts`、`styles.css`、`ui/desktop-shell.test.ts` | main定向2文件30项、Web typecheck / build / diff-check；真实Chrome 1440 / 768角色层级、selection、focus、横溢0、console空，证据`main-message-roles-2316a91/`；不扩大F3B父项DONE |
-| `M1-F3B-A1-CONVERSATION-CORE` | `DONE` · `MAIN MERGED dea90d7 / CODE + MAIN CASE PASS` / 项目总控 | 确定性回复、PG会话 / 消息、API、Web、legacy、导航、幂等、发送锁与hydrate竞态闭合 | 只关闭normal纵向切片；真实模型与B～D不在本包 | main Conversation CORE / API / DB / Web与F4-A最小接缝 | main70文件 / 411项；隔离PostgreSQL持久化、失败保留 / 重试、刷新无重复与两宽真实Chrome PASS；`main-conversation-final-dea90d7/FINAL-RECEIPT.json` |
-| `M1-F3B-A2-RESPONDER-CONTRACT` | `DONE` · `MAIN MERGED 934e654 + 2cddc3c / SECURITY FINAL + REAL H4 PASS` | `deepseek-chat@877b715`以账户级加密credential接DeepSeek Chat Completions与ConversationStore；完整有序context、non-thinking、chat max_tokens128，validation max_tokens1；真实H4已闭合 | root审查实际10文件diff后确认缺凭证租约fail-closed、启动不外调；本地认证、安全摄入、真实首轮 / 上下文 / 刷新 / failure retry均PASS | main含Server `conversation-responder`、`conversation-store`、`deepseek-text-model-adapter`、`model-config-runtime`各源 / 测试、`index.ts`、`.env.example` | main定向4文件26项、Server typecheck / build、diff-check及真实Chrome / DB PASS；配置验证、连续两轮、刷新、断网草稿保留与恢复重试均有current-main证据 |
-| `M1-F3B-B` | `PENDING` / 待分配 | 纯图片 / 图文消息、最多 4 图、逐张移除、能力预检和失败恢复的桌面闭环 | A、对象存储、模型能力目录 | CORE、API、DB、WEB、QA | 上传失败或模型不支持图片时保留全部草稿；账户隔离和视觉状态通过；未产生；通过后进入 V1 |
-| `M1-F3B-C` | `VERIFY` · `MAIN MERGED c858a06 / NONAUTHOR EARLY + MAIN REAL CHROME PASS / PARENT OPEN` / 项目总控 | 简单选择、显式确认、只读历史和失效问题的纵向切片；不含真实模型、图片或书籍上下文 | 私有链 `a08fbbc → 30e0423 → 6e21cad`、shared seam `9ff9877 → 940d390` 与 focus `858bf19 → c858a06` 已在 main；真实 AI 问题生成仍不在本包 | main `apps/web/src/conversation-selection-view.ts` / `.test.ts` 与既有 Selection 接缝；writer / reviewers 已释放 | 非作者覆盖 single / multi、free / stale / failure、键盘、刷新和四宽；main 6文件40项、typecheck / build / diff-check通过。真实注册→对话→assistant绑定multi→非首项确认，立即 / 稳定焦点均为同问题 readonly；断服错误态→重连→刷新→全新标签及1440 / 768、console / overflow通过；`main-selection-focus-c858a06/FINAL-RECEIPT.json` |
-| `M1-F3B-C-R2A` | `VERIFY` · `MAIN MERGED 30e0423 + 6e21cad / CODE PASS / PARENT OPEN` / 项目总控 | mutation级丢响应恢复、可执行重试、multi / free空值确认及 stale recovery fencing；不代表共享 route / UI seam 已完成 | 两提交实际 diff 与 `git show --check` 已核；generation fence、submitted / stale服务端真相与draft清理进入main | Web selection controller / view / tests / css 共5文件，后续 fencing再改 controller 2文件 | main fresh Selection定向合计8文件 / 44项通过；私有代码保留，待shared seam、真实业务Case与Chrome视觉 / 状态复验，不提前DONE |
-| `M1-F3B-C-R2B` | `VERIFY` · `MAIN MERGED a08fbbc / CODE PASS / PARENT OPEN` / 项目总控 | 选择问题稳定绑定原assistant message并贯通API / 持久化 / Web状态；不渲染、不代表shared conversation已接线 | 实际12文件 diff 与 `git show --check` 已核；messages关联、FK / role与legacy回滚进入main | Server 8个 selection 源 / 测试与Web client / state共12文件 | main fresh Selection定向合计8文件 / 44项通过；仍需shared seam与真实Chrome业务Case，提交名或测试不能替代用户可见完成 |
-| `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话及明确请求后的 AI 笔记新增 / 指定原笔记修改闭环 | A、`M1-F2-D` | CORE、API、DB、WEB、QA | 默认新增；只有明确引用才更新；来源轻量标记；失败不丢讨论和笔记内容；未产生；通过后进入 V1 |
-| `M1-F3B-V1` | `PENDING` / 待分配 | 两个会话边界下完成文字 / 图片对话、停止恢复、选择和笔记整理 | A～D | QA、DOC | 真实浏览器、模型或明确假适配器边界、DB 持久化、视觉和全 diff 审查；未产生；通过后释放 `M1-F4-A` |
-
-### 3.5 `M1-F4` 免费体验与成本
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `M1-F4-A` | `DONE` · `MAIN MERGED ed489a8 / CURRENT CONTENT THROUGH d86dbd8 REVERIFIED` / 项目总控 | 新账户一次性领取、账户grant与桌面对话轻量领取条已在当前main闭合；领取成功约1.2秒后整条消失并恢复输入焦点，刷新后仍隐藏；不含F4-B/C、模型或付费调用 | 六个quota Web文件从`e956c8f`到本控制提交父`d86dbd8`逐字节无diff，区间只有台账变化，不使内容收据失效；共享schema已能安全区分新账户与grant | main `conversation-chat-directory{,.test}.ts`、`conversation-chat-quota{,.test}.ts`、`conversation-chat.css`、`main.ts`；非作者与总控均未再写源码 | 当前内容定向2文件 / 10项既有PASS；真实Chrome注册→领取、status焦点、1302ms后textarea、reload隐藏、1370×642@DPR2、console / overflow空；DB accounts4 / grants2 / owners2 / orphan0 / FK1 / claimed2；收据`main-quota-ed489a8/FINAL-RECEIPT.md` SHA`e8b438…7167a3`、截图SHA`e2d780…b6a15`。仅关闭A，不扩大AI或成本闭环 |
-| `M1-F4-B` | `PENDING` / 待分配 | 平台调用成本预占、结算、释放、审计和账户累计 `¥5` 硬上限；不把内部金额下发成余额 UI | A、平台适配器；真实费用或并发模型不清时暂停 | CORE、API、DB、QA | 并发不超支；失败正确释放 / 结算；日志脱敏、owner 和回退证据完整；未产生；真实付费调用需预算授权，确定性适配器先验 |
-| `M1-F4-C` | `PENDING` / 待分配 | AI 与 PPT 共用免费能力，耗尽后在原操作位置引导配置并恢复输入、会话和 PPT 草稿 | A、B、F3、`TECHNICAL` 中的 PPT 草稿契约；不得反向依赖尚未建设的 F5 | CORE、API、DB、WEB、QA | 不自动重放；领取 / 调用失败与耗尽状态不丢上下文；视觉与 4 视口通过；未产生；通过后释放 V1 |
-| `M1-F4-V1` | `PENDING` / 待分配 | 新账户领取、AI / PPT 消耗、失败恢复和硬上限并发 Case | A～C；真实计费需调用授权 | QA、DOC | 确定性适配器证明成本账本；真实调用补脱敏收据；数据库和全 diff 审查；未产生；本地门通过后释放 `M1-F5-A`，真实收据在 `M1-V1` 前补齐 |
-
-### 3.6 `M1-F5` 桌面 PPT 与真实 PPTX
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `M1-F5-A` | `PENDING` / 待分配 | 对话 / 书籍详情双入口、单书来源集合、范围与需求、结构化追问和桌面任务工作区的完整闭环 | `M1-F4-V1`、F2、F3B-C；任务 / 会话模型冲突时暂停 | CORE、API、DB、WEB、QA | MVP 恰好一本但内部不写死；切书不自动建会话；旧问题失效；返回和多任务独立；参考 02 与 Web 规范；未产生；通过后释放 B |
-| `M1-F5-B` | `PENDING` / 待分配 | 正文不足时公开资料补全、大纲生成、连续分层编辑、自动保存和层级校验闭环 | A、文本模型；联网服务与预算需授权 | CORE、API、DB、WEB、QA | 不伪装全书分析；失败保留范围、资料和大纲；无所属页面阻止确认；参考 04；未产生；授权前以假适配器验，完成后释放 C |
-| `M1-F5-C` | `PENDING` / 待分配 | 三套版本化 `16:9` 青瓷模板、真实预览和选择闭环；无图片模型仍达到成品视觉 | B；模板视觉基线或资产来源不明时暂停 | PPT、WEB、QA | 长标题、长正文、带图 / 无图无溢出；参考 05 不覆盖共享外壳；候选 `39b84a4` 仅作 Presenton 种子；通过后释放 D |
-| `M1-F5-D` | `PENDING` / 待分配 | PPT 任务幂等、会话互斥、Worker 租约、停止 / 重启恢复、旧请求防回写和固定 Presenton 内网适配 | C；外部版本、安全、许可证或真实进度能力不明时暂停 | CORE、API、WORKER、DB、PPT、INFRA、QA | 重试不重复；停止保留页面；进程恢复；不暴露管理 UI；不能可信逐页时不伪造进度；`39b84a4` 为唯一种子，`d5ee177` 已替代；通过后释放 E、F |
-| `M1-F5-E` | `PENDING` / 待分配 | 桌面生成中、停止、失败、重试、修改大纲、低频删除和完成瀑布流的完整 UI 闭环 | D | CORE、API、DB、WEB、QA | 单列 16:9、末尾跟随、不抢滚动；失败保留前页；删除二次确认；参考 06/33 和 Web 规范；未产生；通过后释放 F、V1 |
-| `M1-F5-F` | `PENDING` / 待分配 | 作品列表、独立再生成、签名下载和可编辑 PPTX 交付闭环；不覆盖历史作品 | D、E | CORE、API、DB、WEB、PPT、QA | 下载为唯一主操作；真实文件可预览；作品区参考不冒充完成工作区定稿；未产生；通过后进入 V1 |
-| `M1-F5-V1` | `PENDING` / 待分配 | 三份中文、长标题、带图 / 无图 PPTX 在 PowerPoint 与 WPS 打开、编辑和重存 | C～F；真实软件、生成环境及必要费用需授权 | QA、DOC | 16:9、对象可编辑、字体替代、溢出、重存、候选快照和全 diff 审查；未产生；通过后释放 `M1-V1` |
-
-### 3.7 `M1-V1` 桌面真实闭环
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `M1-V1` | `PENDING` / 待分配 | 同一真实邮箱账户完成登录、导入书、阅读记录、AI 对话、领取或配置模型、生成并下载可编辑 PPTX | M1-F1～F5 全部 V1；真实模型 / 费用 / 邮件 / Presenton 授权门 | QA、DOC | `SPEC` 第 8 节、Web 4 视口、真实文件、PostgreSQL、刷新恢复、PowerPoint / WPS、视觉与全 diff 审查；未产生；不是 M2 客户端独立建设前置，仍是完整双端业务验收的重要上游门 |
-
-## 4. M2 并行建设与远期模块
-
-M2 不再整体等待 `M1-V1`。只依赖当前事实源和客户端本地边界的工作先行；真实账户、API、持久化、外部服务与双端闭环仍按上游能力逐项解锁。下列建设包不得把开发适配器、静态页面或模拟状态称为真实跨端完成。
-
-| ID | 状态 / 唯一 owner | 当前可独立交付 | 写入边界 | 释放 / 验收门 |
-| --- | --- | --- | --- | --- |
-| `M2-R0` 候选复用审计 | `DONE` / 项目总控 | 以 `42d85fe → 925bbc1` 为只读代码种子，按当前连续滚动与视觉逐模块选择性复用，不继承旧工作树 | `6f5c@925bbc1` 只读；旧“连续滚动应废弃”结论失效 | HEAD / status、19 项测试和主线缺口证据已保留；F0-A 已在隔离 `f312` 从 `ff4767b` 重建，后续以其真实 diff / H3 为准 |
-| `M2-UX-CONTRACT-ALL` | `VERIFY` · `DONE(HISTORICAL CONTRACT) / CURRENT VISUAL FAIL BRIEF` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | `d90d0fb` 的六路由合同只作历史 DESIGN-READY；本轮对 `f81b463` 真实 DevTools 定向检查已确认 drawer / Reader 视觉失败，不写实现 | 只读 DESIGN-READY / FAIL brief；不得写 Mini 源码 | 当前 brief：drawer 保留 86vw / 开放列表并提供 140px 无图 scenery slot，正式山亭资产缺失；Reader 标题 tall 28/36、regular 26/34、short 22/28、max-width 12em，并复验 font23 首屏提示。旧 `DONE` 不得当作当前候选 PASS |
-| `M2-F0-A` 原生运行壳与客户端状态 | `VERIFY` · `f312@cbb63fa / V5 320 SELF FAIL / BRIEF READY` / 项目总控 | 六页、抽屉、共享输入 / 键盘层、底部面板与客户端五态；v5静态体积门已闭合但320真实端山景过早、亭子不清，不能冒充视觉通过 | 唯一f312含已审v5与build seam，保护config / lock / QA不变；非作者已冻结asset composition + slot / placement根因brief，PPT handoff在mppt1六文件互斥实现 | 下一事件恢复原writer按brief一次返工，先320 SELF，再360 / 390 / 430与EARLY；软件键盘、tourist凭证、notes CRUD与真实PPT preview继续开放 |
-| `M2-F4-A` 真实书架 / 导入接入 | `BLOCKED` · `CANDIDATE 20d61d6 / PRIVATE CONTRACT ONLY` / 项目总控 | 冻结真实GET query、raw octet-stream import、响应映射与失败关闭合同；未接page/app/runtime，不把开发适配器或候选冒充持久化 | `mlib1@20d61d6` clean；M2-F1尚无小程序可用session bridge，Server只认HttpOnly Cookie；DevTools transport未接 | 7文件、定向10项、Mini108项、typecheck / build / diff-checkPASS。解除后由新writer接线并走唯一f312，当前不进main |
-| `M2-F4-B` 连续正文 / 笔记 / 恢复接入 | `PENDING` / 后续小程序任务 | 自然连续纵向滚动正文、目录 / 设置 / 操作层、笔记和跨端位置恢复 | B / C / D / E 分别提供正文、PDF、笔记与 owner / 恢复契约；不强制分页或整页吸附 | 真实内容、刷新 / 重开恢复；360 / 390 / 430 与不同高度下验证长正文、动态字号、输入法、底部安全区、弹层和连续滚动无跳位 / 横向溢出；开发者工具、真机与非作者 UI/UX 复验 |
-
-### 4.1 `M2-UX-CONTRACT-ALL` 当前覆盖矩阵
-
-固定入口为 `f312@866f237` 的 [`apps/miniapp/src/app.json`](/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp/src/app.json) 六条路由；以下矩阵是本包当前审查范围和真实覆盖状态，不代表对应业务闭环完成。
-
-| 页面 / 共享层 | 绑定参考（SHA-256） | 本轮必须覆盖 | 当前证据 / 结论 |
+| 序号 | 状态 | 调用与输出 | 账本 |
 | --- | --- | --- | --- |
-| `nav-drawer` | `11-mobile-conversation-drawer.png`（`9e764e60189845b6f46eb1181c97bbc622a363c067274ae479cfb7a15c68c36e`） | 打开 / 关闭、长会话、底部导航、iOS / Android 安全区、各宽高与命中 / 溢出 | `NORMAL COVERED / VISUAL FAIL REOPEN`：用户同态截图与v3 / v4两轮320 fresh SELF均证明山亭位置 / 尺度、下部景区、上缘消散与列表 / 底栏节奏未闭合；机械Alpha、多背景合成与静态门不能替代。因同范围连续两次主观FAIL，下一写入前必须先有UI/UX精确方案并按已授权ImageGen额度生成候选；随后仍须320 / 360 / 390 / 430同状态、五态 / 长列表、console / overflow、EARLY后FINAL；键盘独立未覆 |
-| `login` | `21-mobile-auth-login.png`（`3cda4b1cd6b5f1479b8a29c26dc66e403840d773122ce43d1690ed4db8bc6381`） | loading / 授权失败 / 正常、微信 / 邮箱主次、协议、键盘开关、安全区、长文案 | `PARTIAL / FAIL`：`5e270b1` 已覆盖 320 主态 / 长邮箱聚焦与 430 主态，完整上下文、协议和底部安全区可见；背景山亭仍缺，恢复 loading、认证失败与真实键盘实显仍 `UNCOVERED`，焦点证据 keyboard=0。游客身份只阻塞真实授权结果 |
-| `conversation` | `13`（`38569bae11f33492523b3546bed1d9a8e297a9be55a0cbdf23d44f7cf4117d5e`）、`30～32`（`5b231f018b55b535bca2659403d6e46c33e356f129ee4a85ab21fc55d5077728` / `bc286413ddbf0ecd87bde39793b7197e1abea0032891c13eb4356c751863127f` / `8bdb333b34314303fcf01ac37d91bdd80b05844490af64878daf18da1361b0fa`）、`38`（`ea5876adf8a5953c19ac105dfd251d5f77bf1d2417d71c35df5981f0b6a9fb7a`） | 五态、普通 / 范围选择 / 附件 / 免费额度、输入增长、键盘开关、趴宠可见下缘锚点、安全区 / 长内容 / 失败保留 | `NORMAL COVERED / FAIL`：390 开发正常态已覆盖；固定透明画布定位的趴宠锚点失败，selection / 附件 / 1～5 行 / 键盘 / 五态 / 额度仍 `UNCOVERED` |
-| `library` | `14-mobile-reading-library.png`（`3e80d4a9d64567c439ffab09b8e90d0444f0025a794a44e8d4100d69d7465212`） | loading / 真实空 / 筛选空 / 失败 / 正常、搜索 / 导入、2 / 3 列、长书名、四宽与安全区 / 溢出 | `NORMAL BASELINE COVERED / NEAR PASS`：`5e270b1` 已冻结 320 两列和 430 三列含长标题，页头、搜索、进度、来源与无可见横溢成立；360 / 390 有前序基线，但其余四态与最终同 revision 矩阵仍 `UNCOVERED` |
-| `reader` | `15～17`（`82c09e3849e000dbe3b4a4cf796b1498e9de94efc323a933d1395903652537e3` / `dcaacd30403fabfd8d01d12704ea8b5ab40572ac299f1dd2685756242393df36` / `a847e81aad0d1935cb91586ea761fb8f1abfd6ad905f4f1c2b457056a12d9608`）、`18～20`（`2ddebcb614497d88efc79e0bf77197fc26192c5641ea2833d2a7a820cef8152f` / `23d078e390f6fc2b4422587b81b990f50154ca6e98535a94ccf65c418ec76077` / `e76a281751844095d080d8564980f13cc2d0ed7b9112dc3b842f6262b98b19cb`） | 介绍首屏 / 连续正文 / 操作层、浅深、短中长高、长标题 / 正文、内容三面板五态、趴宠与 44px 对话入口锚点、安全区 / 字体 / reduced-motion | `PARTIAL / FAIL`：`630c051` 通过 swipe lifecycle，`5e0188d` 通过 live viewport / 控制层 / 面板局部几何，`cdaa307` 关闭 DevelopmentClient 内制作 PPT 绕过会话。操作层透明盒锚点、缺“新建笔记”、完整五态与 360 / 390、键盘 / 字体 / reduced-motion / 选区仍未通过 |
-| `ppt` | `23～29`（`053018567a03dcef79c0c70ba3e0b3d944aa0667694ecc3fd08e714267d84ef3` / `e3b115b90a53b1066ab469455d1e315eed19e1c666f1b08547d0efcf8e7bd11c` / `fb130b9de0aa9f33537ee9219ac01f677ef77a3816d0fd57a199867d1c9f7e74` / `13591782f4ae0ff98d80c3addecbab85ff79825cefb4b8ff61a2a5cde42d6046` / `7c604274a732769251b07f27308dfa66dbfaea16c94e1a79a1af2a7c787ca36b` / `fa5fdc4b6bc36986f268f22328b9178ebb3d1ab18ab035673c1f1fdaaa19c3f8` / `4ed985f4aadafa9769d9e732228cec7768e452de4d9d21598d54bf713e1dc960`） | 范围 / 大纲 / 编辑 / 模板 / 生成中 / 失败 / 完成、键盘、动态长度、吸底操作、安全区、失败保留与溢出 | `PARTIAL / FAIL`：320 的 1 / 4、2 / 4 结构接近通过；编辑器单 textarea 与伪保存语义失败，3 / 4、4 / 4、键盘和其余状态 `UNCOVERED`。真实模板 / 完成页预览资产缺失，只允许明确开发适配器状态，不得用 CSS 色块冒充 |
-| `settings` | `22`（`ce28f93874444d6877713576716b1395dff6752da36650d6a5792e293f657288`）、`39`（`e74f589f85b9c8f9bf6654ef68bca8d5e6f5f87399a34a69744722f718b5ed17`） | 总览五态、服务长状态、模型配置、凭证显隐 / 键盘、保存失败、安全区、长文案 / 溢出 | `NORMAL LIST BASELINE COVERED / PAGE FAIL`：`5e270b1` 已冻结 320 自然滚动到退出与 430 全项同屏，开放列表、分隔、状态和安全区成立；山亭仍缺，loading / 失败、39 详情与真实键盘仍 `UNCOVERED` |
-| 共享面板 / 键盘层 | `16`、`18～20`、`25`、`30～32`（SHA 同上） | 动态高度、遮罩、焦点 / 返回、键盘开关、输入 / 附件增长、底部安全区、系统字体、reduced-motion、横纵滚动与内容保留 | `PARTIAL / FAIL`：reader 三内容面板正常态与 PPT 编辑面板已实看，但面板遮工具栏、编辑与键盘语义未通过；其他共享矩阵仍 `UNCOVERED`，不得由任一页面静态截图替代 |
+| `IMG-01` | `REJECTED` | 书架远山候选含烧录棋盘格；`desktop-right-canvas-mountains-transparent-v1-candidate.png` SHA `2879ee0d…c6178` | 1 / 20 |
+| `IMG-02` | `REJECTED` | Alpha修复仍失败；v2 SHA `91acb39e…00115` | 2 / 20 |
+| `IMG-03` | `APPROVED / RUNTIME` | Desktop远山运行时 `desktop-right-distant-mountains-transparent-v1.png` SHA `2d6d7088…7229f0f` | 3 / 20 |
+| `IMG-04` | `ASSET ALPHA VERIFY / INTEGRATED VISUAL FAIL` | Mini Drawer旧山亭资产 `27c78c48…e3bdb4`；不代表整页PASS | 4 / 20 |
+| `IMG-05` | `CANDIDATE / UIUX REVIEW REQUIRED` | Reader背景sheet候选 `reading-background-sheet-imagegen-v1-candidate.png` SHA `fd268146…41188` | 5 / 20 |
+| `IMG-06` | `SELECTED FOR LOCAL POSTPROCESS / NOT VISUAL PASS` | Drawer v5源 `mobile-drawer-landscape-imagegen-v5-raw-candidate.png` SHA `21c483b1…7ecbc` | 6 / 20 |
+| `IMG-07` | `CANDIDATE / NOT RUNTIME` | Drawer整页纠偏候选 `mobile-drawer-correction-imagegen-v7-candidate.png` SHA `ab0d5dfb2021d39798b1a93550c40f97f638678341986dcb146afecf838838a2` | 7 / 20，剩余13 |
 
-其余 M2 / M3 行仍是父级导航；完整业务验收不得提前。
+## 5. 授权、共享环境与保护现场
 
-| ID | 状态 / 唯一 owner | 模块结果与边界 | 依赖 / 拆分门 | 验收方向 / 下一步 |
-| --- | --- | --- | --- | --- |
-| `M2-F1` 双端账户 | `VERIFY` | 聊天主路径所需Server fake code-exchange + opaque Bearer、Mini session expiry + 动态Authorization / 登录seam已闭合本地合同；完整Web扫码、邮箱备选、绑定与账户隔离仍开放 | Server`MAIN PASS 86c30a8`；Mini`MAIN PASS 9f11b89 / F312 PASS 04b5f03 / PROD H3 BLOCKED`，f312定向18 / Mini156 / typecheck / build PASS，真实login fail-closed PASS | f312受保护config / lock / QA指纹不变；游客console 5 errors / 9 warnings来自工具限制。真实运行未注入apiBaseUrl / AppID / 域名，不能冒充production登录完成 | 本地子门关闭；真实微信调用仅在apiBaseUrl / AppID / Secret / 域名授权后，解除后重跑login / hydrate / send / refresh / retry |
-| `M2-F2` 微信读书 | `PENDING` / 待分配 | Key 安全连接、首 / 增量同步、自动恢复、统一书架和个人划线 / 想法 | M2-F1 本地门；真实 Key 授权；外部同步和换号必须细拆 | 官方调用、脱敏日志、两端显示；执行前展开 |
-| `M2-F3` 小程序会话 | `VERIFY` · `MAIN MERGED 11f480a / SEND-RETRY SCOPED FINAL / DRAWER VISUAL REOPEN` / 项目总控 | 会话抽屉、文字 / 选择 / attachment-only、输入增长、失败保留 / retry与刷新恢复；非目标：真实AI / PPTX | send / retry限定结论保持；最新同态截图只重开Drawer视觉。软件键盘、长列表console、reduced-motion与真实API仍开放，不扩大父包PASS | `mini-conversation-send-early-854c577/`、`mini-main-final-31462d9/`；旧`mini-drawer-main-final-b98c118/`仅保留未被新截图否定的交互子收据 |
-| `M2-F3-MINI-CONVERSATION-API` | `VERIFY` · `MAIN MERGED de92f50 / F312 d60716a / PROD H3 BLOCKED` | 小程序已实现稳定Conversation API的hydrate/create/send、草稿与上下文恢复、失败映射和同requestId重试；不读取Key、不调用DeepSeek、不改Server共享合同 | root实际diff审查发现首屏hydrate/send竞态，原writer以`e5d44eb`补RED与串行修复；f312顺序集成为`0fc2fcf + d60716a`，main范围单一提交`de92f50`。真实production因M2-F1 bearer/base URL、非游客AppID/域名未闭合保持VERIFY | main提交含8文件；两处main误写测试仍保持原字节哈希`a2913195…4079`/`227db447…987`，未夹带提交；唯一f312 config/lock/QA指纹未改 | f312定向41、Mini145、typecheck/build/diff-check；main受保护WIP现场定向37、Mini128、typecheck/build/diff-check。真实DevTools仅证明唯一f312编译与开发适配器可见；M2-F1完成后重跑production hydrate/create/send、失败保留、刷新、同requestId retry，未通过前不写DONE |
-| `M2-F4` 小程序书架与阅读 | `VERIFY` · `MAIN MERGED b98c118 / READER SCOPED FINAL / LIBRARY AUTH BLOCKED` / 项目总控 | 统一书架、连续正文、内容面板、老己笔记与背景恢复；非目标：真实notes API / 跨设备。Reader视觉 / 手势范围已关闭，Library私有HTTP合同已冻结但未接线 | `20d61d6`等待M2-F1 session bridge与runtime transport；不让该阻塞串行Mini Conversation | refs14 / 18～20；`mini-reader-final-db40e99/`、`mini-main-final-31462d9/`。解除auth门后另派接线，不返工Reader |
-| `M2-F5` 小程序设置 | `PENDING` / 待分配 | 账户、模型、微信读书和退出的端侧闭环 | M2-F1～F3；账户与服务高风险流程按场景拆细 | 目标端视觉、键盘、安全区、失败保留；执行前展开 |
-| `M2-F6` 小程序 PPT | `VERIFY` · `DRAFT HANDOFF f312 SELF ACTIVE / FULL FLOW BLOCKED` / 项目总控 | `c06ec53`定义的书籍→当前会话draft/context handoff已以`0fa1447 + cf6a8c5`进入唯一f312：携带书籍身份与可编辑预填，用户发送前不自动开sheet、不建task / requirements-ready或跳阶段；代码合同绿灯仍不代表真实端完成 | 非作者代码EARLY为`NO NEW CARD`；当前由原writer只读真实SELF。完整真实AI / PPTX仍依赖M2-F3、F4、M1-F5、下载域名与真机授权 | 在唯一f312验当前会话保留、无会话回退、草稿 / 书籍上下文失败恢复、无auto-send / auto-sheet；PASS后冻结该handoff并释放Drawer入口，后续四阶段仍开放 |
-| `M2-V1` 双端真实闭环 | `PENDING` / 待分配 | 同账户跨 Web / 小程序完成身份、书籍、阅读、对话、额度 / 模型和 PPTX | M2-F1～F6 | 真机、PostgreSQL、外部授权和全 diff；通过后释放 M3 |
-| `M3` 邀请制发布 | `PENDING` / 待分配 | 隐私与删除、备份恢复、迁移回退、监控、镜像、Staging、Web 发布和小程序审核 | `M2-V1`；法务、服务器、域名、备案、平台和发布授权；全部高风险项按场景细拆 | 独立恢复、故障注入、Staging 回退和生产真实 Case；获授权后展开 |
-
-## 5. 当前执行卡
-
-| ID | 状态 / 唯一 owner | 目标与非目标 / 交付结果 | 依赖 / 阻塞 / 暂停 | 文件 / 模块范围 | 验收 / 证据 / 下一步 |
-| --- | --- | --- | --- | --- | --- |
-| `AUDIT-ALL-1` | `DONE` / `/root/project_completion_audit` | 全程只读 main@`263d3e2`，未启动服务 / DB、未写仓库 | 按对应执行包的依赖与暂停条件 | 见交付结果中的路径 / 模块 | 已输出 25 个路线包的真实分类、证据、缺口、依赖、返工面和统计；2 完整（仅 1 个产品子闭环）/ 1 未验收 / 2 半成品 / 5 占位 / 8 缺功能 / 7 阻塞，任务已释放 |
-| `M1-F2-D-TEXT` | `VERIFY` · `MAIN ENTRY + HANDOFF + 200% / DPR2 SCOPED FINAL / PARENT OPEN` / 项目总控 | 私有`dtxtui@d65ab3b`已集成；reader 768为`cc0cec0`，当前书handoff为`1e7763a`，原生200% / DPR2由本轮current-main关闭 | 真实TXT CRUD / 删除已由Stage A关闭；文件上传、PDF与父项其余边界仍开放 | main text-annotation / book-detail / text-reader与handoff；本轮无代码修复 | 私有42项、reader / handoff Chrome及`desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json`证据保留；不扩大为D或F2父项DONE |
-| `M1-F2-D-TEXT-INTEGRATION` | `DONE` · `DONE / MAIN MERGED` / 项目总控 | `dint@5156b9c` 已由原非作者复验 `PASS`，合并 main@`f85d86c`；P2 404 / 409 与 migration receipt 引导表边界登记但不阻塞本卡 | 按对应执行包的依赖与暂停条件 | 见交付结果中的路径 / 模块 | main 定向 5 文件 / 19 项、全仓 26 文件 / 123 项、typecheck / build / diff-check 通过；释放 D-TEXT Web 入口，不代表用户可见闭环完成 |
-| `M1-UX-SYSTEM-AUDIT` | `DONE` · `DONE / FAIL BRIEF / IDLE-REVIEW` / `01a03652-a5d4-76c1-b0fa-ff9303243664` | `/Users/echoman/.codex/worktrees/27df/SelfAlone@b38ed4d`；真实 Chrome 只读审查，仓库零写入 | 按对应执行包的依赖与暂停条件 | 见交付结果中的路径 / 模块 | 已输出 F01～F09、绑定参考 / SHA、页面分类、唯一推荐、文件所有权与验收 Case；DPR1 为自动化补充，不替代候选 DPR2 终验。等待新候选后再复验 |
-| `M1-WEB-SHELL-01` | `DONE` · `DONE / NONAUTHOR PASS / MAIN MERGED deba325` / 项目总控 | `6afd@44e66af` 完整 `0969c33..44e66af` 已合入；两个 P1 与父候选共享壳 / 阶段 / 路由恢复合同均通过，未夹带 Reader / D-TEXT | 按对应执行包的依赖与暂停条件 | 见交付结果中的路径 / 模块 | 候选非作者真实 Chrome PASS；main `pnpm verify` 28 files / 155 tests、在线 / 断网 / 重连、conversation→library→return、刷新、`?stage=outline`、1440×844@DPR2、单 rail / 单 task、草稿保留、overflow0、console[] 通过；隔离 schema / 端口已清理 |
-| `M1-F2-D-TEXT-WEB-ENTRY` | `VERIFY` · `PRIOR FINAL FAIL CLOSED / MAIN 1e7763a / 200% DPR2 PASS` / 项目总控 | 原768 reader裁切已由`cc0cec0`关闭；旧书workspace泄露与恢复scroll遮挡已由`1e7763a`关闭；本轮原生200% / DPR2 stable shell与恢复通过 | 文件上传、AI / PPTX及父项其余边界仍`VERIFY`，故父项不DONE | main reader CSS/tests与`text-reader-ppt-handoff*` / `main.ts`接缝；本轮无代码修复 | 既有73 files / 443 tests与真实Chrome 768 / 1440收据继续有效；新增`desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json`，横溢 / console PASS |
-| `M1-F2-D-TEXT-READER-768-FIX` | `DONE` · `MAIN MERGED cc0cec0 / SCOPED FINAL PASS` / 项目总控 | 两文件修复已顺序合入main；真实768 / 1440长标题、toolbar / actions、目录、背景 / 专注 / 笔记与横溢0通过；只关闭reader裁切子包 | handoff由独立`1e7763a`关闭，删除由Stage A关闭，200% / DPR2由Stage C关闭；父项其余边界仍开放 | main `apps/web/src/text-reader.css` / `text-reader.test.ts` | main 22 / 22、typecheck / build / diff-check；`dtext-main-final-cc0cec0/FINAL-RECEIPT.md`与本轮200%收据合并有效 |
-| `M1-F1-A-AUTH-EARLY` | `VERIFY` · `CANDIDATE faa194d / STATE SELF PASS / ASSET BLOCKED` | 六文件候选锁定entry→register→login tab回entry，微信主入口 / 邮箱次入口连续；移除错误共享rail背景、伪元素构图和文本seal，未动服务端认证。root已审实际diff，尚未集成 | writer真实Chrome 1440×1024三态、focus / overflow / console及14项、Web typecheck / build / diff-check通过；缺已确认Auth专用背景与Logo seal runtime assets，按合同停写，禁止自由设计 / ImageGen或临时替代 | 候选仅`auth-page{,.test}.ts`、`auth-state{,.test}.ts`、`main.ts`、`styles.css`；worktree clean，writer已释放 | ref01 SHA`d49f5a61…a824`；截图`auth-reopen-uiux/01…03`。解除条件为权威专用背景 / Logo seal资产绑定，之后原范围继续EARLY；不延长当前Drawer或DeepSeek里程碑 |
-| `M1-F1-B-SETTINGS` | `VERIFY` · `MAIN MERGED a9408ad / P0 MAIN FINAL PASS / REOPEN CLOSED` / 项目总控 | 设置 normal / failure / logout / account 服务已集成；localStorage 只保留邮箱，legacy v1 载入即清洗密码；同页请求失败仍保留内存字段 | P0 无剩余阻塞；真实邮件 / 成功换邮、微信绑定与 reduced-motion 仍不在本次完成范围 | main `settings-state{,.test}.ts`、`main.ts` | 12 项定向、43 files / 231 tests全绿；候选与main真实同源 legacy / refresh / new-tab / error / focus PASS；证据 `settings-p0-early-c5d68b5/`、`main-settings-p0-final-a9408ad/` |
-| `M1-F3B-A-CONVERSATION-SLICE` | `DONE` · `MAIN MERGED dea90d7 / EARLY + MAIN FINAL PASS` / 项目总控 | new / search / quota、确定性发送 / 恢复、失败保留、owner key、错误文案、布局与focus已在main真实闭合 | writer / reviewers均已释放；只关闭normal纵切，不扩大F3B父项 | main Conversation纵切38文件；与`cvfix@48edb7e`对应路径逐字节一致 | refs02 / 36；main70文件 / 411项，注册→发送 / 回复→刷新→断服保留 / 重试、搜索 / 新建、1440 / 1024、console / overflow PASS；`main-conversation-final-dea90d7/` |
-| `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY` · `CANDIDATE 7b0a671 / READY FOR NONAUTHOR EARLY / AUTH-BLOCKED` | UI/UX brief已交，唯一writer在四个owned Web文件以成熟Heroicons outline替换裸`×`及动作图标并交范围单一候选；不推翻book-scoped presentation、笔记 / 划线、真实持久化与失败恢复收据 | 定向14项、Web31文件226项、typecheck与diff-check通过；真实1440×1024入口被认证阻挡，故不得以代码绿灯宣称视觉PASS。本包不属于当前Drawer Goal | 候选`bdv2@7b0a671`仅`book-detail-view.ts`、`book-detail.css`、`book-detail-view.test.ts`、`ui/icons.ts`；证据`book-detail-action-writer-e956c8f/` | 下一滚动验收事件先解决既有认证流程进入真实书籍详情，再做1440×1024非作者EARLY；不用ImageGen画功能图标，不扩大Server / DB |
-| `M1-F2-D-TEXT-PPT-HANDOFF-FIX` | `DONE` · `MAIN MERGED 1e7763a / SCOPED FINAL PASS / REOPEN 1 CLOSED` / 项目总控 | 当前书PPT intent匹配workspace或明确fail-closed；新 / 变更book intent重置旧conversation scroll，真实`.book-ppt-intent`不再被header遮挡 | 不匹配书只关闭旧书泄露，不创建新book-scoped workspace；真实workspace创建另属后续产品slice | main新增`text-reader-ppt-handoff.ts` / `.test.ts`并接`main.ts`；私有`dpth@101789e`clean，writer释放 | main73 / 443、typecheck / build / diff-check；768 / 1440、90.5→0、header84 / intent114、横溢0、console空、匹配书正常；`dtext-handoff-early-101789e/FINAL-RECEIPT.md` |
-| `M2-UX-CONTRACT-ALL` | `VERIFY` · `DONE(HISTORICAL) / CURRENT DESIGN-READY RETURNED` / `/root/mini_visual_final` | 历史合同仍是设计输入，不代表当前 WIP 视觉通过；本轮只读审查在真实 WeChat DevTools 覆盖 drawer / conversation 320 / 360 / 390 font23 与 Reader 390，均判 VISUAL FAIL；430、真实软件键盘、长列表、reduced-motion 与若干五态仍 uncovered | 按对应执行包的依赖与暂停条件 | 见交付结果中的路径 / 模块 | brief 已释放 conversation 私有 writer；Reader / drawer仍按互斥文件和槽位顺序派发。正式 drawer 资产只能保留候选结论，整体同态仍须 EARLY / FINAL |
-| `M2-F0-A-READER-SHORT` | `VERIFY` · `MAIN MERGED 7f59698 / FULL-STATE SCOPED EARLY PASS / PARENT OPEN` / 项目总控 | refs18～20的sheet手势、动态高度、上滑全屏 / 下滑回落与背景重进行为收据保留；本次只关闭“老己笔记”normal / 删除失败 / 重试 / 成功 / 空态视觉交互 | `5535700→f312@9766be9→main 2bdf582+eba8bd2+7f59698`；430×932确认两条normal、首删失败保留、retrying明示且禁用、只删目标及最后一条成功后真实空态；production / 跨端父门保持OPEN | 合同`mini-reader-notes-design-ready-8b78012/DESIGN-READY.md` SHA`59acd56d…b3a58`；root SELF + 非作者`/root/book_detail_actions_early` EARLY PASS；保护config / lock / QA未动 | main定向32项、Mini153项、typecheck/build 1,497,758 bytes、visual-contract / diff-check通过；游客console为独立外部H3，不覆盖本范围结论 |
-| `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY` · `READER + CONVERSATION LIMITED PASS / DRAWER VISUAL REOPEN / H3 BLOCKED` / 项目总控 | Reader与Conversation既有限定范围保持；Drawer四次整改链虽已合入`main@b98c118`，但用户最新同态截图否定其整页视觉结论 | 软件键盘、游客凭证 / console、真实PPT preview继续H3 / VERIFY；长列表实现已进main但FINAL受console门阻塞 | main与唯一f312既有源码关系保留；Drawer新writer隔离四文件，不导入第二DevTools | 旧Mini101 / build与三宽收据只保留机械 / 未受影响子证据；新门为brief`8f352a2`、多背景Alpha、四宽writer自验、EARLY后FINAL |
-| `M2-F0-A-VISUAL-REWORK` | `VERIFY` · `MAIN MERGED 11f480a / SEND-RETRY SCOPED FINAL / DRAWER REOPEN` / 项目总控 | Reader、Conversation与send / retry / attachment既有限定缺陷保持关闭；Drawer因最新用户同态FAIL重开，不扩大为真实AI / API | 全Mini仍缺软件键盘、长列表clean-console与reduced-motion；游客凭证另有环境门 | f312保护现场不变；Drawer只允许`mdrv2`四文件writer，后续由总控顺序放入唯一入口 | 既有未受影响视觉证据 + `mini-conversation-send-early-854c577/`；Drawer走新brief、writer自验、EARLY、FINAL |
-| `M2-F0-A-MINI-NOTES-VISUAL-REWORK` | `DONE` | `MAIN MERGED / F312 SELF PASS / NONAUTHOR EARLY PASS`；只关闭开发态可控四状态视觉交互门，不扩大为production Notes API或跨端父阶段DONE | writer clean候选`rdrs@5535700`经root审6文件实际diff与production fail-closed边界，顺序进入唯一`f312@9766be9`，再以`2bdf582→eba8bd2→7f59698`同步main | candidate只改`app.ts/test`、新development-annotations adapter/test、Reader `index.ts/page-state.test.ts`；未改shared / production合同、config / QA或第二入口 | root SELF与非作者EARLY覆盖normal / delete-failure / retrying / success / empty；main定向32、Mini153、typecheck/build/visual-contract/diff-check全绿，writer / reviewer已释放 |
-| `M2-F0-A-MINI-CONVERSATION-VISUAL` | `VERIFY` · `MAIN MERGED 11f480a / SEND-RETRY EXTENSION PASS` / 项目总控 | refs13 / 30～32的normal / selection / attachment输入、山亭、发送 / retry / 恢复限定范围已通过；非目标：真实AI / PPTX | 软件键盘、长列表与reduced-motion未覆盖；不重开已通过同态 | main含Conversation运行时闭包；f312 source / dist与main等价 | `mini-conversation-early-332a737/`、`mini-conversation-send-early-854c577/`；下一步长列表独立包 |
-| `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY` · `MAIN MERGED 11f480a / SCOPED FINAL PASS` / 项目总控 | 本地确定性text / attachment-only发送、单列消息、发送锁、失败原位retry、refresh无重复与真实anchor；不含真实AI/API | 软件键盘、游客凭证clean-console、长列表与reduced-motion不在本包；f312保护差异未带入main | main含Conversation 6文件与parser-safe Drawer / dev hook 5文件；唯一f312 source / dist与main等价 | Mini15文件 / 115项、typecheck / build / diff-check；390 / 360 / 320真实failed / retry / attachment / restored PASS，parser warning消失；证据`mini-conversation-send-early-854c577/` |
-| `M2-F6-MINI-PPT-DRAFT-HANDOFF` | `VERIFY` · `F312 SELF PASS / SOURCE FROZEN` / 项目总控 | `d8e1e7 + 49e0e5e`已由总控审边界并顺序进入唯一`f312@cf6a8c5`；真实流程为书架→Reader制作PPT→当前会话精确可编辑预填，无自动发送 / sheet / task | failure adapter发送失败保留编辑草稿与书籍上下文，刷新后恢复；只有重试成功才出现范围选择。完整AI / PPTX不在本包，不扩大为父项DONE | 当前f312六源码 / 测试文件冻结；证据`mini-ppt-f312-self-cf6a8c5/`；7项保护status与`long-list-early`模式已恢复 | 定向56项、Mini128项、typecheck / build及真实SELF PASS；运行时console空、无重复导航 / 可见溢出。DevTools 15项tsconfig语言服务全局类型提示不冒充运行时错误；writer已释放，入口交还Drawer顺序门 |
-| `M2-F0-A-MINI-SETTINGS-STATE` | `VERIFY` · `MAIN MERGED 14b69dc / SCOPED FINAL FAIL-NO-GO / REVIEWER RELEASED` / 项目总控 | 移除工程台账文案，未实现能力显示真实“暂不可用 / 未配置 / 未连接”并失败关闭；不接真实账户、模型或微信读书 | main4源文件与`f312@db14fed`逐一SHA SAME；ref22 `ce28f938…f657288`；操作与视觉子证据通过，但fresh console为`Errors:5, Warnings:9` | main Settings四源文件；原reviewer只读完成后已释放 | 390×844正常态及邮箱 / 文本模型 / 图片模型 / 微信读书统一fail-closed且未改数据；WAServiceMainContext `webapi_getwxaasyncsecinfo:fail`与游客`wx.operateWXData`未闭合，故不得FINAL PASS；`mini-main-35bad75-14b69dc-final-review/` |
-| `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY` · `MAIN MERGED 35bad75 / SCOPED FINAL FAIL-NO-GO / QUERY RESTORED FOR DRAWER MATRIX` / 项目总控 | developmentAdapter + `developmentLongList=1`确定性18项闭合抽屉长列表、搜索与末项露出；不冒充生产会话API，不处理软件键盘 / 凭证 / AI | main实现与既有视觉 / 交互子证据保留；唯一`f312@63782ba`已重建gitignored编译模式并由AX确认会话01～18，旧token / route日志仍不扩大为clean-console | main长列表五源文件；当前仅同一f312运行环境可复验 | Drawer v2本轮先补首 / 中 / 末、固定底栏、搜索09、filtered-empty、无横溢同状态矩阵；其余scoped FINAL仍保持NO-GO |
-| `M2-F0-A-MINI-DRAWER-VISUAL` | `BLOCKED` · `CONTROLLED VISUAL CLOSED / EXTERNAL H3` | f312@`992bf2a`的430 / 390 / 360 / 320 normal与long-list、第三行独立滚动、山景 / 底栏、横溢均由非作者通过；本地可控视觉矩阵已收口，不再占当前Goal | 唯一入口`touristappid`、基础库3.17.1仍有`WAServiceMainContext.js` 5 errors / 12 warnings且无app source stack；独立外部H3解除条件为可授权真实AppID / 非游客DevTools同一f312 clean-console复验 | reviewer owned NONE并已释放；f312保护config / lock / QA、IMG-06 / v5与IMG-07候选不动；不合main、不假写整包FINAL PASS | ref11 SHA`9e764e…c36e`；证据`mini-drawer-f312-final-992bf2a/`。下一次仅由外部环境唤醒，不扩大矩阵、不继续改视觉源码 |
-| `M2-F0-A-MINI-DRAWER-UX-BRIEF` | `DONE` · `EARLY FAIL / READY FOR WRITER` / `/root/mini_drawer_uiux_early` | ref11与IMG-07已拆成normal三会话 / long-list分离的结构、Token、状态、响应式和可访问合同；不写代码、不生图、不创建Figma | delivered ACK与实际输出均闭合；曾错误重开v5资产门，已按权威台账纠正为IMG-06 / v5已选冻结，未扩宽其他合同 | 只读仓库 / f312；输出`mini-drawer-uiux-ref11-img07/EARLY-BRIEF.md`，SHA`075482b1…2842` | 显式WXML图形、430主门、后续390 / 360 / 320 / long-list检查表与writer三文件动作已明确；任务释放 |
-| `M2-F0-A-MINI-DRAWER-STRUCTURE` | `VERIFY` · `F312 992bf2a / 430 + 390 PRIOR PASS / 360 ROOT SELF PASS` | 既有三组件 / Remix SVG / v5资产仍在唯一f312；normal数据来自`e2ec296→a4955ef`，430布局来自`0253101→4a305a0`，390响应式行带来自`9bb6802→84174d3`，360短屏恢复来自`e867352→992bf2a`；long-list仍18、production仍空 | 当前f312 Mini136项、typecheck / build / diff-check与保护指纹通过；root真实360三行可见只关闭SELF恢复检查，不能替代非作者EARLY或long-list / 320 | 当前只读验收唯一f312；若矩阵FAIL，原writer仍只改nav-drawer `index.wxss` / `index.test.ts`，v5资产与data禁止改 | 下一输入为非作者首FAIL或完整EARLY verdict；全部EARLY PASS才进入FINAL与main集成 |
-| `M2-F0-A-MINI-DRAWER-ASSET` | `VERIFY` · `F312 SUBCANDIDATE f8b3cfc / WHOLE-PAGE FAIL` / 同一原writer | 已选IMG-06山亭运行时v5 PNG与slot / mask已由root以`1138669→f8b3cfc`顺序进入唯一f312；多背景 / Alpha继续只作资产子证据 | 320真实界面仍无法形成可辨亭子与独立景区，说明asset存在不等于整页通过；当前先修结构 / slot flow，不再生图、不改v5 PNG | `mobile-drawer-landscape-transparent-cropped-v5.png`冻结，SHA`c0086fab…29fdb`；同writer仅改WXML / WXSS / test | 结构候选进入f312后重跑320同状态整页首门；PASS才扩四宽与非作者EARLY / FINAL，Alpha / build不得替代视觉结论 |
-| `M2-F0-A-H3-REWORK` | `BLOCKED` · `KEYBOARD / CREDENTIAL H3 UNCOVERED` / 项目总控（阻塞裁决） | 长列表实现已进main且视觉 / 交互子证据存在；本行只保留软件键盘与游客凭证化console，不冒充ACTIVE | 真实键盘 / 凭证环境未就绪；长列表 scoped FINAL 与 Settings 同因console门为NO-GO | f312唯一DevTools与外部环境证据 | 所有既有焦点图keyboard=0；凭证clean-console未产生。解除条件为真实键盘 / 可授权凭证环境 |
-
-## 6. 候选与共享环境证据
-
-| 范围 | 唯一结论 | 证据与失效条件 |
-| --- | --- | --- |
-| `M1-F2` | `67d77d7` 仅作功能种子 | 只参考真实导入 / 阅读 / 标注 / 笔记差异；账户和 UI 按当前事实重落。候选或 worktree 变化即重验。 |
-| `M1-F1` | `658ba50` 仅作邮箱认证种子 | 不带入 F2 父链；微信、小程序令牌、账户修改和绑定仍未完成。 |
-| `M1-F3A` | `3e4b020` 仅作文本模型配置种子 | 未实现当前北京端点目录与真实供应商验证；图片模型、会话、联网和成本仍未完成。 |
-| `M1-F5` | `39b84a4` 为唯一 Presenton 种子 | `d5ee177` patch 等价并 `SUPERSEDED`；固定镜像、任务恢复、安全与真实办公软件验收仍缺。 |
-| `M2` | `42d85fe → 925bbc1` 可复用候选 | 不进入 M1，也不直接继承 `6f5c` 工作树；连续滚动方向与 `ff4767b` 一致。按模块复用代码，仍须重做 / 复核当前视觉、账户与 API 接缝，并通过 360 / 390 / 430 和真实微信开发者工具验收；既有 19 项测试只作种子证据。 |
-| `0204` 设计探索工作树 | 只读保留并排除集成 | `9783628` 上 38 项未提交路径中，37 项与当前链逐字节一致；唯一剩余为过期旧台账。不得清理、提交或把未索引探索稿升级为视觉事实；status 摘要变化时局部重验。 |
-| `M1-F2-A` 已集成候选 | `ed2cec6 → 38f9ec3 → 16ab946 + 91aab08 + 86a8fb1`，状态 `DONE(function) / FAIL(visual)` | 既有导入 / 搜索 / 五态 / 响应式与 Chrome 证据仍支持功能闭环；本轮最新 UI/UX 以真实页面确认解析状态冒充进度、工程文案与两本稀疏书架不能满足 03 密度，覆盖旧视觉 PASS。待共享外壳冻结后以至少 10 本、阅读进度和 DPR2 重验。 |
-| `M1-F2-B` main 集成 | `44b81ea → 04f03d2 → 47748fa → 535b9ec → 804f952 → e971ace → ed04dd4 → 08ff046`，状态 `VERIFY / VISUAL REOPEN / FOCUS PASS` | 专注 rail / toolbar、真实 TXT / EPUB、共享 contracts / schema / Server / Web 接缝和同事务文本发布均已进入 main；缺少发布器会明确失败关闭。focus 子合同保留 PASS；最新 UI/UX 另行确认 loading / failure 稳定 shell 和沉淀入口缺口，原生 200% 与 DPR2 精确视口仍未通过。 |
-| `M1-WEB-SHELL-01` 当前候选 | `0969c33 … 9638d12 → 44e66af → main@deba325`，状态 `DONE / NONAUTHOR PASS / MAIN VERIFIED` | 两个 P1、单一共享 rail、六阶段互斥工作区、输入稳定、路由 / 刷新 / 断网恢复均由候选和 main 真实 Chrome 复验关闭。该包完成不代表对话真实 AI、PPTX 或 F3B 父项完成。 |
-| `M2-F0-A` 当前候选 | main已含`35bad75`长列表与`14b69dc` Settings；唯一`f312@9a6b14a`含v4 `cf3e17a`与生成dist裁剪`9a6b14a`，静态门通过但320 writer SELF FAIL | Settings / 长列表旧scoped FINAL仍`FAIL / NO-GO`。v4真实端结论覆盖静态READY；当前冻结作重诊断基线，下一候选须走UI/UX + ImageGen流程，保护config / lock与既有QA不动。 |
-| `M1-F2-C` 安全首包 | `7856a7a + 059b0ec → d7e5ee6 + 589a22b`，状态 `ACTIVE / VERIFY` | 范围、样本、异常租约释放和非作者复审通过；main 定向 17 项与全仓 67 项通过。owner / fencing、持久化恢复、续租 / 超时 / 取消、真实 PDF.js / Canvas、DB / API / Web 与生产依赖仍未完成。 |
-| `M1-F2-D-TEXT` 共享集成与私有候选 | 共享链至`main@f85d86c`；私有Web `d65ab3b`；768修复`cc0cec0`；PPT handoff`101789e → main@1e7763a`；真实TXT Case基线至`5501a90` | Desktop真实TXT导入、划线、想法、note CRUD、断服保留 / 重试与刷新恢复已PASS；PDF、200% / DPR2、Mini production与父项仍开放。 |
-| 当前桌面候选波次 | Auth / Settings、D-TEXT、Conversation与Book Detail既有限定结论保持；Selection链已完整集成至`a08fbbc → 30e0423 → 6e21cad → 9ff9877 → 940d390 → 858bf19 → c858a06` | focus两轮非作者EARLY后main实测：真实注册 / 登录、对话、assistant绑定multi、非首项确认、断服 / 重连、刷新、全新标签、1440 / 768、console / overflow通过；真实AI生成仍开放，父项保持VERIFY。 |
-| 当前 Mini 候选波次 | Mini notes唯一候选`rnotes@39e0e0f`为`NONAUTHOR FAIL / RECOVERING`；唯一`f312@04b5f03`未接收该候选 | 精确P1为微信transport不支持PATCH而Server仅有PATCH；先加兼容PUT route，再改Mini PUT并复审。production仍受apiBaseUrl / AppID / 域名外部门，不冒充真实端PASS。 |
-| 当前 Desktop main 预览 | `RUNNING / CODE MAIN 0b1402f / DEEPSEEK SETTINGS H3 PASS / FREE CHAT NOT WIRED` | Web `4276`与API `4212`指向真实main，API使用隔离schema；安全fake证明配置入口与撤销，不读取用户Key、不外调。默认conversation responder仍fail-closed；凭证位置、模型 / 计费 / 三次上限与真实会话接线pending。 |
-| 开发基线 | 本台账事件代码主线为`main@0b1402f`；本轮控制提交只写`TASK_LEDGER.md` | main除本台账diff外无tracked改动；6个受保护DOCX / Word锁文件与3组视觉候选目录仍在；Mini唯一f312保护修改 / QA未改变；dsk1 clean且不再写main。 |
-| 共享 PostgreSQL | 只证明跨工作树副作用 | 不能证明当前分支已有功能；开发必须使用隔离 schema 或实例，迁移记录 schema、数据量、owner、约束和回退点。 |
-
-完整候选父链、patch-id、文件重叠、测试和共享数据库对账见提交 `2a4cc24` 的台账历史。任何候选、worktree 或共享环境变化只使对应结论失效，不自动推翻其他项。
-
-## 7. 外部图片调用账本
-
-| 序号 | 状态 | 提供方 / 模型 | 张数 / 尺寸 / 用途 | 输出与结论 | 累计 |
-| --- | --- | --- | --- | --- | --- |
-| `IMG-01` | `REJECTED` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`1487×1058`；书架右下低对比远山候选 | `47b4`：`redesign-v2/output/ui-design-preview/product-design/shared-shell/right-canvas-candidates/v1/desktop-right-canvas-mountains-transparent-v1-candidate.png`；SHA-256 `2879ee0dda69580504d42a561158ee6f2ab3b451c8b989ac900d143c851c6178`，`hasAlpha: no`，棋盘格烧录，未实装 | 已实际调用 `1 / 20`，剩余 `19` |
-| `IMG-02` | `REJECTED` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`1486×1059`；只尝试修复 `IMG-01` 的真实 Alpha | `47b4`：`redesign-v2/output/ui-design-preview/product-design/shared-shell/right-canvas-candidates/v1/desktop-right-canvas-mountains-transparent-v2-candidate.png`；SHA-256 `91acb39e39d744f5007ca00b96e662d6df89e87fdaee2ada8d823cf808600115`，`hasAlpha: no`，仍有棋盘格烧录，未实装；实现任务已停止继续调用 | 已实际调用 `2 / 20`，剩余 `18` |
-| `IMG-03` | `APPROVED / RUNTIME` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，原始 `2172×724`；按右山聚焦 brief 生成独立透明横向远山，再以可靠本地 Alpha 流程等比裁切 / 双侧包络为 `1600×320` 运行时资产 | 原始 SHA-256 `3a826b57…bdb52`；v1 SHA-256 `547eae01…5ed2` 因桌宠区 Alpha 过高判 `VERIFY`；无新增生成调用的 v2 / 运行时 SHA-256 `2d6d7088…7229f0f`，RGBA、四边透明、左区与桌宠区 max Alpha `10 / 255`。已实装到 `redesign-v2/assets/backgrounds/desktop-right-distant-mountains-transparent-v1.png`，经候选 / main 真实 Chrome 与 03 对照、原非作者终审后升级 | 已实际调用 `3 / 20`，剩余 `17` |
-| `IMG-04` | `ASSET ALPHA VERIFY / INTEGRATED VISUAL FAIL / SIZE PASS 3fed4c7` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`1024×1536`；按参考生成小程序 drawer 底部低对比山亭 | 白底源 SHA-256 `37cbfb304a7b6a3d5f8c2013f84774c0e3339ab5474adb49e3de1993d7edb3ba`；透明裁切候选 `1024×737 RGBA`、SHA-256 `55a655177c84202c255786fefdb4752e2cb575ffcf6c11f6540ae51aa48e2a38`；`3fed4c7` 的 indexed runtime SHA-256 `27c78c48e1f311a41a8e67e0073b1609d4dccfd4f355ce558dd7cd1110e3bdb4` 为 165,998 B，`PLTE+tRNS`、Alpha 0–134、无实底，关闭机械体积门；用户最新同态截图仍判 drawer 整体比例 / 留白 / 山亭关系 FAIL，必须随 drawer 视觉返工 EARLY / FINAL | 已实际调用 `4 / 20`，剩余 `16` |
-| `IMG-05` | `CANDIDATE / UIUX REVIEW REQUIRED` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`851×1847`；小程序“阅读背景”面板 UI 候选 | `main@35798ab`：`redesign-v2/output/ui-design-preview/product-design/reading-module/background-sheet-candidates/reading-background-sheet-imagegen-v1-candidate.png`；SHA-256 `fd268146c759e40d7cacb78aae43025eb697d7cacc8640871e96e434f3e41188`。只供 UI/UX 评审紧凑底部表面、浅暗纸面预览、克制选中反馈与有目的留白；示例诗句、图标像素、生成背景和固定截图尺寸必须排除；未升级认可参考或运行时 | 已实际调用 `5 / 20`，剩余 `15` |
-| `IMG-06` | `SELECTED FOR LOCAL POSTPROCESS / NOT VISUAL PASS` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，原始`1774×887`（2:1）RGBA；Mini Drawer双同范围FAIL后的低位宽幅山亭候选 | `redesign-v2/output/ui-design-preview/product-design/mobile-drawer/candidates/imagegen-v5/mobile-drawer-landscape-imagegen-v5-raw-candidate.png`；SHA-256 `21c483b14dc8ee79708c6a4d818f54dfa66b4cd215ebe19a3aac67cac5f7ecbc`、`hasAlpha: yes`。非作者确认宽阔下部山水、左下可读亭子与上部透明留白可进入本地后处理；仍须等比1024×512、透明边清理、四背景证明与真实f312四宽，不能直接实装或称视觉PASS | 已实际调用 `6 / 20`，剩余 `14` |
-| `IMG-07` | `CANDIDATE / UIUX BRIEF ACTIVE / NOT RUNTIME` | OpenAI 内置 `image_gen`；具体模型 ID 未暴露 | 1 张，`851×1847`；Mini Drawer连续同态FAIL后的精确整页纠偏候选 | `redesign-v2/output/ui-design-preview/product-design/mobile-drawer-correction-imagegen-v7-candidate.png`；SHA-256 `ab0d5dfb2021d39798b1a93550c40f97f638678341986dcb146afecf838838a2`、`hasAlpha: no`。只供UI/UX结合ref11拆解430×932 normal三会话与long-list的结构 / Token / 状态 / 响应式；不得直接铺成运行时整图或复制其中像素图形 | 已实际调用 `7 / 20`，剩余 `13` |
-
-## 8. 恢复证据与授权门
-
-| 项目 | 状态 | 证据 |
-| --- | --- | --- |
-| M0 基线 | `DONE` | `2b639e0`；迁移、账户域或运行基线变化时重验 |
-| M1-R0 候选对账 | `DONE` | `2a4cc24`；候选或环境变化时局部重验 |
-| 产品 / 视觉台账重建 | `DONE` | `6a29b96`、`204b374`；规则变化时只同步受影响事实源 |
-| 文档职责治理 | `DONE` | `17339a7`；唯一台账、Wiki、Memory、项目 Skill 和链接校验 |
-| 台账动态混合粒度重整 | `DONE` | 31 个当前 M1 可执行项、8 个远期模块；字段覆盖、链接、旧编号残留和 diff 检查已通过 |
-| `M1-F2` 开发前收口 | `DONE` | PDF 唯一技术边界、`0204` 只读排除和安全开发基线已形成并纳入本轮主线治理链 |
-| `M1-F2-A` 书架闭环 | `DONE(function) / FAIL(visual)` | main 功能回退点 `86a8fb1` 保留；最新 UI/UX 已重开 03 视觉门，旧 PASS 不再覆盖进度语义 / 密度 / 工程文案缺口 |
-| `M1-F2-BC-S1` 共享接缝 | `DONE` | `44b81ea`；文本 / PDF 定位、文件版本、位置并发、API / schema 与单写入边界已冻结，生产 PDF 渲染依赖仍由 C 首包给出授权建议 |
-| `M1-F2-B-UX1` 阅读视觉 / 交互 brief | `DONE / FOCUS PASS` | `804f952` 已通过历史非作者最终复验并进入 main；父项 B 的完整视觉仍等待原生 200% 与同 revision 精确无 override `1440×844`，后续由有效任务 `01a03652-a5d4-76c1-b0fa-ff9303243664` 复验 |
-| `M2-F0-A` 原生运行壳 | `VERIFY / MAIN MERGED 35bad75 + 14b69dc / SCOPED FINAL FAIL-NO-GO / DRAWER VISUAL REOPEN / H3 OPEN` | Reader / Conversation与send-retry既有限定结论保留；长列表与Settings fresh FINAL因`Errors:5, Warnings:9`不闭合，Drawer用户同态FAIL已派四文件writer；软件键盘、凭证化clean console与PPT真实预览仍开放，Mini父项不关闭 |
-| 项目总控与台账写入权 | `ACTIVE / UNIQUE` | 唯一总控任务 `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 直接运行在 `/Users/echoman/Documents/SelfAlone` 的真实 main 并独占台账写入。旧总控 `01a038e8-5ee8-79b1-8bdd-daafc2d58e0e` 为 `notLoaded / interrupted`；冻结副本任务 `01a03c60-732d-7e20-a76c-185dead30233` 位于隔离 `a233`、不得恢复或调度，其9组未跟踪副本只作冻结对账。 |
-
-- 当前外部授权门：验证合格后的本地 `main` 合并已授权；用户已授权SelfAlone测试由Agent从本机Passwords安全读取DeepSeek Key、后续测试调用无需重复确认。Desktop H4总观测6次且≤¥1已PASS；该授权不扩展为生产、其他项目或无限费用。秘密不得输出、转存或进入聊天、源码、`.env`、命令参数、日志、截图、台账。远端push、PR、发布、部署、真实邮件 / 微信、微信读书 / Presenton及其他付费调用和小程序审核均未授权。外部图片生成仅限已授权的20次总额度并受上表逐次记录约束。
+- 本地验证合格后的本地 `main` 集成已授权；远端 push、PR、发布、部署、真实邮件 / 微信、微信读书 / Presenton、小程序审核及其他付费调用未授权。
+- 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
+- ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
+- 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
+- main两处 Mini conversation测试WIP、6个DOCX / Word锁文件及3组视觉候选目录均为受保护现场；不得覆盖、移动、清理或夹带提交。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
