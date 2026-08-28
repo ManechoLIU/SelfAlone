@@ -6,7 +6,7 @@
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；Desktop TXT / EPUB 选中正文经现有“和老己聊聊”带入当前会话可编辑草稿，不自动发送；发送、失败保留 / 重试与刷新恢复复用已稳定真实会话能力。PDF、Mini、PPT、图片、视觉重设计与成本系统不在本 Goal。
 - 当前活动项：`M1-F2-D`、`M2-F4-A`
-- 下一可见检查点：readchat两条root反例已真实RED（7项中5 PASS / 2 FAIL），修复冻结新候选后由root续做真实GUI Selection→chat Case；Mini从clean `813b703` 锁定progress单位与app/401接线RED后给首个runtime checkpoint。
+- 下一可见检查点：readchat账户隔离与server retry后恢复handoff两项已GREEN（2文件17项），全量后冻结新候选并由root续做真实GUI Selection→chat Case；Mini已写progress单位与app接线RED测试，待精确失败结果。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：减法迁移输入基线 `main@9c43e68` 与受保护现场已对账；总控已加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`，installed SKILL `f6c44270…94e93`、long-task `ef3c9372…b13de`、methods `109f5fab…e59`、routing `b6a34bde…40865`；worktree 生命周期规则已加载 `main@0cfc0d7` / AGENTS SHA `793edfede970f9a8b4425ed5ddef4c985f4bec9f68085a34de15a61bf4854ab2`，唯一受影响 writer 已 delivered loaded ACK。
 - 容量 / READY：root + `reader_chat_handoff_recovery` + `mini_library_runtime_rework` 为3/4，名义可用1；当前产品实际返回 `agent thread limit reached`，故已完整ACK的 `M1-F4-B` 以4文件RED checkpoint保持READY，任一active子任务释放后立即恢复。不得用当前Goal排除其余开放包。
@@ -28,7 +28,7 @@
 | `M1-F2-B` | `VERIFY / TXT READER CURRENT-MAIN PASS / PARENT OPEN` | TXT / EPUB 正文、位置、目录、背景与专注 scoped PASS；原生200% / DPR2 已补证 | PDF 与未覆盖 EPUB 组合仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-BOOK-DETAIL-VISUAL` | `VERIFY / CANDIDATE 7b0a671 / AUTH-BLOCKED` | 四个 Web 文件以成熟 SVG 替换裸文本图标，代码检查绿 | 真实1440×1024入口需认证后做非作者 EARLY；不用 ImageGen 画功能图标 |
 | `M1-F2-C` | `VERIFY / SAFETY SEED MAIN d7e5ee6+589a22b` | PDF 安全首包覆盖样本、异常租约与版本缓存 | 真实 PDF.js / Canvas、owner fencing、持久恢复、续租 / 取消、DB / API / Web仍缺；生产依赖 / 许可证待授权 |
-| `M1-F2-D` | `ACTIVE / CANDIDATE b6dd837 ROOT REWORK / TWO RED` / `reader_chat_handoff_recovery` | 34文件261项/typecheck/build/visual-contract绿；SELF仅到EPUB精确Range；新增测试证明服务端retry成功会清掉未发送引用且账户B能读取A的storage handoff（7项5 PASS / 2 FAIL） | 原writer同一worktree最小修复；新候选仍只可标ROOT SELF未决，提交 / 废弃后由总控同事件移除worktree |
+| `M1-F2-D` | `ACTIVE / ROOT REWORK GREEN / FINAL VALIDATION` / `reader_chat_handoff_recovery` | 账户A/B handoff namespace隔离，server retry draft/requestId/text保留且成功后恢复Reader handoff；只有对应handoff成功发送才清理；定向2文件17项PASS | 同一worktree跑Web全量并冻结新候选；仍只可标ROOT SELF未决，提交 / 废弃后由总控同事件移除worktree |
 | `M1-F2-D-ENTRY` | `VERIFY / BOOK DETAIL + HANDOFF SCOPED FINAL` | Book Detail 与当前书 PPT handoff 已有四宽、恢复和持久化证据 | 不代表真实下载 / PDF / AI；证据 `book-detail-main-final-0cc5d46/`、`dtext-handoff-early-101789e/` |
 | `M1-F2-D-PDF` | `PENDING` / 待分配 | PDF 页定位上的划线、想法与手工笔记 | 等 M1-F2-C 真实页面 / locator / 渲染与持久化 |
 | `M1-F2-D-TEXT` | `VERIFY / DESKTOP TXT SCOPED DONE / PARENT OPEN` / 项目总控 | 同账户 TXT 划线、想法、note CRUD、断服保留 / 重试、刷新恢复已 PASS | PDF、Mini production与父项仍开放；schema `read_notes_desktop_20260828_b`、最终2 highlights / 0 note |
