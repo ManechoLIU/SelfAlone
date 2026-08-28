@@ -1,13 +1,14 @@
 import type { BookSummary } from "../core/library-state";
+import type { BookSection } from "../core/reader-state";
 import type { Session } from "../core/session";
 import type { BookDetail, BookListOptions, LocalBookFile, MiniappClient, PptWorkspace, ReadingPosition } from "./client";
 import { ClientBoundaryError, normalizeBookListOptions } from "./client";
 
 export type LibraryHttpRequest = {
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PUT";
   url: string;
   headers: Record<string, string>;
-  body?: ArrayBuffer;
+  body?: unknown;
 };
 
 export type LibraryHttpResponse = {
@@ -110,6 +111,169 @@ function responseBooks(data: unknown): unknown[] {
   return data.books;
 }
 
+type ServerTextLocator = {
+  kind: "text";
+  fileVersion: number;
+  sectionId: string;
+  offset: number;
+};
+
+type ServerReadingPosition = {
+  locator: ServerTextLocator;
+  background: "light" | "dark";
+  version: number;
+};
+
+type ServerTextReading = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  contentMode: "text";
+  fileVersion: number;
+  position: ServerReadingPosition | null;
+};
+
+type ServerTextSection = {
+  sectionId: string;
+  title: string;
+  order: number;
+  text: string;
+};
+
+type ServerTextReaderSections = {
+  fileVersion: number;
+  sections: ServerTextSection[];
+};
+
+function safeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value);
+}
+
+function positiveInteger(value: unknown): value is number {
+  return safeInteger(value) && value > 0;
+}
+
+function nonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function invalidReaderResponse(): never {
+  throw new ClientBoundaryError("INVALID_LIBRARY_RESPONSE");
+}
+
+function staleReaderResponse() {
+  return new ClientBoundaryError("HTTP_REQUEST_FAILED", "书籍内容已经更新，请重新载入");
+}
+
+function parseReaderPosition(value: unknown): ServerReadingPosition | null {
+  if (value === null) return null;
+  if (!isRecord(value)
+    || !isRecord(value.locator)
+    || value.locator.kind !== "text"
+    || !positiveInteger(value.locator.fileVersion)
+    || !nonEmptyString(value.locator.sectionId)
+    || !safeInteger(value.locator.offset)
+    || value.locator.offset < 0
+    || (value.background !== "light" && value.background !== "dark")
+    || !safeInteger(value.version)
+    || value.version < 0) {
+    return invalidReaderResponse();
+  }
+  return {
+    locator: {
+      kind: "text",
+      fileVersion: value.locator.fileVersion,
+      sectionId: value.locator.sectionId,
+      offset: value.locator.offset,
+    },
+    background: value.background,
+    version: value.version,
+  };
+}
+
+function parseTextReading(value: unknown, expectedBookId: string): ServerTextReading {
+  if (!isRecord(value)
+    || value.bookId !== expectedBookId
+    || !nonEmptyString(value.title)
+    || (value.author !== null && typeof value.author !== "string")
+    || value.contentMode !== "text"
+    || !positiveInteger(value.fileVersion)
+    || !Object.prototype.hasOwnProperty.call(value, "position")) {
+    return invalidReaderResponse();
+  }
+  return {
+    bookId: value.bookId,
+    title: value.title,
+    author: value.author,
+    contentMode: "text",
+    fileVersion: value.fileVersion,
+    position: parseReaderPosition(value.position),
+  };
+}
+
+function parseTextReaderSections(value: unknown): ServerTextReaderSections {
+  if (!isRecord(value) || !positiveInteger(value.fileVersion) || !Array.isArray(value.sections)) {
+    return invalidReaderResponse();
+  }
+  const ids = new Set<string>();
+  const orders = new Set<number>();
+  const sections = value.sections.map((item) => {
+    if (!isRecord(item)
+      || !nonEmptyString(item.sectionId)
+      || !nonEmptyString(item.title)
+      || !safeInteger(item.order)
+      || item.order < 0
+      || typeof item.text !== "string"
+      || ids.has(item.sectionId)
+      || orders.has(item.order)) {
+      return invalidReaderResponse();
+    }
+    ids.add(item.sectionId);
+    orders.add(item.order);
+    return {
+      sectionId: item.sectionId,
+      title: item.title,
+      order: item.order,
+      text: item.text,
+    };
+  });
+  return { fileVersion: value.fileVersion, sections };
+}
+
+function readerProgress(locator: ServerTextLocator, sections: ServerTextSection[]) {
+  const targetIndex = sections.findIndex((section) => section.sectionId === locator.sectionId);
+  if (targetIndex < 0) return invalidReaderResponse();
+  const target = sections[targetIndex];
+  if (!target || locator.offset > target.text.length) return invalidReaderResponse();
+  const totalLength = sections.reduce((total, section) => total + section.text.length, 0);
+  const beforeLength = sections
+    .slice(0, targetIndex)
+    .reduce((total, section) => total + section.text.length, 0);
+  if (totalLength <= 0) return 0;
+  return Math.min(1, Math.max(0, (beforeLength + locator.offset) / totalLength));
+}
+
+function mapReaderPosition(
+  value: unknown,
+  sections: ServerTextSection[],
+  fileVersion: number,
+): ReadingPosition | null {
+  const position = parseReaderPosition(value);
+  if (!position) return null;
+  if (position.locator.fileVersion !== fileVersion) throw staleReaderResponse();
+  return {
+    sectionId: position.locator.sectionId,
+    offset: position.locator.offset,
+    progress: readerProgress(position.locator, sections),
+    background: position.background,
+    version: position.version,
+  };
+}
+
+function inferredTextFormat(sections: readonly BookSection[]) {
+  return sections.some((section) => section.id.startsWith("epub:")) ? "epub" as const : "txt" as const;
+}
+
 type WxLibraryFileManager = {
   readFile(options: {
     filePath: string;
@@ -121,9 +285,9 @@ type WxLibraryFileManager = {
 type WxLibraryRuntime = {
   request(options: {
     url: string;
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PUT";
     header?: Record<string, string>;
-    data?: ArrayBuffer;
+    data?: unknown;
     success?: (response: { statusCode: number; data: unknown }) => void;
     fail?: () => void;
   }): void;
@@ -199,6 +363,7 @@ export class LibraryHttpClient implements MiniappClient {
   readonly #requestHeaders: LibraryHttpClientOptions["requestHeaders"];
   readonly #onUnauthorized: LibraryHttpClientOptions["onUnauthorized"];
   readonly #transport: LibraryHttpTransport;
+  readonly #readerSnapshots = new Map<string, { fileVersion: number; sections: ServerTextSection[] }>();
 
   constructor(options: LibraryHttpClientOptions) {
     if (
@@ -316,8 +481,83 @@ export class LibraryHttpClient implements MiniappClient {
     return Promise.reject(new ClientBoundaryError("CLIENT_CAPABILITY_UNAVAILABLE"));
   }
 
-  getBook(_bookId: string): Promise<BookDetail> { return this.unsupported(); }
-  savePosition(_bookId: string, _input: Omit<ReadingPosition, "version"> & { expectedVersion: number }): Promise<ReadingPosition> { return this.unsupported(); }
+  async getBook(bookId: string): Promise<BookDetail> {
+    const [readingData, sectionsData] = await Promise.all([
+      this.request({
+        method: "GET",
+        url: endpoint(this.#baseUrl, `/api/v1/books/${encodeURIComponent(bookId)}/reading`),
+        headers: await this.headers(),
+      }),
+      this.request({
+        method: "GET",
+        url: endpoint(this.#baseUrl, `/api/v1/books/${encodeURIComponent(bookId)}/content/sections`),
+        headers: await this.headers(),
+      }),
+    ]);
+    const reading = parseTextReading(readingData, bookId);
+    const sections = parseTextReaderSections(sectionsData);
+    if (reading.fileVersion !== sections.fileVersion) {
+      throw staleReaderResponse();
+    }
+    const position = mapReaderPosition(reading.position, sections.sections, reading.fileVersion);
+    const progress = position?.progress ?? 0;
+    const mappedSections = sections.sections.map((section) => ({
+      id: section.sectionId,
+      index: section.order,
+      title: section.title,
+      body: section.text,
+      locator: section.sectionId,
+    }));
+    this.#readerSnapshots.set(bookId, { fileVersion: reading.fileVersion, sections: sections.sections });
+    return {
+      book: {
+        id: reading.bookId,
+        title: reading.title,
+        author: optionalString(reading.author),
+        source: "local",
+        sourceLabel: "本地",
+        format: inferredTextFormat(mappedSections),
+        progress,
+        coverVariant: stableCoverVariant(reading.bookId),
+        parseStatus: "ready_text",
+        sectionCount: mappedSections.length,
+      },
+      introduction: "",
+      sections: mappedSections,
+      position,
+      highlights: [],
+      notes: [],
+      works: [],
+    };
+  }
+
+  async savePosition(
+    bookId: string,
+    input: Omit<ReadingPosition, "version"> & { expectedVersion: number },
+  ): Promise<ReadingPosition> {
+    const snapshot = this.#readerSnapshots.get(bookId);
+    if (!snapshot) {
+      throw new ClientBoundaryError("CLIENT_CAPABILITY_UNAVAILABLE", "书籍尚未载入，无法保存阅读位置");
+    }
+    const data = await this.request({
+      method: "PUT",
+      url: endpoint(this.#baseUrl, `/api/v1/books/${encodeURIComponent(bookId)}/position`),
+      headers: await this.headers("application/json"),
+      body: {
+        expectedVersion: input.expectedVersion,
+        locator: {
+          kind: "text",
+          fileVersion: snapshot.fileVersion,
+          sectionId: input.sectionId,
+          offset: input.offset,
+        },
+        background: input.background,
+      },
+    });
+    const saved = mapReaderPosition(data, snapshot.sections, snapshot.fileVersion);
+    if (!saved) return invalidReaderResponse();
+    return saved;
+  }
   getPptWorkspace(_bookId?: string): Promise<PptWorkspace> { return this.unsupported(); }
   savePptWorkspace(_workspace: PptWorkspace): Promise<PptWorkspace> { return this.unsupported(); }
 }
