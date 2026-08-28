@@ -7,8 +7,7 @@
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
 - 下一可见检查点：`M1-F3B-D` 的 Web Assignment `M1-F3B-D-WEB-01` 已在 `noteweb@dc02e91` 完整ACK并通过租约门；Writer先交“当前controller/client只发送requestId/text、claimed Reader handoff不生成noteIntent”的RED，再冻结单一clean Web候选供root审查与顺序集成。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@dc02e91` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。Web Writer已回 exact-version loaded ACK：AGENTS SHA-256 `ee9ad39b…4515`、SKILL `ba04cb07…cee80`、long-task `1f0e5a33…21633`。canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`。
-- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为2/4、可用2；`M1-F3B-D-WEB-01` 使用 `luna_worker/max`，因为运行时拒绝Luna继承root ultra，未更换模型/provider。活动状态与owner仅以下方任务表为权威。
+- 规则版本：总控已从真实 `main@655caf1` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。总控已加载 `adaptive-delivery@e2f6410919274547f550972284a3be01a1e40838`，installed SKILL / long-task / control-event / ledger-consistency SHA-256 为 `60765a23…b025` / `9dda3590…d31` / `3f01ab3a…10c` / `78bf1db2…9cc`；本次变化只影响总控事件闭合与后续路由，当前 Web Writer Assignment 边界不变且无需广播。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
