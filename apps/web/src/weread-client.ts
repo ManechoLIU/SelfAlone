@@ -4,7 +4,7 @@ import type {
   WeReadAnnotationsSnapshotResponse,
   WeReadAnnotationsSyncRequest,
   WeReadAnnotationsSyncResponse,
-  WeReadBook,
+  WeReadBookProjection,
   WeReadBooksSnapshotRequest,
   WeReadBooksSnapshotResponse,
   WeReadBooksSyncRequest,
@@ -42,59 +42,16 @@ export function createWeReadClient(port: WeReadClientPort): WeReadClient {
 
 export type NoCallWeReadSeed = {
   connection: WeReadConnectionProjection | null;
-  books: readonly WeReadBook[];
+  books: readonly WeReadBookProjection[];
   annotations: readonly WeReadAnnotation[];
 };
 
 const localTimestamp = "2026-08-28T00:00:00.000Z";
 
-const defaultSeed: NoCallWeReadSeed = {
-  connection: {
-    connectionId: "local-weread-connection",
-    accountExternalId: "local-weread-account",
-    apiKeyHint: "••••demo",
-    status: "verified",
-    verifiedAt: localTimestamp,
-    revision: "local-revision-1",
-  },
-  books: [
-    {
-      externalId: "weread-book-1",
-      title: "置身事内",
-      author: "兰小欢",
-      coverUrl: "/book-covers/local-default-celadon-ink-v1.png",
-      progressPercent: 63,
-      lastReadAt: "2026-08-27T08:00:00.000Z",
-    },
-    {
-      externalId: "weread-book-2",
-      title: "人类简史",
-      author: "尤瓦尔·赫拉利",
-      coverUrl: "/book-covers/local-default-amber-lamp-v1.png",
-      progressPercent: 28,
-      lastReadAt: "2026-08-25T12:00:00.000Z",
-    },
-  ],
-  annotations: [
-    {
-      externalId: "weread-note-1",
-      bookExternalId: "weread-book-1",
-      quote: "理解一个系统，先看它的激励。",
-      thought: "先看激励，再看结果。",
-      location: "第 3 章",
-      createdAt: "2026-08-27T08:10:00.000Z",
-      updatedAt: "2026-08-27T08:10:00.000Z",
-    },
-    {
-      externalId: "weread-note-2",
-      bookExternalId: "weread-book-2",
-      quote: "人类最擅长的是合作。",
-      thought: "共同想象让陌生人可以一起行动。",
-      location: "第 2 部分",
-      createdAt: "2026-08-25T12:10:00.000Z",
-      updatedAt: "2026-08-25T12:10:00.000Z",
-    },
-  ],
+const emptySeed: NoCallWeReadSeed = {
+  connection: null,
+  books: [],
+  annotations: [],
 };
 
 function cloneSeed(seed: NoCallWeReadSeed): NoCallWeReadSeed {
@@ -110,7 +67,7 @@ function localError(code: string): Error {
 }
 
 function maskApiKey(apiKey: string) {
-  const suffix = apiKey.slice(-4);
+  const suffix = apiKey.length > 4 ? apiKey.slice(-4) : "****";
   return `••••${suffix}`;
 }
 
@@ -145,7 +102,7 @@ function runProjection(
   };
 }
 
-export function createNoCallWeReadClient(seed: NoCallWeReadSeed = defaultSeed): WeReadClient {
+export function createNoCallWeReadClient(seed: NoCallWeReadSeed = emptySeed): WeReadClient {
   const initial = cloneSeed(seed);
   let connection = initial.connection;
   let books = [...initial.books];
@@ -159,7 +116,7 @@ export function createNoCallWeReadClient(seed: NoCallWeReadSeed = defaultSeed): 
   }
 
   function annotationsForBook(bookId: string) {
-    const resolvedBook = books.find((book) => book.externalId === bookId) ?? books[0];
+    const resolvedBook = books.find((book) => book.bookId === bookId);
     if (!resolvedBook) return [];
     return annotations
       .filter((annotation) => annotation.bookExternalId === resolvedBook.externalId)
@@ -225,7 +182,7 @@ export function createNoCallWeReadClient(seed: NoCallWeReadSeed = defaultSeed): 
 
     async syncAnnotations(input) {
       const current = requireConnection();
-      const resolvedBook = books.find((book) => book.externalId === input.bookId) ?? books[0];
+      const resolvedBook = books.find((book) => book.bookId === input.bookId);
       if (!resolvedBook) throw localError("VALIDATION_FAILED");
       latestRun = runProjection("annotations", current, input.requestId, input.bookId, resolvedBook.externalId);
       return { run: latestRun as Extract<WeReadSyncRunProjection, { operation: "annotations" }> };
@@ -233,7 +190,7 @@ export function createNoCallWeReadClient(seed: NoCallWeReadSeed = defaultSeed): 
 
     async getAnnotationsSnapshot(input) {
       const current = requireConnection();
-      const resolvedBook = books.find((book) => book.externalId === input.bookId) ?? books[0];
+      const resolvedBook = books.find((book) => book.bookId === input.bookId);
       if (!resolvedBook) throw localError("VALIDATION_FAILED");
       return {
         connectionId: current.connectionId,

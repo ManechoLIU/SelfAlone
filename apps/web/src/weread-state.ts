@@ -4,7 +4,7 @@ import type {
   WeReadBooksSnapshotResponse,
   WeReadConnectionPutResponse,
   WeReadConnectionProjection,
-  WeReadBook,
+  WeReadBookProjection,
   WeReadSyncRunProjection,
 } from "@selfalone/contracts";
 
@@ -17,12 +17,13 @@ export type WeReadState = {
   phase: WeReadPhase;
   operation: WeReadOperation;
   connection: WeReadConnectionProjection | null;
-  books: WeReadBook[];
+  books: WeReadBookProjection[];
   annotations: Record<string, WeReadAnnotation[]>;
   selectedBookExternalId: string | null;
   draftApiKey: string;
   error: string;
   lastRun: WeReadSyncRunProjection | null;
+  pendingBooksRequestId: string | null;
 };
 
 const blankState: WeReadState = {
@@ -36,6 +37,7 @@ const blankState: WeReadState = {
   draftApiKey: "",
   error: "",
   lastRun: null,
+  pendingBooksRequestId: null,
 };
 
 type WeReadStateInput = Partial<WeReadState>;
@@ -85,6 +87,7 @@ export function resolveWeReadConnection(
     draftApiKey: "",
     error: "",
     lastRun: response.sync.run,
+    pendingBooksRequestId: response.sync.run.requestId,
   };
 }
 
@@ -97,14 +100,24 @@ export function applyWeReadBooksSnapshot(
     : response.status === "paused"
       ? "微信读书同步已暂停，请稍后重试。"
       : "";
-  const nextBooks = response.books.length || state.books.length === 0
+  const nextBooks = response.status === "success"
     ? response.books.map((book) => ({ ...book }))
     : state.books.map((book) => ({ ...book }));
+  const nextAnnotations = response.status === "success" && response.books.length === 0
+    ? {}
+    : state.annotations;
+  const nextSelectedBookExternalId = response.status === "success"
+    && state.selectedBookExternalId
+    && !response.books.some((book) => book.externalId === state.selectedBookExternalId)
+    ? response.books[0]?.externalId ?? null
+    : state.selectedBookExternalId;
   return {
     ...state,
     phase: response.status === "success" ? "ready" : "failed",
     operation: "books",
     books: nextBooks,
+    annotations: nextAnnotations,
+    selectedBookExternalId: nextSelectedBookExternalId,
     error: snapshotError,
   };
 }
@@ -129,8 +142,10 @@ export function applyWeReadAnnotationsSnapshot(
     error: "",
     annotations: {
       ...state.annotations,
-      [response.bookExternalId]: notes,
-      ...(response.bookId !== response.bookExternalId ? { [response.bookId]: notes.map((note) => ({ ...note })) } : {}),
+      [response.bookId]: notes,
+      ...(response.bookId !== response.bookExternalId
+        ? { [response.bookExternalId]: notes.map((note) => ({ ...note })) }
+        : {}),
     },
   };
 }
@@ -149,11 +164,12 @@ type PersistedWeReadState = {
   phase: WeReadPhase;
   operation: WeReadOperation;
   connection: WeReadConnectionProjection | null;
-  books: WeReadBook[];
+  books: WeReadBookProjection[];
   annotations: Record<string, WeReadAnnotation[]>;
   selectedBookExternalId: string | null;
   error: string;
   lastRun: WeReadSyncRunProjection | null;
+  pendingBooksRequestId: string | null;
 };
 
 export function serializeWeReadState(state: WeReadState) {
@@ -170,6 +186,7 @@ export function serializeWeReadState(state: WeReadState) {
     selectedBookExternalId: state.selectedBookExternalId,
     error: state.error,
     lastRun: state.lastRun ? { ...state.lastRun } : null,
+    pendingBooksRequestId: state.pendingBooksRequestId,
   };
   return JSON.stringify(persisted);
 }
@@ -197,12 +214,15 @@ export function parseWeReadState(value: string | null): WeReadState | null {
       connection: parsed.connection && isRecord(parsed.connection)
         ? parsed.connection as unknown as WeReadConnectionProjection
         : null,
-      books: parsed.books as WeReadBook[],
+      books: parsed.books as WeReadBookProjection[],
       annotations,
       selectedBookExternalId: typeof parsed.selectedBookExternalId === "string" ? parsed.selectedBookExternalId : null,
       error: typeof parsed.error === "string" ? parsed.error : "",
       lastRun: parsed.lastRun && isRecord(parsed.lastRun)
         ? parsed.lastRun as unknown as WeReadSyncRunProjection
+        : null,
+      pendingBooksRequestId: typeof parsed.pendingBooksRequestId === "string"
+        ? parsed.pendingBooksRequestId
         : null,
       draftApiKey: "",
     });

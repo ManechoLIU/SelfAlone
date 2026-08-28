@@ -13,6 +13,7 @@ const connection: WeReadConnectionProjection = {
 };
 
 const book = {
+  bookId: "local-book-1",
   externalId: "weread-book-1",
   title: "置身事内",
   author: "兰小欢",
@@ -64,7 +65,7 @@ describe("desktop WeRead views", () => {
     expect(html).toContain("63%");
     expect(html).toContain("理解一个系统，先看它的激励。");
     expect(html).toContain("先看激励，再看结果。");
-    expect(html).toContain('data-weread-book-id="weread-book-1"');
+    expect(html).toContain('data-weread-book-id="local-book-1"');
     expect(html).not.toContain("local-only-secret");
   });
 
@@ -83,5 +84,21 @@ describe("desktop WeRead views", () => {
     expect(html).toContain("已保留上次成功同步的数据");
     expect(html).toContain('src="/book-covers/local-default-celadon-ink-v1.png"');
     expect(html).toContain("理解一个系统，先看它的激励。");
+  });
+
+  it("keeps connected normal state focused on modification without a manual sync button", () => {
+    const state = createWeReadState({
+      phase: "ready",
+      connection,
+      books: [book],
+      annotations: { [book.externalId]: [annotation] },
+    });
+
+    const libraryHtml = renderWeReadLibrary(state);
+    const settingsHtml = renderWeReadSettings({ ...state, view: "connection" });
+
+    expect(libraryHtml).toContain('data-weread-action="open-settings"');
+    expect(libraryHtml).not.toContain('data-weread-action="sync-books"');
+    expect(settingsHtml).not.toContain('data-weread-action="sync-books"');
   });
 });

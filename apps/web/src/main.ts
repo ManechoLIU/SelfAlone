@@ -46,7 +46,15 @@ import {
   type TextReaderPptBlockedDisplay,
   type TextReaderPptIntent,
 } from "./text-reader-ppt-handoff";
-import type { AuthAccountResponse, LibraryBookSummary, LibrarySnapshot, TextReading, TrialQuotaStatus } from "@selfalone/contracts";
+import type {
+  AuthAccountResponse,
+  LibraryBookSummary,
+  LibrarySnapshot,
+  TextReading,
+  TrialQuotaStatus,
+  WeReadAnnotationsSnapshotResponse,
+  WeReadBookProjection,
+} from "@selfalone/contracts";
 import {
   authorLabel,
   bindLibrarySearchInteractions,
@@ -118,7 +126,7 @@ import {
   type SettingsOverview,
   type SettingsState,
 } from "./settings-state";
-import { createNoCallWeReadClient, type NoCallWeReadSeed } from "./weread-client";
+import { createNoCallWeReadClient, type NoCallWeReadSeed, type WeReadClient } from "./weread-client";
 import {
   applyWeReadAnnotationsSnapshot,
   applyWeReadBooksSnapshot,
@@ -186,10 +194,18 @@ let conversationSelectionController: ReturnType<typeof createConversationSelecti
 let conversationSelectionConversationId: string | null = null;
 let conversationSelectionHydrated = false;
 let settingsState: SettingsState = createSettingsState();
-const wereadStorageKey = "selfalone:m1:weread-state";
-function readPersistedWeReadSeed(): NoCallWeReadSeed | undefined {
+const wereadStoragePrefix = "selfalone:m1:weread-state";
+function wereadStorageKey(accountId: string): string;
+function wereadStorageKey(accountId: string | null | undefined): string;
+function wereadStorageKey(accountId: string | null | undefined) {
+  const normalized = accountId?.trim();
+  return `${wereadStoragePrefix}:${normalized ? encodeURIComponent(normalized) : "anonymous"}`;
+}
+
+function readPersistedWeReadSeed(accountId: string | null | undefined): NoCallWeReadSeed | undefined {
+  if (!accountId?.trim()) return undefined;
   try {
-    const recovered = parseWeReadState(window.localStorage.getItem(wereadStorageKey));
+    const recovered = parseWeReadState(window.localStorage.getItem(wereadStorageKey(accountId)));
     if (!recovered) return undefined;
     const annotations = new Map<string, NoCallWeReadSeed["annotations"][number]>();
     for (const notes of Object.values(recovered.annotations)) {
@@ -204,11 +220,27 @@ function readPersistedWeReadSeed(): NoCallWeReadSeed | undefined {
     return undefined;
   }
 }
-const wereadClient = createNoCallWeReadClient(readPersistedWeReadSeed());
+let wereadClient: WeReadClient = createNoCallWeReadClient();
+let wereadClientAccountId: string | null = null;
 let wereadState: WeReadState = createWeReadState();
 let wereadRequestInFlight = false;
 let wereadRequestVersion = 0;
 let wereadRequestSequence = 0;
+
+function activateWeReadAccount(accountId: string | null | undefined) {
+  const normalized = accountId?.trim() || null;
+  if (normalized === wereadClientAccountId) return;
+  wereadRequestVersion += 1;
+  wereadRequestInFlight = false;
+  wereadClientAccountId = normalized;
+  wereadClient = createNoCallWeReadClient(readPersistedWeReadSeed(normalized));
+  wereadState = createWeReadState();
+}
+
+function currentWeReadStorageKey() {
+  return wereadStorageKey(authState.account?.id);
+}
+
 let settingsRequestInFlight = false;
 let textModelRequestInFlight = false;
 let textModelRequestVersion = 0;
@@ -306,23 +338,24 @@ function syncSettingsWeReadOverview() {
 function renderSettings() {
   syncSettingsWeReadOverview();
   app.innerHTML = settingsShell(renderSettingsPage(settingsState, wereadState));
-  app.innerHTML = settingsShell(renderSettingsPage(settingsState, wereadState));
   bindSettingsInteractions();
   bindWeReadSettingsInteractions();
   restoreTextModelSecret();
 }
 
 function persistWeReadState() {
+  if (!authState.account?.id?.trim()) return;
   try {
-    window.localStorage.setItem(wereadStorageKey, serializeWeReadState(wereadState));
+    window.localStorage.setItem(currentWeReadStorageKey(), serializeWeReadState(wereadState));
   } catch {
     // Keep the in-memory snapshot visible when browser storage is unavailable.
   }
 }
 
 function restoreWeReadState() {
+  if (!authState.account?.id?.trim()) return false;
   try {
-    const recovered = parseWeReadState(window.localStorage.getItem(wereadStorageKey));
+    const recovered = parseWeReadState(window.localStorage.getItem(currentWeReadStorageKey()));
     if (!recovered) return false;
     wereadState = { ...recovered, view: wereadState.view };
     return true;
@@ -343,10 +376,73 @@ function nextWeReadRequestId(operation: string) {
   return `desktop-weread-${operation}-${Date.now()}-${++wereadRequestSequence}`;
 }
 
+function pendingOrNewWeReadBooksRequestId() {
+  return wereadState.pendingBooksRequestId ?? nextWeReadRequestId("books");
+}
+
+const wereadAnnotationConcurrency = 4;
+
+async function readWeReadAnnotationSnapshots(
+  books: readonly WeReadBookProjection[],
+  requestVersion: number,
+) {
+  const responses: Array<WeReadAnnotationsSnapshotResponse | null> = new Array(books.length).fill(null);
+  let nextIndex = 0;
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= books.length) return;
+      const response = await wereadClient.getAnnotationsSnapshot({ bookId: books[index].bookId });
+      if (requestVersion !== wereadRequestVersion) return;
+      responses[index] = response;
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(wereadAnnotationConcurrency, books.length) }, () => worker()),
+  );
+  if (requestVersion !== wereadRequestVersion) return null;
+  return responses.filter((response): response is WeReadAnnotationsSnapshotResponse => response !== null);
+}
+
+async function applyWeReadAnnotationSnapshots(
+  books: readonly WeReadBookProjection[],
+  requestVersion: number,
+) {
+  const responses = await readWeReadAnnotationSnapshots(books, requestVersion);
+  if (!responses || requestVersion !== wereadRequestVersion) return false;
+  const failed = responses.find((response) => response.status !== "success");
+  if (failed) {
+    wereadState = applyWeReadAnnotationsSnapshot(wereadState, failed);
+    throw new Error(failed.status === "failed" ? failed.error.code : "EXTERNAL_SERVICE_FAILED");
+  }
+  for (const response of responses) {
+    if (requestVersion !== wereadRequestVersion) return false;
+    wereadState = applyWeReadAnnotationsSnapshot(wereadState, response);
+  }
+  return true;
+}
+
+async function finishWeReadBooksSync(requestVersion: number, requestId: string) {
+  const response = await wereadClient.syncBooks({ requestId });
+  if (requestVersion !== wereadRequestVersion) return false;
+  wereadState = { ...wereadState, phase: "syncing", lastRun: response.run, pendingBooksRequestId: requestId };
+  const booksResponse = await wereadClient.getBooksSnapshot();
+  if (requestVersion !== wereadRequestVersion) return false;
+  wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
+  if (booksResponse.status !== "success") return false;
+  const applied = await applyWeReadAnnotationSnapshots(booksResponse.books, requestVersion);
+  if (!applied || requestVersion !== wereadRequestVersion) return false;
+  wereadState = { ...wereadState, pendingBooksRequestId: null };
+  return true;
+}
+
 async function loadWeRead() {
   if (wereadRequestInFlight || (!isSettingsRoute() && !window.location.hash.startsWith("#/library"))) return;
-  if (restoreWeReadState() && wereadState.phase !== "idle") {
+  const restored = restoreWeReadState();
+  if (restored && wereadState.phase !== "idle") {
     renderWeReadSurface();
+    if (wereadState.connection && wereadState.phase !== "failed") void syncWeReadBooks();
     return;
   }
   wereadRequestInFlight = true;
@@ -364,14 +460,9 @@ async function loadWeRead() {
       error: "",
     };
     if (connectionResponse.connection) {
-      const booksResponse = await wereadClient.getBooksSnapshot();
-      if (requestVersion !== wereadRequestVersion) return;
-      wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
-      for (const book of booksResponse.books) {
-        const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
-        if (requestVersion !== wereadRequestVersion) return;
-        wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
-      }
+      const requestId = pendingOrNewWeReadBooksRequestId();
+      wereadState = { ...wereadState, pendingBooksRequestId: requestId };
+      await finishWeReadBooksSync(requestVersion, requestId);
     }
     persistWeReadState();
   } catch (error) {
@@ -380,7 +471,7 @@ async function loadWeRead() {
       persistWeReadState();
     }
   } finally {
-    wereadRequestInFlight = false;
+    if (requestVersion === wereadRequestVersion) wereadRequestInFlight = false;
   }
   if (requestVersion === wereadRequestVersion) renderWeReadSurface();
 }
@@ -389,20 +480,11 @@ async function syncWeReadBooks() {
   if (wereadRequestInFlight || !wereadState.connection) return;
   wereadRequestInFlight = true;
   const requestVersion = ++wereadRequestVersion;
-  wereadState = { ...wereadState, phase: "syncing", operation: "books", error: "" };
+  const requestId = pendingOrNewWeReadBooksRequestId();
+  wereadState = { ...wereadState, phase: "syncing", operation: "books", error: "", pendingBooksRequestId: requestId };
   renderWeReadSurface();
   try {
-    const response = await wereadClient.syncBooks({ requestId: nextWeReadRequestId("books") });
-    if (requestVersion !== wereadRequestVersion) return;
-    wereadState = { ...wereadState, phase: "syncing", lastRun: response.run };
-    const booksResponse = await wereadClient.getBooksSnapshot();
-    if (requestVersion !== wereadRequestVersion) return;
-    wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
-    for (const book of booksResponse.books) {
-      const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
-      if (requestVersion !== wereadRequestVersion) return;
-      wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
-    }
+    await finishWeReadBooksSync(requestVersion, requestId);
     persistWeReadState();
   } catch (error) {
     if (requestVersion === wereadRequestVersion) {
@@ -410,19 +492,25 @@ async function syncWeReadBooks() {
       persistWeReadState();
     }
   } finally {
-    wereadRequestInFlight = false;
+    if (requestVersion === wereadRequestVersion) wereadRequestInFlight = false;
   }
   if (requestVersion === wereadRequestVersion) renderWeReadSurface();
 }
 
-async function loadWeReadAnnotations(bookExternalId: string) {
+async function loadWeReadAnnotations(bookId: string) {
   if (wereadRequestInFlight || !wereadState.connection) return;
-  wereadState = { ...wereadState, selectedBookExternalId: bookExternalId, phase: "syncing", operation: "annotations", error: "" };
+  const book = wereadState.books.find((item) => item.bookId === bookId);
+  if (!book) {
+    wereadState = failWeReadOperation(wereadState, new Error("VALIDATION_FAILED"));
+    renderWeReadSurface();
+    return;
+  }
+  wereadState = { ...wereadState, selectedBookExternalId: book.externalId, phase: "syncing", operation: "annotations", error: "" };
   renderWeReadSurface();
   const requestVersion = ++wereadRequestVersion;
   wereadRequestInFlight = true;
   try {
-    const response = await wereadClient.getAnnotationsSnapshot({ bookId: bookExternalId });
+    const response = await wereadClient.getAnnotationsSnapshot({ bookId: book.bookId });
     if (requestVersion !== wereadRequestVersion) return;
     wereadState = applyWeReadAnnotationsSnapshot(wereadState, response);
     persistWeReadState();
@@ -432,7 +520,7 @@ async function loadWeReadAnnotations(bookExternalId: string) {
       persistWeReadState();
     }
   } finally {
-    wereadRequestInFlight = false;
+    if (requestVersion === wereadRequestVersion) wereadRequestInFlight = false;
   }
   if (requestVersion === wereadRequestVersion) renderWeReadSurface();
 }
@@ -462,19 +550,20 @@ async function saveWeReadConnection(form: HTMLFormElement) {
     const booksResponse = await wereadClient.getBooksSnapshot();
     if (requestVersion !== wereadRequestVersion) return;
     wereadState = applyWeReadBooksSnapshot(wereadState, booksResponse);
-    for (const book of booksResponse.books) {
-      const notesResponse = await wereadClient.getAnnotationsSnapshot({ bookId: book.externalId });
-      if (requestVersion !== wereadRequestVersion) return;
-      wereadState = applyWeReadAnnotationsSnapshot(wereadState, notesResponse);
+    if (booksResponse.status !== "success") {
+      persistWeReadState();
+    } else {
+      await applyWeReadAnnotationSnapshots(booksResponse.books, requestVersion);
+      wereadState = { ...wereadState, pendingBooksRequestId: null };
+      persistWeReadState();
     }
-    persistWeReadState();
   } catch (error) {
     if (requestVersion === wereadRequestVersion) {
       wereadState = failWeReadOperation(wereadState, error);
       persistWeReadState();
     }
   } finally {
-    wereadRequestInFlight = false;
+    if (requestVersion === wereadRequestVersion) wereadRequestInFlight = false;
   }
   if (requestVersion === wereadRequestVersion) renderSettings();
 }
@@ -489,7 +578,15 @@ async function disconnectWeRead() {
   try {
     await wereadClient.deleteConnection({ expectedRevision: currentConnection.revision });
     if (requestVersion !== wereadRequestVersion) return;
-    wereadState = { ...wereadState, connection: null, phase: "ready", operation: "disconnect", error: "", lastRun: null };
+    wereadState = {
+      ...wereadState,
+      connection: null,
+      phase: "ready",
+      operation: "disconnect",
+      error: "",
+      lastRun: null,
+      pendingBooksRequestId: null,
+    };
     persistWeReadState();
   } catch (error) {
     if (requestVersion === wereadRequestVersion) {
@@ -497,7 +594,7 @@ async function disconnectWeRead() {
       persistWeReadState();
     }
   } finally {
-    wereadRequestInFlight = false;
+    if (requestVersion === wereadRequestVersion) wereadRequestInFlight = false;
   }
   if (requestVersion === wereadRequestVersion) renderSettings();
 }
@@ -2544,6 +2641,7 @@ function renderRoute() {
     void recoverAuthSession();
     return;
   }
+  activateWeReadAccount(authState.account?.id);
   if (isAuthRoute()) {
     if (authState.phase === "authenticated") {
       window.history.replaceState(null, "", "#/library");

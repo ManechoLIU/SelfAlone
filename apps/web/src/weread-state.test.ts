@@ -24,6 +24,7 @@ const connection: WeReadConnectionProjection = {
 };
 
 const book = {
+  bookId: "local-book-1",
   externalId: "weread-book-1",
   title: "置身事内",
   author: "兰小欢",
@@ -61,6 +62,7 @@ describe("desktop WeRead state", () => {
       annotations: { [book.externalId]: [annotation] },
       draftApiKey: "local-only-secret",
       error: "上次同步失败，数据已保留。",
+      pendingBooksRequestId: "retry-books-1",
     });
 
     const encoded = serializeWeReadState(state);
@@ -71,6 +73,7 @@ describe("desktop WeRead state", () => {
       annotations: { [book.externalId]: [annotation] },
       draftApiKey: "",
       error: "上次同步失败，数据已保留。",
+      pendingBooksRequestId: "retry-books-1",
     });
   });
 
@@ -99,6 +102,7 @@ describe("desktop WeRead state", () => {
     expect(next.connection).toEqual(connection);
     expect(next.phase).toBe("syncing");
     expect(next.draftApiKey).toBe("");
+    expect(next.pendingBooksRequestId).toBe("request-connect-1");
   });
 
   it("keeps the last books and notes visible when a later sync fails", () => {
@@ -136,6 +140,27 @@ describe("desktop WeRead state", () => {
     expect(failed.books).toEqual([book]);
     expect(failed.annotations[book.externalId]).toEqual([annotation]);
     expect(failed.error).toContain("同步服务暂时不可用");
+  });
+
+  it("clears the previous books when a successful snapshot is empty", () => {
+    const emptySnapshot: WeReadBooksSnapshotResponse = {
+      ...booksSuccess,
+      books: [],
+    };
+
+    const next = applyWeReadBooksSnapshot(
+      createWeReadState({
+        connection,
+        books: [book],
+        annotations: { [book.bookId]: [annotation] },
+        selectedBookExternalId: book.externalId,
+      }),
+      emptySnapshot,
+    );
+
+    expect(next.books).toEqual([]);
+    expect(next.annotations).toEqual({});
+    expect(next.selectedBookExternalId).toBeNull();
   });
 
   it("retains the current snapshot and draft when a connection mutation fails", () => {

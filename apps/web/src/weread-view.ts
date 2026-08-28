@@ -1,4 +1,4 @@
-import type { WeReadAnnotation, WeReadBook } from "@selfalone/contracts";
+import type { WeReadAnnotation, WeReadBookProjection } from "@selfalone/contracts";
 import type { WeReadState } from "./weread-state";
 
 function escapeHtml(value: string) {
@@ -18,7 +18,7 @@ function phaseLabel(state: WeReadState) {
   return state.connection ? "已连接" : "未连接";
 }
 
-function renderBookCover(book: WeReadBook) {
+function renderBookCover(book: WeReadBookProjection) {
   return book.coverUrl
     ? `<img class="weread-book-cover" src="${escapeHtml(book.coverUrl)}" alt="" />`
     : `<div class="weread-book-cover weread-book-cover--empty" role="img" aria-label="暂无《${escapeHtml(book.title)}》封面">暂无封面</div>`;
@@ -32,11 +32,11 @@ function renderAnnotation(annotation: WeReadAnnotation) {
   </article>`;
 }
 
-function renderBookCard(state: WeReadState, book: WeReadBook) {
+function renderBookCard(state: WeReadState, book: WeReadBookProjection) {
   const selected = state.selectedBookExternalId === book.externalId;
-  const notes = state.annotations[book.externalId] ?? [];
+  const notes = state.annotations[book.bookId] ?? state.annotations[book.externalId] ?? [];
   const progress = book.progressPercent === null ? "进度未同步" : `已读 ${book.progressPercent}%`;
-  return `<button class="weread-book-card${selected ? " selected" : ""}" type="button" data-weread-action="select-book" data-weread-book-id="${escapeHtml(book.externalId)}" aria-pressed="${selected}">
+  return `<button class="weread-book-card${selected ? " selected" : ""}" type="button" data-weread-action="select-book" data-weread-book-id="${escapeHtml(book.bookId)}" aria-pressed="${selected}">
     ${renderBookCover(book)}
     <span class="weread-book-card__copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author ?? "作者未知")}</small><small>${progress} · ${notes.length} 条划线</small></span>
   </button>`;
@@ -46,7 +46,9 @@ function renderSelectedAnnotations(state: WeReadState) {
   const selectedId = state.selectedBookExternalId ?? state.books[0]?.externalId;
   if (!selectedId) return `<p class="weread-empty-note">同步后，微信读书中的划线和想法会显示在这里。</p>`;
   const selectedBook = state.books.find((book) => book.externalId === selectedId);
-  const notes = state.annotations[selectedId] ?? [];
+  const notes = selectedBook
+    ? state.annotations[selectedBook.bookId] ?? state.annotations[selectedBook.externalId] ?? []
+    : state.annotations[selectedId] ?? [];
   return `<section class="weread-annotations" aria-labelledby="weread-annotations-title">
     <div class="weread-section-heading"><h3 id="weread-annotations-title">${selectedBook ? `《${escapeHtml(selectedBook.title)}》的划线与想法` : "划线与想法"}</h3><span>${notes.length} 条</span></div>
     ${notes.length ? notes.map(renderAnnotation).join("") : `<p class="weread-empty-note">这本书还没有同步到划线或想法。</p>`}
@@ -73,7 +75,7 @@ export function renderWeReadSettings(state: WeReadState) {
       <p id="weread-api-key-help" class="weread-form-help">Key 只用于当前连接操作，成功后仅保存掩码，不会写入本地恢复数据。</p>
       <button class="settings-primary" data-weread-action="save-connection" type="submit"${state.phase === "saving" ? " disabled" : ""}>${submitLabel}</button>
     </form>
-    ${connected ? `<div class="weread-settings-actions"><button class="settings-secondary" type="button" data-weread-action="sync-books"${state.phase === "syncing" ? " disabled" : ""}>${state.phase === "syncing" ? "正在同步…" : "立即同步书架"}</button><button class="settings-secondary" type="button" data-weread-action="disconnect">解除连接</button></div>` : ""}
+    ${connected ? `<div class="weread-settings-actions">${state.phase === "failed" ? `<button class="settings-secondary" type="button" data-weread-action="retry-sync">重试同步</button>` : ""}<button class="settings-secondary" type="button" data-weread-action="disconnect">解除连接</button></div>` : ""}
     <div class="weread-settings-data">
       <div class="weread-section-heading"><h3>已同步书籍</h3><span>${state.books.length} 本</span></div>
       ${state.books.length ? `<div class="weread-book-list">${state.books.map((book) => renderBookCard(state, book)).join("")}</div>` : `<p class="weread-empty-note">连接后会在这里看到你的微信读书书架。</p>`}
@@ -85,7 +87,7 @@ export function renderWeReadSettings(state: WeReadState) {
 export function renderWeReadLibrary(state: WeReadState, disconnectedHeading = "连接微信读书") {
   const connected = Boolean(state.connection);
   const entry = connected
-    ? `<button class="weread-inline-action" type="button" data-weread-action="open-settings">修改连接</button><button class="weread-inline-action" type="button" data-weread-action="sync-books"${state.phase === "syncing" ? " disabled" : ""}>${state.phase === "syncing" ? "正在同步…" : "同步书架"}</button>`
+    ? `<button class="weread-inline-action" type="button" data-weread-action="open-settings">修改连接</button>`
     : `<button class="weread-inline-action" type="button" data-weread-action="open-settings" data-weread-intent="connect">连接并同步</button>`;
   const error = state.error
     ? `<div class="weread-inline-error" role="alert"><span>${escapeHtml(state.error)}</span>${connected ? `<button class="weread-inline-action" type="button" data-weread-action="retry-sync">重试同步</button>` : ""}</div>`

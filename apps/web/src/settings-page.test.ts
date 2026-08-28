@@ -175,4 +175,30 @@ describe("desktop settings page candidate", () => {
     expect(submitCatch).toContain("draft,");
     expect(submitCatch).toContain("error: getTextModelErrorMessage(code),");
   });
+
+  it("scopes WeRead recovery to the authenticated account and clears it on account exit", () => {
+    expect(mainSource).toContain("function wereadStorageKey(accountId: string)");
+    expect(mainSource).toContain("wereadStorageKey(authState.account?.id");
+    expect(mainSource).toContain("wereadState = createWeReadState()");
+  });
+
+  it("reuses the same books request id for an unknown-result retry", () => {
+    const syncSource = mainSource.slice(
+      mainSource.indexOf("async function syncWeReadBooks"),
+      mainSource.indexOf("async function loadWeReadAnnotations"),
+    );
+
+    expect(syncSource).toContain("const requestId =");
+    expect(syncSource).not.toContain('nextWeReadRequestId("books")');
+  });
+
+  it("loads per-book annotations concurrently after the books snapshot", () => {
+    const annotationSource = mainSource.slice(
+      mainSource.indexOf("async function readWeReadAnnotationSnapshots"),
+      mainSource.indexOf("async function finishWeReadBooksSync"),
+    );
+
+    expect(annotationSource).toContain("Promise.all");
+    expect(annotationSource).toContain("wereadAnnotationConcurrency");
+  });
 });

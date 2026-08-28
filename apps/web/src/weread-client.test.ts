@@ -25,6 +25,7 @@ const connection = {
 };
 
 const book = {
+  bookId: "local-book-1",
   externalId: "weread-book-1",
   title: "置身事内",
   author: "兰小欢",
@@ -97,6 +98,13 @@ function unusedPort(): WeReadClientPort {
 }
 
 describe("desktop WeRead client port", () => {
+  it("starts a fresh no-call client disconnected without demo books", async () => {
+    const client = createNoCallWeReadClient();
+
+    await expect(client.getConnection()).resolves.toEqual({ connection: null });
+    await expect(client.getBooksSnapshot()).rejects.toThrow("EXTERNAL_AUTH_REQUIRED");
+  });
+
   it("forwards the JSON-contract operations through an injected port", async () => {
     const calls: string[] = [];
     const port = unusedPort();
@@ -142,6 +150,19 @@ describe("desktop WeRead client port", () => {
     expect(snapshot.books).toEqual([book]);
     expect(notes.annotations).toEqual([annotation]);
     expect(JSON.stringify(snapshot)).not.toContain("1234");
+  });
+
+  it("rejects an unknown local book id instead of falling back to the first book", async () => {
+    const client = createNoCallWeReadClient({
+      connection,
+      books: [book],
+      annotations: [annotation],
+    });
+
+    await expect(client.getAnnotationsSnapshot({ bookId: "unknown-local-book" })).rejects.toThrow("VALIDATION_FAILED");
+    await expect(client.getAnnotationsSnapshot({ bookId: book.externalId })).rejects.toThrow("VALIDATION_FAILED");
+    await expect(client.syncAnnotations({ requestId: "request-annotations-unknown", bookId: "unknown-local-book" }))
+      .rejects.toThrow("VALIDATION_FAILED");
   });
 
   it("never returns the raw key when a local connection is replaced", async () => {
