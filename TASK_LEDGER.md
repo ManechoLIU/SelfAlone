@@ -7,7 +7,7 @@
 - 当前 Goal：`STAGE-READ-NOTES-V1-J / M1-F2-WEREAD ACTIVE`；Desktop 候选 `dfb0574` 经 root 与非作者实际 diff 审查判 FAIL，7项 RED 已冻结；共享 books snapshot 的 local opaque `bookId` / provider `externalId` 双身份已在 `main@489d51d` 关闭，原 Writer 的既有 Assignment 已加载 `main@ba3a7af` 并从8文件 WIP续作。默认 no-call，不读取真实 WeRead Key，真实 WeRead H4 仍为独立授权门。Mini `M2-F2` 原 Writer也已加载同版并保持独立旁路，不改变本 Goal 完成条件。
 - 下一可见检查点：`M1-F2-WEREAD` 的 `M1-F2-WEREAD-WEB-REWORK-02` 在真实 Chrome 完成 fresh空态、账户隔离、空成功快照、同requestId重试与并发annotation SELF，形成单一候选；旁路 `M2-F2` 的 `M2-F2-WEREAD-MINI-REWORK-02` 从现有9文件 WIP补分页、stale fencing、双身份与未知进度。唯一 f312 仍为 `4cdce97` 与既有保护现场，未写入候选。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。当前 API 的 DeepSeek 配置运行时重绑定仅受 macOS Passwords 本人认证阻塞，不影响 no-call WeRead Goal。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@ba3a7af` 加载当前 AGENTS（SHA-256 `535679c0…9823`）；后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为事实源，Web / Mini 前端 Kimi K3 API 项目级路由授权以 `ba3a7af` 为事实源。已加载 `adaptive-delivery@6c336cb4c58ef11abd758abf530b30fefa0a55bb`；installed SKILL / agent-model-routing / external-agent-auth SHA-256 为 `d3b6b8f1…de73` / `ac1a7c45…979e` / `8b594297…b4a80`。下一次真实 Kimi / Grok 调用起使用最多两张、每张最多三行的外部执行状态卡；已有 ACTIVE / VERIFY / CANDIDATE 不重做或改派，新 / 重建前端 Assignment 走 Kimi API且失败 / 未知不重试、不静默降级。controller生命周期 Hook 已完成 Trust，`PostToolUse 1/1`、`SessionStart 1/1`、`SubagentStop 1/1`、`Stop 2/2` 均 Active；本事件已实际收到 lifecycle 续作门，当前 turn 不追溯伪造 SessionStart收据，仍以 `control_event_guard` 闭合每个事件。
+- 规则版本：总控已从真实 `main@46ab1fd` 加载当前 AGENTS（SHA-256 `0cf10094…d0d`）；后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为事实源，Web / Mini 前端 Kimi K3 API 项目级路由授权以 `ba3a7af` 为事实源，普通已验证范围单一 `main` 提交的非强制快进 push 授权以 `46ab1fd` 为事实源。已加载 `adaptive-delivery@6c336cb4c58ef11abd758abf530b30fefa0a55bb`；installed SKILL / agent-model-routing / external-agent-auth SHA-256 为 `d3b6b8f1…de73` / `ac1a7c45…979e` / `8b594297…b4a80`。下一次真实 Kimi / Grok 调用起使用最多两张、每张最多三行的外部执行状态卡；已有 ACTIVE / VERIFY / CANDIDATE 不重做或改派，新 / 重建前端 Assignment 走 Kimi API且失败 / 未知不重试、不静默降级。controller生命周期 Hook 已完成 Trust，`PostToolUse 1/1`、`SessionStart 1/1`、`SubagentStop 1/1`、`Stop 2/2` 均 Active；本事件已实际收到 lifecycle 续作门，当前 turn 不追溯伪造 SessionStart收据，仍以 `control_event_guard` 闭合每个事件。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -142,7 +142,7 @@
 
 ## 5. 授权、共享环境与保护现场
 
-- 本地验证合格后的本地 `main` 集成已授权；远端 push、PR、发布、部署、真实邮件 / 微信、微信读书 / Presenton、小程序审核及其他付费调用未授权。
+- 本地验证合格后的本地 `main` 集成已授权；普通已验证、范围单一且已顺序集成 `main` 的代码 / 文档提交可直接以非强制快进方式 push 到现有远端并回读 revision。force push、PR 合并、发布、部署、删除、生产数据变更、真实邮件 / 微信、微信读书 / Presenton、小程序审核及其他付费调用仍未授权。
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
