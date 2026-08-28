@@ -117,6 +117,16 @@ describe("Mini WeRead contract adapter", () => {
     await expect(client.getConnection()).resolves.toEqual({ connection: null });
     await expect(client.putConnection({ apiKey: "wrk-secret", requestId: "request-a", expectedRevision: null }))
       .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.deleteConnection({ expectedRevision: "3" }))
+      .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.getBooks({ cursor: null })).rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.syncBooks({ requestId: "request-a", cursor: null }))
+      .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.getAnnotations({ bookId: "weread:book-a" }))
+      .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.syncAnnotations({ requestId: "request-a", bookId: "weread:book-a" }))
+      .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    await expect(client.getSyncStatus("run-a")).rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
     expect(request).not.toHaveBeenCalled();
   });
 });

@@ -8,6 +8,7 @@ import {
   mergeWeReadBooks,
   presentWeReadSync,
   preserveWeReadOnFailure,
+  type WeReadBooksSnapshotResponse,
   type WeReadAnnotationView,
   type WeReadConnectionProjection,
   type WeReadSyncViewStatus,
@@ -18,6 +19,7 @@ import { readableError } from "../../platform";
 type VisibleBook = BookSummary & {
   coverAsset: string;
   progressLabel: string;
+  progressWidth: string;
   wereadExternalId?: string;
   annotationCount: number;
 };
@@ -59,6 +61,13 @@ const coverAssets = [
   "/assets/book-covers/local-default-amber-lamp-v1.png",
   "/assets/book-covers/local-default-indigo-sea-v1.png",
 ];
+
+class StaleWeReadResponseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StaleWeReadResponseError";
+  }
+}
 
 Page<LibraryData>({
   data: {
@@ -152,9 +161,33 @@ Page<LibraryData>({
     const generation = (this.wereadLoadGeneration ?? 0) + 1;
     this.wereadLoadGeneration = generation;
     const client = this.resolveWeReadClient();
+    const previousSyncState = {
+      wereadSyncStatus: this.data.wereadSyncStatus,
+      wereadSyncLabel: this.data.wereadSyncLabel,
+      wereadNotice: this.data.wereadNotice,
+    };
+    const expectedConnectionId = this.data.wereadConnection?.connectionId ?? null;
+    const expectedAccountExternalId = this.data.wereadConnection?.accountExternalId ?? null;
+    let activeConnection: WeReadConnectionProjection | null = null;
+    const initialTargetStillCurrent = () => {
+      const current = this.data.wereadConnection;
+      return (current?.connectionId ?? null) === expectedConnectionId
+        && (current?.accountExternalId ?? null) === expectedAccountExternalId;
+    };
+    const activeTargetStillCurrent = () => {
+      if (!activeConnection) return initialTargetStillCurrent();
+      const current = this.data.wereadConnection;
+      return !!current
+        && current.connectionId === activeConnection.connectionId
+        && current.accountExternalId === activeConnection.accountExternalId;
+    };
     try {
       const response = await client.getConnection();
       if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      if (!initialTargetStillCurrent()) {
+        this.setData(previousSyncState);
+        return;
+      }
       const connection = response.connection?.status === "disconnected" ? null : response.connection;
       if (!connection) {
         this.setData({
@@ -175,16 +208,29 @@ Page<LibraryData>({
         return;
       }
 
+      activeConnection = connection;
       this.setData({
         wereadConnection: connection,
         wereadSyncStatus: "loading",
         wereadSyncLabel: "同步中",
         wereadNotice: "",
       });
-      const booksResponse = await client.getBooks({ cursor: null });
+      const booksResponse = await this.readWeReadBooks(client, connection, generation);
       if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      const currentConnection = this.data.wereadConnection;
+      if (
+        !currentConnection
+        || currentConnection.connectionId !== connection.connectionId
+        || currentConnection.accountExternalId !== connection.accountExternalId
+      ) {
+        this.setData(previousSyncState);
+        return;
+      }
       const sync = presentWeReadSync(booksResponse);
-      const wereadBooks = booksResponse.books.map(mapWeReadBook);
+      const snapshotBooks = booksResponse.books.map(mapWeReadBook);
+      const wereadBooks = booksResponse.status === "success"
+        ? snapshotBooks
+        : this.data.wereadBooks.length ? this.data.wereadBooks : snapshotBooks;
       const localBooks = this.data.localBooks.length
         ? this.data.localBooks
         : this.data.books.filter((book: BookSummary) => book.source !== "weread");
@@ -205,6 +251,14 @@ Page<LibraryData>({
       });
     } catch (error) {
       if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      if (!activeTargetStillCurrent()) {
+        this.setData(previousSyncState);
+        return;
+      }
+      if (error instanceof StaleWeReadResponseError) {
+        this.setData(previousSyncState);
+        return;
+      }
       const message = readableError(error);
       const preserved = preserveWeReadOnFailure(this.data.wereadBooks, message);
       this.setData({
@@ -212,6 +266,33 @@ Page<LibraryData>({
         wereadSyncLabel: "同步失败",
         wereadNotice: preserved.notice,
       });
+    }
+  },
+  async readWeReadBooks(
+    client: WeReadClient,
+    connection: WeReadConnectionProjection,
+    generation: number,
+  ): Promise<WeReadBooksSnapshotResponse> {
+    let cursor: string | null = null;
+    const books: WeReadBooksSnapshotResponse["books"][number][] = [];
+    while (true) {
+      const response = await client.getBooks({ cursor });
+      if (this.isUnloaded || generation !== this.wereadLoadGeneration) return response;
+      if (
+        response.connectionId !== connection.connectionId
+        || response.accountExternalId !== connection.accountExternalId
+      ) {
+        throw new StaleWeReadResponseError("微信读书书架连接已变更");
+      }
+      if (response.status !== "success") return response;
+      books.push(...response.books);
+      if (response.nextCursor === null) {
+        return { ...response, books };
+      }
+      if (response.nextCursor === cursor) {
+        throw new Error("微信读书返回了重复的分页游标");
+      }
+      cursor = response.nextCursor;
     }
   },
   present(state: {
@@ -233,8 +314,11 @@ Page<LibraryData>({
       ? presentation.books.map((book) => ({
         ...book,
         coverAsset: coverAssets[Math.abs(book.coverVariant) % coverAssets.length]!,
-        progressLabel: `${Math.round(book.progress * 100)}%`,
-        ...(book.source === "weread" ? { wereadExternalId: book.id.slice("weread:".length) } : {}),
+        progressLabel: "progressKnown" in book && book.progressKnown === false
+          ? "未读取"
+          : `${Math.round(book.progress * 100)}%`,
+        progressWidth: `${Math.round(book.progress * 100)}%`,
+        ...(book.source === "weread" ? { wereadExternalId: "wereadExternalId" in book ? book.wereadExternalId : book.id.slice("weread:".length) } : {}),
         annotationCount: this.data.wereadAnnotations[book.id]?.length ?? 0,
       }))
       : [];
@@ -340,9 +424,37 @@ Page<LibraryData>({
     wx.navigateTo({ url: `/pages/reader/index?id=${encodeURIComponent(id)}` });
   },
   async openWeReadAnnotations(book: VisibleBook) {
+    const generation = (this.wereadAnnotationGenerations?.[book.id] ?? 0) + 1;
+    this.wereadAnnotationGenerations = { ...(this.wereadAnnotationGenerations ?? {}), [book.id]: generation };
+    const connection = this.data.wereadConnection;
+    const annotationTargetStillCurrent = () => {
+      const current = this.data.wereadConnection;
+      return !!connection
+        && !!current
+        && current.connectionId === connection.connectionId
+        && current.accountExternalId === connection.accountExternalId;
+    };
     this.setData({ wereadAnnotationLoadingId: book.id });
     try {
       const response = await this.resolveWeReadClient().getAnnotations({ bookId: book.id });
+      if (
+        this.isUnloaded
+        || generation !== this.wereadAnnotationGenerations?.[book.id]
+        || !connection
+        || response.connectionId !== connection.connectionId
+        || response.accountExternalId !== connection.accountExternalId
+        || response.bookId !== book.id
+        || !annotationTargetStillCurrent()
+      ) {
+        if (
+          !this.isUnloaded
+          && generation === this.wereadAnnotationGenerations?.[book.id]
+          && this.data.wereadAnnotationLoadingId === book.id
+        ) {
+          this.setData({ wereadAnnotationLoadingId: "" });
+        }
+        return;
+      }
       const annotations = annotationsFromSnapshot(response);
       const nextAnnotations = { ...this.data.wereadAnnotations, [book.id]: annotations };
       const sync = presentWeReadSync(response);
@@ -360,6 +472,11 @@ Page<LibraryData>({
         : "还没有同步的划线与想法。";
       wx.showModal({ title: `《${book.title}》的划线与想法`, content, showCancel: false });
     } catch (error) {
+      if (this.isUnloaded || generation !== this.wereadAnnotationGenerations?.[book.id]) return;
+      if (!annotationTargetStillCurrent()) {
+        if (this.data.wereadAnnotationLoadingId === book.id) this.setData({ wereadAnnotationLoadingId: "" });
+        return;
+      }
       this.setData({
         wereadAnnotationLoadingId: "",
         wereadNotice: `${readableError(error)}，已保留当前划线与想法。`,

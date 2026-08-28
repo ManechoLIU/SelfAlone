@@ -128,6 +128,8 @@ export type WeReadBooksSyncResponse = { run: WeReadBooksSyncRunProjection };
 export type WeReadSyncStatusResponse = { run: WeReadSyncRunProjection };
 
 export type WeReadBook = {
+  /** Account-owned local identity; provider externalId remains separate. */
+  bookId: string;
   externalId: WeReadExternalId;
   title: string;
   author: string | null;
@@ -211,6 +213,11 @@ export type WeReadAnnotationView = {
   updatedAt: string;
 };
 
+export type WeReadBookSummary = BookSummary & {
+  wereadExternalId: WeReadExternalId;
+  progressKnown: boolean;
+};
+
 export type WeReadSyncViewStatus = "idle" | "loading" | "queued" | "running" | "success" | "paused" | "failed";
 
 export type WeReadSyncPresentation = {
@@ -240,28 +247,31 @@ function stableCoverVariant(id: string): number {
   return (hash >>> 0) % 3;
 }
 
-export function mapWeReadBook(book: WeReadBook): BookSummary {
-  const percent = typeof book.progressPercent === "number" && Number.isFinite(book.progressPercent)
-    ? Math.min(100, Math.max(0, book.progressPercent))
+export function mapWeReadBook(book: WeReadBook): WeReadBookSummary {
+  const progressKnown = typeof book.progressPercent === "number" && Number.isFinite(book.progressPercent);
+  const percent = progressKnown
+    ? Math.min(100, Math.max(0, book.progressPercent as number))
     : 0;
   const coverUrl = typeof book.coverUrl === "string" && book.coverUrl.trim() ? book.coverUrl.trim() : undefined;
   return {
-    id: wereadBookId(book.externalId),
+    id: book.bookId,
     title: book.title,
     ...(book.author?.trim() ? { author: book.author.trim() } : {}),
     source: "weread",
     sourceLabel: "微信读书",
     format: "weread",
     progress: percent / 100,
+    wereadExternalId: book.externalId,
+    progressKnown,
     ...(coverUrl ? { coverUrl } : {}),
     coverVariant: stableCoverVariant(book.externalId),
   };
 }
 
-export function mapWeReadAnnotation(annotation: WeReadAnnotation): WeReadAnnotationView {
+export function mapWeReadAnnotation(annotation: WeReadAnnotation, localBookId = wereadBookId(annotation.bookExternalId)): WeReadAnnotationView {
   return {
     id: annotation.externalId,
-    bookId: annotation.bookExternalId,
+    bookId: localBookId,
     quote: annotation.quote,
     thought: annotation.thought,
     location: annotation.location?.trim() || null,
@@ -313,5 +323,5 @@ export function weReadErrorMessage(error: unknown): string {
 }
 
 export function annotationsFromSnapshot(response: WeReadAnnotationsSnapshotResponse): WeReadAnnotationView[] {
-  return response.annotations.map(mapWeReadAnnotation);
+  return response.annotations.map((annotation) => mapWeReadAnnotation(annotation, response.bookId));
 }

@@ -5,6 +5,7 @@ type SettingsPageHarness = {
   data: Record<string, any>;
   setData(patch: Record<string, any>, callback?: () => void): void;
   showWeReadSettings(): void;
+  deleteWeReadConnection(): Promise<void>;
   onWeReadApiKeyInput(event: MiniappEvent<{ value: string }>): void;
   saveWeReadConnection(): Promise<void>;
   [key: string]: any;
@@ -42,6 +43,12 @@ describe("settings page product copy", () => {
     expect(template).toContain("暂不可用");
     expect(template).toContain("未配置");
     expect(template).toContain("未连接");
+  });
+
+  it("keeps WeRead as one overview row instead of embedding an unstyled editor", () => {
+    expect(template).toContain('bindtap="showWeReadSettings"');
+    expect(template).not.toContain("settings-service-editor");
+    expect(template).not.toContain("settings-service-editor__input");
   });
 
   it("connects or updates WeRead through the injected contract port and reflects its sync run", async () => {
@@ -106,5 +113,256 @@ describe("settings page product copy", () => {
     expect(page.data.wereadApiKey).toBe("wrk-new");
     expect(page.data.wereadConnection).toEqual({ connectionId: "old", revision: "3" });
     expect(page.data.wereadError).toBe("微信读书暂时不可用");
+  });
+
+  it("reuses the same request id when a failed save is retried", async () => {
+    const putConnection = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("首次验证失败"))
+      .mockResolvedValueOnce({
+        connection: {
+          connectionId: "connection-a",
+          accountExternalId: "weread-account-a",
+          apiKeyHint: "wrk-••••••••",
+          status: "verified" as const,
+          verifiedAt: "2024-01-02T03:04:05.000Z",
+          revision: "4",
+        },
+        sync: { run: {
+          runId: "run-a",
+          requestId: "request-a",
+          operation: "books" as const,
+          connectionId: "connection-a",
+          accountExternalId: "weread-account-a",
+          status: "queued" as const,
+          snapshot: "none" as const,
+          cursor: null,
+          nextCursor: null,
+          retryCount: 0,
+          createdAt: "2024-01-02T03:04:05.000Z",
+          updatedAt: "2024-01-02T03:04:05.000Z",
+        } },
+      });
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-retry" }, currentTarget: { dataset: {} } });
+
+    await page.saveWeReadConnection();
+    await page.saveWeReadConnection();
+
+    expect(putConnection).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      apiKey: "wrk-retry",
+      requestId: (putConnection.mock.calls[0]?.[0] as { requestId: string }).requestId,
+    }));
+    expect(page.data.wereadApiKey).toBe("");
+  });
+
+  it("does not let an older save response overwrite a newly opened connection session", async () => {
+    const deferred: Array<{ resolve: (value: any) => void; reject: (error: Error) => void }> = [];
+    const putConnection = vi.fn(() => new Promise((resolve, reject) => {
+      deferred.push({ resolve, reject });
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-old" }, currentTarget: { dataset: {} } });
+    const oldSave = page.saveWeReadConnection();
+
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-new" }, currentTarget: { dataset: {} } });
+    deferred[0]?.resolve({
+      connection: {
+        connectionId: "old-connection",
+        accountExternalId: "old-account",
+        apiKeyHint: "old",
+        status: "verified" as const,
+        verifiedAt: "2024-01-02T03:04:05.000Z",
+        revision: "old",
+      },
+      sync: { run: {
+        runId: "old-run",
+        requestId: "old-request",
+        operation: "books" as const,
+        connectionId: "old-connection",
+        accountExternalId: "old-account",
+        status: "queued" as const,
+        snapshot: "none" as const,
+        cursor: null,
+        nextCursor: null,
+        retryCount: 0,
+        createdAt: "2024-01-02T03:04:05.000Z",
+        updatedAt: "2024-01-02T03:04:05.000Z",
+      } },
+    });
+    await oldSave;
+
+    expect(page.data.wereadApiKey).toBe("wrk-new");
+    expect(page.data.wereadConnection).toBeNull();
+    expect(page.data.wereadEditorOpen).toBe(true);
+    expect(putConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not let an old save response overwrite a newer account connection", async () => {
+    let resolveSave: ((value: any) => void) | undefined;
+    const putConnection = vi.fn(() => new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.data.wereadConnection = {
+      connectionId: "connection-old",
+      accountExternalId: "account-old",
+      apiKeyHint: "old",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-old" }, currentTarget: { dataset: {} } });
+    const oldSave = page.saveWeReadConnection();
+
+    page.data.wereadConnection = {
+      connectionId: "connection-new",
+      accountExternalId: "account-new",
+      apiKeyHint: "new",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "4",
+    };
+    resolveSave?.({
+      connection: page.data.wereadConnection,
+      sync: { run: {
+        runId: "new-run",
+        requestId: "old-request",
+        operation: "books" as const,
+        connectionId: "connection-new",
+        accountExternalId: "account-new",
+        status: "queued" as const,
+        snapshot: "none" as const,
+        cursor: null,
+        nextCursor: null,
+        retryCount: 0,
+        createdAt: "2024-01-02T03:04:05.000Z",
+        updatedAt: "2024-01-02T03:04:05.000Z",
+      } },
+    });
+    await oldSave;
+
+    expect(page.data.wereadConnection).toEqual(expect.objectContaining({
+      connectionId: "connection-new",
+      accountExternalId: "account-new",
+      revision: "4",
+    }));
+    expect(page.data.wereadApiKey).toBe("wrk-old");
+    expect(page.data.wereadEditorOpen).toBe(true);
+  });
+
+  it("does not let an older connection load overwrite a newly opened connection session", async () => {
+    let resolveConnection: ((value: any) => void) | undefined;
+    const getConnection = vi.fn(() => new Promise((resolve) => {
+      resolveConnection = resolve;
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { getConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    const oldLoad = page.loadWeReadConnection();
+    page.showWeReadSettings();
+    resolveConnection?.({ connection: {
+      connectionId: "old-connection",
+      accountExternalId: "old-account",
+      apiKeyHint: "old",
+      status: "verified" as const,
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "old",
+    } });
+    await oldLoad;
+
+    expect(page.data.wereadConnection).toBeNull();
+    expect(page.data.wereadEditorOpen).toBe(true);
+  });
+
+  it("disconnects through the injected port with the observed revision and clears the status", async () => {
+    const deleteConnection = vi.fn(async (input: { expectedRevision: string }) => {
+      expect(input).toEqual({ expectedRevision: "3" });
+      return { status: "disconnected" as const };
+    });
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { deleteConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.data.wereadConnection = {
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      apiKeyHint: "wrk-••••••••",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    page.data.wereadEditorOpen = true;
+
+    await page.deleteWeReadConnection();
+
+    expect(deleteConnection).toHaveBeenCalledWith({ expectedRevision: "3" });
+    expect(page.data).toMatchObject({
+      wereadConnection: null,
+      wereadSyncStatus: "idle",
+      wereadSyncLabel: "未连接",
+      wereadEditorOpen: false,
+    });
+  });
+
+  it("does not let an old disconnect clear a newer account connection", async () => {
+    let resolveDelete: ((value: { status: "disconnected" }) => void) | undefined;
+    const deleteConnection = vi.fn(() => new Promise<{ status: "disconnected" }>((resolve) => {
+      resolveDelete = resolve;
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { deleteConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.data.wereadConnection = {
+      connectionId: "connection-old",
+      accountExternalId: "account-old",
+      apiKeyHint: "old",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    const oldDelete = page.deleteWeReadConnection();
+    page.data.wereadConnection = {
+      connectionId: "connection-new",
+      accountExternalId: "account-new",
+      apiKeyHint: "new",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "4",
+    };
+    resolveDelete?.({ status: "disconnected" });
+    await oldDelete;
+
+    expect(page.data.wereadConnection).toEqual(expect.objectContaining({
+      connectionId: "connection-new",
+      accountExternalId: "account-new",
+    }));
   });
 });

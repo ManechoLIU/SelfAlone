@@ -43,15 +43,6 @@
       <text class="settings-row__status">{{wereadSyncLabel || '未连接'}}</text>
       <image class="settings-row__arrow" src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
     </button>
-    <view wx:if="{{wereadEditorOpen}}" class="settings-service-editor">
-      <text class="settings-service-editor__label">微信读书 API Key</text>
-      <input class="settings-service-editor__input" type="safe-password" value="{{wereadApiKey}}" bindinput="onWeReadApiKeyInput" placeholder="输入 API Key" aria-label="微信读书 API Key" />
-      <text wx:if="{{wereadError}}" class="settings-service-editor__error" role="alert">{{wereadError}}</text>
-      <view class="settings-service-editor__actions">
-        <button class="settings-service-editor__primary" bindtap="saveWeReadConnection">{{wereadConnection ? '更新并同步' : '连接并同步'}}</button>
-        <button class="settings-service-editor__secondary" bindtap="closeWeReadSettings">取消</button>
-      </view>
-    </view>
   </view>
 
   <button class="settings-row settings-row--logout" bindtap="signOut" aria-label="退出登录">

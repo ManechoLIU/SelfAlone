@@ -67,7 +67,7 @@
           <view class="book-cover__author">{{item.author || '作者未知'}}</view>
         </view>
         <view class="book-progress">
-          <view class="book-progress__track"><view class="book-progress__value" style="width: {{item.progressLabel}}"></view></view>
+          <view class="book-progress__track"><view class="book-progress__value" style="width: {{item.progressWidth}}"></view></view>
           <text>{{item.progressLabel}}</text>
         </view>
       </view>

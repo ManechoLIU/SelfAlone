@@ -38,7 +38,12 @@ Page<SettingsData>({
   },
   onLoad(options?: { service?: string }) {
     this.isUnloaded = false;
-    if (options?.service === "weread") this.setData({ wereadEditorOpen: true });
+    if (options?.service === "weread") {
+      this.wereadEditorSession = 1;
+      this.wereadSaveRequestId = undefined;
+      this.wereadSaveExpectedRevision = undefined;
+      this.setData({ wereadEditorOpen: true });
+    }
     this.releaseViewport = createViewportTracker(wx, (geometry) => {
       if (!this.isUnloaded) this.setData(viewportPresentation(geometry));
     });
@@ -67,9 +72,27 @@ Page<SettingsData>({
     return resolveWeReadClient(globalData.wereadClient ?? globalData.weReadClient ?? globalData.weread);
   },
   async loadWeReadConnection() {
+    const generation = (this.wereadConnectionLoadGeneration ?? 0) + 1;
+    this.wereadConnectionLoadGeneration = generation;
+    const editorSession = this.wereadEditorSession ?? 0;
+    const saveGeneration = this.wereadSaveGeneration ?? 0;
+    const expectedConnectionId = this.data.wereadConnection?.connectionId ?? null;
+    const expectedAccountExternalId = this.data.wereadConnection?.accountExternalId ?? null;
+    const loadTargetStillCurrent = () => {
+      const current = this.data.wereadConnection;
+      return (current?.connectionId ?? null) === expectedConnectionId
+        && (current?.accountExternalId ?? null) === expectedAccountExternalId;
+    };
     try {
       const response = await this.resolveWeReadClient().getConnection();
-      if (this.isUnloaded) return;
+      if (
+        this.isUnloaded
+        || generation !== this.wereadConnectionLoadGeneration
+        || editorSession !== (this.wereadEditorSession ?? 0)
+        || saveGeneration !== (this.wereadSaveGeneration ?? 0)
+        || this.wereadSaveInFlight
+        || !loadTargetStillCurrent()
+      ) return;
       const connection = response.connection?.status === "disconnected" ? null : response.connection;
       const connectionSync = connection?.status === "paused"
         ? { status: "paused" as const, label: "需要更新" }
@@ -83,14 +106,29 @@ Page<SettingsData>({
         wereadError: "",
       });
     } catch (error) {
-      if (this.isUnloaded) return;
+      if (
+        this.isUnloaded
+        || generation !== this.wereadConnectionLoadGeneration
+        || editorSession !== (this.wereadEditorSession ?? 0)
+        || saveGeneration !== (this.wereadSaveGeneration ?? 0)
+        || this.wereadSaveInFlight
+        || !loadTargetStillCurrent()
+      ) return;
       this.setData({ wereadError: weReadErrorMessage(error) });
     }
   },
   showWeReadSettings() {
+    this.wereadEditorSession = (this.wereadEditorSession ?? 0) + 1;
+    this.wereadSaveRequestId = undefined;
+    this.wereadSaveExpectedRevision = undefined;
+    this.wereadSaveInFlight = undefined;
     this.setData({ wereadEditorOpen: true, wereadApiKey: "", wereadError: "" });
   },
   closeWeReadSettings() {
+    this.wereadEditorSession = (this.wereadEditorSession ?? 0) + 1;
+    this.wereadSaveRequestId = undefined;
+    this.wereadSaveExpectedRevision = undefined;
+    this.wereadSaveInFlight = undefined;
     this.setData({ wereadEditorOpen: false, wereadApiKey: "", wereadError: "" });
   },
   onWeReadApiKeyInput(event: MiniappEvent<{ value: string }>) {
@@ -102,15 +140,55 @@ Page<SettingsData>({
       this.setData({ wereadError: "请输入微信读书 API Key" });
       return;
     }
-    const expectedRevision = this.data.wereadConnection?.revision ?? null;
+    if (this.wereadSaveInFlight) return;
+    const editorSession = this.wereadEditorSession ?? 0;
+    const expectedConnectionId = this.data.wereadConnection?.connectionId ?? null;
+    const expectedAccountExternalId = this.data.wereadConnection?.accountExternalId ?? null;
+    const expectedRevisionAtStart = this.data.wereadConnection?.revision ?? null;
+    if (!this.wereadSaveRequestId) {
+      this.wereadSaveRequestId = nextWeReadRequestId();
+      this.wereadSaveExpectedRevision = this.data.wereadConnection?.revision ?? null;
+    }
+    const requestId = this.wereadSaveRequestId;
+    const expectedRevision = this.wereadSaveExpectedRevision ?? null;
+    const saveGeneration = (this.wereadSaveGeneration ?? 0) + 1;
+    this.wereadSaveGeneration = saveGeneration;
+    this.wereadSaveInFlight = saveGeneration;
+    const client = this.resolveWeReadClient();
+    const saveTargetStillCurrent = () => {
+      const current = this.data.wereadConnection;
+      return (current?.connectionId ?? null) === expectedConnectionId
+        && (current?.accountExternalId ?? null) === expectedAccountExternalId
+        && (current?.revision ?? null) === expectedRevisionAtStart;
+    };
+    const discardStaleSave = () => {
+      if (this.wereadSaveInFlight !== saveGeneration) return;
+      this.wereadSaveInFlight = undefined;
+      this.wereadSaveRequestId = undefined;
+      this.wereadSaveExpectedRevision = undefined;
+    };
     try {
-      const response = await this.resolveWeReadClient().putConnection({
+      const response = await client.putConnection({
         apiKey,
-        requestId: nextWeReadRequestId(),
+        requestId,
         expectedRevision,
       });
-      if (this.isUnloaded) return;
+      if (
+        this.isUnloaded
+        || editorSession !== (this.wereadEditorSession ?? 0)
+        || this.wereadSaveRequestId !== requestId
+        || this.wereadSaveInFlight !== saveGeneration
+        || !saveTargetStillCurrent()
+        || (expectedAccountExternalId !== null
+          && response.connection.accountExternalId !== expectedAccountExternalId)
+      ) {
+        discardStaleSave();
+        return;
+      }
       const sync = presentWeReadSync(response.sync);
+      this.wereadSaveInFlight = undefined;
+      this.wereadSaveRequestId = undefined;
+      this.wereadSaveExpectedRevision = undefined;
       this.setData({
         wereadConnection: response.connection,
         wereadSyncStatus: sync.status,
@@ -120,7 +198,65 @@ Page<SettingsData>({
         wereadError: sync.message,
       });
     } catch (error) {
-      if (this.isUnloaded) return;
+      if (
+        this.isUnloaded
+        || editorSession !== (this.wereadEditorSession ?? 0)
+        || this.wereadSaveRequestId !== requestId
+        || this.wereadSaveInFlight !== saveGeneration
+        || !saveTargetStillCurrent()
+      ) {
+        discardStaleSave();
+        return;
+      }
+      this.wereadSaveInFlight = undefined;
+      this.setData({ wereadError: weReadErrorMessage(error) });
+    }
+  },
+  async deleteWeReadConnection() {
+    const editorSession = (this.wereadEditorSession ?? 0) + 1;
+    this.wereadEditorSession = editorSession;
+    this.wereadSaveRequestId = undefined;
+    this.wereadSaveExpectedRevision = undefined;
+    this.wereadSaveInFlight = undefined;
+    const target = this.data.wereadConnection;
+    const expectedRevision = target?.revision;
+    if (!expectedRevision) {
+      this.setData({
+        wereadConnection: null,
+        wereadSyncStatus: "idle",
+        wereadSyncLabel: "未连接",
+        wereadEditorOpen: false,
+        wereadApiKey: "",
+        wereadError: "",
+      });
+      return;
+    }
+    const deleteTargetStillCurrent = () => {
+      const current = this.data.wereadConnection;
+      return !!current
+        && current.connectionId === target?.connectionId
+        && current.accountExternalId === target?.accountExternalId
+        && current.revision === target?.revision;
+    };
+    try {
+      const response = await this.resolveWeReadClient().deleteConnection({ expectedRevision });
+      if (this.isUnloaded || editorSession !== (this.wereadEditorSession ?? 0)) return;
+      if (!deleteTargetStillCurrent()) return;
+      if (response.status !== "disconnected") return;
+      this.setData({
+        wereadConnection: null,
+        wereadSyncStatus: "idle",
+        wereadSyncLabel: "未连接",
+        wereadEditorOpen: false,
+        wereadApiKey: "",
+        wereadError: "",
+      });
+    } catch (error) {
+      if (
+        this.isUnloaded
+        || editorSession !== (this.wereadEditorSession ?? 0)
+        || !deleteTargetStillCurrent()
+      ) return;
       this.setData({ wereadError: weReadErrorMessage(error) });
     }
   },
