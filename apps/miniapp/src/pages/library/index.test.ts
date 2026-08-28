@@ -7,6 +7,8 @@ type LibraryPageHarness = {
   setData(patch: Record<string, any>, callback?: () => void): void;
   loadBooks(): Promise<void>;
   retryBooks(): void;
+  showWeReadBoundary(): void;
+  openBook(event: MiniappEvent): Promise<void> | void;
   [key: string]: any;
 };
 
@@ -231,5 +233,110 @@ describe("Library initial load failure", () => {
     expect(listBooks).toHaveBeenNthCalledWith(2, { query: "后搜" });
     expect(page.data).toMatchObject({ query: "后搜", queryApplied: true, kind: "content" });
     expect(page.data.books).toEqual([expect.objectContaining({ id: "current-book" })]);
+  });
+
+  it("merges injected WeRead books with a real cover and sync status into the unified shelf", async () => {
+    const wereadClient = {
+      getConnection: vi.fn(async () => ({
+        connection: {
+          connectionId: "connection-a",
+          accountExternalId: "weread-account-a",
+          apiKeyHint: "wrk-••••••••",
+          status: "verified" as const,
+          verifiedAt: "2024-01-02T03:04:05.000Z",
+          revision: "3",
+        },
+      })),
+      getBooks: vi.fn(async () => ({
+        status: "success" as const,
+        snapshot: "last_success" as const,
+        connectionId: "connection-a",
+        accountExternalId: "weread-account-a",
+        cursor: null,
+        nextCursor: null,
+        books: [{
+          externalId: "weread-book-a",
+          title: "同步书",
+          author: "同步作者",
+          coverUrl: "https://cdn.example.test/sync-book.jpg",
+          progressPercent: 43,
+          lastReadAt: "2024-01-02T03:04:05.000Z",
+        }],
+      })),
+    };
+    vi.stubGlobal("getApp", () => ({
+      globalData: {
+        client: { listBooks: vi.fn(async () => []) },
+        developmentAdapter: false,
+        wereadClient,
+      },
+    }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+
+    await page.loadBooks();
+
+    expect(page.data.wereadSyncStatus).toBe("success");
+    expect(page.data.visibleBooks).toEqual([expect.objectContaining({
+      source: "weread",
+      coverUrl: "https://cdn.example.test/sync-book.jpg",
+      progressLabel: "43%",
+    })]);
+  });
+
+  it("keeps cached WeRead books when the next sync fails", async () => {
+    const wereadBook = {
+      id: "weread:weread-book-a",
+      title: "缓存同步书",
+      author: "作者",
+      source: "weread" as const,
+      sourceLabel: "微信读书",
+      format: "weread" as const,
+      progress: 0.43,
+      coverUrl: "https://cdn.example.test/cached.jpg",
+      coverVariant: 0,
+    };
+    const wereadClient = {
+      getConnection: vi.fn(async () => ({ connection: {
+        connectionId: "connection-a",
+        accountExternalId: "weread-account-a",
+        apiKeyHint: "wrk-••••••••",
+        status: "verified" as const,
+        verifiedAt: "2024-01-02T03:04:05.000Z",
+        revision: "3",
+      } })),
+      getBooks: vi.fn(async () => { throw new Error("微信读书暂时不可用"); }),
+    };
+    vi.stubGlobal("getApp", () => ({
+      globalData: {
+        client: { listBooks: vi.fn(async () => []) },
+        developmentAdapter: false,
+        wereadClient,
+      },
+    }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+    page.data.wereadBooks = [wereadBook];
+    page.data.books = [wereadBook];
+    page.data.localBooks = [];
+
+    await page.loadBooks();
+
+    expect(page.data.wereadSyncStatus).toBe("failed");
+    expect(page.data.wereadBooks).toEqual([wereadBook]);
+    expect(page.data.visibleBooks).toEqual([expect.objectContaining({ id: wereadBook.id })]);
+    expect(page.data.wereadNotice).toBe("微信读书暂时不可用");
+  });
+
+  it("routes the bookshelf connection entry to Settings instead of opening a static boundary modal", () => {
+    const navigateTo = vi.fn();
+    vi.stubGlobal("wx", { stopPullDownRefresh: vi.fn(), navigateTo });
+    const page = createPage();
+
+    page.showWeReadBoundary();
+
+    expect(navigateTo).toHaveBeenCalledWith({ url: "/pages/settings/index?service=weread" });
   });
 });

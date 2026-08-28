@@ -15,13 +15,18 @@
     <input value="{{query}}" bindinput="onSearch" adjust-position="{{false}}" cursor-spacing="12" placeholder="搜索书名或作者" aria-label="搜索书名或作者" />
   </view>
 
-  <button class="weread-row" bindtap="showWeReadBoundary" aria-label="连接微信读书">
+  <button wx:if="{{!wereadConnection}}" class="weread-row" bindtap="showWeReadBoundary" aria-label="连接微信读书">
     <view>
       <view class="weread-row__title">连接微信读书</view>
       <view class="weread-row__meta">同步书籍与个人划线</view>
     </view>
     <image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image>
   </button>
+
+  <view wx:if="{{wereadNotice}}" class="inline-notice library-load-notice" role="alert">
+    <text class="library-load-notice__copy">{{wereadNotice}}，已保留当前微信读书内容。</text>
+    <button class="library-load-notice__action" bindtap="retryWeRead" aria-label="重新同步微信读书">重试</button>
+  </view>
 
   <view wx:if="{{developmentAdapter}}" class="development-boundary">开发适配器仅提供本次运行内存数据；真实书架、导入与跨端同步尚未接入。<text class="viewport-receipt">{{viewportMetrics}}</text></view>
   <view wx:if="{{notice}}" class="inline-notice library-load-notice" role="alert">
@@ -56,7 +61,7 @@
   <view wx:else class="book-grid" aria-label="统一书架">
     <button class="book-item" wx:for="{{visibleBooks}}" wx:key="id" data-id="{{item.id}}" bindtap="openBook" aria-label="打开《{{item.title}}》，{{item.sourceLabel}}，已读 {{item.progressLabel}}">
       <view class="book-cover">
-        <image src="{{item.coverAsset}}" mode="aspectFill" aria-hidden="true"></image>
+        <image src="{{item.coverUrl || item.coverAsset}}" mode="aspectFill" aria-hidden="true"></image>
         <view class="book-cover__copy">
           <view class="book-cover__title">{{item.title}}</view>
           <view class="book-cover__author">{{item.author || '作者未知'}}</view>

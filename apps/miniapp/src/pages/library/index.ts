@@ -1,10 +1,26 @@
 import type { MiniappApp } from "../../app";
+import { resolveWeReadClient, type WeReadClient } from "../../adapters/weread";
 import { parseDevelopmentState, type DevelopmentState } from "../../adapters/client";
 import { preserveLibraryOnFailure, presentLibrary, type BookSummary, type LibraryPresentation } from "../../core/library-state";
+import {
+  annotationsFromSnapshot,
+  mapWeReadBook,
+  mergeWeReadBooks,
+  presentWeReadSync,
+  preserveWeReadOnFailure,
+  type WeReadAnnotationView,
+  type WeReadConnectionProjection,
+  type WeReadSyncViewStatus,
+} from "../../core/weread-state";
 import { createViewportTracker, viewportPresentation } from "../../core/viewport-state";
 import { readableError } from "../../platform";
 
-type VisibleBook = BookSummary & { coverAsset: string; progressLabel: string };
+type VisibleBook = BookSummary & {
+  coverAsset: string;
+  progressLabel: string;
+  wereadExternalId?: string;
+  annotationCount: number;
+};
 type LibraryFilePicker = {
   chooseMessageFile?: (options: {
     count: number;
@@ -17,6 +33,14 @@ type LibraryFilePicker = {
 type LibraryData = {
   phase: "loading" | "ready" | "failed";
   books: BookSummary[];
+  localBooks: BookSummary[];
+  wereadBooks: BookSummary[];
+  wereadConnection: WeReadConnectionProjection | null;
+  wereadSyncStatus: WeReadSyncViewStatus;
+  wereadSyncLabel: string;
+  wereadNotice: string;
+  wereadAnnotations: Record<string, WeReadAnnotationView[]>;
+  wereadAnnotationLoadingId: string;
   visibleBooks: VisibleBook[];
   query: string;
   queryApplied: boolean;
@@ -40,6 +64,14 @@ Page<LibraryData>({
   data: {
     phase: "loading",
     books: [],
+    localBooks: [],
+    wereadBooks: [],
+    wereadConnection: null,
+    wereadSyncStatus: "idle",
+    wereadSyncLabel: "未连接",
+    wereadNotice: "",
+    wereadAnnotations: {},
+    wereadAnnotationLoadingId: "",
     visibleBooks: [],
     query: "",
     queryApplied: false,
@@ -88,7 +120,9 @@ Page<LibraryData>({
       return;
     }
     if (!this.data.books.length) this.present({ phase: "loading", books: [], query: requestedQuery, queryApplied: false });
-    let recoveryBooks = this.data.books;
+    let recoveryBooks = this.data.localBooks.length
+      ? this.data.localBooks
+      : this.data.books.filter((book: BookSummary) => book.source !== "weread");
     try {
       const app = getApp<MiniappApp>();
       const client = app.globalData.client;
@@ -110,7 +144,74 @@ Page<LibraryData>({
       this.present(recovered);
       if ("notice" in recovered) this.setData({ notice: recovered.notice });
     } finally {
+      await this.loadWeRead();
       wx.stopPullDownRefresh();
+    }
+  },
+  async loadWeRead() {
+    const generation = (this.wereadLoadGeneration ?? 0) + 1;
+    this.wereadLoadGeneration = generation;
+    const client = this.resolveWeReadClient();
+    try {
+      const response = await client.getConnection();
+      if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      const connection = response.connection?.status === "disconnected" ? null : response.connection;
+      if (!connection) {
+        this.setData({
+          wereadConnection: null,
+          wereadBooks: [],
+          wereadAnnotations: {},
+          wereadSyncStatus: "idle",
+          wereadSyncLabel: "未连接",
+          wereadNotice: "",
+        });
+        this.present({
+          phase: this.data.localBooks.length ? "ready" : this.data.phase === "loading" ? "ready" : this.data.phase,
+          books: this.data.localBooks,
+          query: this.data.query,
+          queryApplied: this.data.queryApplied,
+          error: this.data.error,
+        });
+        return;
+      }
+
+      this.setData({
+        wereadConnection: connection,
+        wereadSyncStatus: "loading",
+        wereadSyncLabel: "同步中",
+        wereadNotice: "",
+      });
+      const booksResponse = await client.getBooks({ cursor: null });
+      if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      const sync = presentWeReadSync(booksResponse);
+      const wereadBooks = booksResponse.books.map(mapWeReadBook);
+      const localBooks = this.data.localBooks.length
+        ? this.data.localBooks
+        : this.data.books.filter((book: BookSummary) => book.source !== "weread");
+      const phase = localBooks.length || wereadBooks.length || this.data.phase === "ready" ? "ready" : this.data.phase;
+      this.setData({
+        wereadConnection: connection,
+        wereadBooks,
+        wereadSyncStatus: sync.status,
+        wereadSyncLabel: sync.label,
+        wereadNotice: sync.message,
+      });
+      this.present({
+        phase,
+        books: localBooks,
+        query: this.data.query,
+        queryApplied: this.data.queryApplied,
+        error: this.data.error,
+      });
+    } catch (error) {
+      if (this.isUnloaded || generation !== this.wereadLoadGeneration) return;
+      const message = readableError(error);
+      const preserved = preserveWeReadOnFailure(this.data.wereadBooks, message);
+      this.setData({
+        wereadSyncStatus: "failed",
+        wereadSyncLabel: "同步失败",
+        wereadNotice: preserved.notice,
+      });
     }
   },
   present(state: {
@@ -120,16 +221,27 @@ Page<LibraryData>({
     queryApplied?: boolean;
     error?: string;
   }) {
-    const presentation = presentLibrary(state);
+    const localBooks = state.books.filter((book) => book.source !== "weread");
+    const filteredWeReadBooks = this.data.wereadBooks.filter((book: BookSummary) => {
+      const query = state.query.trim().toLocaleLowerCase();
+      return !query || [book.title, book.author ?? "", book.sourceLabel]
+        .some((value) => value.toLocaleLowerCase().includes(query));
+    });
+    const books = mergeWeReadBooks(localBooks, filteredWeReadBooks);
+    const presentation = presentLibrary({ ...state, books });
     const visibleBooks = presentation.kind === "content"
       ? presentation.books.map((book) => ({
         ...book,
         coverAsset: coverAssets[Math.abs(book.coverVariant) % coverAssets.length]!,
         progressLabel: `${Math.round(book.progress * 100)}%`,
+        ...(book.source === "weread" ? { wereadExternalId: book.id.slice("weread:".length) } : {}),
+        annotationCount: this.data.wereadAnnotations[book.id]?.length ?? 0,
       }))
       : [];
     this.setData({
       ...state,
+      localBooks,
+      books,
       queryApplied: state.queryApplied ?? false,
       kind: presentation.kind,
       error: presentation.kind === "failed" ? presentation.message : "",
@@ -155,6 +267,9 @@ Page<LibraryData>({
   retryBooks() {
     if (this.developmentState === "failed") this.developmentState = "normal";
     void this.loadBooks();
+  },
+  retryWeRead() {
+    void this.loadWeRead();
   },
   toggleDrawer() { this.setData({ drawerOpen: !this.data.drawerOpen }); },
   closeDrawer() { this.setData({ drawerOpen: false }); },
@@ -213,14 +328,55 @@ Page<LibraryData>({
     }
   },
   showWeReadBoundary() {
-    wx.showModal({
-      title: "微信读书等待接入",
-      content: "真实 API Key、同步与账户隔离等待 M2-F1 / F2，并停在外部授权门前。",
-      showCancel: false,
-    });
+    wx.navigateTo({ url: "/pages/settings/index?service=weread" });
   },
-  openBook(event: MiniappEvent) {
+  async openBook(event: MiniappEvent) {
     const id = String(event.currentTarget.dataset.id ?? "");
+    const book = this.data.visibleBooks.find((item: VisibleBook) => item.id === id);
+    if (book?.source === "weread") {
+      await this.openWeReadAnnotations(book);
+      return;
+    }
     wx.navigateTo({ url: `/pages/reader/index?id=${encodeURIComponent(id)}` });
+  },
+  async openWeReadAnnotations(book: VisibleBook) {
+    this.setData({ wereadAnnotationLoadingId: book.id });
+    try {
+      const response = await this.resolveWeReadClient().getAnnotations({ bookId: book.id });
+      const annotations = annotationsFromSnapshot(response);
+      const nextAnnotations = { ...this.data.wereadAnnotations, [book.id]: annotations };
+      const sync = presentWeReadSync(response);
+      this.setData({
+        wereadAnnotations: nextAnnotations,
+        wereadAnnotationLoadingId: "",
+        wereadNotice: sync.message,
+      });
+      const content = annotations.length
+        ? annotations.map((item) => [
+          `「${item.quote}」`,
+          item.thought ? `想法：${item.thought}` : "",
+          item.location ? `位置：${item.location}` : "",
+        ].filter(Boolean).join("\n")).join("\n\n")
+        : "还没有同步的划线与想法。";
+      wx.showModal({ title: `《${book.title}》的划线与想法`, content, showCancel: false });
+    } catch (error) {
+      this.setData({
+        wereadAnnotationLoadingId: "",
+        wereadNotice: `${readableError(error)}，已保留当前划线与想法。`,
+      });
+      wx.showModal({
+        title: "微信读书内容暂时无法载入",
+        content: `${readableError(error)}，已保留当前划线与想法。`,
+        showCancel: false,
+      });
+    }
+  },
+  resolveWeReadClient(): WeReadClient {
+    const globalData = getApp<MiniappApp>().globalData as MiniappApp["globalData"] & {
+      wereadClient?: unknown;
+      weReadClient?: unknown;
+      weread?: unknown;
+    };
+    return resolveWeReadClient(globalData.wereadClient ?? globalData.weReadClient ?? globalData.weread);
   },
 });
