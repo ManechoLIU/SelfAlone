@@ -5,7 +5,7 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` 已顺序进入 `main@b760142` 并通过 root / 非作者代码门与 main 回归；下一输入仍是 current-main 真实账户 Chrome Case。旁路 `SHARED-TEXT-LOCATOR-UTF16` 已以 `main@ef10a9d+5fcd559` 关闭并释放 `M2-F4-B@6f7cc87` 的 root review / 唯一 f312 集成门。
+- 下一可见检查点：`M1-F3B-D` 已顺序进入 `main@b760142` 并通过 root / 非作者代码门与 main 回归；下一输入仍是 current-main 真实账户 Chrome Case。旁路 `SHARED-TEXT-LOCATOR-UTF16` 已以 `main@ef10a9d+5fcd559` 关闭并释放 `M2-F4-B@6f7cc87` 的 root review / 唯一 f312 集成门；`M1-F2-WEREAD` 与 `M2-F2` 已分别取得完整 ACK 并进入首个 no-call 可运行接缝检查点。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@655caf1` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。总控已加载 `adaptive-delivery@e2f6410919274547f550972284a3be01a1e40838`，installed SKILL / long-task / control-event / ledger-consistency SHA-256 为 `60765a23…b025` / `9dda3590…d31` / `3f01ab3a…10c` / `78bf1db2…9cc`；本次变化只影响总控事件闭合与后续路由，当前 Web Writer Assignment 边界不变且无需广播。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
@@ -35,7 +35,7 @@
 | `M1-F2-D-TEXT-WEB-ENTRY` | `VERIFY / MAIN 1e7763a / SCOPED FINAL` | 768裁切、旧书 workspace 泄露、恢复 scroll 遮挡与200% / DPR2已关闭 | 文件上传、AI / PPTX与父项仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-E` | `VERIFY / OPEN / SPLIT` / 项目总控 | 业务父闭环：同账户 Web / Mini 共享书籍、位置、划线与笔记；owner / 版本合同已冻结 | E-XEND 依赖真实 F1 会话、M2-F1身份与对应内容能力 |
 | `M1-F2-E-XEND` | `PENDING` / 待分配 | 同账户 Web / Mini 读取同一位置、划线与笔记并失败恢复 | 依赖 E-OWNER、F1、M2-F1、B / C / D；真实 AppID / 身份就绪后验收 |
-| `M1-F2-WEREAD` | `READY / SHARED CONTRACT RELEASED` / 待分配 | Desktop 书架与设置消费共享微信读书同步：连接 / 修改入口、真实封面、个人划线与想法、失败恢复 | `SHARED-WEREAD-API@1f922ba` 与本地 Desktop 身份接缝已满足无调用实现前置；真实 Key / H4 保持独立授权门，不等 M2 才启动 |
+| `M1-F2-WEREAD` | `ACTIVE / NO-CALL CLIENT CHECKPOINT` / `/root/m1_f2_weread_web_writer` | `weread-web@c5f4a92` 已完整 ACK：独占 Desktop client / state / view 与既有 Library / Settings 接缝；首个 RED 为书架静态入口且 Settings `weread` action 无处理分支 | 先形成可注入 port 的连接 / 修改、同步状态、书封 / 注释与失败保留；需要具体 Server HTTP 路径、新派生视觉或真实 Key / H4 时停写并报告上游门 |
 | `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
 | `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
 | `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立配置、检测、撤销与失败保留 | 图片供应商 / 付费调用未确认；不得成为无图 PPT 前置 |
@@ -73,7 +73,7 @@
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
 | `SHARED-WEREAD-API` | `DONE / MAIN 1f922ba / CONTRACT PASS` / 项目总控 | `81f1624+86726fd+1775e21+1f922ba` 已顺序进入main：PUT显式CAS（首次为`null`）、local / provider ID、多记录 / opaque cursor / last-success失败保留与公开package导出均已审 | contracts 11项、typecheck、diff-check PASS；本包只冻结共享JSON契约，不扩HTTP / Key / H4，下游实现已释放 |
-| `M2-F2` | `READY / SHARED CONTRACT RELEASED` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | `SHARED-WEREAD-API@1f922ba` 与M2-F1本地Bearer接缝已满足无调用实现前置；production AppID / 域名及真实 Key / H4仍为独立验收门 |
+| `M2-F2` | `ACTIVE / NO-CALL CLIENT CHECKPOINT` / `/root/m2_f2_weread_mini_writer` | `weread-mini@c5f4a92` 已完整 ACK：独占 Mini core / adapter 与 Library / Settings 既有接缝；首个 RED 为 `showWeReadBoundary` / `showBoundary` 仍仅返回静态提示 | 禁止触碰 `library-http` 候选、Server / contracts与唯一f312；需要具体 HTTP、派生视觉、AppID / DevTools或真实 Key / H4 时停写并报告精确依赖 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
 | `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
