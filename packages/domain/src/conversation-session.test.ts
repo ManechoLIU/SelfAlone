@@ -59,6 +59,75 @@ describe("conversation session state", () => {
     })).toThrow("NOTE_ID_REQUIRED");
   });
 
+  it("validates a serialized operation request id when starting it", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-start-request-id",
+      body: "不能绕过入口校验。",
+      intent: { kind: "create", bookId: "book-1" },
+    });
+
+    expect(() => startConversationNoteOperation(
+      createConversationSession("conversation-start-request-id"),
+      0,
+      { ...operation, requestId: "   " },
+    )).toThrow("REQUEST_ID_REQUIRED");
+  });
+
+  it("validates a serialized update operation note id when starting it", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-start-note-id",
+      body: "不能猜已有笔记。",
+      intent: { kind: "create", bookId: "book-1" },
+    });
+
+    expect(() => startConversationNoteOperation(
+      createConversationSession("conversation-start-note-id"),
+      0,
+      {
+        ...operation,
+        intent: { kind: "update", bookId: "book-1", expectedVersion: 1 } as never,
+      },
+    )).toThrow("NOTE_ID_REQUIRED");
+  });
+
+  it("validates a serialized update operation expected version when starting it", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-start-version",
+      body: "版本必须明确。",
+      intent: { kind: "create", bookId: "book-1" },
+    });
+
+    expect(() => startConversationNoteOperation(
+      createConversationSession("conversation-start-version"),
+      0,
+      {
+        ...operation,
+        intent: { kind: "update", bookId: "book-1", noteId: "note-1", expectedVersion: 0 },
+      },
+    )).toThrow("NOTE_VERSION_INVALID");
+  });
+
+  it("validates a serialized operation source when starting it", () => {
+    const operation = createConversationNoteOperation({
+      requestId: "note-start-source",
+      body: "引用结构必须可靠。",
+      intent: { kind: "create", bookId: "book-1" },
+    });
+
+    expect(() => startConversationNoteOperation(
+      createConversationSession("conversation-start-source"),
+      0,
+      {
+        ...operation,
+        intent: {
+          kind: "create",
+          bookId: "book-1",
+          source: { ...source, quote: "" },
+        },
+      },
+    )).toThrow("INVALID_HIGHLIGHT_QUOTE");
+  });
+
   it("keeps a failed note operation retryable and idempotent by request id", () => {
     const input = {
       requestId: "note-retry-1",

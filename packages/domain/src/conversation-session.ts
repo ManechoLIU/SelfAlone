@@ -112,17 +112,7 @@ export function createConversationSession(
 export function createConversationNoteOperation(
   input: ConversationNoteOperationInput,
 ): ConversationNoteOperation {
-  const requestId = requiredNoteText(input.requestId, "REQUEST_ID_REQUIRED");
-  const body = requiredNoteText(input.body, "NOTE_BODY_REQUIRED");
-  const intent = normalizeNoteIntent(input.intent);
-
-  return {
-    requestId,
-    body,
-    intent,
-    status: "pending",
-    errorCode: null,
-  };
+  return normalizeConversationNoteOperation(input);
 }
 
 export function startConversationNoteOperation(
@@ -131,11 +121,12 @@ export function startConversationNoteOperation(
   operation: ConversationNoteOperation,
 ): ConversationSessionState {
   assertWritable(session);
+  const normalizedOperation = normalizeConversationNoteOperation(operation);
 
   const noteOperations = session.noteOperations ?? [];
-  const existing = noteOperations.find((candidate) => candidate.requestId === operation.requestId);
+  const existing = noteOperations.find((candidate) => candidate.requestId === normalizedOperation.requestId);
   if (existing) {
-    if (!sameNoteOperation(existing, operation)) {
+    if (!sameNoteOperation(existing, normalizedOperation)) {
       throw new ConversationStateError("REQUEST_ID_CONFLICT");
     }
 
@@ -146,8 +137,8 @@ export function startConversationNoteOperation(
     assertRevision(session, expectedRevision);
     return nextState(session, {
       noteOperations: noteOperations.map((candidate) =>
-        candidate.requestId === operation.requestId
-          ? { ...cloneNoteOperation(operation), status: "pending", errorCode: null }
+        candidate.requestId === normalizedOperation.requestId
+          ? { ...cloneNoteOperation(normalizedOperation), status: "pending", errorCode: null }
           : candidate,
       ),
     });
@@ -155,7 +146,7 @@ export function startConversationNoteOperation(
 
   assertRevision(session, expectedRevision);
   return nextState(session, {
-    noteOperations: [...noteOperations, cloneNoteOperation({ ...operation, status: "pending", errorCode: null })],
+    noteOperations: [...noteOperations, cloneNoteOperation(normalizedOperation)],
   });
 }
 
@@ -383,8 +374,20 @@ function requiredNoteText(value: unknown, errorCode: ConversationStateErrorCode)
   return normalized;
 }
 
-function normalizeNoteIntent(input: ConversationNoteIntent): ConversationNoteIntent {
-  if (!input || typeof input !== "object") {
+function normalizeConversationNoteOperation(
+  input: ConversationNoteOperationInput | ConversationNoteOperation,
+): ConversationNoteOperation {
+  if (!isRecord(input)) throw new ConversationStateError("NOTE_INTENT_REQUIRED");
+  const candidate = input;
+  const requestId = requiredNoteText(candidate.requestId, "REQUEST_ID_REQUIRED");
+  const body = requiredNoteText(candidate.body, "NOTE_BODY_REQUIRED");
+  const intent = normalizeNoteIntent(candidate.intent);
+
+  return { requestId, body, intent, status: "pending", errorCode: null };
+}
+
+function normalizeNoteIntent(input: unknown): ConversationNoteIntent {
+  if (!isRecord(input)) {
     throw new ConversationStateError("NOTE_INTENT_REQUIRED");
   }
 
@@ -393,16 +396,68 @@ function normalizeNoteIntent(input: ConversationNoteIntent): ConversationNoteInt
     return {
       kind: "create",
       bookId,
-      source: input.source ? cloneSource(input.source) : null,
+      source: input.source === undefined || input.source === null
+        ? null
+        : normalizeSource(input.source),
     };
   }
 
   if (input.kind !== "update") throw new ConversationStateError("NOTE_INTENT_REQUIRED");
   const noteId = requiredNoteText(input.noteId, "NOTE_ID_REQUIRED");
-  if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+  const expectedVersion = input.expectedVersion;
+  if (
+    typeof expectedVersion !== "number"
+    || !Number.isSafeInteger(expectedVersion)
+    || expectedVersion < 1
+  ) {
     throw new ConversationStateError("NOTE_VERSION_INVALID");
   }
-  return { kind: "update", bookId, noteId, expectedVersion: input.expectedVersion };
+  return { kind: "update", bookId, noteId, expectedVersion };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeSource(input: unknown): TextAnnotationSource {
+  if (!isRecord(input) || !isRecord(input.locator)) throw new Error("INVALID_LOCATOR");
+
+  const locator = input.locator;
+  if (locator.kind !== "text") throw new Error("INVALID_LOCATOR");
+  const fileVersion = locator.fileVersion;
+  if (typeof fileVersion !== "number" || !Number.isSafeInteger(fileVersion) || fileVersion < 1) {
+    throw new Error("INVALID_FILE_VERSION");
+  }
+  if (
+    typeof locator.sectionId !== "string"
+    || !locator.sectionId.trim()
+    || locator.sectionId.length > 512
+  ) {
+    throw new Error("INVALID_LOCATOR");
+  }
+  const offset = locator.offset;
+  if (typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error("INVALID_HIGHLIGHT_RANGE");
+  }
+  const endOffset = input.endOffset;
+  if (typeof endOffset !== "number" || !Number.isSafeInteger(endOffset) || endOffset <= offset) {
+    throw new Error("INVALID_HIGHLIGHT_RANGE");
+  }
+  const quote = input.quote;
+  if (typeof quote !== "string" || !quote.trim()) {
+    throw new Error("INVALID_HIGHLIGHT_QUOTE");
+  }
+
+  return {
+    locator: {
+      kind: "text",
+      fileVersion,
+      sectionId: locator.sectionId,
+      offset,
+    },
+    endOffset,
+    quote,
+  };
 }
 
 function cloneSession(session: ConversationSessionState): ConversationSessionState {
