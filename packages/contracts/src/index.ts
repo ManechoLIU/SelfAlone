@@ -261,3 +261,5 @@ export type TextModelCredentialErrorCode =
   | "MODEL_CREDENTIAL_VALIDATION_UNAVAILABLE"
   | "MODEL_ENCRYPTION_KEY_REQUIRED"
   | "STALE_VERSION";
+
+export * from "./weread-sync";
