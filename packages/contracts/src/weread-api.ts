@@ -30,8 +30,8 @@ export type WeReadConnectionPutRequest = {
   apiKey: string;
   /** Account-scoped idempotency key for a replacement request. */
   requestId: string;
-  /** Revision read from the current connection; required to fence stale replacements. */
-  expectedRevision: string;
+  /** Revision read from the current connection; null explicitly confirms no prior connection. */
+  expectedRevision: string | null;
 };
 
 export type WeReadConnectionPutResponse = {

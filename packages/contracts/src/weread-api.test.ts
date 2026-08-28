@@ -84,6 +84,11 @@ describe("shared WeRead HTTP contract", () => {
       requestId: "request-account-a-1",
       expectedRevision: connection.revision,
     };
+    const firstConnectionPutRequest: WeReadConnectionPutRequest = {
+      apiKey: "wrk-a-first-connection",
+      requestId: "request-account-a-first-connection",
+      expectedRevision: null,
+    };
     const deleteRequest: WeReadConnectionDeleteRequest = {
       expectedRevision: connection.revision,
     };
@@ -97,6 +102,7 @@ describe("shared WeRead HTTP contract", () => {
     const unguardedDeleteRequest: WeReadConnectionDeleteRequest = {};
 
     expect(putRequest.expectedRevision).toBe(connection.revision);
+    expect(firstConnectionPutRequest.expectedRevision).toBeNull();
     expect(deleteRequest.expectedRevision).toBe(connection.revision);
     expect(unguardedPutRequest).toBeDefined();
     expect(unguardedDeleteRequest).toBeDefined();
