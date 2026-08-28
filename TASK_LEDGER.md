@@ -5,11 +5,11 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-H ACTIVE`；用户在桌面阅读中选中文字→点击“和老己聊聊”→书籍 / 位置 / 精确引用进入当前会话可编辑草稿→用户发送→失败保留并可重试→刷新后恢复；不得自动发送。PDF、Mini、PPT、图片、视觉重设计与成本系统不改变本 Goal 的共同验收条件。
-- 当前活动项：无
+- 当前活动项：`SHARED-WEREAD-SYNC`
 - 下一可见检查点：Reader current-main 同账户真选区已证明书名 / bookId / 精确章节与字位 / quote 进入可编辑草稿且不自动发送；刷新保留，发送失败原位可重试且同 requestId 不重复。既有 Desktop DeepSeek H4 在服务端 / Provider 未变化前提下继续有效，不重复付费调用；当前 Goal 待本事件机器门与状态回写后收口。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@95f782f` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次业务父项展示与状态回写不改变两名 live writer 的文件边界或停止条件，未作无关广播。
-- 容量 / READY：root + 成本 recovery writer + shared WeRead 非作者 reviewer 为3/4，1槽可用；两者文件互斥，完整 ACK 前均不冒充 ACTIVE。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead 与 production 身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini 会话 / 阅读与 Desktop PPT；AppID / GUI / 域名仅阻塞其依赖包，不用“下一 Goal”排除项目级 READY。
+- 容量 / READY：root + shared WeRead rework writer + 成本 recovery writer 为3/4，1槽可用；两者文件互斥。shared writer 已完整 rework ACK；成本包由原非作者 reviewer 切换为 recovery writer承接单文件WIP，完整 writer ACK 前不冒充 ACTIVE，且其实施后须另派最终 reviewer。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead 与 production 身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini 会话 / 阅读与 Desktop PPT；AppID / GUI / 域名仅阻塞其依赖包，不用“下一 Goal”排除项目级 READY。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -49,7 +49,7 @@
 | `M1-F3B-D` | `PENDING` / 待分配 | 书籍上下文对话与明确请求后的AI笔记新增 / 定向修改 | 依赖 A 与 M1-F2-D；失败不得丢讨论和笔记内容 |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
-| `M1-F4-B` | `RECOVERING / CANDIDATE 695f6b0 / NONAUTHOR NO-GO` / `/root/cost_ledger_rework` | 4文件范围；原定向5项、Server158项、typecheck、diff-check绿，但非作者真实探针发现部分同名表可误标迁移、TRUNCATE可清审计、audit operation / 金额可与 reservation 不一致、settled 后 release 终态不对称 | recovery writer 已在原 `quota-cost` worktree 派发，严格仅修4项 RED；完整 delivered ACK 前不得写入，候选后重新窄复核。账户删除 retention 仅登记 M3，不扩本包；真实付费仍需授权 |
+| `M1-F4-B` | `RECOVERING / CANDIDATE 695f6b0 + UNCOMMITTED MIGRATION CHECKPOINT / NONAUTHOR NO-GO` / `/root/cost_candidate_review` | 4文件范围；原定向5项、Server158项、typecheck、diff-check绿，但非作者真实探针发现部分同名表可误标迁移、TRUNCATE可清审计、audit operation / 金额可与 reservation 不一致、settled 后 release 终态不对称 | 前两次 recovery handshake 未交字段级 ACK并留下仅 migration.ts 的WIP；现由原 reviewer切换为writer承接 checkpoint，完整writer ACK前不得写。实施后其不再具备最终非作者身份，候选须另派窄复核；账户删除归M3，真实付费仍需授权 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 业务父闭环：书籍 / 会话带上下文→范围 / 需求→大纲 / 模板→生成→可编辑 PPTX 下载 | F4-V1、对话选择、阅读与外部生成边界 |
@@ -74,7 +74,7 @@
 | `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY / LIMITED PASS / H3 OPEN` | Reader与Conversation限定响应式结论保留；Drawer可控矩阵已另闭合 | 软件键盘、游客console与真实PPT preview仍开放 |
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
-| `SHARED-WEREAD-SYNC` | `VERIFY / CANDIDATE 8f71792 / ROOT REVIEWED + NONAUTHOR ACK PENDING` / 项目总控 | 阅读 / 笔记与跨端同步的共享技术子包；5个 contracts / fake adapter文件覆盖 validate、opaque分页、逐书 annotations、多记录 / 显式N+1、账户 / 连接 / external ID隔离、percent / UTC单位、upgrade pause完整last-success与验证后原子换Key | writer定向2文件8项、全量101文件621项、contracts/server typecheck、diff-check通过；`/root/weread_contract_review` 正窄审实际diff。未通过非作者语义门前不合main、不释放Desktop / Mini消费包；真实 Key / H4 单独授权 |
+| `SHARED-WEREAD-SYNC` | `ACTIVE / REWORK FROM 8f71792 / DELIVERED ACK` / `/root/shared_weread_contract` | 阅读 / 笔记与跨端同步的共享技术子包；原5文件候选已覆盖多记录 / 显式N+1、隔离、opaque cursor与percent / UTC，但根审与非作者均NO-GO：upgrade pause可被另一成功调用解除、通用factory指向fake、apiKeyHint可泄露raw key、空白location穿透 | 原writer已在clean候选上按同5文件边界完整ACK并恢复四项RED；完成定向 / 全量 / typecheck / build / visual-contract / diff-check后交scoped rework candidate。通过前不合main、不释放Desktop / Mini消费包；真实Key / H4单独授权 |
 | `M2-F2` | `PENDING` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | 依赖 `SHARED-WEREAD-SYNC`、M2-F1与 production AppID / 域名；真实 Key / H4独立授权 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
