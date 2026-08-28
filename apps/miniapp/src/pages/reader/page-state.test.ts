@@ -432,28 +432,41 @@ describe("reader page state", () => {
     expect(readerWxss).toContain("140ms");
   });
 
-  it("keeps the shared reader toolbar outside fullscreen sheet geometry and hit testing", () => {
+  it("lets fullscreen content sheet own the toolbar area while initial keeps nav available", () => {
     const ruleFor = (selector: string) => {
       const rules = [...readerWxss.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
       return rules.find(([, head]) => head.split(",").some((item) => item.trim() === selector))?.[2] ?? "";
     };
     const valueFor = (body: string, property: string) =>
       body.match(new RegExp(`(?:^|;)\\s*${property}:\\s*([^;]+)`))?.[1]?.trim() ?? "";
-    const toolbarHeight = readerWxss.match(/--reader-sheet-toolbar-height:\s*([^;]+);/)?.[1]?.trim() ?? "";
-    const toolbarBottom = "var(--reader-sheet-toolbar-height)";
+    const toolbarHeight = readerWxss.match(/--reader-bottom-nav-height:\s*([^;]+);/)?.[1]?.trim() ?? "";
+    const toolbarBottom = "var(--reader-bottom-nav-height)";
 
     expect(toolbarHeight).toBe("calc(88px + var(--safe-bottom, env(safe-area-inset-bottom)))");
-    expect(valueFor(ruleFor(".reader-sheet--fullscreen"), "bottom")).toBe(toolbarBottom);
-    expect(valueFor(ruleFor(".reader-sheet--dragging.reader-sheet--origin-fullscreen"), "bottom")).toBe(toolbarBottom);
-    expect(valueFor(ruleFor(".sheet-layer--fullscreen .sheet-mask"), "bottom")).toBe(toolbarBottom);
+    expect(valueFor(ruleFor(".reader-controls__bottom"), "height")).toBe(toolbarBottom);
+    expect(valueFor(ruleFor(".reader-sheet--initial"), "bottom")).toBe(toolbarBottom);
+    expect(valueFor(ruleFor(".reader-sheet--collapsed"), "bottom")).toBe(toolbarBottom);
+    expect(valueFor(ruleFor(".reader-sheet--fullscreen"), "bottom")).toBe("0");
+    expect(valueFor(ruleFor(".reader-sheet--dragging.reader-sheet--origin-fullscreen"), "bottom")).toBe("0");
+    expect(valueFor(ruleFor(".sheet-layer--initial .sheet-mask"), "bottom")).toBe(toolbarBottom);
+    expect(valueFor(ruleFor(".sheet-layer--fullscreen .sheet-mask"), "bottom")).toBe("0");
     expect(valueFor(ruleFor(".sheet-layer--dragging .sheet-mask"), "bottom")).toBe(toolbarBottom);
-    expect(valueFor(ruleFor(".sheet-layer--fullscreen"), "pointer-events")).toBe("none");
-    expect(valueFor(ruleFor(".sheet-layer--dragging"), "pointer-events")).toBe("none");
+    expect(valueFor(ruleFor(".sheet-layer--dragging.sheet-layer--origin-fullscreen .sheet-mask"), "bottom")).toBe("0");
+    expect(valueFor(ruleFor(".sheet-layer--initial"), "pointer-events")).toBe("none");
+    expect(valueFor(ruleFor(".sheet-layer--fullscreen"), "pointer-events")).toBe("auto");
+    expect(valueFor(ruleFor(".sheet-layer--dragging"), "pointer-events")).toBe("auto");
+    expect(valueFor(ruleFor(".sheet-layer--dragging.sheet-layer--origin-initial"), "pointer-events")).toBe("none");
+    expect(valueFor(ruleFor(".sheet-layer--dragging.sheet-layer--origin-fullscreen"), "pointer-events")).toBe("auto");
   });
 
-  it("keeps the notes panel open-flow and non-card content contract", () => {
+  it("exposes the explicit content sheet hierarchy and row-local note error slot", () => {
     expect(readerWxml).toContain('class="reader-sheet reader-sheet--{{sheetState}} reader-sheet--origin-{{sheetOrigin}} reader-sheet--theme-{{theme}}"');
-    expect(readerWxml).toContain('class="content-tabs content-tabs--segmented"');
+    expect(readerWxml).toContain('class="sheet-header"');
+    expect(readerWxml).toContain('class="sheet-title">书籍内容</view>');
+    expect(readerWxml).toContain('class="sheet-sort-label"');
+    expect(readerWxml).toContain('class="content-tabs content-tabs--segmented" role="tablist"');
+    expect(readerWxml).toContain('role="tab" aria-selected="{{contentTab === \'notes\'}}"');
+    expect(readerWxml).toContain('class="content-viewport"');
     expect(readerWxml).toContain('class="content-notes-toolbar"');
     expect(readerWxml).toContain('bindtap="openNoteComposer"');
     expect(readerWxml).toContain('wx:if="{{noteEditorState !== \'closed\'}}" class="note-editor-layer note-editor-layer--{{noteEditorState}}"');
@@ -462,17 +475,71 @@ describe("reader page state", () => {
     expect(readerWxml).toContain('bindtap="saveNote"');
     expect(readerWxml).toContain('role="alert">{{noteSaveError}}</view>');
     expect(readerWxml).toContain('bindtap="closeNoteComposer"');
-    expect(readerWxml).toContain('class="content-row content-row--note"');
+    expect(readerWxml).toContain('class="note-list"');
+    expect(readerWxml).toContain('class="note-row"');
     expect(readerWxml).toContain('wx:if="{{item.quote}}"');
-    expect(readerWxml).toContain('class="content-more"');
+    expect(readerWxml).toContain('class="note-more"');
+    expect(readerWxml).toContain('class="note-row-error" role="alert"');
+    expect(readerWxml).toContain('bindtap="retryDeleteNote"');
+    expect(readerWxml).not.toContain('noteDeleteError}}' + '</view><button');
+    expect(readerWxml).toContain('class="sheet-handle__bar"');
+    expect(readerWxss).not.toContain('.sheet-handle::after');
     expect(readerWxml).not.toContain('class="content-draft__input" value="{{contentDrafts.notes}}" bindinput="onContentDraftInput"');
     expect(readerWxss).toContain(".content-tabs--segmented");
     expect(readerWxss).toContain(".content-notes-toolbar");
-    expect(readerWxss).toContain(".content-row--note");
-    expect(readerWxss).toContain(".content-more");
+    expect(readerWxss).toContain(".content-viewport");
+    expect(readerWxss).toContain(".note-row");
+    expect(readerWxss).toContain(".note-more");
+    expect(readerWxss).toContain(".note-row-error");
     expect(readerWxss).toContain(".note-editor-surface");
     expect(readerWxss).toContain(".note-editor-input");
     expect(readerWxss).toContain(".note-editor-actions");
+  });
+
+  it("keeps a failed delete inline and retries the same note without losing its row", async () => {
+    const page = createReaderPage();
+    const detail = readerDetailWithBackground("light");
+    const note = {
+      id: "note-delete-failure",
+      bookId: detail.book.id,
+      body: "保留在列表里的笔记",
+      source: null,
+      version: 1,
+      createdAt: "2030-01-01T00:00:00.000Z",
+      updatedAt: "2030-01-01T00:00:00.000Z",
+    };
+    page.data = {
+      ...page.data,
+      developmentAdapter: false,
+      detail: { ...detail, notes: [{ id: note.id, body: note.body, meta: "读书笔记" }] },
+      noteHydrationState: "ready",
+    };
+    page.noteRecords = new Map([[note.id, note]]);
+    page.readerLoadRequestId = 1;
+
+    let resolveDelete!: (result: { status: "failed" | "deleted"; id: string }) => void;
+    annotationsClient.deleteNote.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveDelete = resolve;
+    }));
+    page.openNoteActions({ currentTarget: { dataset: { noteId: note.id } } });
+    const pendingDelete = page.deleteNote({ currentTarget: { dataset: { noteId: note.id } } });
+    expect(page.data.noteDeletingId).toBe(note.id);
+    expect(page.data.detail.notes).toEqual([{ id: note.id, body: note.body, meta: "读书笔记" }]);
+
+    resolveDelete({ status: "failed", id: note.id });
+    await pendingDelete;
+    expect(page.data).toMatchObject({
+      noteDeletingId: "",
+      noteActionId: note.id,
+    });
+    expect(page.data.noteDeleteError).toContain("删除暂时失败");
+    expect(page.data.detail.notes).toEqual([{ id: note.id, body: note.body, meta: "读书笔记" }]);
+
+    annotationsClient.deleteNote.mockResolvedValueOnce({ status: "deleted", id: note.id });
+    await page.retryDeleteNote();
+    expect(page.data.noteDeleteError).toBe("");
+    expect(page.data.noteActionId).toBe("");
+    expect(page.data.detail.notes).toEqual([]);
   });
 
   it("keeps the note draft through API save failure, retry, close and reopen", async () => {

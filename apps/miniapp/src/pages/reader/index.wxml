@@ -68,7 +68,7 @@
 
     <view wx:if="{{saveError}}" class="reader-save-error" role="alert" catchtap="retryPosition">{{saveError}} · 点此重试</view>
 
-    <view wx:if="{{controlsVisible && phase === 'ready'}}" class="reader-controls" catchtap="toggleControls">
+    <view wx:if="{{controlsVisible && phase === 'ready'}}" class="reader-controls {{sheetKind ? 'reader-controls--sheet-open' : ''}}" catchtap="toggleControls">
       <view class="reader-controls__top">
         <button class="reader-control-button" bindtap="goBack" aria-label="返回书架"><image src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image></button>
         <view class="reader-controls__title">{{detail.book.title}}</view>
@@ -85,14 +85,20 @@
       </view>
     </view>
 
-    <view wx:if="{{sheetKind}}" class="sheet-layer sheet-layer--{{sheetState}}">
+    <view wx:if="{{sheetKind}}" class="sheet-layer sheet-layer--{{sheetState}} sheet-layer--origin-{{sheetOrigin}}">
       <view class="sheet-mask" catchtap="closeSheet"></view>
       <view class="reader-sheet reader-sheet--{{sheetState}} reader-sheet--origin-{{sheetOrigin}} reader-sheet--theme-{{theme}}" style="{{sheetStyle}}" catchtap="noop" bindtouchstart="onSheetTouchStart" bindtouchmove="onSheetTouchMove" bindtouchend="onSheetTouchEnd" role="dialog" aria-label="阅读工具面板">
-        <view class="sheet-handle" role="button" aria-label="拖动展开或收起面板"></view>
-        <button class="sheet-close" bindtap="closeSheet" aria-label="关闭面板"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
+        <view class="sheet-handle" role="button" aria-label="拖动展开或收起面板"><view class="sheet-handle__bar" aria-hidden="true"></view></view>
+        <view class="sheet-header">
+          <view wx:if="{{sheetKind === 'catalog'}}" class="sheet-title">目录</view>
+          <view wx:elif="{{sheetKind === 'settings'}}" class="sheet-title">阅读背景</view>
+          <view wx:else class="sheet-title">书籍内容</view>
+          <view wx:if="{{sheetKind === 'content'}}" class="sheet-sort-label">{{contentTab === 'ppt' ? '按时间' : '按章节'}}</view>
+          <view wx:else class="sheet-header-spacer" aria-hidden="true"></view>
+          <button class="sheet-close" bindtap="closeSheet" aria-label="关闭面板"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
+        </view>
 
         <block wx:if="{{sheetKind === 'catalog'}}">
-          <view class="sheet-title">目录</view>
           <scroll-view class="sheet-scroll" scroll-y>
             <block wx:for="{{detail.sections}}" wx:key="id">
               <button wx:if="{{sectionBlockIndexes[index] !== null}}" class="catalog-row" data-block-index="{{sectionBlockIndexes[index]}}" data-target="reader-block-{{sectionBlockIndexes[index]}}" bindtap="jumpToSection" aria-label="跳转到 {{item.title}}"><text>{{item.title}}</text><image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image></button>
@@ -102,7 +108,6 @@
         </block>
 
         <block wx:elif="{{sheetKind === 'settings'}}">
-          <view class="sheet-title">阅读背景</view>
           <view class="theme-grid">
             <button class="theme-choice {{theme === 'light' ? 'is-selected' : ''}}" data-theme="light" bindtap="chooseTheme" aria-label="选择浅色阅读背景" aria-pressed="{{theme === 'light'}}"><view class="theme-paper-preview theme-paper-preview--light" aria-hidden="true"><view class="theme-paper-preview__gutter"></view><view class="theme-paper-preview__line theme-paper-preview__line--long"></view><view class="theme-paper-preview__line"></view><view class="theme-paper-preview__line theme-paper-preview__line--short"></view></view><text>浅色</text></button>
             <button class="theme-choice {{theme === 'dark' ? 'is-selected' : ''}}" data-theme="dark" bindtap="chooseTheme" aria-label="选择暗色阅读背景" aria-pressed="{{theme === 'dark'}}"><view class="theme-paper-preview theme-paper-preview--dark" aria-hidden="true"><view class="theme-paper-preview__gutter"></view><view class="theme-paper-preview__line theme-paper-preview__line--long"></view><view class="theme-paper-preview__line"></view><view class="theme-paper-preview__line theme-paper-preview__line--short"></view></view><text>暗色</text></button>
@@ -110,11 +115,10 @@
         </block>
 
         <block wx:else>
-          <view class="sheet-title">书籍内容</view>
-          <view class="content-tabs content-tabs--segmented">
-            <button class="content-tab {{contentTab === 'highlights' ? 'is-selected' : ''}}" data-tab="highlights" bindtap="switchTab">划线与想法</button>
-            <button class="content-tab {{contentTab === 'notes' ? 'is-selected' : ''}}" data-tab="notes" bindtap="switchTab">老己笔记</button>
-            <button class="content-tab {{contentTab === 'ppt' ? 'is-selected' : ''}}" data-tab="ppt" bindtap="switchTab">PPT 作品</button>
+          <view class="content-tabs content-tabs--segmented" role="tablist" aria-label="书籍内容分类">
+            <button class="content-tab {{contentTab === 'highlights' ? 'is-selected' : ''}}" data-tab="highlights" bindtap="switchTab" role="tab" aria-selected="{{contentTab === 'highlights'}}" aria-controls="content-viewport">划线与想法</button>
+            <button class="content-tab {{contentTab === 'notes' ? 'is-selected' : ''}}" data-tab="notes" bindtap="switchTab" role="tab" aria-selected="{{contentTab === 'notes'}}" aria-controls="content-viewport">老己笔记</button>
+            <button class="content-tab {{contentTab === 'ppt' ? 'is-selected' : ''}}" data-tab="ppt" bindtap="switchTab" role="tab" aria-selected="{{contentTab === 'ppt'}}" aria-controls="content-viewport">PPT 作品</button>
           </view>
 
           <view wx:if="{{panelState === 'loading'}}" class="sheet-state"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view></view><text>正在加载书籍内容</text></view>
@@ -122,18 +126,21 @@
           <view wx:elif="{{panelState === 'filtered-empty'}}" class="sheet-state"><view class="state-panel__title">没有匹配内容</view><text>清除筛选后，已有内容仍会保留。</text></view>
           <view wx:elif="{{panelState === 'failed'}}" class="sheet-state"><view class="state-panel__title">内容加载失败</view><text role="alert">内容暂时无法载入，请稍后重试。</text><button class="state-panel__action" bindtap="retryPanel">重试</button></view>
 
-          <scroll-view wx:else class="sheet-scroll content-scroll" data-tab="{{contentTab}}" scroll-y scroll-top="{{contentScrollTops[contentTab]}}" bindscroll="onContentScroll">
-             <block wx:if="{{contentTab === 'highlights'}}">
+           <scroll-view wx:else class="content-viewport" id="content-viewport" data-tab="{{contentTab}}" scroll-y scroll-top="{{contentScrollTops[contentTab]}}" bindscroll="onContentScroll">
+              <block wx:if="{{contentTab === 'highlights'}}">
                <view class="content-row" wx:for="{{detail.highlights}}" wx:key="id"><view class="content-quote">{{item.quote}}</view><view class="content-body">{{item.body}}</view><view class="content-meta">{{item.meta}}</view></view>
-             </block>
-             <block wx:elif="{{contentTab === 'notes'}}">
-               <view wx:if="{{noteHydrationState === 'loading'}}" class="sheet-state"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view></view><text>正在加载笔记</text></view>
-               <view wx:elif="{{noteHydrationState === 'failed'}}" class="sheet-state"><view class="state-panel__title">笔记加载失败</view><text role="alert">{{noteHydrationError}}</text><button class="state-panel__action" bindtap="retryNotes">重试</button></view>
-               <block wx:else>
-                 <view class="content-notes-toolbar"><button class="content-create-note" bindtap="openNoteComposer" aria-label="新建笔记">新建笔记</button><view wx:if="{{noteDeleteError}}" class="note-editor-error" role="alert">{{noteDeleteError}}</view><button wx:if="{{noteDeleteError}}" class="state-panel__action" bindtap="retryDeleteNote" disabled="{{noteDeletingId !== ''}}">重试删除</button></view>
-                 <view class="content-row content-row--note" wx:for="{{detail.notes}}" wx:key="id"><view wx:if="{{item.quote}}" class="content-quote">{{item.quote}}</view><view class="content-row__main"><view class="content-body">{{item.body}}</view><button class="content-more" data-note-id="{{item.id}}" bindtap="openNoteActions" aria-label="更多笔记操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button></view><view class="content-meta">{{item.meta}}</view><view wx:if="{{noteActionId === item.id}}" class="content-row__actions"><button bindtap="openNoteEditor" data-note-id="{{item.id}}">编辑</button><button bindtap="deleteNote" data-note-id="{{item.id}}" disabled="{{noteDeletingId === item.id}}">{{noteDeletingId === item.id ? '正在删除' : '删除'}}</button></view></view>
-               </block>
-             </block>
+              </block>
+              <block wx:elif="{{contentTab === 'notes'}}">
+               <view class="content-notes-toolbar"><button class="content-create-note" bindtap="openNoteComposer" aria-label="新建笔记" disabled="{{noteHydrationState === 'loading'}}">新建笔记</button></view>
+               <view wx:if="{{noteHydrationState === 'loading' && detail.notes.length === 0}}" class="content-state content-state--loading" role="status"><view class="loading-lines"><view class="loading-line"></view><view class="loading-line"></view><view class="loading-line"></view></view><text>正在加载笔记</text></view>
+               <view wx:if="{{noteHydrationState === 'loading' && detail.notes.length > 0}}" class="content-inline-status" role="status">正在更新笔记</view>
+               <view wx:if="{{noteHydrationState === 'failed' && detail.notes.length === 0}}" class="content-state content-state--failed"><view class="state-panel__title">笔记加载失败</view><text role="alert">{{noteHydrationError}}</text><button class="state-panel__action" bindtap="retryNotes">重试</button></view>
+               <view wx:if="{{noteHydrationState === 'failed' && detail.notes.length > 0}}" class="content-inline-error" role="alert"><text>{{noteHydrationError}}</text><button class="content-inline-error__retry" bindtap="retryNotes" disabled="{{noteHydrationState === 'loading'}}">重试</button></view>
+               <view wx:if="{{noteHydrationState === 'ready' && detail.notes.length === 0}}" class="content-state content-state--empty"><view class="state-panel__title">还没有老己笔记</view><text>写下阅读中的想法，之后可以继续编辑。</text></view>
+               <view wx:if="{{noteHydrationState !== 'loading' || detail.notes.length > 0}}" class="note-list">
+                 <view class="note-row" data-note-id="{{item.id}}" wx:for="{{detail.notes}}" wx:key="id"><view wx:if="{{item.quote}}" class="note-quote">{{item.quote}}</view><view class="note-body-row"><view class="note-body">{{item.body}}</view><button class="note-more" data-note-id="{{item.id}}" bindtap="openNoteActions" aria-label="更多笔记操作"><image src="/assets/icons/more.svg" mode="aspectFit" aria-hidden="true"></image></button></view><view class="note-meta">{{item.meta}}</view><view wx:if="{{noteActionId === item.id}}" class="note-actions"><button class="note-action" bindtap="openNoteEditor" data-note-id="{{item.id}}">编辑</button><button class="note-action note-action--danger" bindtap="deleteNote" data-note-id="{{item.id}}" disabled="{{noteDeletingId === item.id}}">{{noteDeletingId === item.id ? '正在删除' : '删除'}}</button></view><view wx:if="{{noteActionId === item.id && noteDeleteError}}" class="note-row-error" role="alert"><text>{{noteDeleteError}}</text><button class="note-row-error__retry" bindtap="retryDeleteNote" disabled="{{noteDeletingId !== ''}}">{{noteDeletingId === item.id ? '正在删除' : '重试删除'}}</button></view></view>
+               </view>
+              </block>
             <view wx:else class="works-grid">
               <view class="work-item" wx:for="{{detail.works}}" wx:key="id"><view class="work-preview"><text>{{item.title}}</text></view><view class="work-meta"><text>{{item.meta}}</text><button wx:if="{{item.status === 'completed'}}" class="work-download" bindtap="showDownloadBoundary" aria-label="下载作品"><image src="/assets/icons/download.svg" mode="aspectFit" aria-hidden="true"></image></button></view></view>
             </view>
@@ -144,7 +151,7 @@
 
     <view wx:if="{{noteEditorState !== 'closed'}}" class="note-editor-layer note-editor-layer--{{noteEditorState}}">
       <view class="note-editor-mask" catchtap="closeNoteComposer"></view>
-      <view class="note-editor-surface" catchtap="noop" role="dialog" aria-label="{{noteEditorMode === 'edit' ? '编辑笔记' : '新建笔记编辑'}}">
+      <view class="note-editor-surface" catchtap="noop" role="dialog" aria-modal="true" aria-label="{{noteEditorMode === 'edit' ? '编辑笔记' : '新建笔记编辑'}}">
         <view class="note-editor-header">
           <button class="note-editor-close" bindtap="closeNoteComposer" aria-label="关闭笔记编辑"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button>
           <view class="note-editor-title">{{noteEditorMode === 'edit' ? '编辑笔记' : '新建笔记'}}</view>
