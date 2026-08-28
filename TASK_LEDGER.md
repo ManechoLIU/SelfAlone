@@ -4,12 +4,11 @@
 
 ## 1. 当前控制面
 
-- 当前 Goal：`STAGE-READ-NOTES-V1-I ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 当前活动项：M1-F3B-D、M1-F4-B、SHARED-WEREAD-API
+- 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
 - 下一可见检查点：`M1-F3B-D` Server 首个 RED 收敛为范围单一候选；随后顺序进 main 并释放 Desktop 接缝，最终完成 current-main 同账户“书籍引用→明确要求整理→新笔记直接出现在本书笔记区→编辑 / 删除→刷新恢复”真实 Case。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@d6f9def` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次任务边界不变的 writer 未作无关广播，新派 Server 与 Mini 审查须先回精确版本 ACK。
-- 容量 / READY：root + `M1-F3B-D` Server writer + `M2-F4-B` 只读 readiness reviewer + `M1-F4-B` 原writer REWORK-3为4/4。`M1-F4-B` 已实际派发且文件与当前会话Server互斥；`cb2a51e` 非作者FAIL后定向返原writer，当前待新包delivered ACK，不以“下一 Goal”排除。Mini全量重算已派 `M2-F4-B` 无GUI只读合同审查，先锁定首个不依赖AppID / 域名的代码包或精确释放条件；`M2-F2` 仍顺序依赖 `SHARED-WEREAD-API` 与production身份，`M2-F5` 依赖F1～F3，`M2-F6` 依赖Mini会话 / 阅读与Desktop PPT。WeRead合同由同一原writer在成本候选完成集成事件后返回两文件，不建立重复writer。
+- 规则版本：总控已从真实 `main@0816410` 核对 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载最终 canonical `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`、installed SKILL SHA-256 `ba0e7483932189fe1c81b0d9f36079864b4946bb31bc4234368cb20c5a438406`、long-task SHA-256 `1f0e5a33f45fbf0746a6177957fe8c5fd48ee3f635869c5672a8943a10321633`、lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`；3个live Assignment已对行为基线 `660df844…` 回loaded ACK并通过临时lease guard，`6e3eb0e` 仅修总控台账解析，不改变其scope / stop，未作无关广播。
+- 容量 / READY：当前仅root为1/4，3槽可用；`M1-F3B-D` Server已交clean候选 `5110ed9`，`M1-F4-B` REWORK-3已交clean候选 `f53c930`，实际diff审查 / 集成须分别按 `event_scope_guard` 进入后续事件且各自保持候选WIP=1；`M2-F4-B` 只读 verdict 已返回，Mini adapter新实现同样排入后续事件。`SHARED-WEREAD-API` 保持READY，原成本Assignment已TERMINAL并释放lease；下一事件须按候选优先与文件边界RESERVE / ACK，不以“下一 Goal”排除。`M2-F2` 顺序依赖该共享合同与production身份，`M2-F5` 依赖F1～F3，`M2-F6` 依赖Mini会话 / 阅读与Desktop PPT。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -46,10 +45,10 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `ACTIVE / DOMAIN MAIN PASS / SERVER RED WIP / ACK FOLLOW-UP` / `/root/reader_chat_handoff_recovery` | Note intent领域合同已以 `9e2b9f8+3c580ab+d6f9def` 顺序进main；Domain 10文件51项、全仓102文件665项、typecheck / build / diff-check绿；clean `noteintent` worktree已回收 | Server writer限conversation route / store / composition文件，当前route RED WIP受保护；须补齐新包delivered ACK后从checkpoint继续，闭合同account / book / note归属、保存失败保留与同requestId不重复模型 / 笔记，再交单一候选 |
+| `M1-F3B-D` | `VERIFY / SERVER CANDIDATE 5110ed9 / ROOT REVIEW QUEUE NEXT EVENT` / 项目总控 | Note intent领域合同 `9e2b9f8+3c580ab+d6f9def` 已MAIN PASS；Server writer在6个owned文件冻结clean `5110ed9`，自验定向27、Server174、typecheck、diff-check绿，未调用模型 / Key / 付费 | 下一事件审实际diff与失败重试 / ownership边界，合格则顺序进main并跑main回归；未审前不冒充当前Goal完成，不触及Web / contracts / domain |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
-| `M1-F4-B` | `RECOVERING / CANDIDATE cb2a51e NONAUTHOR FAIL / REWORK-3 ACK PENDING` / `/root/shared_weread_contract` | root实际diff与11项定向/typecheck/diff-check绿；非作者真实PG反例证明既有数据扫描未检查terminal audit完整性，且audit insert的`FOR KEY SHARE`允许并发非键状态更新穿越验证 | 已返原writer同3文件：补合法reserve+terminal历史与缺terminal audit双向测试，改为能序列化状态更新的锁并做并发PG反例；不错误禁止合法历史reserve audit，不扩store.ts / M3 / 付费。新候选再窄复核 |
+| `M1-F4-B` | `VERIFY / REWORK-3 CANDIDATE f53c930 / ROOT REVIEW QUEUE NEXT EVENT` / 项目总控 | 原writer在2个owned migration文件冻结clean `f53c930`（parent `cb2a51e`），自验定向14、Server167、typecheck、diff-check及并发重复通过；未扩store / Mini / WeRead / 付费 | 下一事件审实际diff与完整生命周期 / 并发互斥反例，合格再做窄非作者复核并顺序进main；未审前不冒充成本闭环完成 |
 | `M1-F4-C` | `PENDING` / 待分配 | AI / PPT共用免费能力，耗尽后原位引导配置且保留上下文 | 依赖 A / B / F3与PPT草稿合同 |
 | `M1-F4-V1` | `PENDING` / 待分配 | 领取、AI / PPT消耗、失败恢复和并发硬上限 Case | 依赖 A～C；真实计费需授权 |
 | `M1-F5` | `PENDING` / 项目总控 | 业务父闭环：书籍 / 会话带上下文→范围 / 需求→大纲 / 模板→生成→可编辑 PPTX 下载 | F4-V1、对话选择、阅读与外部生成边界 |
@@ -74,7 +73,7 @@
 | `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY / LIMITED PASS / H3 OPEN` | Reader与Conversation限定响应式结论保留；Drawer可控矩阵已另闭合 | 软件键盘、游客console与真实PPT preview仍开放 |
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
-| `SHARED-WEREAD-API` | `RECOVERING / CANDIDATE c4deeeb / NONAUTHOR FAIL` / 原writer待释放 | 两新文件定向8项、contracts10项、typecheck、diff-check绿；非作者反例证明单书annotations混用local `bookId`与provider `bookExternalId`，迫使下游猜映射，且PUT可省略revision / DELETE无目标版本，旧请求可作用于新连接 | 原writer完成当前成本恢复checkpoint后回两文件补显式双ID映射与connection CAS请求；不得扩index / migration / runtime / routes / Web / Mini或真实HTTP / Key / H4。复审PASS后才可进main |
+| `SHARED-WEREAD-API` | `READY / CANDIDATE c4deeeb / NONAUTHOR FAIL` / 待分配 | 两新文件定向8项、contracts10项、typecheck、diff-check绿；非作者反例证明单书annotations混用local `bookId`与provider `bookExternalId`，迫使下游猜映射，且PUT可省略revision / DELETE无目标版本，旧请求可作用于新连接 | 当前同一原writer lease被 `M1-F4-B` 占用且4/4；其Assignment TERMINAL并释放文件 / worktree lease后，重新RESERVE / ACK再回两文件修复，不扩index / runtime / Web / Mini或真实HTTP / Key / H4 |
 | `M2-F2` | `PENDING` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | 依赖 `SHARED-WEREAD-API`、M2-F1与 production AppID / 域名；真实 Key / H4独立授权 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
@@ -82,7 +81,7 @@
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY PROD H3` | 阅读与笔记业务父闭环的 Mini 子包：统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实服务仍依赖M2-F1与production环境；不返工已通过Reader |
 | `M2-F4-A` | `VERIFY / F312 4cdce97 / MAIN d2bf9a0 / SCOPED PASS / PROD H3` / 项目总控 | candidate `cda7b4d` 已补真实 `onSearch→listBooks(query)`、失败保留与stale fencing；root审累计diff，唯一f312定向30、Mini194及 main 定向30、Mini177、两处typecheck/build/diff-check全绿；DevTools development态真实从3书筛至1书 | production hydrate / 失败恢复仍由 Bearer / apiBaseUrl / AppID / 域名H3验证，不冒充真实服务PASS；已合候选 worktree 同事件回收 |
-| `M2-F4-B` | `DISPATCHED / READ-ONLY READINESS / ACK PENDING` / `/root/mini_reader_ready_audit` | 无worktree、无文件所有权；只读核对连续正文、目录 / 设置 / 操作层、笔记与跨端位置恢复现状 | 输出首个不依赖AppID / GUI / 域名的可验收合同 / 代码包及owned files / RED，或逐项给可验证的顺序依赖与释放事件；不扩大当前Goal |
+| `M2-F4-B` | `VERIFY / READINESS VERDICT RETURNED / QUEUE NEXT EVENT` / 项目总控 | 无worktree、无写入；只读审查锁定production `getBook/savePosition` 的 `CLIENT_CAPABILITY_UNAVAILABLE`，并确认可用fake transport / session独立验收，不依赖AppID / GUI / 域名 | 下一事件固定Mini text-reader adapter两文件边界、首个RED与Assignment后再派发；本规则迁移事件不顺手启动新实现，不扩大当前Goal、不打开DevTools |
 | `M2-F5` | `PENDING` / 待分配 | 账户、模型与退出的Mini端闭环 | 微信读书消费已归 `M2-F2`；其余依赖M2-F1～F3，高风险流程按场景细拆 |
 | `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
 | `M2-F6-MINI-PPT-DRAFT-HANDOFF` | `VERIFY / F312 cf6a8c5 / SELF PASS` | 携带bookId / 书名，可编辑预填；发送前不auto-send / sheet / task；失败保留草稿与上下文 | 非作者最终门与完整PPT流仍开放；证据 `mini-ppt-f312-self-cf6a8c5/` |
