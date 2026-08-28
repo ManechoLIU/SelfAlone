@@ -9,7 +9,7 @@
 - 下一可见检查点：完成 current-main 同账户“书籍引用→明确要求整理→新笔记直接出现在本书笔记区→编辑 / 删除→刷新恢复”的首个真实 Case；先由只读诊断锁定现状、首个 RED 与共享合同 / Server / Desktop 互斥文件边界，再释放唯一 writer。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@95f782f` 重新加载 AGENTS SHA-1 `28e055b930c555bc6d0510ad7469173f1d2d5cf8`，并加载 canonical `adaptive-delivery@36f71943cd4bf85fb2bf3abdeaf2e8e88a68ba2f`、installed SKILL SHA-1 `852c66a3f34d3ee46480fccb215169919cf281b1`、long-task SHA-1 `a607460f6e17310e77ef4be6c4b86fa4b6e6df8b`；本次业务父项展示与状态回写不改变两名 live writer 的文件边界或停止条件，未作无关广播。
-- 容量 / READY：root + `M1-F3B-D` contract/domain writer + `SHARED-WEREAD-API` 只读诊断为3/4，1槽可用；两项均已完整 delivered ACK，文件 / 职责互斥。成本4文件WIP保留但三个恢复通道未给字段级writer ACK，等待首个可靠Agent释放后从checkpoint补派，不准提交或扩写。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead API 与 production身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini会话 / 阅读与Desktop PPT；AppID / GUI / 域名仅阻塞其真实端门，不用“下一 Goal”排除项目级 READY。
+- 容量 / READY：root + `M1-F3B-D` contract/domain writer + `SHARED-WEREAD-API` contract writer为3/4，1槽可用；两项均已完整 delivered ACK，文件互斥（contracts index仅前者，WeRead只写两新文件）。成本4文件WIP保留但三个恢复通道未给字段级writer ACK，等待首个可靠Agent释放后从checkpoint补派，不准提交或扩写。Mini 其余开放包已全量重算：`M2-F4-B` 顺序依赖 Library / 内容 / 身份，`M2-F2` 依赖 shared WeRead API 与 production身份，`M2-F5` 依赖 F1～F3，`M2-F6` 依赖 Mini会话 / 阅读与Desktop PPT；AppID / GUI / 域名仅阻塞其真实端门，不用“下一 Goal”排除项目级 READY。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -74,7 +74,7 @@
 | `M2-F0-A-SCREEN-ADAPT-ALL` | `VERIFY / LIMITED PASS / H3 OPEN` | Reader与Conversation限定响应式结论保留；Drawer可控矩阵已另闭合 | 软件键盘、游客console与真实PPT preview仍开放 |
 | `M2-F0-A-VISUAL-REWORK` | `VERIFY / MAIN 11f480a / SCOPED PASS` | Reader、Conversation、send / retry / attachment缺陷已关闭 | Drawer与production按各自任务行，不扩大父包 |
 | `M2-F1` | `VERIFY / SERVER MAIN 86c30a8 / MINI MAIN 9f11b89 / F312 04b5f03` | fake exchange + opaque Bearer、session expiry与动态Authorization本地合同PASS | production需 apiBaseUrl / AppID / Secret / 域名；游客console不冒充登录完成 |
-| `SHARED-WEREAD-API` | `ACTIVE / READ-ONLY DIAGNOSIS / DELIVERED ACK` / `/root/shared_weread_contract` | 跨端同步父闭环的共享Server子包：账户隔离连接、验证后原子替换、books / annotations完整快照、分页、upgrade pause与失败保留；contract / fake已在main | 已ACK真实main、保护status与规则SHA；正锁DB迁移、runtime / routes、多记录 / N+1、单位与幂等边界。不得真实HTTP / Key / H4，不改Web / Mini；冻结并进main后同事件并行释放两端消费包 |
+| `SHARED-WEREAD-API` | `ACTIVE / CONTRACT WRITER / DELIVERED ACK` / `/root/shared_weread_contract` | 跨端同步父闭环的共享Server子包；诊断证明main无route且书架合同只允许本地。首包仅两个全新contract/test文件冻结connection CRUD、202 async run/status、完整snapshot、显式单书annotations、paused / retryable与安全projection | writer `wereadapi@5a003f0` clean ACK；禁止改index / migration / runtime / routes / Web / Mini或真实HTTP / Key / H4。candidate→root审→main后顺序释放migration/runtime/routes，统一书架source union仍是两端消费前独立上游门 |
 | `M2-F2` | `PENDING` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | 依赖 `SHARED-WEREAD-API`、M2-F1与 production AppID / 域名；真实 Key / H4独立授权 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
 | `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
@@ -145,5 +145,5 @@
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
-- 当前 worktree 共3个：main、唯一f312与RECOVERING `quota-cost`；Reader、Mini Library与shared WeRead contract候选顺序集成并回归后均已同事件移除clean worktree。其余候选合入或废弃后也由总控同事件回收；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
+- 当前 worktree 共5个：main、唯一f312、RECOVERING `quota-cost`、ACTIVE `noteintent` 与ACTIVE `wereadapi`；已合候选worktree均已同事件回收。两条active候选合入 / 废弃后同事件移除clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
 - main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为稳定 stash 对象 `0bc24868359483fe7d52f9061d76b9f7d81a7000`，标题 `archive: unresolved mini conversation test WIP 2026-08-28`；不记录可变序号，不作为候选或 PASS。redesign-v2 顶层3份重复DOCX与3个Word锁文件已移至可恢复废纸篓 `/Users/echoman/.Trash/SelfAlone-redesign-duplicates-20260828-Uxchkc`，原文逐字节SHA与 `raw_sources/context-governance/` 对应文件一致；main 仅余4个未跟踪视觉候选路径，继续受保护且不得作为运行时资产或PASS。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
