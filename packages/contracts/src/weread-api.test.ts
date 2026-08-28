@@ -11,10 +11,12 @@ import type {
   WeReadBooksSyncRequest,
   WeReadBooksSyncResponse,
   WeReadConnectionDeleteResponse,
+  WeReadConnectionDeleteRequest,
   WeReadConnectionGetResponse,
   WeReadConnectionPutRequest,
   WeReadConnectionPutResponse,
   WeReadConnectionProjection,
+  WeReadAnnotationsSyncRunProjection,
   WeReadSyncRunProjection,
   WeReadSyncStatusResponse,
 } from "./weread-api";
@@ -34,8 +36,11 @@ const pause = {
   upgradeInfo: "upgrade skill",
 };
 
+const localBookId = "local-book-a";
+const providerBookExternalId = "weread-book-a";
+
 const book = {
-  externalId: "book-a",
+  externalId: providerBookExternalId,
   title: "一本书",
   author: "作者",
   coverUrl: null,
@@ -45,7 +50,7 @@ const book = {
 
 const annotation = {
   externalId: "annotation-a",
-  bookExternalId: "book-a",
+  bookExternalId: providerBookExternalId,
   quote: "重要的一句",
   thought: "我的想法",
   location: null,
@@ -73,11 +78,39 @@ describe("shared WeRead HTTP contract", () => {
     expect(WEREAD_API_CONTRACT_VERSION).toBe("v1");
   });
 
+  it("requires the observed connection revision for replacement and deletion", () => {
+    const putRequest: WeReadConnectionPutRequest = {
+      apiKey: "wrk-a-secret",
+      requestId: "request-account-a-1",
+      expectedRevision: connection.revision,
+    };
+    const deleteRequest: WeReadConnectionDeleteRequest = {
+      expectedRevision: connection.revision,
+    };
+
+    // @ts-expect-error A replacement without the observed revision is unsafe.
+    const unguardedPutRequest: WeReadConnectionPutRequest = {
+      apiKey: "wrk-a-secret",
+      requestId: "request-account-a-1",
+    };
+    // @ts-expect-error A deletion without the target revision is unsafe.
+    const unguardedDeleteRequest: WeReadConnectionDeleteRequest = {};
+
+    expect(putRequest.expectedRevision).toBe(connection.revision);
+    expect(deleteRequest.expectedRevision).toBe(connection.revision);
+    expect(unguardedPutRequest).toBeDefined();
+    expect(unguardedDeleteRequest).toBeDefined();
+  });
+
   it("keeps connection GET/PUT/DELETE JSON shapes safe and account-neutral", () => {
     const getResponse: WeReadConnectionGetResponse = { connection };
     const putRequest: WeReadConnectionPutRequest = {
       apiKey: "wrk-a-secret",
       requestId: "request-account-a-1",
+      expectedRevision: connection.revision,
+    };
+    const deleteRequest: WeReadConnectionDeleteRequest = {
+      expectedRevision: connection.revision,
     };
     const putResponse: WeReadConnectionPutResponse = {
       connection,
@@ -85,12 +118,15 @@ describe("shared WeRead HTTP contract", () => {
     };
     const deleteResponse: WeReadConnectionDeleteResponse = { status: "disconnected" };
 
-    const json = JSON.stringify({ getResponse, putRequest, putResponse, deleteResponse });
+    const json = JSON.stringify({ getResponse, putRequest, putResponse, deleteRequest, deleteResponse });
     expect(json).toContain("wrk-a-secret");
     expect(JSON.parse(JSON.stringify(getResponse))).toEqual({ connection });
     expect(JSON.parse(JSON.stringify(putResponse))).toEqual({
       connection,
       sync: { run: runningBooksRun },
+    });
+    expect(JSON.parse(JSON.stringify(deleteRequest))).toEqual({
+      expectedRevision: connection.revision,
     });
     expect(deleteResponse.status).toBe("disconnected");
     expect(connection.apiKeyHint).not.toContain("wrk-a-secret");
@@ -130,7 +166,7 @@ describe("shared WeRead HTTP contract", () => {
     };
 
     expect(response.books).toHaveLength(2);
-    expect(response.books.map((item) => item.externalId)).toEqual(["book-a", "book-b"]);
+    expect(response.books.map((item) => item.externalId)).toEqual([providerBookExternalId, "book-b"]);
     expect(response.cursor).toBe("opaque/read-page-2");
     expect(response.nextCursor).toBeNull();
     expect(JSON.parse(JSON.stringify({ request, response }))).toEqual({ request, response });
@@ -176,16 +212,16 @@ describe("shared WeRead HTTP contract", () => {
     expect(response.status).toBe("failed");
     expect(response.snapshot).toBe("last_success");
     expect(response.error.retryable).toBe(true);
-    expect(response.books[0]?.externalId).toBe("book-a");
+    expect(response.books[0]?.externalId).toBe(providerBookExternalId);
     expect(JSON.parse(JSON.stringify(response))).toEqual(response);
   });
 
   it("requires explicit single-book annotation sync and preserves its last snapshot", () => {
     const request: WeReadAnnotationsSyncRequest = {
       requestId: "request-account-a-annotations-1",
-      bookId: "book-a",
+      bookId: localBookId,
     };
-    const run: WeReadSyncRunProjection = {
+    const run: WeReadAnnotationsSyncRunProjection = {
       runId: "run-annotations-a",
       requestId: request.requestId,
       operation: "annotations",
@@ -197,6 +233,7 @@ describe("shared WeRead HTTP contract", () => {
       nextCursor: null,
       retryCount: 0,
       bookId: request.bookId,
+      bookExternalId: providerBookExternalId,
       createdAt: "2024-01-02T03:04:05.000Z",
       updatedAt: "2024-01-02T03:04:06.000Z",
     };
@@ -206,23 +243,28 @@ describe("shared WeRead HTTP contract", () => {
       snapshot: "last_success",
       connectionId: "connection-a",
       accountExternalId: "weread-account-a",
-      bookId: "book-a",
+      bookId: localBookId,
+      bookExternalId: providerBookExternalId,
       annotations: [annotation, { ...annotation, externalId: "annotation-b" }],
     };
 
-    expect(request.bookId).toBe("book-a");
+    expect(request.bookId).toBe(localBookId);
     expect(accepted.run.operation).toBe("annotations");
-    expect(accepted.run.bookId).toBe("book-a");
+    expect(accepted.run.bookId).toBe(localBookId);
+    expect(accepted.run.bookExternalId).toBe(providerBookExternalId);
     expect(snapshot.annotations).toHaveLength(2);
-    expect(snapshot.annotations.every((item) => item.bookExternalId === "book-a")).toBe(true);
+    expect(snapshot.bookId).toBe(localBookId);
+    expect(snapshot.bookExternalId).toBe(providerBookExternalId);
+    expect(snapshot.annotations.every((item) => item.bookExternalId === providerBookExternalId)).toBe(true);
+    expect(snapshot.bookId).not.toBe(snapshot.bookExternalId);
     expect(JSON.parse(JSON.stringify({ request, accepted, snapshot }))).toEqual({
       request,
       accepted,
       snapshot,
     });
 
-    const readRequest: WeReadAnnotationsSnapshotRequest = { bookId: "book-a" };
-    expect(readRequest.bookId).toBe("book-a");
+    const readRequest: WeReadAnnotationsSnapshotRequest = { bookId: localBookId };
+    expect(readRequest.bookId).toBe(localBookId);
   });
 
   it("exposes paused annotation snapshots without an empty location or secret", () => {
@@ -231,14 +273,18 @@ describe("shared WeRead HTTP contract", () => {
       snapshot: "last_success",
       connectionId: "connection-a",
       accountExternalId: "weread-account-a",
-      bookId: "book-a",
+      bookId: localBookId,
+      bookExternalId: providerBookExternalId,
       annotations: [{ ...annotation, location: null }],
       pause,
     };
 
+    expect(response.status).toBe("paused");
     expect(response.snapshot).toBe("last_success");
     expect(response.annotations[0]?.location).toBeNull();
-    expect(response.pause.reason).toBe("upgrade_required");
+    if (response.status === "paused") {
+      expect(response.pause.reason).toBe("upgrade_required");
+    }
     expect(JSON.stringify(response)).not.toContain("wrk-a-secret");
   });
 });

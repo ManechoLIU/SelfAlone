@@ -30,7 +30,8 @@ export type WeReadConnectionPutRequest = {
   apiKey: string;
   /** Account-scoped idempotency key for a replacement request. */
   requestId: string;
-  expectedRevision?: string;
+  /** Revision read from the current connection; required to fence stale replacements. */
+  expectedRevision: string;
 };
 
 export type WeReadConnectionPutResponse = {
@@ -41,6 +42,11 @@ export type WeReadConnectionPutResponse = {
 
 export type WeReadConnectionDeleteResponse = {
   status: "disconnected";
+};
+
+/** A delete must target the connection revision the client actually observed. */
+export type WeReadConnectionDeleteRequest = {
+  expectedRevision: string;
 };
 
 export type WeReadSyncOperation = "books" | "annotations";
@@ -80,7 +86,14 @@ type WeReadSyncRunBase<TOperation extends WeReadSyncOperation> = {
   createdAt: WeReadTimestamp;
   updatedAt: WeReadTimestamp;
   completedAt?: WeReadTimestamp | null;
-} & (TOperation extends "annotations" ? { bookId: string } : { bookId?: never });
+} & (TOperation extends "annotations"
+  ? {
+      /** Local book identity used by clients and persistence. */
+      bookId: string;
+      /** Provider identity resolved by the server for this local book. */
+      bookExternalId: WeReadExternalId;
+    }
+  : { bookId?: never; bookExternalId?: never });
 
 type WeReadSyncRunProjectionFor<TOperation extends WeReadSyncOperation> =
   | (WeReadSyncRunBase<TOperation> & {
@@ -179,7 +192,10 @@ export type WeReadAnnotationsSyncResponse = {
 type WeReadAnnotationsSnapshotBase = {
   connectionId: string;
   accountExternalId: WeReadExternalId;
+  /** Local book identity used by clients and persistence. */
   bookId: string;
+  /** Provider identity resolved by the server for this local book. */
+  bookExternalId: WeReadExternalId;
   annotations: readonly WeReadAnnotation[];
 };
 
