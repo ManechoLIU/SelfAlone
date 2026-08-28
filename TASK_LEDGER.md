@@ -5,10 +5,10 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` Server链 `2eb9419+cfd4583+bac14b8` 已顺序进入main并通过定向45项、typecheck、build与diff-check；下一独立事件派发Web生产接线Writer，完成“明确整理成笔记”意图、失败同requestId重试与当前main真实Chrome Case。
+- 下一可见检查点：`M1-F3B-D` 的 Web Assignment `M1-F3B-D-WEB-01` 已在 `noteweb@dc02e91` 完整ACK并通过租约门；Writer先交“当前controller/client只发送requestId/text、claimed Reader handoff不生成noteIntent”的RED，再冻结单一clean Web候选供root审查与顺序集成。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@dfd83c7` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以该提交为唯一职责源，当前 Note R2 Writer 已回 exact-version loaded ACK且不重做 / 换模。canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，SKILL SHA-256 `ba04cb073998a60e8779efb79e6a2b7ac58f9798d9b46b3405ba602374ccee80`、long-task SHA-256 `1f0e5a33f45fbf0746a6177957fe8c5fd48ee3f635869c5672a8943a10321633`、lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`。
-- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为1/4、可用3；本事件的Writer与Reviewer均已TERMINAL，Grok外部只读审查不占collaboration槽。新建 `luna_worker` 仍受本会话root推理档高于Luna运行上限约束，不静默覆盖模型 / 推理配置。活动状态与owner仅以下方任务表为权威。
+- 规则版本：总控已从真实 `main@dc02e91` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。Web Writer已回 exact-version loaded ACK：AGENTS SHA-256 `ee9ad39b…4515`、SKILL `ba04cb07…cee80`、long-task `1f0e5a33…21633`。canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`。
+- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为2/4、可用2；`M1-F3B-D-WEB-01` 使用 `luna_worker/max`，因为运行时拒绝Luna继承root ultra，未更换模型/provider。活动状态与owner仅以下方任务表为权威。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -45,7 +45,7 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `VERIFY / SERVER MAIN bac14b8 PASS / WEB READY` / 项目总控 | Server候选 `fd66f8a+45604e78+0c034ac` 经root审实际diff；R2关闭普通请求完成后同requestId新增create / update noteIntent被静默忽略的反例，顺序进入main为 `2eb9419+cfd4583+bac14b8`。main定向45项、typecheck、build、diff-check PASS | 后端非作者审查 `M1-F3B-D-SERVER-0C034AC-NONAUTHOR`：cwd/main base `c11f36e`、owned files `[]`、会话 `01a0485b-5c14-7d83-94be-372ce7fd5056`、`grok-build/grok-4.6/oauth/cli-session`、17 model calls、约 `$0.07346`、PASS、无编辑/失败重试。下一独立事件只派Web接线并做current-main真实Case；父Goal保持OPEN |
+| `M1-F3B-D` | `ACTIVE / M1-F3B-D-WEB-01` / `/root/m1_f3bd_web_writer` | Server链已在main `bac14b8` PASS；Web Assignment为 `noteweb@dc02e91`、7个conversation / handoff文件，complete delivered ACK与lease guard PASS。只允许active同会话Reader handoff + 明确正向“整理成/为笔记”生成create intent；普通、否定、无handoff不生成，禁止自由文本猜update | Writer先RED后最小接线，失败 / 刷新保留book / quote / draft并以同requestId+同intent重试；交clean candidate后root审实际diff、顺序进main并做真实账户Chrome create / edit / delete / refresh / failure retry，父Goal保持OPEN |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE f53c930 NONAUTHOR FAIL` / 项目总控 | 两个cost-ledger migration文件的并发 / 回滚局部证据保留；FAIL为运行期可直接插入终态reservation且audit反序历史未被拒绝，`f53c930` 不得合main | recovery动作：root先审清已到的Mini / WeRead候选并释放一个既有Agent lease，再复用该Agent在原 `quota-cost` 两文件边界补RED与最小修复；检查点为新ACK，不以当前Goal或旧4/4为理由等待 |
@@ -145,5 +145,5 @@
 - 用户已授权 SelfAlone 测试安全读取本机保存的 DeepSeek Key，后续项目内测试调用无需重复确认；既有 H4 总观测6次且≤¥1。Key不得进入聊天、源码、`.env`、命令参数、日志、截图或台账，授权不扩展到生产、其他项目或无限费用。
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
-- 当前 worktree 共4个：main、唯一f312、待独立事件root审的 `tlocutf16` 与待恢复候选 `quota-cost`；本Goal已合Server候选的clean `noteserver` worktree已同事件移除，分支保留。候选合入 / 废弃后同事件移除clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
+- 当前 worktree 共5个：main、唯一f312、待独立事件root审的 `tlocutf16`、待恢复候选 `quota-cost` 与当前唯一Web Writer `noteweb`；本Goal已合Server候选的clean `noteserver` worktree已移除，分支保留。候选合入 / 废弃后同事件移除clean worktree；脏现场先形成scoped commit或带原路径+HEAD的恢复点。历史归档stash共12条，f312仅在唯一DevTools入口仍需时保留。
 - main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为稳定 stash 对象 `0bc24868359483fe7d52f9061d76b9f7d81a7000`，标题 `archive: unresolved mini conversation test WIP 2026-08-28`；不记录可变序号，不作为候选或 PASS。redesign-v2 顶层3份重复DOCX与3个Word锁文件已移至可恢复废纸篓 `/Users/echoman/.Trash/SelfAlone-redesign-duplicates-20260828-Uxchkc`，原文逐字节SHA与 `raw_sources/context-governance/` 对应文件一致；main 仅余4个未跟踪视觉候选路径，继续受保护且不得作为运行时资产或PASS。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
