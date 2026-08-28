@@ -38,7 +38,7 @@
 | `M1-F2-WEREAD` | `ACTIVE / M1-F2-WEREAD-WEB-REWORK-02 / dcae657+LOCAL` / `/root/m1_f2_weread_web_writer` | 原 Writer 已 delivered loaded ACK `main@ba3a7af`；既有 Assignment 不改派、不重做，当前8个 owned 文件 WIP从7项RED继续。一次 Kimi ACK-only调用结果未知且工作树零新增，已停止自动重试 / 降级；误建 native recovery零写入终止 | 默认no-call；闭合账户隔离、fresh空态、unknown bookId、空成功快照、同requestId retry与annotation有界并发，定向 / 全量 / typecheck / build / visual-contract / diff-check及真实Chrome SELF后冻结单一候选；真实Key、未冻结HTTP / 视觉或越界即停 |
 | `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
 | `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
-| `M1-F3A-RUNTIME-REBIND` | `BLOCKED / LOCAL AUTH USER ACTION PENDING` / 项目总控 | 本轮保存失败演练重启 current-main API 后需把本机已保存 DeepSeek Key 重新绑定到新运行时加密主密钥；不新增供应商调用，不改变既有 H4 PASS | 唤醒=机主在 macOS Passwords 系统提示以 Touch ID / 系统密码批准；随后仅安全摄入当前本地配置入口并清空剪贴板，Key 不输出、不落源码 / `.env` / 日志 / 截图 / 台账。当前 Passwords 明确为 locked，不绕过认证 |
+| `M1-F3A-RUNTIME-REBIND` | `BLOCKED / LOCAL AUTH USER ACTION PENDING` / 项目总控 | 本轮保存失败演练重启 current-main API 后需把本机已保存 DeepSeek Key 重新绑定到新运行时加密主密钥；不新增供应商调用，不改变既有 H4 PASS | 唤醒=机主在 macOS Passwords / LocalAuthentication 系统提示以 Touch ID 或系统密码批准；系统未锁屏，当前仅等待本人认证，不绕过认证。随后仅安全摄入当前本地配置入口并清空剪贴板，Key 不输出、不落源码 / `.env` / 日志 / 截图 / 台账 |
 | `M1-F3A-B` | `PENDING` / 待分配 | 图片模型独立配置、检测、撤销与失败保留 | 图片供应商 / 付费调用未确认；不得成为无图 PPT 前置 |
 | `M1-F3B` | `VERIFY` / 项目总控 | 业务父闭环：同一账户从上下文发起真实连续会话并在失败 / 刷新后恢复 | Desktop 真实文字对话 H4 已闭合；图片消息、书籍上下文、Mini与父级 V1 仍开放 |
 | `M1-F3B-B` | `PENDING` / 待分配 | 最多4图的纯图片 / 图文消息、预检、逐张移除与失败恢复 | 依赖对象存储和模型能力目录 |
