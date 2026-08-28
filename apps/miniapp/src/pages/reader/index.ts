@@ -344,7 +344,7 @@ Page<ReaderData>({
           blocks: [],
           sectionBlockIndexes: [],
           blockGeometry: [],
-          noteHydrationState: this.data.developmentAdapter ? "ready" : "loading",
+          noteHydrationState: "loading",
           noteHydrationError: "",
         });
         await this.hydrateNotes(detail, requestId);
@@ -373,7 +373,7 @@ Page<ReaderData>({
         progressLabel: recovered.progressLabel,
         scrollIntoView: preserveLocalReaderState ? this.data.scrollIntoView : recovered.scrollIntoView,
         coverAsset: covers[Math.abs(detail.book.coverVariant) % covers.length]!,
-        noteHydrationState: this.data.developmentAdapter ? "ready" : "loading",
+        noteHydrationState: "loading",
         noteHydrationError: "",
       }, () => {
         this.measureIntroHeight();
@@ -427,7 +427,7 @@ Page<ReaderData>({
   },
   async hydrateNotes(detail: BookDetail, requestId: number) {
     const annotationsClient: AnnotationsApiClient | undefined = getApp<MiniappApp>().globalData.annotationsClient;
-    if (this.data.developmentAdapter || !annotationsClient) {
+    if (!annotationsClient) {
       if (requestId === this.readerLoadRequestId && !this.isUnloaded) {
         this.setData({ noteHydrationState: "ready", noteHydrationError: "" });
       }

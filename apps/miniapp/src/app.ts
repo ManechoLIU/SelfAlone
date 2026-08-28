@@ -1,5 +1,6 @@
 import { createClientAdapter } from "./adapters/index.js";
 import type { MiniappClient } from "./adapters/client";
+import { createDevelopmentAnnotationsClient } from "./adapters/development-annotations";
 import {
   createConversationApiClient,
   type ConversationApiClient,
@@ -66,16 +67,18 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     },
     transport: options.conversationTransport,
   });
-  const annotationsClient = createAnnotationsApiClient({
-    baseUrl: options.apiBaseUrl,
-    authProvider: () => sessionStore.restore(),
-    onUnauthorized: (status) => {
-      if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
-        composedGlobalData.session = { kind: "signed-out" };
-      }
-    },
-    transport: options.annotationsTransport,
-  });
+  const annotationsClient = client.development
+    ? createDevelopmentAnnotationsClient()
+    : createAnnotationsApiClient({
+      baseUrl: options.apiBaseUrl,
+      authProvider: () => sessionStore.restore(),
+      onUnauthorized: (status) => {
+        if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
+          composedGlobalData.session = { kind: "signed-out" };
+        }
+      },
+      transport: options.annotationsTransport,
+    });
   const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });
 
   const globalData: MiniappGlobalData = {

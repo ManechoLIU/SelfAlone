@@ -545,6 +545,48 @@ describe("reader page state", () => {
     expect(page.data.detail.notes).toEqual([]);
   });
 
+  it("hydrates development notes through the annotations client port", async () => {
+    const page = createReaderPage();
+    const detail = readerDetailWithBackground("light");
+    const notes = [
+      {
+        id: "dev-note-1",
+        bookId: detail.book.id,
+        body: "第一条开发笔记",
+        source: null,
+        version: 1,
+        createdAt: "2030-01-01T00:00:00.000Z",
+        updatedAt: "2030-01-01T00:00:00.000Z",
+      },
+      {
+        id: "dev-note-2",
+        bookId: detail.book.id,
+        body: "第二条开发笔记",
+        source: null,
+        version: 1,
+        createdAt: "2030-01-01T00:01:00.000Z",
+        updatedAt: "2030-01-01T00:01:00.000Z",
+      },
+    ];
+    page.data = {
+      ...page.data,
+      developmentAdapter: true,
+      detail: { ...detail, notes: [] },
+      noteHydrationState: "idle",
+    };
+    page.readerLoadRequestId = 1;
+    annotationsClient.getAnnotations.mockResolvedValueOnce({ fileVersion: 1, highlights: [], notes });
+
+    await page.hydrateNotes(detail, 1);
+
+    expect(annotationsClient.getAnnotations).toHaveBeenCalledWith(detail.book.id);
+    expect(page.data.noteHydrationState).toBe("ready");
+    expect(page.data.detail.notes).toEqual([
+      { id: "dev-note-1", body: "第一条开发笔记", meta: "读书笔记" },
+      { id: "dev-note-2", body: "第二条开发笔记", meta: "读书笔记" },
+    ]);
+  });
+
   it("reveals an unavailable delete failure at the same note row", async () => {
     const page = createReaderPage();
     const detail = readerDetailWithBackground("light");
