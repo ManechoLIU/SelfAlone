@@ -151,6 +151,7 @@ type InternalConnection = {
   lastSuccessfulBooks: WeReadBook[];
   lastSuccessfulAnnotations: Map<string, WeReadAnnotation[]>;
   bookSyncRun?: BookSyncRun;
+  pause?: WeReadSyncPause;
 };
 
 /**
@@ -244,6 +245,10 @@ export class FakeWeReadAdapter implements WeReadAdapter {
     const requestedCursor = cursor ?? null;
     this.calls.push({ operation: "syncBooks", connectionId, cursor: requestedCursor });
 
+    if (connection.projection.status === "paused") {
+      return pausedBooksPage(connection, requestedCursor);
+    }
+
     if (requestedCursor === null) {
       connection.bookSyncRun = { expectedCursor: null, records: [] };
     } else if (!connection.bookSyncRun || connection.bookSyncRun.expectedCursor !== requestedCursor) {
@@ -256,17 +261,9 @@ export class FakeWeReadAdapter implements WeReadAdapter {
     if (failure && (failure.errcode !== 0 || hasUpgradeInfo(failure))) {
       const pause = upgradePause(failure);
       if (pause) {
+        connection.pause = pause;
         connection.projection = { ...connection.projection, status: "paused" };
-        return {
-          status: "paused",
-          snapshot: "last_success",
-          connectionId,
-          accountExternalId: connection.dataset.account.externalId,
-          cursor: requestedCursor,
-          nextCursor: null,
-          books: cloneBooks(connection.lastSuccessfulBooks),
-          pause,
-        };
+        return pausedBooksPage(connection, requestedCursor);
       }
       throw providerError(failure);
     }
@@ -331,21 +328,18 @@ export class FakeWeReadAdapter implements WeReadAdapter {
       throw new WeReadAdapterError("WEREAD_BOOK_NOT_FOUND");
     }
 
+    if (connection.projection.status === "paused") {
+      return pausedAnnotationsResult(connection, bookExternalId);
+    }
+
     const failure = connection.dataset.annotationFailures[bookExternalId]
       ?? connection.dataset.annotationFailure;
     if (failure && (failure.errcode !== 0 || hasUpgradeInfo(failure))) {
       const pause = upgradePause(failure);
       if (pause) {
+        connection.pause = pause;
         connection.projection = { ...connection.projection, status: "paused" };
-        return {
-          status: "paused",
-          snapshot: "last_success",
-          connectionId,
-          accountExternalId: connection.dataset.account.externalId,
-          bookExternalId,
-          annotations: cloneAnnotations(connection.lastSuccessfulAnnotations.get(bookExternalId) ?? []),
-          pause,
-        };
+        return pausedAnnotationsResult(connection, bookExternalId);
       }
       throw providerError(failure);
     }
@@ -431,7 +425,6 @@ export function createFakeWeReadAdapter(options: FakeWeReadAdapterOptions): Fake
 /** Explicit name for development/QA wiring; it is not production fallback behavior. */
 export const createDevelopmentWeReadAdapter = createFakeWeReadAdapter;
 export const createWeReadFakeAdapter = createFakeWeReadAdapter;
-export const createWeReadAdapter = createFakeWeReadAdapter;
 
 export function maskWeReadApiKey(apiKey: string): string {
   if (apiKey.length <= 4) return "••••";
@@ -551,7 +544,7 @@ function cloneAnnotation(annotation: WeReadAnnotation): WeReadAnnotation {
   ) {
     throw new WeReadAdapterError("WEREAD_INVALID_RECORD");
   }
-  return { ...annotation };
+  return { ...annotation, location: normalizeLocation(annotation.location) };
 }
 
 function cloneAnnotations(annotations: readonly WeReadAnnotation[]): WeReadAnnotation[] {
@@ -571,6 +564,36 @@ function stableBooks(books: readonly WeReadBook[]): WeReadBook[] {
   const byId = new Map<string, WeReadBook>();
   for (const book of books) byId.set(book.externalId, cloneBook(book));
   return [...byId.values()];
+}
+
+function pausedBooksPage(connection: InternalConnection, cursor: WeReadCursor | null): WeReadSyncPage {
+  if (!connection.pause) throw new WeReadAdapterError("WEREAD_SYNC_PAUSED");
+  return {
+    status: "paused",
+    snapshot: "last_success",
+    connectionId: connection.projection.connectionId,
+    accountExternalId: connection.dataset.account.externalId,
+    cursor,
+    nextCursor: null,
+    books: cloneBooks(connection.lastSuccessfulBooks),
+    pause: { ...connection.pause },
+  };
+}
+
+function pausedAnnotationsResult(
+  connection: InternalConnection,
+  bookExternalId: string,
+): WeReadAnnotationsSyncResult {
+  if (!connection.pause) throw new WeReadAdapterError("WEREAD_SYNC_PAUSED");
+  return {
+    status: "paused",
+    snapshot: "last_success",
+    connectionId: connection.projection.connectionId,
+    accountExternalId: connection.dataset.account.externalId,
+    bookExternalId,
+    annotations: cloneAnnotations(connection.lastSuccessfulAnnotations.get(bookExternalId) ?? []),
+    pause: { ...connection.pause },
+  };
 }
 
 function digestApiKey(apiKey: string): string {
@@ -628,6 +651,11 @@ function isCanonicalTimestamp(value: string): boolean {
 function safeApiKeyHint(configuredHint: string | undefined, normalizedApiKey: string | undefined): string {
   const fallback = normalizedApiKey ? maskWeReadApiKey(normalizedApiKey) : "••••";
   const hint = configuredHint?.trim();
-  if (!hint || /^wrk-\S+$/.test(hint)) return fallback;
-  return hint;
+  if (!hint || (normalizedApiKey && hint.includes(normalizedApiKey))) return fallback;
+  if (hint === "••••" || /^••••••••\S{4}$/u.test(hint)) return hint;
+  return fallback;
+}
+
+function normalizeLocation(location: string | null): string | null {
+  return location === null || location.trim() === "" ? null : location;
 }

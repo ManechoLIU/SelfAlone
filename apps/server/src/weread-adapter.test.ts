@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as wereadAdapter from "./weread-adapter";
 import {
   createFakeWeReadAdapter,
   type FakeWeReadDataset,
@@ -40,6 +41,85 @@ function dataset(overrides: Partial<FakeWeReadDataset> = {}): FakeWeReadDataset 
 }
 
 describe("fake WeRead adapter contract", () => {
+  it("keeps an annotation upgrade pause fail-closed across book and annotation syncs", async () => {
+    const adapter = createFakeWeReadAdapter({
+      datasets: [dataset({
+        books: [book("book-a", "A 书"), book("book-b", "B 书")],
+        annotations: [annotation("annotation-b", "book-b", "B 的原文")],
+        annotationFailures: {
+          "book-a": { errcode: 426, upgrade_info: "please upgrade" },
+        },
+      })],
+    });
+    const connection = await adapter.replaceConnection("account-a", "wrk-a-secret");
+
+    await expect(adapter.syncAnnotations(connection.connectionId, "book-a"))
+      .rejects.toMatchObject({
+        code: "WEREAD_SYNC_PAUSED",
+        snapshot: [],
+      });
+    await expect(adapter.syncBooks(connection.connectionId))
+      .resolves.toMatchObject({ status: "paused", snapshot: "last_success" });
+    await expect(adapter.syncAnnotationsResult(connection.connectionId, "book-b"))
+      .resolves.toMatchObject({ status: "paused", snapshot: "last_success" });
+    await expect(adapter.syncAnnotations(connection.connectionId, "book-b"))
+      .rejects.toMatchObject({ code: "WEREAD_SYNC_PAUSED" });
+    await expect(adapter.getConnection(connection.connectionId))
+      .resolves.toMatchObject({ status: "paused" });
+  });
+
+  it("keeps a books upgrade pause fail-closed when annotations are requested", async () => {
+    const adapter = createFakeWeReadAdapter({
+      datasets: [dataset({
+        books: [book("book-a", "A 书"), book("book-b", "B 书")],
+        annotations: [annotation("annotation-b", "book-b", "B 的原文")],
+        bookPages: [{
+          cursor: null,
+          books: [book("book-a", "A 书"), book("book-b", "B 书")],
+          nextCursor: null,
+          failure: { errcode: 426, upgrade_info: "please upgrade" },
+        }],
+      })],
+    });
+    const connection = await adapter.replaceConnection("account-a", "wrk-a-secret");
+
+    await expect(adapter.syncBooks(connection.connectionId))
+      .resolves.toMatchObject({ status: "paused", snapshot: "last_success" });
+    await expect(adapter.syncAnnotationsResult(connection.connectionId, "book-b"))
+      .resolves.toMatchObject({ status: "paused", snapshot: "last_success" });
+    await expect(adapter.syncAnnotations(connection.connectionId, "book-b"))
+      .rejects.toMatchObject({ code: "WEREAD_SYNC_PAUSED" });
+  });
+
+  it("does not expose a generic production adapter alias", () => {
+    const exports = wereadAdapter as Record<string, unknown>;
+    expect(exports.createWeReadAdapter).toBeUndefined();
+    expect(exports.createFakeWeReadAdapter).toBeTypeOf("function");
+    expect(exports.createWeReadFakeAdapter).toBeTypeOf("function");
+    expect(exports.createDevelopmentWeReadAdapter).toBeTypeOf("function");
+  });
+
+  it.each(["key=wrk-a-secret", "wrk-a-secret", "unsafe-hint"])(
+    "always projects a safe API key hint for custom value %s",
+    async (apiKeyHint) => {
+      const adapter = createFakeWeReadAdapter({ datasets: [dataset({ apiKeyHint })] });
+      const connection = await adapter.replaceConnection("account-a", "wrk-a-secret");
+      expect(connection.apiKeyHint).toBe("••••••••cret");
+      expect(connection.apiKeyHint).not.toContain("wrk-a-secret");
+    },
+  );
+
+  it.each(["", "   "])("normalizes blank annotation location %j to null", async (location) => {
+    const adapter = createFakeWeReadAdapter({
+      datasets: [dataset({
+        annotations: [{ ...annotation("annotation-blank", "book-a", "原文"), location }],
+      })],
+    });
+    const connection = await adapter.replaceConnection("account-a", "wrk-a-secret");
+    const annotations = await adapter.syncAnnotations(connection.connectionId, "book-a");
+    expect(annotations[0]?.location).toBeNull();
+  });
+
   it("normalizes provider epoch seconds to canonical UTC timestamps", async () => {
     const adapter = createFakeWeReadAdapter({
       now: () => 1_700_000_000,
