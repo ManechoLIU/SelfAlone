@@ -128,6 +128,26 @@ describe("conversation session state", () => {
     )).toThrow("INVALID_HIGHLIGHT_QUOTE");
   });
 
+  it("rejects a note operation quote over the shared annotation limit", () => {
+    expect(() => createConversationNoteOperation({
+      requestId: "note-quote-too-long",
+      body: "引用不能无限增长。",
+      intent: {
+        kind: "create",
+        bookId: "book-1",
+        source: { ...source, quote: "q".repeat(20_001) },
+      },
+    })).toThrow("TEXT_TOO_LONG");
+  });
+
+  it("rejects a note operation body over the shared annotation limit", () => {
+    expect(() => createConversationNoteOperation({
+      requestId: "note-body-too-long",
+      body: "b".repeat(100_001),
+      intent: { kind: "create", bookId: "book-1" },
+    })).toThrow("TEXT_TOO_LONG");
+  });
+
   it("keeps a failed note operation retryable and idempotent by request id", () => {
     const input = {
       requestId: "note-retry-1",

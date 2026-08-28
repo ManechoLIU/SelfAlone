@@ -3,6 +3,7 @@ import type {
   ConversationNoteOperation,
   TextAnnotationSource,
 } from "@selfalone/contracts";
+import { createTextNoteDraft, TEXT_ANNOTATION_LIMITS } from "./text-annotation";
 
 export type ConversationRunKind = "response" | "task";
 export type ConversationRunStatus = "running" | "stopped" | "failed" | "completed";
@@ -382,6 +383,10 @@ function normalizeConversationNoteOperation(
   const requestId = requiredNoteText(candidate.requestId, "REQUEST_ID_REQUIRED");
   const body = requiredNoteText(candidate.body, "NOTE_BODY_REQUIRED");
   const intent = normalizeNoteIntent(candidate.intent);
+  createTextNoteDraft({
+    body,
+    source: intent.kind === "create" ? intent.source : null,
+  });
 
   return { requestId, body, intent, status: "pending", errorCode: null };
 }
@@ -431,7 +436,7 @@ function normalizeSource(input: unknown): TextAnnotationSource {
   if (
     typeof locator.sectionId !== "string"
     || !locator.sectionId.trim()
-    || locator.sectionId.length > 512
+    || locator.sectionId.length > TEXT_ANNOTATION_LIMITS.maxSectionIdLength
   ) {
     throw new Error("INVALID_LOCATOR");
   }
