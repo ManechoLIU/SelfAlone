@@ -4,10 +4,10 @@
 
 ## 1. 当前控制面
 
-- 当前 Goal：`STAGE-READ-NOTES-V1-J / M1-F2-WEREAD ACTIVE`；审查并顺序集成 Desktop clean 候选 `dfb0574`，在 current-main 真实账户闭合 Settings 连接 / 修改、Library 同步书籍 / 封面 / 进度 / 划线想法、失败保留与刷新恢复；默认 no-call，不读取真实 WeRead Key，不改 Server / 共享合同，真实 WeRead H4 仍为独立授权门。Mini `M2-F2` 保持独立旁路，不改变本 Goal 完成条件。
-- 下一可见检查点：`M1-F2-WEREAD@dfb0574` 实际 10 文件 diff 与 provider-neutral / no-call 边界经 root 审查后，合格则顺序进入 main、跑相称回归并做 current-main Chrome Case；`M2-F2@73a0f11` 已 clean 冻结，待 Desktop 单候选集成流释放后另开 root review / 唯一 f312 事件。
+- 当前 Goal：`STAGE-READ-NOTES-V1-J / M1-F2-WEREAD RECOVERING`；Desktop 候选 `dfb0574` 经 root 与非作者实际 diff 审查判 FAIL，原 Writer 只在既有 10 文件范围修复账户隔离、fresh 假连接、本地 / provider 书籍 ID 语义、自动同步常态、空成功快照与 retry idempotency；默认 no-call，不读取真实 WeRead Key，不改 Server / 共享合同，真实 WeRead H4 仍为独立授权门。Mini `M2-F2` 保持独立旁路，不改变本 Goal 完成条件。
+- 下一可见检查点：恢复 Assignment `M1-F2-WEREAD-WEB-REWORK-01` 已取得完整 delivered ACK，原 Writer 从 clean `dfb0574` 先交 fresh disconnected、账户 A/B 隔离、unknown local bookId、不显示常态手动同步、成功空快照与同 requestId 重试 RED，再形成单一 clean candidate。`M2-F2@73a0f11` 已 clean 冻结，保持独立 root review / 唯一 f312 输入。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。当前 API 的 DeepSeek 配置运行时重绑定仅受 macOS Passwords 本人认证阻塞，不影响 no-call WeRead Goal。各门只阻塞依赖包。
-- 规则版本：总控已从真实 `main@dde0373` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。已加载 `adaptive-delivery@0f0feb95698a264e58fb7fa9bae651ec40057315`，installed SKILL / long-task / lifecycle-hook SHA-256 为 `d3b6b8f1…de73` / `54c9771a…d221` / `67d8fe09…67ca`；controller `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 已登记 canonical main / 唯一台账，`hooks.json` 已配置但尚未由 `/hooks` 信任，故继续执行既有人工 `control_event_guard`，不得宣称自动 Hook 生效。本次变化只影响总控，两名已终止 Writer 无需广播。
+- 规则版本：总控已从真实 `main@8d7c61a` 加载当前 AGENTS；SelfAlone 后端 Grok OAuth 项目级路由授权以 `dfd83c7` 为唯一职责源。已加载 `adaptive-delivery@0f0feb95698a264e58fb7fa9bae651ec40057315`，installed SKILL / long-task / lifecycle-hook SHA-256 为 `d3b6b8f1…de73` / `54c9771a…d221` / `67d8fe09…67ca`；controller `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 已登记 canonical main / 唯一台账，`hooks.json` 已配置但尚未由 `/hooks` 信任，故继续执行既有人工 `control_event_guard`，不得宣称自动 Hook 生效。本次变化只影响总控，无需广播无关 Writer。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -35,7 +35,7 @@
 | `M1-F2-D-TEXT-WEB-ENTRY` | `VERIFY / MAIN 1e7763a / SCOPED FINAL` | 768裁切、旧书 workspace 泄露、恢复 scroll 遮挡与200% / DPR2已关闭 | 文件上传、AI / PPTX与父项仍开放；证据 `desktop-reader-native-200-dpr2-464a8f5/08-final-receipt.json` |
 | `M1-F2-E` | `VERIFY / OPEN / SPLIT` / 项目总控 | 业务父闭环：同账户 Web / Mini 共享书籍、位置、划线与笔记；owner / 版本合同已冻结 | E-XEND 依赖真实 F1 会话、M2-F1身份与对应内容能力 |
 | `M1-F2-E-XEND` | `PENDING` / 待分配 | 同账户 Web / Mini 读取同一位置、划线与笔记并失败恢复 | 依赖 E-OWNER、F1、M2-F1、B / C / D；真实 AppID / 身份就绪后验收 |
-| `M1-F2-WEREAD` | `VERIFY / CLEAN CANDIDATE dfb0574 / ROOT REVIEW` / 项目总控 | Desktop Writer 已在约定 10 文件完成 provider-neutral client port、本地 no-call 数据源、Settings / Library 连接修改同步、真实封面路径 / 进度 / 划线想法与失败 / localStorage 恢复；worktree clean、Assignment TERMINAL | Writer 定向 5 文件 43 项、Web 全量 106 文件 705 项、typecheck / build / visual-contract / diff-check PASS；root 现审实际 diff，合格后顺序进 main 并做 current-main Chrome，不把本地 no-call 冒充真实 WeRead H4 |
+| `M1-F2-WEREAD` | `ACTIVE / dfb0574 ROOT+NONAUTHOR FAIL / REWORK ACKED` / `/root/m1_f2_weread_web_writer` | 实际 diff 证实全局 localStorage 跨账户泄露、fresh 用户默认 demo 已连接、local bookId / provider externalId 混用且未知 ID 回退第一本、正常态手动同步违反 SPEC 89/125/126、成功空书架保留陈旧记录、逐书 annotation N+1、设置重复重建；原候选不得合 main | `M1-F2-WEREAD-WEB-REWORK-01` 已在原 clean worktree / 同 10 文件取得完整 ACK并复现7项 RED；恢复动作=最小修复→定向 / 全量 / typecheck / build / visual-contract / diff-check→clean candidate。若 local bookId 缺共享字段则停写上报独立上游合同包，不猜 Server |
 | `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
 | `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
 | `M1-F3A-RUNTIME-REBIND` | `BLOCKED / LOCAL AUTH USER ACTION PENDING` / 项目总控 | 本轮保存失败演练重启 current-main API 后需把本机已保存 DeepSeek Key 重新绑定到新运行时加密主密钥；不新增供应商调用，不改变既有 H4 PASS | 唤醒=机主在 macOS Passwords 系统提示以 Touch ID / 系统密码批准；随后仅安全摄入当前本地配置入口并清空剪贴板，Key 不输出、不落源码 / `.env` / 日志 / 截图 / 台账。当前 Passwords 明确为 locked，不绕过认证 |
