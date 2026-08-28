@@ -5,10 +5,10 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`STAGE-READ-NOTES-V1-I / M1-F3B-D ACTIVE`；同一真实账户从书籍引用进入当前会话，明确要求老己整理后直接新增一篇归属该书的无标题笔记；只有明确引用已有笔记并要求修改时才更新原笔记。用户可查看 / 编辑 / 删除并刷新恢复，发送 / 模型 / 保存失败保留会话、草稿、书籍与引用上下文并可重试；不含 Mini、PDF、PPT、图片、视觉重设计、成本或微信读书真实 H4。
-- 下一可见检查点：`M1-F3B-D` 上游幂等链已顺序进入 `main@70488c8+ee7c837`，root实际diff审查及main定向31项、typecheck、build、diff-check均PASS；下一检查点为重审既有Server候选 `5110ed9` 在新上游上的真实缺口并恢复同一主路径。
+- 下一可见检查点：`M1-F3B-D` 旧Server候选已由root在当前main原样重放为 `fd66f8a`；实际diff审查确认模型前未持久化book/source意图、update未传确定性幂等键，Writer `M1-F3B-D-SERVER-fd66f8a-R1` 已完整ACK并从fresh-store RED恢复，下一检查点为四文件clean rework候选。
 - 当前阻塞：Mini production 仍受 AppID / apiBaseUrl / 域名与非游客 DevTools 门约束；Mini Drawer clean-console 与软件键盘只受外部 H3 约束；Desktop Auth 专用背景 / Logo seal未绑定；真实 PDF 页面能力受生产依赖 / 许可证授权门约束。各门只阻塞依赖包。
 - 规则版本：总控已从真实 `main@b5c371c` 加载当前 AGENTS；canonical远端基线仍为 `adaptive-delivery@6e3eb0ed94b4076fec31ef790051b13ed401892f`，当前installed副本含本机routing扩展 `68f6dbd`，SKILL SHA-256 `ba04cb073998a60e8779efb79e6a2b7ac58f9798d9b46b3405ba602374ccee80`、long-task SHA-256 `1f0e5a33f45fbf0746a6177957fe8c5fd48ee3f635869c5672a8943a10321633`、lint SHA-256 `5d6b0f91…69c4`、event / assignment / ledger guards SHA-256 `2c22449c…f84d` / `fab76b9f…f74e` / `293fd917…118a`；routing扩展不改变当前已ACK Writer scope / stop，未作无关广播。
-- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为1/4、可用3；新建 `luna_worker` 仍受本会话root推理档高于Luna运行上限约束，不静默覆盖模型 / 推理配置。活动状态与owner仅以下方任务表为权威。
+- 容量 / READY：`/Users/echoman/.codex/config.toml` 配置上限为8，当前collaboration运行时实际硬上限为4个总槽（含root），现为3/4、可用1；新建 `luna_worker` 仍受本会话root推理档高于Luna运行上限约束，不静默覆盖模型 / 推理配置。活动状态与owner仅以下方任务表为权威。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
 
@@ -45,7 +45,7 @@
 | `M1-F3B-C` | `VERIFY / MAIN c858a06 / MAIN CHROME PASS / PARENT OPEN` | 简单选择、显式确认、历史只读、stale / failure恢复已通过 | 真实AI问题生成仍未覆盖；证据 `main-selection-focus-c858a06/FINAL-RECEIPT.json` |
 | `M1-F3B-C-R2A` | `VERIFY / MAIN 30e0423+6e21cad / CODE PASS` | mutation丢响应、重试、multi / free、stale fencing 已进main | 只作父包底层证据，不单独代表用户闭环 |
 | `M1-F3B-C-R2B` | `VERIFY / MAIN a08fbbc / CODE PASS` | assistant message 绑定、API / DB状态已进main | 只作父包底层证据，不单独代表共享 UI |
-| `M1-F3B-D` | `RECOVERING / UPSTREAM MAIN ee7c837 PASS / SERVER 5110ed9 REVIEW` / 项目总控 | 幂等链 `70488c8+ee7c837` 已顺序进main：账户作用域、失败迟到正文拒绝、删除后重放不复活；main定向4文件31项、typecheck / build / diff-check绿 | root立即重审既有Server候选 `5110ed9` 的实际diff与新上游关系；合格则恢复Server纵切，缺口明确则限定文件返原Writer，不把上游局部PASS冒充父闭环完成 |
+| `M1-F3B-D` | `ACTIVE / M1-F3B-D-SERVER-fd66f8a-R1` / `/root/cost_candidate_reviewer_2` | 上游 `70488c8+ee7c837` main PASS；旧Server六文件候选已重放为 `fd66f8a`，root审查FAIL为模型前未持久化book/source/null-body意图及update未传确定性幂等键 | 四个Server文件、fresh-store与update replay RED、规则hash及停止条件已完整ACK；冻结clean rework后root审diff、顺序进main，再继续Web/current-main真实Case |
 | `M1-F3B-V1` | `PENDING` / 待分配 | 两会话边界下完成文字 / 图片、停止恢复、选择与笔记整理 | 依赖 A～D；真实模型或明确 fake 边界、DB、视觉 |
 | `M1-F4` | `PENDING` / 项目总控 | 会话 / PPT 业务闭环的共享免费体验与成本子包，不单独作为用户阶段 | A已完成；B / C / V1仍开放 |
 | `M1-F4-B` | `RECOVERING / CANDIDATE f53c930 NONAUTHOR FAIL` / 项目总控 | 两个cost-ledger migration文件的并发 / 回滚局部证据保留；FAIL为运行期可直接插入终态reservation且audit反序历史未被拒绝，`f53c930` 不得合main | recovery动作：root先审清已到的Mini / WeRead候选并释放一个既有Agent lease，再复用该Agent在原 `quota-cost` 两文件边界补RED与最小修复；检查点为新ACK，不以当前Goal或旧4/4为理由等待 |
@@ -81,8 +81,8 @@
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY PROD H3` | 阅读与笔记业务父闭环的 Mini 子包：统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实服务仍依赖M2-F1与production环境；不返工已通过Reader |
 | `M2-F4-A` | `VERIFY / F312 4cdce97 / MAIN d2bf9a0 / SCOPED PASS / PROD H3` / 项目总控 | candidate `cda7b4d` 已补真实 `onSearch→listBooks(query)`、失败保留与stale fencing；root审累计diff，唯一f312定向30、Mini194及 main 定向30、Mini177、两处typecheck/build/diff-check全绿；DevTools development态真实从3书筛至1书 | production hydrate / 失败恢复仍由 Bearer / apiBaseUrl / AppID / 域名H3验证，不冒充真实服务PASS；已合候选 worktree 同事件回收 |
-| `M2-F4-B` | `VERIFY / CANDIDATE 6f7cc87 / UPSTREAM CANDIDATE 38aa297` / 项目总控 | root审Mini两文件diff与定向22项PASS；生产位置保存原受Server UTF-16单位缺口阻塞，现上游两文件candidate已冻结 | 集成队列先闭合当前Goal的 `M1-F3B-D` Server恢复；随后root审 `38aa297` 并顺序进main，再重审6f7cc87及唯一f312；AppID / GUI / 域名不阻塞代码集成 |
-| `SHARED-TEXT-LOCATOR-UTF16` | `VERIFY / CANDIDATE 38aa297 / ROOT REVIEW READY` / 项目总控 | clean两文件候选以真实emoji PUT+DB RED锁定offset=4原返回400，改由JavaScript `String.length`按UTF-16校验；Writer现有text-reader 7项、Server typecheck、diff-check绿 | root审实际diff与查询成本 / owner语义；PASS后顺序进main并跑main回归，同事件释放 `M2-F4-B` 与clean worktree |
+| `M2-F4-B` | `VERIFY / CANDIDATE 6f7cc87 / UPSTREAM RECOVERING` / 项目总控 | root审Mini两文件diff与定向22项PASS；生产位置保存原受Server UTF-16单位缺口阻塞，首个上游candidate又因整章正文回传的查询 / 内存回归被拒 | `SHARED-TEXT-LOCATOR-UTF16` main PASS后重审6f7cc87及顺序集成 / 唯一f312；AppID / GUI / 域名不阻塞代码集成 |
+| `SHARED-TEXT-LOCATOR-UTF16` | `ACTIVE / SHARED-TEXT-LOCATOR-UTF16-R1 REWORK` / `/root/mini_reader_adapter_writer` | `38aa297` emoji PUT+DB单位修复证据保留；root实际diff FAIL为每次保存 `SELECT body` 把整章正文拉回Node，造成不必要查询 / 内存回归 | 同两文件恢复ACK已闭合；用现有SQL `char_length + regexp_count(non-BMP)` 只返回UTF-16 length并保留emoji回归，冻结clean rework后root审查 |
 | `M2-F5` | `PENDING` / 待分配 | 账户、模型与退出的Mini端闭环 | 微信读书消费已归 `M2-F2`；其余依赖M2-F1～F3，高风险流程按场景细拆 |
 | `M2-F6` | `VERIFY / DRAFT HANDOFF F312 SELF PASS / FULL FLOW OPEN` | 书籍→当前会话draft/context已进入唯一f312 | 完整AI / 大纲 / 模板 / PPTX依赖M2-F3、F4、M1-F5与下载域名 |
 | `M2-F6-MINI-PPT-DRAFT-HANDOFF` | `VERIFY / F312 cf6a8c5 / SELF PASS` | 携带bookId / 书名，可编辑预填；发送前不auto-send / sheet / task；失败保留草稿与上下文 | 非作者最终门与完整PPT流仍开放；证据 `mini-ppt-f312-self-cf6a8c5/` |
