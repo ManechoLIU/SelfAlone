@@ -85,7 +85,7 @@ import { createTextReaderApi, mountTextReader } from "./text-reader";
 import {
   chooseConversationForTextReaderHandoff,
   formatTextReaderChatDraft,
-  textReaderChatHandoffStore,
+  getTextReaderChatHandoffStore,
   type TextReaderChatHandoff,
 } from "./text-reader-chat-handoff";
 import { renderDesktopAppShell, renderDesktopRail } from "./ui/desktop-shell";
@@ -235,6 +235,10 @@ function isLegacyConversationRoute() {
 
 function isAuthRoute() {
   return window.location.hash.startsWith("#/auth");
+}
+
+function currentTextReaderChatHandoffStore() {
+  return getTextReaderChatHandoffStore(authState.account?.id);
 }
 
 function isSettingsRoute() {
@@ -1114,10 +1118,11 @@ function renderConversationChatError() {
 }
 
 function renderConversationChat(session: ConversationChatSession) {
-  const pendingHandoff = textReaderChatHandoffStore.peek();
-  const activeHandoff = textReaderChatHandoffStore.active();
-  const claimedHandoff = pendingHandoff
-    ? textReaderChatHandoffStore.claim(session.id, formatTextReaderChatDraft(pendingHandoff))
+  const handoffStore = currentTextReaderChatHandoffStore();
+  const pendingHandoff = handoffStore?.peek() ?? null;
+  const activeHandoff = handoffStore?.active() ?? null;
+  const claimedHandoff = handoffStore && pendingHandoff
+    ? handoffStore.claim(session.id, formatTextReaderChatDraft(pendingHandoff))
     : activeHandoff?.conversationId === session.id
       ? activeHandoff
       : null;
@@ -1153,11 +1158,18 @@ function renderConversationChat(session: ConversationChatSession) {
     conversationId: session.id,
     client: conversationChatClient,
     initialDraft,
-    onDraftChange: claimedHandoff
-      ? (draft) => { textReaderChatHandoffStore.updateDraft(session.id, draft); }
+    onDraftChange: claimedHandoff && handoffStore
+      ? (draft) => { handoffStore.updateDraft(session.id, draft); }
       : undefined,
-    onDraftCommit: claimedHandoff
-      ? () => { textReaderChatHandoffStore.complete(session.id); }
+    onDraftCommit: claimedHandoff && handoffStore
+      ? (sentText) => {
+          const handoffDraft = formatTextReaderChatDraft(claimedHandoff.handoff);
+          if (sentText === handoffDraft) {
+            handoffStore.complete(session.id);
+            return undefined;
+          }
+          return handoffStore.draftFor(session.id) ?? claimedHandoff.draft;
+        }
       : undefined,
   });
   conversationChatCleanup = mountConversationChatView(mainMount, null, controller, {
@@ -1316,8 +1328,9 @@ async function loadConversationChat(navigationId: number) {
   try {
     conversationChatDirectoryViewState = { loading: true };
     const sessions = await conversationChatClient.listSessions({ query: conversationChatSearchQuery });
-    const pendingHandoff = textReaderChatHandoffStore.peek();
-    const activeHandoff = textReaderChatHandoffStore.active();
+    const handoffStore = currentTextReaderChatHandoffStore();
+    const pendingHandoff = handoffStore?.peek() ?? null;
+    const activeHandoff = handoffStore?.active() ?? null;
     const selected = pendingHandoff || activeHandoff
       ? chooseConversationForTextReaderHandoff(
         sessions,
@@ -2176,8 +2189,9 @@ function destroyTextReader() {
   activeTextReader = null;
 }
 
-function handleTextReaderChatHandoff(handoff: TextReaderChatHandoff) {
-  if (!textReaderChatHandoffStore.publish(handoff)) return;
+function handleTextReaderChatHandoff(accountId: string, handoff: TextReaderChatHandoff) {
+  const handoffStore = getTextReaderChatHandoffStore(accountId);
+  if (!handoffStore?.publish(handoff)) return;
   window.history.pushState(null, "", "#/conversation");
   scheduleRouteRender();
 }
@@ -2185,6 +2199,10 @@ function handleTextReaderChatHandoff(handoff: TextReaderChatHandoff) {
 async function openTextReader(bookId: string, navigationId: number, initialDetailOpen = false) {
   app.innerHTML = `<main class="loading-state" aria-live="polite"><p>正在打开正文…</p></main>`;
   const api = createTextReaderApi(bookId);
+  const handoffAccountId = authState.account?.id?.trim() ?? "";
+  const onChatHandoff = handoffAccountId
+    ? (handoff: TextReaderChatHandoff) => handleTextReaderChatHandoff(handoffAccountId, handoff)
+    : undefined;
   const isCurrentBookRoute = () => (
     readingBookIdFromHash(window.location.hash) === bookId
     || bookDetailIdFromHash(window.location.hash) === bookId
@@ -2209,7 +2227,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
       accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
-      onChatHandoff: handleTextReaderChatHandoff,
+      onChatHandoff,
       cacheScope: {
         accountId: authState.account?.id ?? "account-development-local",
         bookId,
@@ -2224,7 +2242,7 @@ async function openTextReader(bookId: string, navigationId: number, initialDetai
       accountId: authState.account?.id ?? "account-development-local",
       initialDetailOpen,
       onDetailClose,
-      onChatHandoff: handleTextReaderChatHandoff,
+      onChatHandoff,
     });
   }
 }

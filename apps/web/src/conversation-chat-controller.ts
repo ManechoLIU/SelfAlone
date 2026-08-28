@@ -23,7 +23,7 @@ export type ConversationChatControllerOptions = {
   requestIdFactory?: () => string;
   initialDraft?: string;
   onDraftChange?: (draft: string) => void;
-  onDraftCommit?: () => void;
+  onDraftCommit?: (sentText: string) => string | undefined;
 };
 
 export type ConversationChatStateListener = (state: ConversationChatState) => void;
@@ -86,7 +86,6 @@ export function createConversationChatController(
         const serverDraft = session.draft?.text;
         if (typeof serverDraft === "string" && serverDraft.length > 0) {
           initialDraftPending = false;
-          if (serverDraft !== initialDraft) options.onDraftChange?.(serverDraft);
         } else if (initialDraftPending && state.draft === initialDraft && state.revision === null) {
           nextState = updateConversationDraft(nextState, initialDraft);
           initialDraftPending = false;
@@ -122,8 +121,10 @@ export function createConversationChatController(
         localEpoch += 1;
         const nextState = applyConversationSendResult(state, result);
         publish(nextState);
-        if (result.status === "completed") options.onDraftCommit?.();
-        else options.onDraftChange?.(nextState.draft);
+        if (result.status === "completed") {
+          const restoredDraft = options.onDraftCommit?.(text);
+          if (restoredDraft !== undefined) publish(updateConversationDraft(nextState, restoredDraft));
+        }
         return result;
       } catch (error) {
         localEpoch += 1;

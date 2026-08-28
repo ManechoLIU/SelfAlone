@@ -11,17 +11,24 @@ export type TextReaderChatHandoffStorage = Pick<Storage, "getItem" | "setItem" |
 
 export const TEXT_READER_CHAT_HANDOFF_STORAGE_KEY = "selfalone:m1:text-reader-chat-handoff";
 
+export function textReaderChatHandoffStorageKey(accountId: string) {
+  return `${TEXT_READER_CHAT_HANDOFF_STORAGE_KEY}:${encodeURIComponent(accountId.trim())}`;
+}
+
 export type TextReaderChatHandoffDraft = {
+  handoff: TextReaderChatHandoff;
   conversationId: string;
   draft: string;
 };
 
 type PersistedHandoff =
   | {
+    accountId: string;
     status: "pending" | "consumed";
     handoff: TextReaderChatHandoff;
   }
   | {
+    accountId: string;
     status: "claimed";
     handoff: TextReaderChatHandoff;
     conversationId: string;
@@ -49,10 +56,10 @@ function isHandoff(value: unknown): value is TextReaderChatHandoff {
     && (candidate.author === null || typeof candidate.author === "string");
 }
 
-function isPersistedHandoff(value: unknown): value is PersistedHandoff {
+function isPersistedHandoff(value: unknown, accountId: string): value is PersistedHandoff {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<PersistedHandoff>;
-  if (!isHandoff(candidate.handoff)) return false;
+  if (candidate.accountId !== accountId || !isHandoff(candidate.handoff)) return false;
   if (candidate.status === "pending" || candidate.status === "consumed") return true;
   return candidate.status === "claimed"
     && typeof candidate.conversationId === "string"
@@ -83,17 +90,21 @@ export function chooseConversationForTextReaderHandoff(
 }
 
 export function createTextReaderChatHandoffStore(
+  accountId: string,
   storage: TextReaderChatHandoffStorage | null = defaultStorage(),
 ) {
+  const normalizedAccountId = accountId.trim();
+  const storageKey = textReaderChatHandoffStorageKey(normalizedAccountId);
   let memory: PersistedHandoff | null = null;
 
   const read = () => {
+    if (!normalizedAccountId) return null;
     if (!storage) return memory;
     try {
-      const raw = storage.getItem(TEXT_READER_CHAT_HANDOFF_STORAGE_KEY);
+      const raw = storage.getItem(storageKey);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as unknown;
-      return isPersistedHandoff(parsed) ? parsed : null;
+      return isPersistedHandoff(parsed, normalizedAccountId) ? parsed : null;
     } catch {
       return memory;
     }
@@ -101,10 +112,10 @@ export function createTextReaderChatHandoffStore(
 
   const write = (record: PersistedHandoff | null) => {
     memory = record;
-    if (!storage) return;
+    if (!storage || !normalizedAccountId) return;
     try {
-      if (record) storage.setItem(TEXT_READER_CHAT_HANDOFF_STORAGE_KEY, JSON.stringify(record));
-      else storage.removeItem(TEXT_READER_CHAT_HANDOFF_STORAGE_KEY);
+      if (record) storage.setItem(storageKey, JSON.stringify(record));
+      else storage.removeItem(storageKey);
     } catch {
       // Session storage is optional; memory still carries the current route handoff.
     }
@@ -112,8 +123,12 @@ export function createTextReaderChatHandoffStore(
 
   return {
     publish(handoff: TextReaderChatHandoff) {
-      if (!isHandoff(handoff)) return false;
-      write({ status: "pending", handoff: { ...handoff, author: handoff.author?.trim() || null } });
+      if (!normalizedAccountId || !isHandoff(handoff)) return false;
+      write({
+        accountId: normalizedAccountId,
+        status: "pending",
+        handoff: { ...handoff, author: handoff.author?.trim() || null },
+      });
       return true;
     },
 
@@ -128,19 +143,20 @@ export function createTextReaderChatHandoffStore(
       const record = read();
       if (!record || record.status !== "pending") return null;
       const claimed = {
+        accountId: normalizedAccountId,
         status: "claimed" as const,
         handoff: record.handoff,
         conversationId: normalizedConversationId,
         draft,
       };
       write(claimed);
-      return { conversationId: normalizedConversationId, draft };
+      return { handoff: record.handoff, conversationId: normalizedConversationId, draft };
     },
 
     active(): TextReaderChatHandoffDraft | null {
       const record = read();
       return record?.status === "claimed"
-        ? { conversationId: record.conversationId, draft: record.draft }
+        ? { handoff: record.handoff, conversationId: record.conversationId, draft: record.draft }
         : null;
     },
 
@@ -178,4 +194,15 @@ export function createTextReaderChatHandoffStore(
   };
 }
 
-export const textReaderChatHandoffStore = createTextReaderChatHandoffStore();
+type TextReaderChatHandoffStore = ReturnType<typeof createTextReaderChatHandoffStore>;
+const accountStores = new Map<string, TextReaderChatHandoffStore>();
+
+export function getTextReaderChatHandoffStore(accountId: string | null | undefined) {
+  const normalizedAccountId = accountId?.trim() ?? "";
+  if (!normalizedAccountId) return null;
+  const existing = accountStores.get(normalizedAccountId);
+  if (existing) return existing;
+  const store = createTextReaderChatHandoffStore(normalizedAccountId);
+  accountStores.set(normalizedAccountId, store);
+  return store;
+}

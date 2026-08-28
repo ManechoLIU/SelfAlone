@@ -28,6 +28,26 @@ function session(id: string): ConversationChatSession {
   };
 }
 
+function sessionWithRetry(draft: string): ConversationChatSession {
+  return {
+    ...session("conversation-a"),
+    revision: 4,
+    draft: { text: draft, attachments: [] },
+    context: [{ id: "request-failed:user", role: "user", text: draft, requestId: "request-failed" }],
+  };
+}
+
+function sessionWithRetryResult(draft: string, requestId: string): ConversationChatSession {
+  return {
+    ...session("conversation-a"),
+    revision: 5,
+    context: [
+      { id: `${requestId}:user`, role: "user", text: draft, requestId },
+      { id: `${requestId}:assistant`, role: "assistant", text: "已收到。", requestId },
+    ],
+  };
+}
+
 function storage() {
   const values = new Map<string, string>();
   return {
@@ -58,33 +78,33 @@ describe("text reader chat handoff", () => {
 
   it("consumes a handoff once and does not prefill it again after a storage reload", () => {
     const persisted = storage();
-    const first = createTextReaderChatHandoffStore(persisted);
+    const first = createTextReaderChatHandoffStore("account-a", persisted);
     first.publish(handoff);
 
     expect(first.peek()).toEqual(handoff);
     expect(first.consume()).toEqual(handoff);
     expect(first.peek()).toBeNull();
 
-    const refreshed = createTextReaderChatHandoffStore(persisted);
+    const refreshed = createTextReaderChatHandoffStore("account-a", persisted);
     expect(refreshed.peek()).toBeNull();
   });
 
   it("recovers a claimed unsubmitted draft after a fresh store, then clears it after a successful send", async () => {
     const persisted = storage();
-    const first = createTextReaderChatHandoffStore(persisted);
+    const first = createTextReaderChatHandoffStore("account-a", persisted);
     const draft = formatTextReaderChatDraft(handoff);
     first.publish(handoff);
 
-    expect(first.claim("conversation-a", draft)).toEqual({ conversationId: "conversation-a", draft });
+    expect(first.claim("conversation-a", draft)).toMatchObject({ conversationId: "conversation-a", draft, handoff });
 
-    const refreshed = createTextReaderChatHandoffStore(persisted);
+    const refreshed = createTextReaderChatHandoffStore("account-a", persisted);
     expect(refreshed.draftFor("conversation-a")).toBe(draft);
 
     const controller = createConversationChatController({
       conversationId: "conversation-a",
       initialDraft: refreshed.draftFor("conversation-a") ?? undefined,
       onDraftChange: (nextDraft) => refreshed.updateDraft("conversation-a", nextDraft),
-      onDraftCommit: () => refreshed.complete("conversation-a"),
+      onDraftCommit: () => { refreshed.complete("conversation-a"); },
       client: {
         async getSession(): Promise<ConversationChatSession> {
           return session("conversation-a");
@@ -104,8 +124,81 @@ describe("text reader chat handoff", () => {
     expect(controller.getState().messages).toHaveLength(0);
     await controller.send();
 
-    const afterSend = createTextReaderChatHandoffStore(persisted);
+    const afterSend = createTextReaderChatHandoffStore("account-a", persisted);
     expect(afterSend.draftFor("conversation-a")).toBeNull();
+  });
+
+  it("keeps the Reader handoff when a server retry draft is hydrated and sent", async () => {
+    const persisted = storage();
+    const first = createTextReaderChatHandoffStore("account-a", persisted);
+    const handoffDraft = formatTextReaderChatDraft(handoff);
+    const serverDraft = "发送失败后保留的原文";
+    first.publish(handoff);
+    first.claim("conversation-a", handoffDraft);
+
+    const refreshed = createTextReaderChatHandoffStore("account-a", persisted);
+    const requests: string[] = [];
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      initialDraft: refreshed.draftFor("conversation-a") ?? undefined,
+      onDraftChange: (nextDraft) => { refreshed.updateDraft("conversation-a", nextDraft); },
+      onDraftCommit: (sentText?: string) => {
+        if (sentText === handoffDraft) {
+          refreshed.complete("conversation-a");
+          return undefined;
+        }
+        refreshed.updateDraft("conversation-a", handoffDraft);
+        return refreshed.draftFor("conversation-a") ?? handoffDraft;
+      },
+      client: {
+        async getSession(): Promise<ConversationChatSession> {
+          return sessionWithRetry(serverDraft);
+        },
+        async sendText(_conversationId: string, input: { requestId?: string; text: string }): Promise<ConversationChatSendResult> {
+          requests.push(`${input.requestId}:${input.text}`);
+          return {
+            status: "completed",
+            session: sessionWithRetryResult(serverDraft, input.requestId ?? "request-failed"),
+            reply: "已收到。",
+          };
+        },
+      },
+    });
+
+    await controller.hydrate();
+
+    expect(controller.getState()).toMatchObject({
+      draft: serverDraft,
+      retryRequestId: "request-failed",
+      retryText: serverDraft,
+      status: "idle",
+    });
+    expect(refreshed.draftFor("conversation-a")).toBe(handoffDraft);
+
+    await controller.send();
+
+    expect(requests).toEqual(["request-failed:发送失败后保留的原文"]);
+    expect(controller.getState()).toMatchObject({
+      draft: handoffDraft,
+      status: "idle",
+    });
+    expect(controller.getState().messages).toHaveLength(2);
+    expect(refreshed.draftFor("conversation-a")).toBe(handoffDraft);
+  });
+
+  it("does not expose an unsubmitted account A handoff to account B", () => {
+    const persisted = storage();
+    const accountA = createTextReaderChatHandoffStore("account-a", persisted);
+    const accountB = createTextReaderChatHandoffStore("account-b", persisted);
+
+    accountA.publish(handoff);
+
+    expect(accountB.peek()).toBeNull();
+    expect(accountB.claim("conversation-b", formatTextReaderChatDraft(handoff))).toBeNull();
+    expect(accountB.updateDraft("conversation-a", "账户 B 不应覆盖")).toBe(false);
+    expect(accountB.complete("conversation-a")).toBe(false);
+    expect(accountA.peek()).toEqual(handoff);
+    expect(createTextReaderChatHandoffStore("account-a", persisted).peek()).toEqual(handoff);
   });
 
   it("keeps an initial handoff draft when conversation hydration fails without auto-sending", async () => {
