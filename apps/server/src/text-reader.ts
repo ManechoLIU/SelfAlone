@@ -262,14 +262,14 @@ export class TextReaderRuntime {
       `;
       if (!file) throw new Error("BOOK_NOT_FOUND");
       if (file.fileVersion !== parsed.locator.fileVersion) throw new Error("STALE_VERSION");
-      const [section] = await transaction<Array<{ length: number }>>`
-        SELECT char_length(body)::integer AS length
+      const [section] = await transaction<Array<{ body: string }>>`
+        SELECT body
         FROM book_sections
         WHERE account_id = ${accountId} AND book_id = ${bookId}
           AND file_version = ${parsed.locator.fileVersion}
           AND section_id = ${parsed.locator.sectionId}
       `;
-      if (!section || parsed.locator.offset > section.length) throw new Error("INVALID_LOCATOR");
+      if (!section || parsed.locator.offset > section.body.length) throw new Error("INVALID_LOCATOR");
       const [existing] = await transaction<Array<PositionRow>>`
         SELECT locator, background, version
         FROM reading_positions

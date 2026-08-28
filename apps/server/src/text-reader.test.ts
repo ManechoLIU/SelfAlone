@@ -211,6 +211,43 @@ describe("M1-F2-B text reader runtime and routes", () => {
     });
   });
 
+  it("accepts a JavaScript UTF-16 offset after an emoji and persists it", async () => {
+    const setup = await setupSingleBook(runtimes, databases, objectDirectories);
+    const app = createApp({ readiness: () => setup.runtime.ready() });
+    registerTextReaderRoutes(app, setup.runtime);
+    apps.push(app);
+
+    await setup.administration.unsafe(`
+      UPDATE "${setup.schema}".book_sections
+      SET body = '😀之后'
+      WHERE account_id = 'account-a' AND book_id = 'txt-book' AND file_version = 1
+    `);
+    const utf16Offset = "😀之后".length;
+
+    const saved = await app.inject({
+      method: "PUT",
+      url: "/api/v1/books/txt-book/position",
+      headers: { "x-selfalone-account": "account-a", "content-type": "application/json" },
+      payload: {
+        expectedVersion: 0,
+        locator: { kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: utf16Offset },
+        background: "light",
+      },
+    });
+    expect(saved.statusCode).toBe(200);
+    expect(saved.json()).toMatchObject({
+      version: 1,
+      locator: { kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: utf16Offset },
+    });
+
+    const [stored] = await setup.administration.unsafe<Array<{ locator: { offset: number } }>>(`
+      SELECT locator
+      FROM "${setup.schema}".reading_positions
+      WHERE account_id = 'account-a' AND book_id = 'txt-book'
+    `);
+    expect(stored?.locator).toEqual({ kind: "text", fileVersion: 1, sectionId: "txt:00000000", offset: utf16Offset });
+  });
+
   it("rejects an old file version and preserves the latest saved position", async () => {
     const setup = await setupSingleBook(runtimes, databases, objectDirectories);
     const app = createApp({ readiness: () => setup.runtime.ready() });
