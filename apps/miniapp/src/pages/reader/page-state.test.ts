@@ -467,6 +467,7 @@ describe("reader page state", () => {
     expect(readerWxml).toContain('class="content-tabs content-tabs--segmented" role="tablist"');
     expect(readerWxml).toContain('role="tab" aria-selected="{{contentTab === \'notes\'}}"');
     expect(readerWxml).toContain('class="content-viewport"');
+    expect(readerWxml).toContain('scroll-into-view="{{contentScrollIntoView}}"');
     expect(readerWxml).toContain('class="content-notes-toolbar"');
     expect(readerWxml).toContain('bindtap="openNoteComposer"');
     expect(readerWxml).toContain('wx:if="{{noteEditorState !== \'closed\'}}" class="note-editor-layer note-editor-layer--{{noteEditorState}}"');
@@ -480,6 +481,7 @@ describe("reader page state", () => {
     expect(readerWxml).toContain('wx:if="{{item.quote}}"');
     expect(readerWxml).toContain('class="note-more"');
     expect(readerWxml).toContain('class="note-row-error" role="alert"');
+    expect(readerWxml).toContain('id="note-error-{{item.id}}"');
     expect(readerWxml).toContain('bindtap="retryDeleteNote"');
     expect(readerWxml).not.toContain('noteDeleteError}}' + '</view><button');
     expect(readerWxml).toContain('class="sheet-handle__bar"');
@@ -533,6 +535,7 @@ describe("reader page state", () => {
       noteActionId: note.id,
     });
     expect(page.data.noteDeleteError).toContain("删除暂时失败");
+    expect(page.data.contentScrollIntoView).toBe("note-error-note-delete-failure");
     expect(page.data.detail.notes).toEqual([{ id: note.id, body: note.body, meta: "读书笔记" }]);
 
     annotationsClient.deleteNote.mockResolvedValueOnce({ status: "deleted", id: note.id });
@@ -540,6 +543,29 @@ describe("reader page state", () => {
     expect(page.data.noteDeleteError).toBe("");
     expect(page.data.noteActionId).toBe("");
     expect(page.data.detail.notes).toEqual([]);
+  });
+
+  it("reveals an unavailable delete failure at the same note row", async () => {
+    const page = createReaderPage();
+    const detail = readerDetailWithBackground("light");
+    const noteId = "note-unavailable-delete";
+    page.data = {
+      ...page.data,
+      developmentAdapter: true,
+      detail: { ...detail, notes: [{ id: noteId, body: "仍保留的笔记", meta: "读书笔记" }] },
+      noteHydrationState: "ready",
+    };
+    page.noteRecords = new Map();
+
+    page.openNoteActions({ currentTarget: { dataset: { noteId } } });
+    await page.deleteNote({ currentTarget: { dataset: { noteId } } });
+
+    expect(page.data).toMatchObject({
+      noteActionId: noteId,
+      noteDeleteError: "笔记删除暂不可用，内容已保留；请稍后重试。",
+      contentScrollIntoView: `note-error-${noteId}`,
+    });
+    expect(page.data.detail.notes).toEqual([{ id: noteId, body: "仍保留的笔记", meta: "读书笔记" }]);
   });
 
   it("keeps the note draft through API save failure, retry, close and reopen", async () => {

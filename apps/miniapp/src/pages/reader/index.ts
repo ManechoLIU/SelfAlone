@@ -72,6 +72,7 @@ type ReaderData = {
   sheetStyle: string;
   contentTab: "highlights" | "notes" | "ppt";
   contentScrollTops: Record<ReaderContentTab, number>;
+  contentScrollIntoView: string;
   contentDrafts: Record<ReaderContentTab, string>;
   noteEditorState: ReaderNoteEditorState;
   noteEditorMode: ReaderNoteEditorMode;
@@ -228,6 +229,7 @@ Page<ReaderData>({
     sheetStyle: "",
     contentTab: "highlights",
     contentScrollTops: initialContentContext.scrollTop,
+    contentScrollIntoView: "",
     contentDrafts: initialContentContext.drafts,
     noteEditorState: "closed",
     noteEditorMode: "create",
@@ -320,7 +322,7 @@ Page<ReaderData>({
     const requestRevision = this.readerStateRevision ?? 0;
     const existingDetail = this.data.detail;
     const retryContext = this.data.failureContext;
-    const resetNoteActions = { noteSaving: false, noteDeletingId: "", noteActionId: "", noteDeleteError: "" };
+    const resetNoteActions = { noteSaving: false, noteDeletingId: "", noteActionId: "", noteDeleteError: "", contentScrollIntoView: "" };
     if (options?.preserveShell && existingDetail) this.setData({ error: "", ...resetNoteActions });
     else this.setData({ phase: "loading", error: "", retrying: false, failureContext: null, ...resetNoteActions });
     let recoveryDetail = existingDetail;
@@ -590,6 +592,7 @@ Page<ReaderData>({
       controlsVisible: true,
       contentTab: next.activeTab,
       contentScrollTops: next.scrollTop,
+      contentScrollIntoView: "",
       contentDrafts: next.drafts,
     });
   },
@@ -687,6 +690,12 @@ Page<ReaderData>({
       contentDrafts: next.drafts,
       noteEditorState: this.data.noteEditorState === "failed" ? "editing" : this.data.noteEditorState,
       noteSaveError: "",
+    });
+  },
+  focusNoteError(noteId: string) {
+    const target = `note-error-${noteId}`;
+    this.setData({ contentScrollIntoView: "" }, () => {
+      if (!this.isUnloaded) this.setData({ contentScrollIntoView: target });
     });
   },
   openNoteComposer() {
@@ -811,6 +820,7 @@ Page<ReaderData>({
     this.setData({
       noteActionId: this.data.noteActionId === noteId ? "" : noteId,
       noteDeleteError: "",
+      contentScrollIntoView: "",
     });
   },
   async deleteNote(event: MiniappEvent) {
@@ -820,13 +830,13 @@ Page<ReaderData>({
     const note = this.noteRecords instanceof Map ? this.noteRecords.get(noteId) : undefined;
     const annotationsClient: AnnotationsApiClient | undefined = getApp<MiniappApp>().globalData.annotationsClient;
     if (!detail || !note || !annotationsClient) {
-      this.setData({ noteActionId: noteId, noteDeleteError: "笔记删除暂不可用，内容已保留；请稍后重试。" });
+      this.setData({ noteActionId: noteId, noteDeleteError: "笔记删除暂不可用，内容已保留；请稍后重试。" }, () => this.focusNoteError(noteId));
       return;
     }
 
     const mutationRequestId = (this.noteMutationRequestId ?? 0) + 1;
     this.noteMutationRequestId = mutationRequestId;
-    this.setData({ noteDeletingId: noteId, noteActionId: noteId, noteDeleteError: "" });
+    this.setData({ noteDeletingId: noteId, noteActionId: noteId, noteDeleteError: "", contentScrollIntoView: "" });
     try {
       const result: NoteDeleteResult = await annotationsClient.deleteNote(detail.book.id, noteId, {
         expectedVersion: note.version,
@@ -836,17 +846,17 @@ Page<ReaderData>({
         this.setData({
           noteDeleteError: noteFailedResultMessage("删除"),
           noteActionId: noteId,
-        });
+        }, () => this.focusNoteError(noteId));
         return;
       }
       this.removeNote(noteId);
-      this.setData({ noteActionId: "", noteDeleteError: "" });
+      this.setData({ noteActionId: "", noteDeleteError: "", contentScrollIntoView: "" });
     } catch (error) {
       if (isNoteConflict(error)) {
         await this.hydrateNotes(detail, this.readerLoadRequestId ?? 0);
       }
       if (this.isUnloaded || mutationRequestId !== this.noteMutationRequestId) return;
-      this.setData({ noteDeleteError: noteErrorForDisplay(error, "删除"), noteActionId: noteId });
+      this.setData({ noteDeleteError: noteErrorForDisplay(error, "删除"), noteActionId: noteId }, () => this.focusNoteError(noteId));
     } finally {
       if (!this.isUnloaded && mutationRequestId === this.noteMutationRequestId) {
         this.setData({ noteDeletingId: "" });
