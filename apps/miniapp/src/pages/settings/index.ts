@@ -13,6 +13,8 @@ type SettingsData = {
   wereadSyncLabel: string;
   wereadApiKey: string;
   wereadEditorOpen: boolean;
+  wereadShowApiKey: boolean;
+  wereadSaving: boolean;
   wereadError: string;
 };
 
@@ -34,6 +36,8 @@ Page<SettingsData>({
     wereadSyncLabel: "未连接",
     wereadApiKey: "",
     wereadEditorOpen: false,
+    wereadShowApiKey: false,
+    wereadSaving: false,
     wereadError: "",
   },
   onLoad(options?: { service?: string }) {
@@ -122,14 +126,17 @@ Page<SettingsData>({
     this.wereadSaveRequestId = undefined;
     this.wereadSaveExpectedRevision = undefined;
     this.wereadSaveInFlight = undefined;
-    this.setData({ wereadEditorOpen: true, wereadApiKey: "", wereadError: "" });
+    this.setData({ wereadEditorOpen: true, wereadApiKey: "", wereadShowApiKey: false, wereadSaving: false, wereadError: "" });
   },
   closeWeReadSettings() {
     this.wereadEditorSession = (this.wereadEditorSession ?? 0) + 1;
     this.wereadSaveRequestId = undefined;
     this.wereadSaveExpectedRevision = undefined;
     this.wereadSaveInFlight = undefined;
-    this.setData({ wereadEditorOpen: false, wereadApiKey: "", wereadError: "" });
+    this.setData({ wereadEditorOpen: false, wereadApiKey: "", wereadShowApiKey: false, wereadSaving: false, wereadError: "" });
+  },
+  toggleWeReadApiKeyVisibility() {
+    this.setData({ wereadShowApiKey: !this.data.wereadShowApiKey });
   },
   onWeReadApiKeyInput(event: MiniappEvent<{ value: string }>) {
     this.setData({ wereadApiKey: event.detail.value, wereadError: "" });
@@ -154,6 +161,7 @@ Page<SettingsData>({
     const saveGeneration = (this.wereadSaveGeneration ?? 0) + 1;
     this.wereadSaveGeneration = saveGeneration;
     this.wereadSaveInFlight = saveGeneration;
+    this.setData({ wereadSaving: true });
     const client = this.resolveWeReadClient();
     const saveTargetStillCurrent = () => {
       const current = this.data.wereadConnection;
@@ -166,6 +174,7 @@ Page<SettingsData>({
       this.wereadSaveInFlight = undefined;
       this.wereadSaveRequestId = undefined;
       this.wereadSaveExpectedRevision = undefined;
+      this.setData({ wereadSaving: false });
     };
     try {
       const response = await client.putConnection({
@@ -195,6 +204,8 @@ Page<SettingsData>({
         wereadSyncLabel: sync.label,
         wereadApiKey: "",
         wereadEditorOpen: false,
+        wereadShowApiKey: false,
+        wereadSaving: false,
         wereadError: sync.message,
       });
     } catch (error) {
@@ -209,7 +220,7 @@ Page<SettingsData>({
         return;
       }
       this.wereadSaveInFlight = undefined;
-      this.setData({ wereadError: weReadErrorMessage(error) });
+      this.setData({ wereadSaving: false, wereadError: weReadErrorMessage(error) });
     }
   },
   async deleteWeReadConnection() {
@@ -227,6 +238,8 @@ Page<SettingsData>({
         wereadSyncLabel: "未连接",
         wereadEditorOpen: false,
         wereadApiKey: "",
+        wereadShowApiKey: false,
+        wereadSaving: false,
         wereadError: "",
       });
       return;
@@ -249,6 +262,8 @@ Page<SettingsData>({
         wereadSyncLabel: "未连接",
         wereadEditorOpen: false,
         wereadApiKey: "",
+        wereadShowApiKey: false,
+        wereadSaving: false,
         wereadError: "",
       });
     } catch (error) {

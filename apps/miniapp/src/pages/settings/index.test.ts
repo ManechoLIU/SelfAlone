@@ -329,6 +329,102 @@ describe("settings page product copy", () => {
     });
   });
 
+  it("renders a full-screen WeRead editor with masked input, visibility toggle, save and back controls", () => {
+    expect(template).toContain('wx:if="{{wereadEditorOpen}}"');
+    expect(template).toContain('bindtap="closeWeReadSettings"');
+    expect(template).toContain("返回设置");
+    expect(template).toContain("/assets/icons/back.svg");
+    expect(template).toContain('password="{{!wereadShowApiKey}}"');
+    expect(template).toContain('bindinput="onWeReadApiKeyInput"');
+    expect(template).toContain('bindtap="toggleWeReadApiKeyVisibility"');
+    expect(template).toContain('bindtap="saveWeReadConnection"');
+    expect(template).toContain("检测并保存");
+    expect(template).toContain('role="alert"');
+  });
+
+  it("keeps disconnect as a low-frequency action inside the editor view only", () => {
+    const editorStart = template.indexOf('wx:if="{{wereadEditorOpen}}"');
+    expect(editorStart).toBeGreaterThan(-1);
+    expect(template).toContain("断开连接");
+    expect(template.indexOf('bindtap="deleteWeReadConnection"')).toBeGreaterThan(editorStart);
+  });
+
+  it("toggles key visibility with an accessible control and resets it when the editor reopens", () => {
+    const page = createPage();
+    page.showWeReadSettings();
+    expect(page.data.wereadShowApiKey).toBe(false);
+
+    page.toggleWeReadApiKeyVisibility();
+    expect(page.data.wereadShowApiKey).toBe(true);
+
+    page.closeWeReadSettings();
+    page.showWeReadSettings();
+    expect(page.data.wereadShowApiKey).toBe(false);
+    expect(page.data.wereadApiKey).toBe("");
+  });
+
+  it("keeps the editor open with the entered key and a visible error when validation fails", async () => {
+    const putConnection = vi.fn(async () => { throw new Error("微信读书暂时不可用"); });
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-kept" }, currentTarget: { dataset: {} } });
+
+    await page.saveWeReadConnection();
+
+    expect(page.data.wereadEditorOpen).toBe(true);
+    expect(page.data.wereadApiKey).toBe("wrk-kept");
+    expect(page.data.wereadError).toBe("微信读书暂时不可用");
+    expect(page.data.wereadSaving).toBe(false);
+  });
+
+  it("closes the editor and shows the real connected status after a successful save", async () => {
+    const putConnection = vi.fn(async () => ({
+      connection: {
+        connectionId: "connection-a",
+        accountExternalId: "weread-account-a",
+        apiKeyHint: "wrk-••••••••",
+        status: "verified" as const,
+        verifiedAt: "2024-01-02T03:04:05.000Z",
+        revision: "4",
+      },
+      sync: { run: {
+        runId: "run-a",
+        requestId: "request-a",
+        operation: "books" as const,
+        connectionId: "connection-a",
+        accountExternalId: "weread-account-a",
+        status: "queued" as const,
+        snapshot: "none" as const,
+        cursor: null,
+        nextCursor: null,
+        retryCount: 0,
+        createdAt: "2024-01-02T03:04:05.000Z",
+        updatedAt: "2024-01-02T03:04:05.000Z",
+      } },
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-secret" }, currentTarget: { dataset: {} } });
+
+    await page.saveWeReadConnection();
+
+    expect(page.data.wereadEditorOpen).toBe(false);
+    expect(page.data.wereadApiKey).toBe("");
+    expect(page.data.wereadSaving).toBe(false);
+    expect(page.data.wereadSyncLabel).toBe("等待同步");
+    expect(page.data.wereadConnection).toEqual(expect.objectContaining({ connectionId: "connection-a" }));
+  });
+
   it("does not let an old disconnect clear a newer account connection", async () => {
     let resolveDelete: ((value: { status: "disconnected" }) => void) | undefined;
     const deleteConnection = vi.fn(() => new Promise<{ status: "disconnected" }>((resolve) => {

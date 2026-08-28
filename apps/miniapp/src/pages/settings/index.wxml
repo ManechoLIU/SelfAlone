@@ -1,3 +1,33 @@
+<view wx:if="{{wereadEditorOpen}}" class="page-shell settings-page settings-weread" style="{{viewportStyle}}">
+  <view class="app-header settings-weread__header">
+    <button class="icon-button" bindtap="closeWeReadSettings" aria-label="返回设置">
+      <image class="icon" src="/assets/icons/back.svg" mode="aspectFit" aria-hidden="true"></image>
+    </button>
+    <view class="app-header__title">微信读书</view>
+    <view></view>
+  </view>
+
+  <view class="weread-config">
+    <view class="weread-config__intro">连接微信读书，自动同步你的划线和想法</view>
+    <view wx:if="{{wereadConnection}}" class="weread-config__current">当前连接：{{wereadConnection.apiKeyHint}} · {{wereadSyncLabel}}</view>
+    <label class="weread-field">
+      <text class="weread-field__label">API Key</text>
+      <view class="weread-field__control">
+        <input class="weread-field__input" password="{{!wereadShowApiKey}}" value="{{wereadApiKey}}" bindinput="onWeReadApiKeyInput" placeholder="wrk-" placeholder-class="weread-field__placeholder" confirm-type="done" aria-label="微信读书 API Key" />
+        <button class="weread-field__toggle" bindtap="toggleWeReadApiKeyVisibility" aria-label="{{wereadShowApiKey ? '隐藏 API Key' : '显示 API Key'}}">{{wereadShowApiKey ? '隐藏' : '显示'}}</button>
+      </view>
+    </label>
+    <view wx:if="{{wereadError}}" class="weread-field__error" role="alert">{{wereadError}}</view>
+    <view class="weread-config__hint">验证通过后自动保存并立即同步</view>
+  </view>
+
+  <view class="weread-actions">
+    <button class="primary-button" bindtap="saveWeReadConnection" disabled="{{wereadSaving}}" aria-label="检测并保存微信读书连接">{{wereadSaving ? '正在检测并保存…' : '检测并保存'}}</button>
+    <button wx:if="{{wereadConnection}}" class="weread-disconnect" bindtap="deleteWeReadConnection" aria-label="断开微信读书连接，已同步内容保留">断开连接</button>
+  </view>
+</view>
+
+<block wx:else>
 <view class="page-shell settings-page" style="{{viewportStyle}}">
   <view class="app-header settings-header">
     <button class="icon-button" bindtap="toggleDrawer" aria-label="打开主导航">
@@ -52,3 +82,4 @@
 </view>
 
 <nav-drawer open="{{drawerOpen}}" current="settings" viewport-style="{{viewportStyle}}" keyboard-open="{{keyboardOpen}}" bind:close="closeDrawer"></nav-drawer>
+</block>

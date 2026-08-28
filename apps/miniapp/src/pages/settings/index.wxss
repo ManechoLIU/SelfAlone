@@ -44,6 +44,114 @@
   grid-template-columns: 28px minmax(0, 1fr);
 }
 
+.settings-weread {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-weread__header { margin-bottom: 28px; }
+
+.weread-config__intro {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.weread-config__current {
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: break-word;
+}
+
+.weread-field { display: block; margin-top: 24px; }
+
+.weread-field__label {
+  display: block;
+  color: #3f8b75;
+  font-family: "Songti SC", "STSong", serif;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.weread-field__control {
+  margin-top: 8px;
+  padding: 0 4px 0 16px;
+  min-height: 54px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface-raised);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.weread-field__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.weread-field__placeholder { color: #9dafaa; }
+
+.weread-field__toggle {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--accent-mid);
+  font-size: 14px;
+  line-height: 44px;
+}
+
+.weread-field__toggle:active { background: var(--accent-faint); }
+
+.weread-field__error {
+  margin-top: 8px;
+  color: var(--error);
+  font-size: 13px;
+  line-height: 20px;
+  overflow-wrap: break-word;
+}
+
+.weread-config__hint {
+  margin-top: 10px;
+  color: #68766f;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.weread-actions {
+  margin-top: auto;
+  padding-top: 24px;
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+}
+
+.weread-disconnect {
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: #68766f;
+  font-size: 14px;
+  line-height: 44px;
+}
+
+.weread-disconnect:active { background: var(--accent-faint); }
+
 @media (min-width: 430px) {
   .settings-page { padding-left: 28px; padding-right: 28px; }
 }
