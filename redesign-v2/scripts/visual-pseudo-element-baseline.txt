@@ -1,0 +1,36 @@
+# Historical occurrences recorded when the no-new-pseudo-elements gate was introduced.
+# Deletions are allowed. Additions are forbidden. Replace an occurrence when its owner is touched.
+apps/miniapp/src/app.wxss	button::after {
+apps/miniapp/src/components/nav-drawer/index.wxss	.drawer-conversation--current::before {
+apps/miniapp/src/pages/conversation/index.wxss	.composer-retry::after { border: 0; }
+apps/miniapp/src/pages/conversation/index.wxss	.primary-button::after { border: 0; }
+apps/miniapp/src/pages/conversation/index.wxss	.selection-option::after { border: 0; }
+apps/miniapp/src/pages/ppt/index.wxss	.generation-status.is-error { color: #b44432; }.generation-status.is-error::before { background: #b44432; }
+apps/miniapp/src/pages/ppt/index.wxss	.generation-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #0d8067; flex: none; }
+apps/miniapp/src/pages/ppt/index.wxss	.scope-summary::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: #82b3a3; }
+apps/miniapp/src/pages/reader/index.wxss	.sheet-handle::after { content: ""; position: absolute; left: 10px; right: 10px; top: 20px; height: 4px; border-radius: 2px; background: #c4d1cc; }
+apps/web/src/conversation-selection.css	.conversation-selection *::after {
+apps/web/src/conversation-selection.css	.conversation-selection *::before,
+apps/web/src/settings-page.css	.settings-page *::after {
+apps/web/src/settings-page.css	.settings-page *::after {
+apps/web/src/settings-page.css	.settings-page *::before,
+apps/web/src/settings-page.css	.settings-page *::before,
+apps/web/src/styles.css	*, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+apps/web/src/styles.css	.auth-brand-panel::after {
+apps/web/src/styles.css	.auth-brand-panel::before {
+apps/web/src/styles.css	.auth-divider::after {
+apps/web/src/styles.css	.auth-divider::before,
+apps/web/src/styles.css	.auth-tab.is-active::after {
+apps/web/src/styles.css	.book-item.failed .parse-badge::after { display: none; }
+apps/web/src/styles.css	.book-item.processing .parse-badge::after { width: 34px; }
+apps/web/src/styles.css	.library-main::after {
+apps/web/src/styles.css	.library-main::after { display: none; }
+apps/web/src/styles.css	.library-main::after { width: 420px; height: 84px; }
+apps/web/src/styles.css	.library-main::after { width: 560px; height: 112px; }
+apps/web/src/styles.css	.parse-badge::after { width: calc(100% - 70px); background: #174c3f; }
+apps/web/src/styles.css	.parse-badge::before { width: calc(100% - 70px); background: linear-gradient(rgba(23,76,63,.20), rgba(23,76,63,.20)), rgba(241,241,239,.82); }
+apps/web/src/styles.css	.parse-badge::before, .parse-badge::after { content: ""; position: absolute; left: 10px; top: 11px; height: 3px; border-radius: 2px; }
+apps/web/src/styles.css	.rail-item.active::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 0 4px 4px 0; background: var(--accent); }
+apps/web/src/text-reader.css	.text-reader-rail::before {
+apps/web/src/text-reader.css	.text-reader-section > header::before {
+apps/web/src/text-reader.css	.text-reader-shell.is-dark .text-reader-section > header::before { background: #7eaa99; }

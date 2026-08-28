@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:unit": "vitest run packages/domain",
     "test:integration": "vitest run apps/server",
-    "verify": "pnpm typecheck && pnpm test && pnpm build"
+    "verify:visual-contract": "python3 redesign-v2/scripts/check_no_new_pseudo_elements.py",
+    "verify": "pnpm verify:visual-contract && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@types/node": "latest",
