@@ -35,11 +35,15 @@ import { TrialQuotaStore } from "./trial-quota-store";
 import { extractTextBook } from "@selfalone/domain";
 import {
   appendConversationContext,
+  completeConversationNoteOperation,
   createConversationSession,
+  createConversationNoteOperation,
   deleteConversationSession,
+  failConversationNoteOperation,
   isConversationSendLocked,
   recordConversationWork,
   settleConversationRun,
+  startConversationNoteOperation,
   startConversationRun,
   updateConversationDraft,
 } from "@selfalone/domain";
@@ -132,13 +136,19 @@ const conversation = new ConversationStore(
     createSession: createConversationSession,
     updateDraft: updateConversationDraft,
     appendContext: appendConversationContext,
+    createNoteOperation: createConversationNoteOperation,
+    startNoteOperation: startConversationNoteOperation,
+    failNoteOperation: failConversationNoteOperation,
+    completeNoteOperation: completeConversationNoteOperation,
     startRun: startConversationRun,
     recordWork: recordConversationWork,
     settleRun: settleConversationRun,
     deleteSession: deleteConversationSession,
     isSendLocked: isConversationSendLocked,
   },
-  conversationResponder ? { responder: conversationResponder } : {},
+  conversationResponder
+    ? { responder: conversationResponder, textAnnotations }
+    : { textAnnotations },
 );
 const conversationSelectionMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {

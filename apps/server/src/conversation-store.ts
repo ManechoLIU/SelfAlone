@@ -1,9 +1,22 @@
+import { createHash } from "node:crypto";
 import type { Sql, TransactionSql } from "postgres";
+import type {
+  ConversationNoteIntent,
+  ConversationNoteOperation,
+  TextAnnotationSource,
+} from "@selfalone/contracts";
+import {
+  completeConversationNoteOperation,
+  createConversationNoteOperation,
+  failConversationNoteOperation,
+  startConversationNoteOperation,
+} from "@selfalone/domain";
 import {
   createConversationResponder,
   type ConversationResponder,
 } from "./conversation-responder";
 export type { ConversationResponder } from "./conversation-responder";
+import type { TextAnnotationService } from "./text-annotation-runtime";
 import {
   cloneConversationSession,
   type ConversationRuntimeContextEntry,
@@ -19,6 +32,7 @@ export type ConversationMessageRecord = ConversationRuntimeContextEntry & {
 export type ConversationStoreOptions = {
   respond?: ConversationResponder;
   responder?: ConversationResponder;
+  textAnnotations?: Pick<TextAnnotationService, "createNote" | "updateNote">;
 };
 
 export type ConversationSendResult =
@@ -30,7 +44,7 @@ export type ConversationSendResult =
   | {
       status: "failed";
       session: ConversationRuntimeSession;
-      errorCode: "CONVERSATION_REPLY_FAILED";
+      errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED";
       retainedDraft: { text: string; attachments: readonly string[] };
     };
 
@@ -61,11 +75,13 @@ export class ConversationStore {
   readonly #sql: Sql;
   readonly #domain: ConversationStateMachine;
   readonly #respond: ConversationResponder;
+  readonly #textAnnotations: ConversationStoreOptions["textAnnotations"];
 
   constructor(sql: Sql, domain: ConversationStateMachine, options: ConversationStoreOptions = {}) {
     this.#sql = sql;
     this.#domain = domain;
     this.#respond = options.responder ?? options.respond ?? unconfiguredResponder;
+    this.#textAnnotations = options.textAnnotations;
   }
 
   async createSession(accountId: string, conversationId: string): Promise<ConversationRuntimeSession> {
@@ -151,6 +167,7 @@ export class ConversationStore {
     conversationId: string;
     requestId: string;
     text: string;
+    noteIntent?: ConversationNoteIntent;
   }): Promise<ConversationSendResult> {
     if (!input.text.trim()) throw new ConversationStoreError("INVALID_MESSAGE");
     assertIdentifier(input.requestId, "REQUEST_ID_REQUIRED");
@@ -158,6 +175,11 @@ export class ConversationStore {
     if (!current) throw new ConversationStoreError("SESSION_NOT_FOUND");
 
     const requestHistory = findRequestHistory(current, input.requestId);
+    const existingNoteOperation = findNoteOperation(current, input.requestId);
+    if (existingNoteOperation) {
+      if (!input.noteIntent) throw new ConversationStoreError("REQUEST_ID_CONFLICT");
+      assertNoteIntentMatches(existingNoteOperation, input.noteIntent);
+    }
     if (requestHistory.hasRequest) {
       if (
         requestHistory.userEntries.length === 0
@@ -211,7 +233,19 @@ export class ConversationStore {
     if (initialSave === "stale") throw new ConversationStoreError("STALE_REVISION");
 
     try {
-      const reply = await this.#respond(input.accountId, input.text, running.context);
+      const reply = existingNoteOperation
+        ? existingNoteOperation.body
+        : await this.#respond(input.accountId, input.text, running.context);
+      if (input.noteIntent || existingNoteOperation) {
+        return this.#sendNote(
+          input,
+          running,
+          draft,
+          reply,
+          input.noteIntent,
+          existingNoteOperation,
+        );
+      }
       const assistantEntry: ConversationRuntimeContextEntry = {
         id: `${input.requestId}:assistant`,
         role: "assistant",
@@ -247,6 +281,152 @@ export class ConversationStore {
         retainedDraft: draft,
       };
     }
+  }
+
+  async #sendNote(
+    input: {
+      accountId: string;
+      conversationId: string;
+      requestId: string;
+      text: string;
+      noteIntent?: ConversationNoteIntent;
+    },
+    running: ConversationRuntimeSession,
+    draft: { text: string; attachments: readonly string[] },
+    reply: string,
+    noteIntent: ConversationNoteIntent | undefined,
+    existing: ConversationNoteOperation | undefined,
+  ): Promise<ConversationSendResult> {
+    const operation = existing ?? this.#createNoteOperation({
+      requestId: input.requestId,
+      body: reply,
+      intent: noteIntent!,
+    });
+    const pending = this.#startNoteOperation(running, running.revision, operation);
+    const pendingSaved = await this.saveSession(
+      input.accountId,
+      pending,
+      running.revision,
+    );
+    if (pendingSaved === "stale") throw new ConversationStoreError("STALE_REVISION");
+
+    try {
+      const result = await this.#saveNote(input.accountId, input.conversationId, operation);
+      if (result.status !== "saved") {
+        return this.#finishNoteFailure(input, pending, draft);
+      }
+
+      const completedOperation = this.#completeNoteOperation(
+        pending,
+        pending.revision,
+        input.requestId,
+      );
+      const assistantEntry: ConversationRuntimeContextEntry = {
+        id: `${input.requestId}:assistant`,
+        role: "assistant",
+        text: operation.body,
+        requestId: input.requestId,
+      };
+      const settled = this.#domain.settleRun(completedOperation, {
+        requestId: input.requestId,
+        status: "completed",
+        contextEntry: assistantEntry,
+      });
+      const completed = this.#domain.updateDraft(settled, settled.revision, null);
+      const saved = await this.saveSession(
+        input.accountId,
+        completed,
+        pending.revision,
+        [messageRecord(input.accountId, input.conversationId, assistantEntry)],
+      );
+      if (saved === "stale") throw new ConversationStoreError("STALE_REVISION");
+      return { status: "completed", session: cloneConversationSession(completed), reply: operation.body };
+    } catch (error) {
+      if (error instanceof ConversationStoreError && error.code === "STALE_REVISION") throw error;
+      return this.#finishNoteFailure(input, pending, draft);
+    }
+  }
+
+  #createNoteOperation(input: {
+    requestId: string;
+    body: string;
+    intent: ConversationNoteIntent;
+  }): ConversationNoteOperation {
+    if (this.#domain.createNoteOperation) return this.#domain.createNoteOperation(input);
+    return createConversationNoteOperation(input);
+  }
+
+  #startNoteOperation(
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    operation: ConversationNoteOperation,
+  ): ConversationRuntimeSession {
+    if (this.#domain.startNoteOperation) {
+      return this.#domain.startNoteOperation(session, expectedRevision, operation);
+    }
+    return startConversationNoteOperation(session, expectedRevision, operation);
+  }
+
+  #failNoteOperation(
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+  ): ConversationRuntimeSession {
+    if (this.#domain.failNoteOperation) {
+      return this.#domain.failNoteOperation(session, expectedRevision, requestId, "NOTE_SAVE_FAILED");
+    }
+    return failConversationNoteOperation(session, expectedRevision, requestId, "NOTE_SAVE_FAILED");
+  }
+
+  #completeNoteOperation(
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+  ): ConversationRuntimeSession {
+    if (this.#domain.completeNoteOperation) {
+      return this.#domain.completeNoteOperation(session, expectedRevision, requestId);
+    }
+    return completeConversationNoteOperation(session, expectedRevision, requestId);
+  }
+
+  async #saveNote(accountId: string, conversationId: string, operation: ConversationNoteOperation) {
+    if (!this.#textAnnotations) throw new Error("NOTE_SERVICE_UNAVAILABLE");
+    if (operation.intent.kind === "create") {
+      return this.#textAnnotations.createNote(accountId, operation.intent.bookId, {
+        idempotencyKey: noteIdempotencyKey(conversationId, operation.requestId),
+        body: operation.body,
+        source: operation.intent.source ?? null,
+      });
+    }
+    return this.#textAnnotations.updateNote(
+      accountId,
+      operation.intent.bookId,
+      operation.intent.noteId,
+      {
+        expectedVersion: operation.intent.expectedVersion,
+        body: operation.body,
+      },
+    );
+  }
+
+  async #finishNoteFailure(
+    input: { accountId: string; conversationId: string; requestId: string },
+    pending: ConversationRuntimeSession,
+    draft: { text: string; attachments: readonly string[] },
+  ): Promise<ConversationSendResult> {
+    const failedOperation = this.#failNoteOperation(pending, pending.revision, input.requestId);
+    const failed = this.#domain.settleRun(failedOperation, {
+      requestId: input.requestId,
+      status: "failed",
+    });
+    const saved = await this.saveSession(input.accountId, failed, pending.revision);
+    if (saved === "stale") throw new ConversationStoreError("STALE_REVISION");
+    return {
+      status: "failed",
+      session: cloneConversationSession(failed),
+      errorCode: "NOTE_SAVE_FAILED",
+      retainedDraft: draft,
+    };
   }
 
   async #read(accountId: string, conversationId: string): Promise<ConversationRuntimeSession | null> {
@@ -303,6 +483,57 @@ function findRequestHistory(
     userEntries: entries.filter((entry) => entry.role === "user"),
     assistantEntries: entries.filter((entry) => entry.role === "assistant"),
   };
+}
+
+function findNoteOperation(
+  session: ConversationRuntimeSession,
+  requestId: string,
+): ConversationNoteOperation | undefined {
+  return session.noteOperations?.find((operation) => operation.requestId === requestId);
+}
+
+function assertNoteIntentMatches(
+  existing: ConversationNoteOperation,
+  intent: ConversationNoteIntent,
+) {
+  const candidate = createConversationNoteOperation({
+    requestId: existing.requestId,
+    body: existing.body,
+    intent,
+  });
+  if (!sameNoteOperation(existing, candidate)) {
+    throw new ConversationStoreError("REQUEST_ID_CONFLICT");
+  }
+}
+
+function sameNoteOperation(left: ConversationNoteOperation, right: ConversationNoteOperation) {
+  if (left.requestId !== right.requestId || left.body !== right.body) return false;
+  if (left.intent.kind !== right.intent.kind || left.intent.bookId !== right.intent.bookId) return false;
+  if (left.intent.kind === "update" && right.intent.kind === "update") {
+    return left.intent.noteId === right.intent.noteId
+      && left.intent.expectedVersion === right.intent.expectedVersion;
+  }
+  if (left.intent.kind !== "create" || right.intent.kind !== "create") return false;
+  return sameNoteSource(left.intent.source ?? null, right.intent.source ?? null);
+}
+
+function sameNoteSource(
+  left: TextAnnotationSource | null,
+  right: TextAnnotationSource | null,
+) {
+  if (!left || !right) return left === right;
+  return left.endOffset === right.endOffset
+    && left.quote === right.quote
+    && left.locator.kind === right.locator.kind
+    && left.locator.fileVersion === right.locator.fileVersion
+    && left.locator.sectionId === right.locator.sectionId
+    && left.locator.offset === right.locator.offset;
+}
+
+function noteIdempotencyKey(conversationId: string, requestId: string) {
+  return `conversation-note:${createHash("sha256")
+    .update(`${conversationId}\u0000${requestId}`)
+    .digest("hex")}`;
 }
 
 function parseSession(row: ConversationRow): ConversationRuntimeSession {

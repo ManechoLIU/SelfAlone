@@ -1,3 +1,5 @@
+import type { ConversationNoteIntent, ConversationNoteOperation, TextAnnotationSource } from "@selfalone/contracts";
+
 /**
  * Server-side adapter for the domain conversation state machine.
  *
@@ -44,6 +46,8 @@ export type ConversationRuntimeSession = {
     kind: string;
     metadata?: Readonly<Record<string, unknown>>;
   }[];
+  /** Optional so sessions written before note intent support remain readable. */
+  noteOperations?: readonly ConversationNoteOperation[];
   deleted: boolean;
 };
 
@@ -96,6 +100,27 @@ export type ConversationStateMachine = {
     expectedRevision: number,
   ): ConversationRuntimeSession;
   isSendLocked(session: ConversationRuntimeSession): boolean;
+  createNoteOperation?: (input: {
+    requestId: string;
+    body: string;
+    intent: ConversationNoteIntent;
+  }) => ConversationNoteOperation;
+  startNoteOperation?: (
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    operation: ConversationNoteOperation,
+  ) => ConversationRuntimeSession;
+  failNoteOperation?: (
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+    errorCode: string,
+  ) => ConversationRuntimeSession;
+  completeNoteOperation?: (
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+  ) => ConversationRuntimeSession;
 };
 
 export type ConversationRuntimeErrorCode =
@@ -107,7 +132,16 @@ export type ConversationRuntimeErrorCode =
   | "STALE_REVISION"
   | "TASK_ALREADY_STARTED"
   | "TASK_NOT_FOUND"
-  | "WORK_ALREADY_RECORDED";
+  | "WORK_ALREADY_RECORDED"
+  | "REQUEST_ID_REQUIRED"
+  | "NOTE_INTENT_REQUIRED"
+  | "NOTE_BODY_REQUIRED"
+  | "NOTE_BOOK_REQUIRED"
+  | "NOTE_ID_REQUIRED"
+  | "NOTE_VERSION_INVALID"
+  | "NOTE_OPERATION_NOT_FOUND"
+  | "REQUEST_ID_CONFLICT"
+  | "NOTE_OPERATION_NOT_RETRYABLE";
 
 export class ConversationRuntimeError extends Error {
   readonly code: ConversationRuntimeErrorCode;
@@ -286,6 +320,7 @@ function cloneSession(session: ConversationRuntimeSession): ConversationRuntimeS
     context: session.context.map((entry) => ({ ...entry })),
     tasks: session.tasks.map((task) => ({ ...task })),
     works: session.works.map(cloneWork),
+    noteOperations: session.noteOperations?.map(cloneNoteOperation),
     activeRun: session.activeRun ? { ...session.activeRun } : null,
   };
 }
@@ -298,4 +333,24 @@ function cloneWork(
   work: ConversationRuntimeSession["works"][number],
 ): ConversationRuntimeSession["works"][number] {
   return work.metadata ? { ...work, metadata: { ...work.metadata } } : { ...work };
+}
+
+function cloneNoteOperation(operation: ConversationNoteOperation): ConversationNoteOperation {
+  return {
+    ...operation,
+    intent: operation.intent.kind === "create"
+      ? {
+          ...operation.intent,
+          source: operation.intent.source ? cloneSource(operation.intent.source) : null,
+        }
+      : { ...operation.intent },
+  };
+}
+
+function cloneSource(source: TextAnnotationSource): TextAnnotationSource {
+  return {
+    locator: { ...source.locator },
+    endOffset: source.endOffset,
+    quote: source.quote,
+  };
 }

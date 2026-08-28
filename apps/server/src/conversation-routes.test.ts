@@ -64,6 +64,100 @@ describe("private conversation routes", () => {
     await app.close();
   });
 
+  it("rejects a malformed explicit note intent before dispatching the message", async () => {
+    const app = Fastify({ logger: false });
+    let sendCalls = 0;
+    const runtime = {
+      createSession: async () => {
+        throw new Error("not used");
+      },
+      getSession: async () => null,
+      listSessions: async () => [],
+      sendText: async () => {
+        sendCalls += 1;
+        return {
+          status: "completed" as const,
+          reply: "不应调用 responder",
+          session: {
+            id: "conversation-a",
+            revision: 0,
+            draft: null,
+            context: [],
+            activeRun: null,
+            tasks: [],
+            works: [],
+            deleted: false,
+          },
+        };
+      },
+    };
+
+    await registerConversationRoutes(app, runtime, () => "account-a");
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/conversations/conversation-a/messages",
+      payload: {
+        requestId: "request-bad-note-intent",
+        text: "请不要猜目标",
+        noteIntent: { kind: "create", bookId: "" },
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(sendCalls).toBe(0);
+    await app.close();
+  });
+
+  it("rejects an explicit note source whose end offset does not advance", async () => {
+    const app = Fastify({ logger: false });
+    let sendCalls = 0;
+    const runtime = {
+      createSession: async () => { throw new Error("not used"); },
+      getSession: async () => null,
+      listSessions: async () => [],
+      sendText: async () => {
+        sendCalls += 1;
+        return {
+          status: "completed" as const,
+          reply: "不应调用 responder",
+          session: {
+            id: "conversation-a",
+            revision: 0,
+            draft: null,
+            context: [],
+            activeRun: null,
+            tasks: [],
+            works: [],
+            deleted: false,
+          },
+        };
+      },
+    };
+
+    await registerConversationRoutes(app, runtime, () => "account-a");
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/conversations/conversation-a/messages",
+      payload: {
+        requestId: "request-bad-note-range",
+        text: "请不要猜位置",
+        noteIntent: {
+          kind: "create",
+          bookId: "book-1",
+          source: {
+            locator: { kind: "text", fileVersion: 1, sectionId: "section-1", offset: 4 },
+            endOffset: 4,
+            quote: "位置",
+          },
+        },
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(sendCalls).toBe(0);
+    await app.close();
+  });
+
   it("is reachable through the application composition seam", async () => {
     const runtime = {
       createSession: async () => ({

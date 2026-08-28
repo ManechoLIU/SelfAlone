@@ -11,9 +11,41 @@ export type ConversationRouteRuntime = Pick<
 
 const conversationParameters = z.object({ id: z.string().trim().min(1).max(160) });
 const createConversationBody = z.object({ id: z.string().trim().min(1).max(160).optional() });
+const noteSourceBody = z.object({
+  locator: z.object({
+    kind: z.literal("text"),
+    fileVersion: z.number().int().positive(),
+    sectionId: z.string().trim().min(1).max(512),
+    offset: z.number().int().nonnegative(),
+  }),
+  endOffset: z.number().int().positive(),
+  quote: z.string().min(1).max(20_000),
+}).superRefine((source, context) => {
+  if (source.endOffset <= source.locator.offset) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["endOffset"],
+      message: "endOffset must be greater than offset",
+    });
+  }
+});
+const noteIntentBody = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("create"),
+    bookId: z.string().trim().min(1).max(256),
+    source: noteSourceBody.nullable().optional(),
+  }),
+  z.object({
+    kind: z.literal("update"),
+    bookId: z.string().trim().min(1).max(256),
+    noteId: z.string().trim().min(1).max(256),
+    expectedVersion: z.number().int().positive(),
+  }),
+]);
 const sendMessageBody = z.object({
   requestId: z.string().trim().min(1).max(160).optional(),
   text: z.string().min(1).max(20_000),
+  noteIntent: noteIntentBody.optional(),
 });
 
 /** Register the private conversation plugin at the optional app composition seam. */
@@ -67,6 +99,7 @@ export async function registerConversationRoutes(
         conversationId: id,
         requestId: body.requestId ?? randomUUID(),
         text: body.text,
+        ...(body.noteIntent ? { noteIntent: body.noteIntent } : {}),
       });
       return reply.code(result.status === "completed" ? 200 : 503).send(result);
     } catch (error) {
