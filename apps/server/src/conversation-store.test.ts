@@ -24,6 +24,8 @@ const domainStateMachine = {
   deleteSession: domain.deleteConversationSession,
   isSendLocked: domain.isConversationSendLocked,
   createNoteOperation: domain.createConversationNoteOperation,
+  bindNoteIntent: domain.bindConversationNoteIntent,
+  appendNoteBody: domain.appendConversationNoteBody,
   startNoteOperation: domain.startConversationNoteOperation,
   failNoteOperation: domain.failConversationNoteOperation,
   completeNoteOperation: domain.completeConversationNoteOperation,
@@ -262,6 +264,7 @@ describe("conversation store", () => {
     const setup = await isolatedDatabase(databases, "conversation_store_note_model_retry");
     let responderCalls = 0;
     let createCalls = 0;
+    let stateAtResponder: any;
     const noteService = {
       createNote: async (_accountId: string, bookId: string, input: any) => {
         createCalls += 1;
@@ -283,6 +286,12 @@ describe("conversation store", () => {
     const store = new ConversationStore(setup.sql, domainStateMachine, {
       responder: async () => {
         responderCalls += 1;
+        const [row] = await setup.sql<{ state: unknown }[]>`
+          SELECT state
+          FROM conversations
+          WHERE account_id = 'account-a' AND id = 'conversation-a'
+        `;
+        stateAtResponder = typeof row?.state === "string" ? JSON.parse(row.state) : row?.state;
         if (responderCalls === 1) throw new Error("MODEL_TEMPORARY_FAILURE");
         return "模型恢复后的笔记";
       },
@@ -294,14 +303,38 @@ describe("conversation store", () => {
       conversationId: "conversation-a",
       requestId: "note-model-retry-request",
       text: "请整理",
-      noteIntent: { kind: "create" as const, bookId: "book-1" },
+      noteIntent: { kind: "create" as const, bookId: "book-1", source: noteSource },
     };
 
     await expect(store.sendText(input as never)).resolves.toMatchObject({
       status: "failed",
       errorCode: "CONVERSATION_REPLY_FAILED",
     });
-    await expect(store.sendText(input as never)).resolves.toMatchObject({ status: "completed" });
+    expect(stateAtResponder).toMatchObject({
+      noteOperations: [{
+        requestId: "note-model-retry-request",
+        body: null,
+        intent: { kind: "create", bookId: "book-1", source: noteSource },
+        status: "pending",
+        errorCode: null,
+      }],
+    });
+    await expect(store.getSession("account-a", "conversation-a")).resolves.toMatchObject({
+      noteOperations: [{
+        requestId: "note-model-retry-request",
+        body: null,
+        status: "failed",
+        errorCode: "CONVERSATION_REPLY_FAILED",
+      }],
+    });
+    const freshStore = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        return "模型恢复后的笔记";
+      },
+      textAnnotations: noteService,
+    } as never);
+    await expect(freshStore.sendText(input as never)).resolves.toMatchObject({ status: "completed" });
     expect(responderCalls).toBe(2);
     expect(createCalls).toBe(1);
   });
@@ -345,8 +378,81 @@ describe("conversation store", () => {
       accountId: "account-a",
       bookId: "book-explicit",
       noteId: "note-explicit",
-      input: { expectedVersion: 3, body: "更新后的 AI 正文" },
+      input: {
+        expectedVersion: 3,
+        body: "更新后的 AI 正文",
+        idempotencyKey: expect.stringMatching(/^conversation-note:[0-9a-f]{64}$/),
+      },
     }]);
+  });
+
+  it("replays an update after an unknown response without incrementing the note version twice", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_note_update_replay");
+    let responderCalls = 0;
+    let updateCalls = 0;
+    let version = 1;
+    let saved: any;
+    let savedKey: string | undefined;
+    const noteService = {
+      createNote: async () => { throw new Error("not used"); },
+      updateNote: async (accountId: string, bookId: string, noteId: string, input: any) => {
+        updateCalls += 1;
+        expect(input.idempotencyKey).toMatch(/^conversation-note:[0-9a-f]{64}$/);
+        savedKey = savedKey ?? input.idempotencyKey;
+        expect(input.idempotencyKey).toBe(savedKey);
+        if (saved) return saved;
+        version += 1;
+        saved = {
+          status: "saved" as const,
+          note: {
+            id: noteId,
+            bookId,
+            body: input.body,
+            source: null,
+            version,
+            createdAt: "2026-08-28T00:00:00.000Z",
+            updatedAt: "2026-08-28T00:00:00.000Z",
+          },
+        };
+        throw new Error("UNKNOWN_RESPONSE");
+      },
+    };
+    const firstStore = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        return "更新后的 AI 正文";
+      },
+      textAnnotations: noteService,
+    } as never);
+    await firstStore.createSession("account-a", "conversation-a");
+    const input = {
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "note-update-replay-request",
+      text: "请更新已有笔记",
+      noteIntent: { kind: "update" as const, bookId: "book-explicit", noteId: "note-explicit", expectedVersion: 1 },
+    };
+
+    await expect(firstStore.sendText(input as never)).resolves.toMatchObject({
+      status: "failed",
+      errorCode: "NOTE_SAVE_FAILED",
+    });
+
+    const freshStore = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        throw new Error("MODEL_MUST_NOT_RETRY");
+      },
+      textAnnotations: noteService,
+    } as never);
+    await expect(freshStore.sendText(input as never)).resolves.toMatchObject({
+      status: "completed",
+      reply: "更新后的 AI 正文",
+    });
+    expect(responderCalls).toBe(1);
+    expect(updateCalls).toBe(2);
+    expect(version).toBe(2);
+    expect(savedKey).toMatch(/^conversation-note:[0-9a-f]{64}$/);
   });
 
   it("rejects a same-request retry that changes the explicit note intent", async () => {

@@ -34,7 +34,9 @@ import { migrateTrialQuotaSchema } from "./trial-quota-migration";
 import { TrialQuotaStore } from "./trial-quota-store";
 import { extractTextBook } from "@selfalone/domain";
 import {
+  appendConversationNoteBody,
   appendConversationContext,
+  bindConversationNoteIntent,
   completeConversationNoteOperation,
   createConversationSession,
   createConversationNoteOperation,
@@ -140,6 +142,8 @@ const conversation = new ConversationStore(
     startNoteOperation: startConversationNoteOperation,
     failNoteOperation: failConversationNoteOperation,
     completeNoteOperation: completeConversationNoteOperation,
+    bindNoteIntent: bindConversationNoteIntent,
+    appendNoteBody: appendConversationNoteBody,
     startRun: startConversationRun,
     recordWork: recordConversationWork,
     settleRun: settleConversationRun,

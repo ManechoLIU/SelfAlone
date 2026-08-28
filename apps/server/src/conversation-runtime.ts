@@ -100,6 +100,17 @@ export type ConversationStateMachine = {
     expectedRevision: number,
   ): ConversationRuntimeSession;
   isSendLocked(session: ConversationRuntimeSession): boolean;
+  bindNoteIntent?: (
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    input: { requestId: string; intent: ConversationNoteIntent },
+  ) => ConversationRuntimeSession;
+  appendNoteBody?: (
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+    body: string,
+  ) => ConversationRuntimeSession;
   createNoteOperation?: (input: {
     requestId: string;
     body: string;

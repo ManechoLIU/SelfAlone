@@ -6,6 +6,8 @@ import type {
   TextAnnotationSource,
 } from "@selfalone/contracts";
 import {
+  appendConversationNoteBody,
+  bindConversationNoteIntent,
   completeConversationNoteOperation,
   createConversationNoteOperation,
   failConversationNoteOperation,
@@ -215,11 +217,19 @@ export class ConversationStore {
         };
         withUser = this.#domain.appendContext(withDraft, withDraft.revision, userEntry);
       }
-      running = this.#domain.startRun(withUser, {
+      const started = this.#domain.startRun(withUser, {
         expectedRevision: withUser.revision,
         requestId: input.requestId,
         kind: "response",
       });
+      running = existingNoteOperation
+        ? this.#startNoteOperation(started, started.revision, existingNoteOperation)
+        : input.noteIntent
+          ? this.#bindNoteIntent(started, started.revision, {
+              requestId: input.requestId,
+              intent: input.noteIntent,
+            })
+          : started;
     } catch (error) {
       throw mapStateError(error);
     }
@@ -233,18 +243,10 @@ export class ConversationStore {
     if (initialSave === "stale") throw new ConversationStoreError("STALE_REVISION");
 
     try {
-      const reply = existingNoteOperation
-        ? existingNoteOperation.body
-        : await this.#respond(input.accountId, input.text, running.context);
+      const reply = existingNoteOperation?.body
+        ?? await this.#respond(input.accountId, input.text, running.context);
       if (input.noteIntent || existingNoteOperation) {
-        return this.#sendNote(
-          input,
-          running,
-          draft,
-          reply,
-          input.noteIntent,
-          existingNoteOperation,
-        );
+        return this.#sendNote(input, running, draft, reply);
       }
       const assistantEntry: ConversationRuntimeContextEntry = {
         id: `${input.requestId}:assistant`,
@@ -268,6 +270,9 @@ export class ConversationStore {
       return { status: "completed", session: cloneConversationSession(completed), reply };
     } catch (error) {
       if (error instanceof ConversationStoreError && error.code === "STALE_REVISION") throw error;
+      if (input.noteIntent || existingNoteOperation) {
+        return this.#finishNoteFailure(input, running, draft, "CONVERSATION_REPLY_FAILED");
+      }
       const failed = this.#domain.settleRun(running, {
         requestId: input.requestId,
         status: "failed",
@@ -294,31 +299,33 @@ export class ConversationStore {
     running: ConversationRuntimeSession,
     draft: { text: string; attachments: readonly string[] },
     reply: string,
-    noteIntent: ConversationNoteIntent | undefined,
-    existing: ConversationNoteOperation | undefined,
   ): Promise<ConversationSendResult> {
-    const operation = existing ?? this.#createNoteOperation({
-      requestId: input.requestId,
-      body: reply,
-      intent: noteIntent!,
-    });
-    const pending = this.#startNoteOperation(running, running.revision, operation);
-    const pendingSaved = await this.saveSession(
+    const pendingOperation = findNoteOperation(running, input.requestId);
+    if (!pendingOperation) throw new Error("NOTE_OPERATION_NOT_FOUND");
+    const withBody = this.#appendNoteBody(
+      running,
+      running.revision,
+      input.requestId,
+      reply,
+    );
+    const operation = findNoteOperation(withBody, input.requestId);
+    if (!operation || operation.body === null) throw new Error("NOTE_BODY_REQUIRED");
+    const bodySaved = await this.saveSession(
       input.accountId,
-      pending,
+      withBody,
       running.revision,
     );
-    if (pendingSaved === "stale") throw new ConversationStoreError("STALE_REVISION");
+    if (bodySaved === "stale") throw new ConversationStoreError("STALE_REVISION");
 
     try {
       const result = await this.#saveNote(input.accountId, input.conversationId, operation);
       if (result.status !== "saved") {
-        return this.#finishNoteFailure(input, pending, draft);
+        return this.#finishNoteFailure(input, withBody, draft, "NOTE_SAVE_FAILED");
       }
 
       const completedOperation = this.#completeNoteOperation(
-        pending,
-        pending.revision,
+        withBody,
+        withBody.revision,
         input.requestId,
       );
       const assistantEntry: ConversationRuntimeContextEntry = {
@@ -336,15 +343,38 @@ export class ConversationStore {
       const saved = await this.saveSession(
         input.accountId,
         completed,
-        pending.revision,
+        withBody.revision,
         [messageRecord(input.accountId, input.conversationId, assistantEntry)],
       );
       if (saved === "stale") throw new ConversationStoreError("STALE_REVISION");
       return { status: "completed", session: cloneConversationSession(completed), reply: operation.body };
     } catch (error) {
       if (error instanceof ConversationStoreError && error.code === "STALE_REVISION") throw error;
-      return this.#finishNoteFailure(input, pending, draft);
+      return this.#finishNoteFailure(input, withBody, draft, "NOTE_SAVE_FAILED");
     }
+  }
+
+  #bindNoteIntent(
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    input: { requestId: string; intent: ConversationNoteIntent },
+  ): ConversationRuntimeSession {
+    if (this.#domain.bindNoteIntent) {
+      return this.#domain.bindNoteIntent(session, expectedRevision, input);
+    }
+    return bindConversationNoteIntent(session, expectedRevision, input);
+  }
+
+  #appendNoteBody(
+    session: ConversationRuntimeSession,
+    expectedRevision: number,
+    requestId: string,
+    body: string,
+  ): ConversationRuntimeSession {
+    if (this.#domain.appendNoteBody) {
+      return this.#domain.appendNoteBody(session, expectedRevision, requestId, body);
+    }
+    return appendConversationNoteBody(session, expectedRevision, requestId, body);
   }
 
   #createNoteOperation(input: {
@@ -371,11 +401,12 @@ export class ConversationStore {
     session: ConversationRuntimeSession,
     expectedRevision: number,
     requestId: string,
+    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED",
   ): ConversationRuntimeSession {
     if (this.#domain.failNoteOperation) {
-      return this.#domain.failNoteOperation(session, expectedRevision, requestId, "NOTE_SAVE_FAILED");
+      return this.#domain.failNoteOperation(session, expectedRevision, requestId, errorCode);
     }
-    return failConversationNoteOperation(session, expectedRevision, requestId, "NOTE_SAVE_FAILED");
+    return failConversationNoteOperation(session, expectedRevision, requestId, errorCode);
   }
 
   #completeNoteOperation(
@@ -391,10 +422,12 @@ export class ConversationStore {
 
   async #saveNote(accountId: string, conversationId: string, operation: ConversationNoteOperation) {
     if (!this.#textAnnotations) throw new Error("NOTE_SERVICE_UNAVAILABLE");
+    if (operation.body === null) throw new Error("NOTE_BODY_REQUIRED");
+    const body = operation.body;
     if (operation.intent.kind === "create") {
       return this.#textAnnotations.createNote(accountId, operation.intent.bookId, {
         idempotencyKey: noteIdempotencyKey(conversationId, operation.requestId),
-        body: operation.body,
+        body,
         source: operation.intent.source ?? null,
       });
     }
@@ -404,7 +437,8 @@ export class ConversationStore {
       operation.intent.noteId,
       {
         expectedVersion: operation.intent.expectedVersion,
-        body: operation.body,
+        body,
+        idempotencyKey: noteUpdateIdempotencyKey(accountId, conversationId, operation.requestId),
       },
     );
   }
@@ -413,8 +447,14 @@ export class ConversationStore {
     input: { accountId: string; conversationId: string; requestId: string },
     pending: ConversationRuntimeSession,
     draft: { text: string; attachments: readonly string[] },
+    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED",
   ): Promise<ConversationSendResult> {
-    const failedOperation = this.#failNoteOperation(pending, pending.revision, input.requestId);
+    const failedOperation = this.#failNoteOperation(
+      pending,
+      pending.revision,
+      input.requestId,
+      errorCode,
+    );
     const failed = this.#domain.settleRun(failedOperation, {
       requestId: input.requestId,
       status: "failed",
@@ -424,7 +464,7 @@ export class ConversationStore {
     return {
       status: "failed",
       session: cloneConversationSession(failed),
-      errorCode: "NOTE_SAVE_FAILED",
+      errorCode,
       retainedDraft: draft,
     };
   }
@@ -533,6 +573,12 @@ function sameNoteSource(
 function noteIdempotencyKey(conversationId: string, requestId: string) {
   return `conversation-note:${createHash("sha256")
     .update(`${conversationId}\u0000${requestId}`)
+    .digest("hex")}`;
+}
+
+function noteUpdateIdempotencyKey(accountId: string, conversationId: string, requestId: string) {
+  return `conversation-note:${createHash("sha256")
+    .update(`${accountId}\u0000${conversationId}\u0000${requestId}`)
     .digest("hex")}`;
 }
 
