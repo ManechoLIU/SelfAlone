@@ -108,6 +108,7 @@ describe("library search DOM interactions", () => {
         errorCode: null,
         sectionCount: 0,
         pageCount: null,
+        progressPercent: null,
         createdAt: "2026-08-25T00:00:00.000Z",
       }];
 

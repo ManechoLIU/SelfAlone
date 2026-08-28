@@ -25,6 +25,7 @@ const normal: LibraryLoadState = {
       errorCode: null,
       sectionCount: 4,
       pageCount: null,
+      progressPercent: 0,
       createdAt: "2026-08-24T10:00:00.000Z",
     },
   ],
