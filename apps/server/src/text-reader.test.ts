@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import { createApp } from "./app";
-import { createTextReaderRuntime, registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
+import { createTextReaderRuntime, registerTextReaderRoutes, TextReaderRuntime } from "./text-reader";
 import {
   bootstrapTextAnnotationSchemaForTest,
   createTextAnnotationRuntime,
@@ -209,6 +209,44 @@ describe("M1-F2-B text reader runtime and routes", () => {
         background: "dark",
       },
     });
+  });
+
+  it("queries a scalar UTF-16 length instead of loading the section body", async () => {
+    const queries: string[] = [];
+    const transaction = Object.assign(
+      async (strings: TemplateStringsArray, ...values: unknown[]) => {
+        const query = strings.join("$");
+        queries.push(query);
+        if (query.includes("FROM books")) return [{ id: "txt-book" }];
+        if (query.includes("FROM book_files")) return [{ fileVersion: 1 }];
+        if (query.includes("FROM book_sections")) return [{ length: 4 }];
+        if (query.includes("FROM reading_positions")) return [];
+        if (query.includes("INSERT INTO reading_positions")) {
+          return [{
+            locator: { kind: "text", fileVersion: 1, sectionId: "txt:emoji", offset: 4 },
+            background: "light",
+            version: 1,
+          }];
+        }
+        throw new Error(`Unexpected query: ${query}`);
+      },
+      { json: (value: unknown) => value },
+    );
+    const sql = {
+      begin: async (callback: (tx: typeof transaction) => Promise<unknown>) => callback(transaction),
+    } as unknown as Sql;
+    const runtime = new TextReaderRuntime(sql, "/tmp", extractTextBook);
+
+    await expect(runtime.savePosition("account-a", "txt-book", {
+      expectedVersion: 0,
+      locator: { kind: "text", fileVersion: 1, sectionId: "txt:emoji", offset: 4 },
+      background: "light",
+    })).resolves.toMatchObject({ version: 1 });
+
+    const sectionQuery = queries.find((query) => query.includes("FROM book_sections"));
+    expect(sectionQuery).toContain("char_length");
+    expect(sectionQuery).toContain("regexp_count");
+    expect(sectionQuery).not.toMatch(/SELECT\s+body\b/);
   });
 
   it("accepts a JavaScript UTF-16 offset after an emoji and persists it", async () => {
