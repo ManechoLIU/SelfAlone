@@ -54,6 +54,56 @@ function createTestTextPublisher() {
   };
 }
 
+function createProgressTextPublisher() {
+  const sections = [
+    {
+      sectionId: "txt:00000000",
+      title: "第一段",
+      order: 0,
+      text: "abcd",
+    },
+    {
+      sectionId: "txt:00000004",
+      title: "第二段",
+      order: 1,
+      text: "ef",
+    },
+  ];
+  return {
+    prepareTextBook: async (accountId: string, bookId: string) => ({
+      accountId,
+      bookId,
+      extracted: {
+        format: "txt" as const,
+        fileVersion: 1,
+        title: "进度书",
+        author: null,
+        sections,
+      },
+    }),
+    publishPreparedTextBook: async (
+      prepared: {
+        accountId: string;
+        bookId: string;
+        extracted: { fileVersion: number; sections: typeof sections };
+      },
+      transaction: TransactionSql,
+    ) => {
+      for (const section of prepared.extracted.sections) {
+        await transaction`
+          INSERT INTO book_sections (
+            account_id, book_id, file_version, section_id, section_order, title, body
+          ) VALUES (
+            ${prepared.accountId}, ${prepared.bookId}, ${prepared.extracted.fileVersion},
+            ${section.sectionId}, ${section.order}, ${section.title}, ${section.text}
+          )
+        `;
+      }
+      return { fileVersion: prepared.extracted.fileVersion, sectionCount: sections.length };
+    },
+  };
+}
+
 describe("M1-F2-A local library runtime", () => {
   const runtimes: LibraryRuntime[] = [];
   const apps: Array<ReturnType<typeof createApp>> = [];
@@ -192,6 +242,172 @@ describe("M1-F2-A local library runtime", () => {
     const restored = await restoredRuntime.listBooks("account-a", "同名");
     expect(restored).toHaveLength(2);
     expect(restored.map((book) => book.id)).toContain(firstId);
+  });
+
+  it("returns normalized account-scoped reading progress for list and detail", async () => {
+    const schema = `library_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    databases.push({ administration, schema });
+    const isolatedUrl = new URL(baseDatabaseUrl);
+    isolatedUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const objectDirectory = await mkdtemp(join(tmpdir(), "selfalone-library-progress-"));
+    objectDirectories.push(objectDirectory);
+
+    const runtime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+      textPublisher: createProgressTextPublisher(),
+    });
+    runtimes.push(runtime);
+    await administration.unsafe(`
+      INSERT INTO "${schema}".accounts (id, created_at)
+      VALUES ('account-a', now()), ('account-b', now())
+    `);
+    const app = createApp({ readiness: () => runtime.ready(), library: runtime });
+    apps.push(app);
+
+    const imported = await runtime.importBook(
+      "account-a",
+      "进度书.txt",
+      Buffer.from("正文 fixture"),
+    );
+    await eventually(
+      () => runtime.getBook("account-a", imported.id),
+      (book) => book.parseStatus === "ready_text",
+    );
+
+    const initialList = await app.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(initialList.statusCode).toBe(200);
+    expect(initialList.json().books).toContainEqual(expect.objectContaining({
+      id: imported.id,
+      parseStatus: "ready_text",
+      progressPercent: 0,
+    }));
+    const initialDetail = await app.inject({
+      method: "GET",
+      url: `/api/v1/books/${imported.id}`,
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(initialDetail.statusCode).toBe(200);
+    expect(initialDetail.json()).toMatchObject({ progressPercent: 0 });
+
+    await administration.unsafe(`
+      INSERT INTO "${schema}".reading_positions (
+        account_id, book_id, locator, background, version
+      ) VALUES (
+        'account-a', '${imported.id}',
+        '{"kind":"text","fileVersion":1,"sectionId":"txt:00000004","offset":0}',
+        'light', 1
+      )
+    `);
+    const positionedList = await app.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(positionedList.json().books).toContainEqual(expect.objectContaining({
+      id: imported.id,
+      // 4 characters before the locator / 6 total = 66.66%; nearest integer is 67.
+      progressPercent: 67,
+    }));
+    const positionedDetail = await app.inject({
+      method: "GET",
+      url: `/api/v1/books/${imported.id}`,
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(positionedDetail.json()).toMatchObject({ progressPercent: 67 });
+
+    await app.close();
+    apps.length = 0;
+    await runtime.close();
+    runtimes.length = 0;
+    const restoredRuntime = await createLibraryRuntime({
+      databaseUrl: isolatedUrl.toString(),
+      objectDirectory,
+      parseDelayMs: 0,
+      textPublisher: createProgressTextPublisher(),
+    });
+    runtimes.push(restoredRuntime);
+    const restoredApp = createApp({ readiness: () => restoredRuntime.ready(), library: restoredRuntime });
+    apps.push(restoredApp);
+    const restored = await restoredApp.inject({
+      method: "GET",
+      url: `/api/v1/books/${imported.id}`,
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(restored.json()).toMatchObject({ progressPercent: 67 });
+
+    for (const parseStatus of ["processing", "ready_pages", "failed"] as const) {
+      const bookId = `status-${parseStatus}`;
+      await administration.unsafe(`
+        INSERT INTO "${schema}".books (
+          id, account_id, title, source_label, local_format, parse_status,
+          parse_error_code, section_count, page_count
+        ) VALUES (
+          '${bookId}', 'account-a', '${parseStatus}', '本地', 'txt', '${parseStatus}',
+          NULL, 0, NULL
+        );
+        INSERT INTO "${schema}".book_files (
+          id, account_id, book_id, object_key, original_filename, byte_size, sha256, version
+        ) VALUES (
+          '${bookId}-file', 'account-a', '${bookId}',
+          'account-a/${bookId}/original/1/original.txt', '${parseStatus}.txt', 1, 'fixture', 1
+        )
+      `);
+    }
+    const statusList = await restoredApp.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    for (const parseStatus of ["processing", "ready_pages", "failed"] as const) {
+      expect(statusList.json().books).toContainEqual(expect.objectContaining({
+        id: `status-${parseStatus}`,
+        parseStatus,
+        progressPercent: null,
+      }));
+      const statusDetail = await restoredApp.inject({
+        method: "GET",
+        url: `/api/v1/books/status-${parseStatus}`,
+        headers: { "x-selfalone-account": "account-a" },
+      });
+      expect(statusDetail.json()).toMatchObject({ parseStatus, progressPercent: null });
+    }
+
+    const hiddenList = await restoredApp.inject({
+      method: "GET",
+      url: "/api/v1/books",
+      headers: { "x-selfalone-account": "account-b" },
+    });
+    expect(hiddenList.json()).toEqual({ books: [] });
+    const hiddenDetail = await restoredApp.inject({
+      method: "GET",
+      url: `/api/v1/books/${imported.id}`,
+      headers: { "x-selfalone-account": "account-b" },
+    });
+    expect(hiddenDetail.statusCode).toBe(404);
+
+    await administration.unsafe(`
+      UPDATE "${schema}".reading_positions
+      SET locator = '{"kind":"text","fileVersion":2,"sectionId":"txt:00000004","offset":0}'
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    const stale = await restoredRuntime.getBook("account-a", imported.id);
+    expect(stale.progressPercent).toBe(0);
+
+    await administration.unsafe(`
+      UPDATE "${schema}".reading_positions
+      SET locator = '{"kind":"text","fileVersion":1,"sectionId":"txt:missing","offset":0}'
+      WHERE account_id = 'account-a' AND book_id = '${imported.id}'
+    `);
+    const invalid = await restoredRuntime.getBook("account-a", imported.id);
+    expect(invalid.progressPercent).toBe(0);
   });
 
   it("rejects unsupported files before creating a library record", async () => {

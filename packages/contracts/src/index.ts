@@ -25,6 +25,7 @@ export type LibraryBookSummary = {
   errorCode: string | null;
   sectionCount: number;
   pageCount: number | null;
+  progressPercent: number | null;
   createdAt: string;
 };
 

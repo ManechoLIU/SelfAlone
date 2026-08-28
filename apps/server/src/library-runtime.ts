@@ -8,7 +8,16 @@ import type { PreparedTextBookPublication, TextReaderRuntime } from "./text-read
 
 export type LibraryBook = LibraryBookSummary;
 
-type BookRow = Omit<LibraryBook, "sourceLabel" | "createdAt"> & { createdAt: Date };
+type BookRow = Omit<LibraryBook, "sourceLabel" | "createdAt" | "progressPercent"> & { createdAt: Date };
+
+type ProgressSectionRow = {
+  sectionId: string;
+  length: number;
+};
+
+type StoredPositionRow = {
+  locator: unknown;
+};
 
 type ProcessingFile = {
   bookId: string;
@@ -30,11 +39,35 @@ function fallbackTitle(filename: string) {
   return filename.split(/[\\/]/).at(-1)?.replace(/\.[^.]+$/, "").trim() || "未命名书籍";
 }
 
-function bookSummary(row: BookRow): LibraryBook {
+function bookSummary(row: BookRow, progressPercent: number | null = null): LibraryBook {
   return {
     ...row,
     sourceLabel: "本地",
+    progressPercent,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function storedTextLocator(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const locator = value as Record<string, unknown>;
+  const fileVersion = locator.fileVersion;
+  const offset = locator.offset;
+  if (
+    locator.kind !== "text"
+    || typeof fileVersion !== "number"
+    || !Number.isSafeInteger(fileVersion)
+    || fileVersion <= 0
+    || typeof locator.sectionId !== "string"
+    || locator.sectionId.length === 0
+    || typeof offset !== "number"
+    || !Number.isSafeInteger(offset)
+    || offset < 0
+  ) return null;
+  return {
+    fileVersion,
+    sectionId: locator.sectionId,
+    offset,
   };
 }
 
@@ -153,7 +186,10 @@ export class LibraryRuntime {
         AND (${query.trim()} = '' OR book.title ILIKE ${search} OR coalesce(book.author, '') ILIKE ${search})
       ORDER BY book.created_at DESC, book.id DESC
     `;
-    return rows.map(bookSummary);
+    return Promise.all(rows.map(async (row) => bookSummary(
+      row,
+      await this.readingProgress(accountId, row.id, row.parseStatus),
+    )));
   }
 
   async getBook(accountId: string, bookId: string): Promise<LibraryBook> {
@@ -168,7 +204,61 @@ export class LibraryRuntime {
         )
     `;
     if (!row) throw new Error("BOOK_NOT_FOUND");
-    return bookSummary(row);
+    return bookSummary(row, await this.readingProgress(accountId, row.id, row.parseStatus));
+  }
+
+  private async readingProgress(
+    accountId: string,
+    bookId: string,
+    parseStatus: LibraryBook["parseStatus"],
+  ): Promise<number | null> {
+    if (parseStatus !== "ready_text") return null;
+
+    const [file] = await this.sql<Array<{ fileVersion: number }>>`
+      SELECT version AS "fileVersion"
+      FROM book_files
+      WHERE account_id = ${accountId} AND book_id = ${bookId}
+      ORDER BY version DESC
+      LIMIT 1
+    `;
+    if (!file || !Number.isSafeInteger(file.fileVersion) || file.fileVersion <= 0) return 0;
+
+    const sections = await this.sql<Array<ProgressSectionRow>>`
+      SELECT section_id AS "sectionId", char_length(body)::integer AS length
+      FROM book_sections
+      WHERE account_id = ${accountId} AND book_id = ${bookId}
+        AND file_version = ${file.fileVersion}
+      ORDER BY section_order ASC
+    `;
+    const [position] = await this.sql<Array<StoredPositionRow>>`
+      SELECT locator
+      FROM reading_positions
+      WHERE account_id = ${accountId} AND book_id = ${bookId}
+    `;
+    const locator = storedTextLocator(position?.locator);
+    if (!locator || locator.fileVersion !== file.fileVersion) return 0;
+
+    let precedingLength = 0;
+    let currentSection: ProgressSectionRow | undefined;
+    for (const section of sections) {
+      if (section.sectionId === locator.sectionId) {
+        currentSection = section;
+        break;
+      }
+      precedingLength += section.length;
+    }
+    if (
+      !currentSection
+      || !Number.isSafeInteger(currentSection.length)
+      || currentSection.length < 0
+      || locator.offset > currentSection.length
+    ) return 0;
+
+    const totalLength = sections.reduce((total, section) => total + section.length, 0);
+    if (!Number.isSafeInteger(totalLength) || totalLength <= 0) return 0;
+
+    const rounded = Math.round(((precedingLength + locator.offset) * 100) / totalLength);
+    return Math.max(0, Math.min(100, rounded));
   }
 
   async importBook(accountId: string, originalFilename: string, bytes: Buffer) {
