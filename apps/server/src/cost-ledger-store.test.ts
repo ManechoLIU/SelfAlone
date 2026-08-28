@@ -80,6 +80,16 @@ describe("cost ledger store", () => {
       amountMicros: 1_000_000,
     } as const;
     await store.reserve(releasedInput);
+    await expect(setup.sql`
+      UPDATE cost_ledger_reservations
+      SET operation_id = 'tampered-operation'
+      WHERE account_id = 'account-a' AND reservation_id = 'res-release'
+    `).rejects.toMatchObject({ code: "P0001" });
+    await expect(setup.sql`
+      UPDATE cost_ledger_reservations
+      SET reserved_micros = reserved_micros + 1
+      WHERE account_id = 'account-a' AND reservation_id = 'res-release'
+    `).rejects.toMatchObject({ code: "P0001" });
     await expect(store.release(releasedInput)).resolves.toMatchObject({ status: "released" });
     await expect(store.release(releasedInput)).resolves.toMatchObject({ status: "released" });
     await expect(store.getBalance("account-a")).resolves.toMatchObject({ committedMicros: 400_000, reservedMicros: 0 });
@@ -94,6 +104,17 @@ describe("cost ledger store", () => {
       { event: "release", count: 1 },
       { event: "reserve", count: 1 },
     ]);
+
+    await expect(setup.sql`
+      UPDATE cost_ledger_reservations
+      SET status = 'released'
+      WHERE account_id = 'account-a' AND reservation_id = 'res-idempotent'
+    `).rejects.toMatchObject({ code: "P0001" });
+    await expect(setup.sql`
+      UPDATE cost_ledger_reservations
+      SET actual_micros = actual_micros + 1
+      WHERE account_id = 'account-a' AND reservation_id = 'res-idempotent'
+    `).rejects.toMatchObject({ code: "P0001" });
   });
 
   it("keeps account totals isolated and fails closed when actual cost needs cap-exceeding top-up", async () => {

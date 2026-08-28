@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  COST_LEDGER_HARD_LIMIT_MICROS,
   CostLedgerMigrationError,
   costLedgerMigrationName,
   migrateCostLedgerSchema,
@@ -114,15 +115,176 @@ describe("cost ledger schema migration", () => {
 
   it("rejects a same-name partial ledger table before recording the migration marker", async () => {
     const setup = await isolatedDatabase(databases, "cost_ledger_partial", false);
-    await setup.sql`CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    await createSchemaMigrations(setup.sql);
     await setup.sql`CREATE TABLE cost_ledger_accounts (account_id text PRIMARY KEY)`;
 
     await expect(migrateCostLedgerSchema(setup.sql)).rejects.toBeInstanceOf(CostLedgerMigrationError);
-    await expect(setup.sql`
-      SELECT 1 FROM schema_migrations WHERE name = ${costLedgerMigrationName}
-    `).resolves.toEqual([]);
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects a same-name table whose required check is weakened by an opposite OR clause", async () => {
+    const setup = await isolatedDatabase(databases, "cost_ledger_weak_check", false);
+    await createSchemaMigrations(setup.sql);
+    await setup.sql.unsafe(`
+      CREATE TABLE cost_ledger_accounts (
+        account_id text PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        committed_micros bigint NOT NULL DEFAULT 0
+          CHECK (committed_micros >= 0 OR committed_micros = -1),
+        reserved_micros bigint NOT NULL DEFAULT 0 CHECK (reserved_micros >= 0),
+        hard_limit_micros bigint NOT NULL DEFAULT ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint
+          CHECK (hard_limit_micros = ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects a same-name table with a NOT VALID required check", async () => {
+    const setup = await isolatedDatabase(databases, "cost_ledger_not_valid", false);
+    await createSchemaMigrations(setup.sql);
+    await setup.sql.unsafe(`
+      CREATE TABLE cost_ledger_accounts (
+        account_id text PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+        committed_micros bigint NOT NULL DEFAULT 0,
+        reserved_micros bigint NOT NULL DEFAULT 0 CHECK (reserved_micros >= 0),
+        hard_limit_micros bigint NOT NULL DEFAULT ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint
+          CHECK (hard_limit_micros = ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint),
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )
+    `);
+    await setup.sql`
+      ALTER TABLE cost_ledger_accounts
+      ADD CONSTRAINT cost_ledger_accounts_committed_nonnegative
+      CHECK (committed_micros >= 0) NOT VALID
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects pre-existing audit operation and amount mismatches before recording the marker", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_bad_audit");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status, actual_micros)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled', 3)
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'wrong-op', 'settle-res', 'settle', 4)
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects a pre-existing audit event whose status does not match the reservation", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_bad_event");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status)
+      VALUES ('account-a', 'release-op', 'release-res', 7, 'released')
+    `;
+    await setup.sql`
+      INSERT INTO cost_ledger_audit
+        (account_id, operation_id, reservation_id, event, amount_micros)
+      VALUES ('account-a', 'release-op', 'release-res', 'settle', 7)
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
+  });
+
+  it("rejects a pre-existing reservation with terminal status but no actual amount", async () => {
+    const setup = await compatibleUnmigratedDatabase(databases, "cost_ledger_bad_reservation");
+    await setup.sql`INSERT INTO cost_ledger_accounts (account_id) VALUES ('account-a')`;
+    await setup.sql`
+      INSERT INTO cost_ledger_reservations
+        (account_id, operation_id, reservation_id, reserved_micros, status)
+      VALUES ('account-a', 'settle-op', 'settle-res', 5, 'settled')
+    `;
+
+    await expect(migrateCostLedgerSchema(setup.sql)).rejects.toMatchObject({
+      code: "COST_LEDGER_SCHEMA_INCOMPATIBLE",
+    });
+    await expectMigrationMarker(setup.sql);
   });
 });
+
+async function createSchemaMigrations(sql: Sql) {
+  await sql`CREATE TABLE schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+}
+
+async function expectMigrationMarker(sql: Sql) {
+  await expect(sql`
+    SELECT 1 FROM schema_migrations WHERE name = ${costLedgerMigrationName}
+  `).resolves.toEqual([]);
+}
+
+async function compatibleUnmigratedDatabase(
+  databases: Array<{ administration: Sql; schema: string; sql: Sql }>,
+  prefix: string,
+) {
+  const setup = await isolatedDatabase(databases, prefix, false);
+  await createSchemaMigrations(setup.sql);
+  await setup.sql.unsafe(`
+    CREATE TABLE cost_ledger_accounts (
+      account_id text PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+      committed_micros bigint NOT NULL DEFAULT 0 CHECK (committed_micros >= 0),
+      reserved_micros bigint NOT NULL DEFAULT 0 CHECK (reserved_micros >= 0),
+      hard_limit_micros bigint NOT NULL DEFAULT ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint
+        CHECK (hard_limit_micros = ${COST_LEDGER_HARD_LIMIT_MICROS}::bigint),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+  await setup.sql`
+    CREATE TABLE cost_ledger_reservations (
+      account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+      reservation_id text NOT NULL,
+      operation_id text NOT NULL,
+      reserved_micros bigint NOT NULL CHECK (reserved_micros > 0),
+      actual_micros bigint CHECK (actual_micros >= 0),
+      status text NOT NULL DEFAULT 'reserved'
+        CHECK (status IN ('reserved', 'settled', 'released')),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (account_id, reservation_id),
+      UNIQUE (account_id, operation_id)
+    )
+  `;
+  await setup.sql`
+    CREATE TABLE cost_ledger_audit (
+      id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      account_id text NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
+      operation_id text NOT NULL,
+      reservation_id text NOT NULL,
+      event text NOT NULL CHECK (event IN ('reserve', 'settle', 'release')),
+      amount_micros bigint NOT NULL CHECK (amount_micros >= 0),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      UNIQUE (account_id, reservation_id, event),
+      FOREIGN KEY (account_id, reservation_id)
+        REFERENCES cost_ledger_reservations (account_id, reservation_id)
+        ON DELETE RESTRICT
+    )
+  `;
+  return setup;
+}
 
 async function isolatedDatabase(
   databases: Array<{ administration: Sql; schema: string; sql: Sql }>,

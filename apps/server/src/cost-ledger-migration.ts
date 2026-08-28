@@ -67,6 +67,8 @@ export async function migrateCostLedgerSchema(sql: Sql) {
       await assertCostLedgerSchema(transaction);
       await ensureAuditImmutability(transaction);
       await ensureAuditConsistency(transaction);
+      await ensureReservationIntegrity(transaction);
+      await assertExistingCostLedgerData(transaction);
       return;
     }
 
@@ -134,6 +136,8 @@ export async function migrateCostLedgerSchema(sql: Sql) {
     await assertCostLedgerSchema(transaction);
     await ensureAuditImmutability(transaction);
     await ensureAuditConsistency(transaction);
+    await ensureReservationIntegrity(transaction);
+    await assertExistingCostLedgerData(transaction);
     await transaction`
       INSERT INTO schema_migrations (name) VALUES (${costLedgerMigrationName})
     `;
@@ -200,47 +204,49 @@ async function assertLedgerTableSchema(transaction: TransactionSql, tableName: s
     }
   }
 
-  const constraints = await transaction<Array<{ type: string; definition: string }>>`
-    SELECT db_constraint.contype AS type, pg_get_constraintdef(db_constraint.oid) AS definition
+  const constraints = await transaction<Array<{ type: string; definition: string; validated: boolean }>>`
+    SELECT db_constraint.contype AS type,
+           pg_get_constraintdef(db_constraint.oid) AS definition,
+           db_constraint.convalidated AS validated
     FROM pg_constraint AS db_constraint
     JOIN pg_class AS relation ON relation.oid = db_constraint.conrelid
     JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
     WHERE namespace.nspname = current_schema() AND relation.relname = ${tableName}
   `;
-  const has = (type: string, ...parts: string[]) => constraints.some((constraint) => {
-    if (constraint.type !== type) return false;
-    const definition = normalizeConstraint(constraint.definition);
-    return parts.every((part) => definition.includes(part));
-  });
+  const has = (type: string, expected: string) => constraints.some((constraint) => (
+    constraint.type === type
+    && constraint.validated
+    && normalizeConstraint(constraint.definition) === expected
+  ));
 
-  const requiredConstraints: Array<[string, string[]]> =
+  const requiredConstraints: Array<[string, string]> =
     tableName === "cost_ledger_accounts"
       ? [
-        ["p", ["primary key", "account_id"]],
-        ["f", ["foreign key account_id references accounts id", "on delete cascade"]],
-        ["c", ["committed_micros >= 0"]],
-        ["c", ["reserved_micros >= 0"]],
-        ["c", [`hard_limit_micros = ${COST_LEDGER_HARD_LIMIT_MICROS}`]],
+        ["p", "primary key account_id"],
+        ["f", "foreign key account_id references accounts id on delete cascade"],
+        ["c", "check committed_micros >= 0"],
+        ["c", "check reserved_micros >= 0"],
+        ["c", `check hard_limit_micros = ${COST_LEDGER_HARD_LIMIT_MICROS}`],
       ]
       : tableName === "cost_ledger_reservations"
         ? [
-          ["p", ["primary key", "account_id, reservation_id"]],
-          ["u", ["unique", "account_id, operation_id"]],
-          ["f", ["foreign key account_id references accounts id", "on delete cascade"]],
-          ["c", ["reserved_micros > 0"]],
-          ["c", ["actual_micros >= 0"]],
-          ["c", ["status in reserved, settled, released"]],
+          ["p", "primary key account_id, reservation_id"],
+          ["u", "unique account_id, operation_id"],
+          ["f", "foreign key account_id references accounts id on delete cascade"],
+          ["c", "check reserved_micros > 0"],
+          ["c", "check actual_micros >= 0"],
+          ["c", "check status in reserved, settled, released"],
         ]
         : [
-          ["p", ["primary key", "id"]],
-          ["u", ["unique", "account_id, reservation_id, event"]],
-          ["f", ["foreign key account_id, reservation_id references cost_ledger_reservations account_id, reservation_id", "on delete restrict"]],
-          ["c", ["event in reserve, settle, release"]],
-          ["c", ["amount_micros >= 0"]],
+          ["p", "primary key id"],
+          ["u", "unique account_id, reservation_id, event"],
+          ["f", "foreign key account_id, reservation_id references cost_ledger_reservations account_id, reservation_id on delete restrict"],
+          ["c", "check event in reserve, settle, release"],
+          ["c", "check amount_micros >= 0"],
         ];
-  for (const [type, parts] of requiredConstraints) {
-    if (!has(type, ...parts)) {
-      throw incompatibleSchema(tableName, `missing constraint containing ${parts.join(" / ")}`);
+  for (const [type, expected] of requiredConstraints) {
+    if (!has(type, expected)) {
+      throw incompatibleSchema(tableName, `missing validated constraint ${expected}`);
     }
   }
 }
@@ -263,6 +269,67 @@ function incompatibleSchema(tableName: string, reason: string) {
     "COST_LEDGER_SCHEMA_INCOMPATIBLE",
     `incompatible ${tableName} schema: ${reason}`,
   );
+}
+
+async function assertExistingCostLedgerData(transaction: TransactionSql) {
+  const [invalidReservation] = await transaction<Array<{
+    reservationId: string;
+    status: string;
+    actualMicros: number | string | null;
+  }>>`
+    SELECT reservation_id AS "reservationId", status,
+           actual_micros AS "actualMicros"
+    FROM cost_ledger_reservations
+    WHERE (status = 'reserved' AND actual_micros IS NOT NULL)
+       OR (status = 'settled' AND actual_micros IS NULL)
+       OR (status = 'released' AND actual_micros IS NOT NULL)
+    LIMIT 1
+  `;
+  if (invalidReservation) {
+    throw incompatibleSchema(
+      "cost_ledger_reservations",
+      `existing reservation ${invalidReservation.reservationId} has invalid ${invalidReservation.status} state`,
+    );
+  }
+
+  const [invalidAudit] = await transaction<Array<{
+    reservationId: string;
+    event: string;
+  }>>`
+    SELECT audit.reservation_id AS "reservationId", audit.event
+    FROM cost_ledger_audit AS audit
+    LEFT JOIN cost_ledger_reservations AS reservation
+      ON reservation.account_id = audit.account_id
+     AND reservation.reservation_id = audit.reservation_id
+    WHERE reservation.reservation_id IS NULL
+       OR audit.operation_id IS DISTINCT FROM reservation.operation_id
+       OR (
+         audit.event = 'reserve'
+         AND audit.amount_micros IS DISTINCT FROM reservation.reserved_micros
+       )
+       OR (
+         audit.event = 'settle'
+         AND (
+           reservation.status <> 'settled'
+           OR reservation.actual_micros IS NULL
+           OR audit.amount_micros IS DISTINCT FROM reservation.actual_micros
+         )
+       )
+       OR (
+         audit.event = 'release'
+         AND (
+           reservation.status <> 'released'
+           OR audit.amount_micros IS DISTINCT FROM reservation.reserved_micros
+         )
+       )
+    LIMIT 1
+  `;
+  if (invalidAudit) {
+    throw incompatibleSchema(
+      "cost_ledger_audit",
+      `existing ${invalidAudit.event} audit does not match reservation ${invalidAudit.reservationId}`,
+    );
+  }
 }
 
 async function ensureAuditImmutability(transaction: TransactionSql) {
@@ -347,5 +414,49 @@ async function ensureAuditConsistency(transaction: TransactionSql) {
     CREATE TRIGGER cost_ledger_audit_validate_insert
       BEFORE INSERT ON cost_ledger_audit
       FOR EACH ROW EXECUTE FUNCTION cost_ledger_audit_validate_insert();
+  `);
+}
+
+async function ensureReservationIntegrity(transaction: TransactionSql) {
+  await transaction.unsafe(`
+    CREATE OR REPLACE FUNCTION cost_ledger_reservation_guard_update()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $function$
+    BEGIN
+      IF NEW.account_id IS DISTINCT FROM OLD.account_id
+         OR NEW.reservation_id IS DISTINCT FROM OLD.reservation_id
+         OR NEW.operation_id IS DISTINCT FROM OLD.operation_id
+         OR NEW.reserved_micros IS DISTINCT FROM OLD.reserved_micros THEN
+        RAISE EXCEPTION 'cost ledger reservation binding is immutable'
+          USING ERRCODE = 'P0001';
+      END IF;
+
+      IF OLD.status = 'reserved' THEN
+        IF NEW.status = 'reserved' AND NEW.actual_micros IS NOT NULL THEN
+          RAISE EXCEPTION 'reserved cost ledger reservation cannot have an actual amount'
+            USING ERRCODE = 'P0001';
+        ELSIF NEW.status = 'settled' AND NEW.actual_micros IS NULL THEN
+          RAISE EXCEPTION 'settled cost ledger reservation requires an actual amount'
+            USING ERRCODE = 'P0001';
+        ELSIF NEW.status = 'released' AND NEW.actual_micros IS NOT NULL THEN
+          RAISE EXCEPTION 'released cost ledger reservation cannot have an actual amount'
+            USING ERRCODE = 'P0001';
+        END IF;
+      ELSIF NEW.status IS DISTINCT FROM OLD.status
+         OR NEW.actual_micros IS DISTINCT FROM OLD.actual_micros THEN
+        RAISE EXCEPTION 'terminal cost ledger reservation is immutable'
+          USING ERRCODE = 'P0001';
+      END IF;
+
+      RETURN NEW;
+    END;
+    $function$;
+
+    DROP TRIGGER IF EXISTS cost_ledger_reservation_guard_update
+      ON cost_ledger_reservations;
+    CREATE TRIGGER cost_ledger_reservation_guard_update
+      BEFORE UPDATE ON cost_ledger_reservations
+      FOR EACH ROW EXECUTE FUNCTION cost_ledger_reservation_guard_update();
   `);
 }
