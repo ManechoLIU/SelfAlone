@@ -25,6 +25,15 @@ export type WeReadConnectionGetResponse = {
   connection: WeReadConnectionProjection | null;
 };
 
+/**
+ * Account-owned book identity exposed to clients alongside the provider ID.
+ * Clients use `bookId` for local persistence and annotation requests; they
+ * must not substitute the provider-scoped `externalId`.
+ */
+export type WeReadBookProjection = WeReadBook & {
+  bookId: string;
+};
+
 /** The raw key is accepted only on this request and is never a response field. */
 export type WeReadConnectionPutRequest = {
   apiKey: string;
@@ -152,7 +161,7 @@ type WeReadBooksSnapshotBase = {
   accountExternalId: WeReadExternalId;
   cursor: WeReadCursor | null;
   nextCursor: WeReadCursor | null;
-  books: readonly WeReadBook[];
+  books: readonly WeReadBookProjection[];
 };
 
 export type WeReadBooksSnapshotResponse =

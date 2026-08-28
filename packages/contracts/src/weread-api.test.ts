@@ -8,6 +8,7 @@ import type {
   WeReadAnnotationsSnapshotRequest,
   WeReadBooksSnapshotResponse,
   WeReadBooksSnapshotRequest,
+  WeReadBookProjection,
   WeReadBooksSyncRequest,
   WeReadBooksSyncResponse,
   WeReadConnectionDeleteResponse,
@@ -39,7 +40,8 @@ const pause = {
 const localBookId = "local-book-a";
 const providerBookExternalId = "weread-book-a";
 
-const book = {
+const book: WeReadBookProjection = {
+  bookId: localBookId,
   externalId: providerBookExternalId,
   title: "一本书",
   author: "作者",
@@ -168,11 +170,13 @@ describe("shared WeRead HTTP contract", () => {
       accountExternalId: "weread-account-a",
       cursor: "opaque/read-page-2",
       nextCursor: null,
-      books: [book, { ...book, externalId: "book-b", title: "另一本书" }],
+      books: [book, { ...book, bookId: "local-book-b", externalId: "book-b", title: "另一本书" }],
     };
 
     expect(response.books).toHaveLength(2);
+    expect(response.books.map((item) => item.bookId)).toEqual([localBookId, "local-book-b"]);
     expect(response.books.map((item) => item.externalId)).toEqual([providerBookExternalId, "book-b"]);
+    expect(response.books.every((item) => item.bookId !== item.externalId)).toBe(true);
     expect(response.cursor).toBe("opaque/read-page-2");
     expect(response.nextCursor).toBeNull();
     expect(JSON.parse(JSON.stringify({ request, response }))).toEqual({ request, response });
