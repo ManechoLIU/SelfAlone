@@ -75,7 +75,7 @@
 | `SHARED-WEREAD-SYNC` | `PENDING` / 待分配 | 两端共用的微信读书 Key 安全配置、首 / 增量同步、幂等、账户隔离、失败恢复与统一数据合同 | 先做不依赖真实 Key 的合同 / fake adapter；真实 Key / H4 单独授权，不归入 Mini 私有服务 |
 | `M2-F2` | `PENDING` / 待分配 | Mini 消费共享微信读书同步：连接 / 修改入口、统一书架、详情中的个人划线与想法、失败恢复 | 依赖 `SHARED-WEREAD-SYNC`、M2-F1与 production AppID / 域名；真实 Key / H4独立授权 |
 | `M2-F3` | `VERIFY / MAIN 11f480a / PARENT OPEN` / 项目总控 | 会话抽屉、文字 / attachment、失败保留 / retry与刷新 scoped PASS | 真实API、软件键盘、clean-console与reduced-motion仍开放 |
-| `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP已归档为 stash `0bc2486…`，仅在本包重诊断时取证 |
+| `M2-F3-MINI-CONVERSATION-API` | `VERIFY / MAIN de92f50 / F312 d60716a / PROD H3 BLOCKED` | hydrate / create / send、草稿 / 上下文恢复、失败映射与同requestId重试已实现 | production依赖M2-F1 bearer / base URL / AppID / 域名；矛盾测试WIP只按第5节稳定归档收据在本包重诊断时取证 |
 | `M2-F3-MINI-CONVERSATION-LONG-LIST` | `VERIFY / MAIN 35bad75 / SCOPED NO-GO` | developmentLongList 18项、搜索与末项露出已实现 | clean-console / production不在本包；既有 query 模式只供唯一f312复验 |
 | `M2-F3-MINI-CONVERSATION-SEND-RETRY` | `VERIFY / MAIN 11f480a / SCOPED FINAL PASS` | 本地text / attachment发送锁、失败原位retry、刷新无重复与anchor通过 | 真实AI/API、软件键盘、clean-console与long-list不在本包 |
 | `M2-F4` | `VERIFY / MAIN b98c118 / READER SCOPED FINAL / LIBRARY AUTH BLOCKED` | 统一书架、连续正文、面板、notes与背景恢复部分闭合 | Library真实接线依赖M2-F1；不返工已通过Reader |
@@ -142,4 +142,4 @@
 - ImageGen总授权20次，已用7次、剩余13次；已有参考先忠实实现，功能图标不用栅格生图。
 - 唯一 Mini DevTools 常驻入口为 `/Users/echoman/.codex/worktrees/f312/SelfAlone/apps/miniapp`。隔离writer不得新增长期入口。
 - 当前 worktree 共 3 个：main、ACTIVE `readchat` 与唯一 f312；历史脏现场已归档到可恢复 stash / archive branch，全仓 stash 共12条。reviewer / 占位 / 纯消息任务不新建 worktree；`readchat` 集成或废弃后同事件移除，f312仅在唯一 DevTools入口仍需时保留。
-- main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为 stash `0bc248683594…`，不作为候选或 PASS；6个DOCX / Word锁文件及3组视觉候选目录继续受保护。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
+- main 两处相互矛盾的 Mini conversation 测试 WIP 已归档为稳定 stash 对象 `0bc24868359483fe7d52f9061d76b9f7d81a7000`，标题 `archive: unresolved mini conversation test WIP 2026-08-28`；不记录可变序号，不作为候选或 PASS。6个DOCX / Word锁文件及3组视觉候选目录继续受保护。共享PostgreSQL只证明副作用，开发 / QA使用隔离schema并记录owner与恢复点。
