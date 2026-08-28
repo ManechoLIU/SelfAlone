@@ -110,7 +110,7 @@ export class DevelopmentClient implements MiniappClient {
 
   listBooks(input: BookListOptions | DevelopmentState = "normal") {
     const { query, state } = normalizeBookListOptions(input);
-    const result = state === "empty" ? [] : books
+    const result = state === "empty" || state === "filtered-empty" ? [] : books
       .filter((book) => !query || [book.title, book.author ?? "", book.sourceLabel]
         .some((value) => value.toLocaleLowerCase().includes(query.toLocaleLowerCase())))
       .map((book) => ({ ...book }));

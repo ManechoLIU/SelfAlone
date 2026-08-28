@@ -79,7 +79,7 @@ export type PptWorkspace = {
 };
 
 export interface MiniappClient {
-  readonly kind: "development" | "unavailable";
+  readonly kind: "development" | "production" | "unavailable";
   readonly development: boolean;
   listBooks(options?: BookListOptions | DevelopmentState): Promise<BookSummary[]>;
   importBook(file: LocalBookFile): Promise<BookSummary>;
@@ -95,6 +95,7 @@ export type ClientBoundaryErrorCode =
   | "DEVELOPMENT_STATE_FAILURE"
   | "HTTP_REQUEST_FAILED"
   | "INVALID_LIBRARY_RESPONSE"
+  | "BOOK_FILE_TOO_LARGE"
   | "UNSUPPORTED_BOOK_FORMAT";
 
 export class ClientBoundaryError extends Error {
@@ -105,7 +106,9 @@ export class ClientBoundaryError extends Error {
         ? "当前客户端能力尚未接入"
         : code === "DEVELOPMENT_STATE_FAILURE"
           ? "开发适配器模拟了可恢复失败"
-          : code === "UNSUPPORTED_BOOK_FORMAT"
+          : code === "BOOK_FILE_TOO_LARGE"
+            ? "文件超过 50 MB 上限"
+            : code === "UNSUPPORTED_BOOK_FORMAT"
             ? "仅支持 EPUB、TXT 或 PDF 文件"
             : code === "INVALID_LIBRARY_RESPONSE"
               ? "书架响应无法识别"

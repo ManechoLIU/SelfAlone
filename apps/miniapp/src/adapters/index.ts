@@ -1,6 +1,12 @@
 import type { MiniappClient, BookListOptions, LocalBookFile } from "./client";
 import { ClientBoundaryError } from "./client";
 import { DevelopmentClient } from "./development";
+import {
+  createLibraryHttpClient,
+  createWxLibraryTransport,
+  type LibraryAuthProvider,
+  type LibraryHttpTransport,
+} from "./library-http";
 
 class UnavailableClient implements MiniappClient {
   readonly kind = "unavailable" as const;
@@ -16,6 +22,25 @@ class UnavailableClient implements MiniappClient {
   savePptWorkspace(): Promise<never> { return this.unavailable(); }
 }
 
-export function createClientAdapter(envVersion: string | undefined): MiniappClient {
-  return envVersion === "develop" ? new DevelopmentClient() : new UnavailableClient();
+export type ProductionClientOptions = {
+  baseUrl?: string;
+  authProvider?: LibraryAuthProvider;
+  onUnauthorized?: (status: number) => void;
+  transport?: LibraryHttpTransport;
+};
+
+export function createClientAdapter(
+  envVersion: string | undefined,
+  productionOptions: ProductionClientOptions = {},
+): MiniappClient {
+  if (envVersion === "develop") return new DevelopmentClient();
+  if (productionOptions.baseUrl?.trim() && productionOptions.authProvider) {
+    return createLibraryHttpClient({
+      baseUrl: productionOptions.baseUrl,
+      authProvider: productionOptions.authProvider,
+      onUnauthorized: productionOptions.onUnauthorized,
+      transport: productionOptions.transport ?? createWxLibraryTransport(),
+    });
+  }
+  return new UnavailableClient();
 }

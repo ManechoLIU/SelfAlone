@@ -45,7 +45,8 @@ export function presentLibrary(state: LibraryState): LibraryPresentation {
 }
 
 export function preserveLibraryOnFailure(
-  state: Pick<LibraryState, "books" | "query">,
+  state: Pick<LibraryState, "books" | "query">
+    & Partial<Pick<LibraryState, "queryApplied">>,
   message: string,
 ) {
   return state.books.length

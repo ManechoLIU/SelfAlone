@@ -1,5 +1,6 @@
 import { createClientAdapter } from "./adapters/index.js";
 import type { MiniappClient } from "./adapters/client";
+import type { LibraryHttpTransport } from "./adapters/library-http";
 import { createDevelopmentAnnotationsClient } from "./adapters/development-annotations";
 import {
   createConversationApiClient,
@@ -39,16 +40,18 @@ export type MiniappRuntimeOptions = SessionStoreOptions & {
   authTransport?: MiniAuthTransport;
   conversationTransport?: ConversationTransport;
   annotationsTransport?: AnnotationTransport;
+  libraryTransport?: LibraryHttpTransport;
   wxLogin?: MiniWxLogin;
   environment?: string;
 };
 
 export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): MiniappGlobalData {
   const storage = options.storage ?? wxStorage;
-  const client = createClientAdapter(options.environment ?? currentEnvironment());
+  const environment = options.environment ?? currentEnvironment();
+  const developmentAdapter = environment === "develop";
   const sessionStore = createSessionStore(
     storage,
-    { developmentAdapter: client.development },
+    { developmentAdapter },
     { now: options.now },
   );
   const authClient = createMiniAuthClient({
@@ -57,14 +60,21 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     wxLogin: options.wxLogin,
   });
   let composedGlobalData: MiniappGlobalData | undefined;
+  const onUnauthorized = (status: number) => {
+    if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
+      composedGlobalData.session = { kind: "signed-out" };
+    }
+  };
+  const client = createClientAdapter(environment, {
+    baseUrl: options.apiBaseUrl,
+    authProvider: () => sessionStore.restore(),
+    onUnauthorized,
+    transport: options.libraryTransport,
+  });
   const conversationClient = createConversationApiClient({
     baseUrl: options.apiBaseUrl,
     authProvider: () => sessionStore.restore(),
-    onUnauthorized: (status) => {
-      if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
-        composedGlobalData.session = { kind: "signed-out" };
-      }
-    },
+    onUnauthorized,
     transport: options.conversationTransport,
   });
   const annotationsClient = client.development
@@ -72,11 +82,7 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     : createAnnotationsApiClient({
       baseUrl: options.apiBaseUrl,
       authProvider: () => sessionStore.restore(),
-      onUnauthorized: (status) => {
-        if (sessionStore.clearOnUnauthorized(status) && composedGlobalData) {
-          composedGlobalData.session = { kind: "signed-out" };
-        }
-      },
+      onUnauthorized,
       transport: options.annotationsTransport,
     });
   const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });

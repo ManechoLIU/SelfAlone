@@ -1,4 +1,5 @@
 import type { BookSummary } from "../core/library-state";
+import type { Session } from "../core/session";
 import type { BookDetail, BookListOptions, LocalBookFile, MiniappClient, PptWorkspace, ReadingPosition } from "./client";
 import { ClientBoundaryError, normalizeBookListOptions } from "./client";
 
@@ -19,15 +20,21 @@ export type LibraryHttpTransport = {
   readFile(path: string): Promise<ArrayBuffer>;
 };
 
+export type LibraryAuthProvider = () => Session | null | undefined;
+
 export type LibraryHttpClientOptions = {
   baseUrl: string;
-  /** M2-F1 supplies the session-bound Cookie or Authorization headers. */
-  requestHeaders: () => Record<string, string> | Promise<Record<string, string>>;
-  transport: LibraryHttpTransport;
+  /** M2-F1 session store is read immediately before every request. */
+  authProvider?: LibraryAuthProvider;
+  /** Compatibility seam for a host that already owns session-bound headers. */
+  requestHeaders?: () => Record<string, string> | Promise<Record<string, string>>;
+  onUnauthorized?: (status: number) => void;
+  transport?: LibraryHttpTransport;
 };
 
 const parseStatuses = new Set(["processing", "ready_text", "ready_pages", "failed"]);
 const formats = new Set(["epub", "txt", "pdf", "weread"]);
+export const MAX_IMPORT_BYTES = 50 * 1024 * 1024;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -47,6 +54,17 @@ function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+function mappedProgress(value: Record<string, unknown>) {
+  if (Object.prototype.hasOwnProperty.call(value, "progressPercent")) {
+    const percent = value.progressPercent;
+    return typeof percent === "number" && Number.isFinite(percent) && percent >= 0 && percent <= 100
+      ? percent / 100
+      : 0;
+  }
+  const progress = optionalNumber(value.progress);
+  return progress === undefined ? 0 : Math.min(1, Math.max(0, progress));
+}
+
 function mapBookSummary(value: unknown): BookSummary {
   if (!isRecord(value)
     || typeof value.id !== "string"
@@ -59,7 +77,6 @@ function mapBookSummary(value: unknown): BookSummary {
   }
   const format = value.format as BookSummary["format"];
   const source = value.source === "weread" || format === "weread" ? "weread" : "local";
-  const progress = optionalNumber(value.progress);
   const coverVariant = optionalNumber(value.coverVariant);
   const parseStatus = typeof value.parseStatus === "string" && parseStatuses.has(value.parseStatus)
     ? value.parseStatus as NonNullable<BookSummary["parseStatus"]>
@@ -71,7 +88,7 @@ function mapBookSummary(value: unknown): BookSummary {
     source,
     sourceLabel: optionalString(value.sourceLabel) ?? (source === "weread" ? "微信读书" : "本地"),
     format,
-    progress: progress === undefined ? 0 : Math.min(1, Math.max(0, progress)),
+    progress: mappedProgress(value),
     coverUrl: optionalString(value.coverUrl),
     coverVariant: coverVariant === undefined ? stableCoverVariant(value.id) : Math.abs(Math.trunc(coverVariant)) % 3,
     parseStatus,
@@ -93,26 +110,135 @@ function responseBooks(data: unknown): unknown[] {
   return data.books;
 }
 
+type WxLibraryFileManager = {
+  readFile(options: {
+    filePath: string;
+    success?: (result: { data: ArrayBuffer | ArrayBufferView }) => void;
+    fail?: () => void;
+  }): void;
+};
+
+type WxLibraryRuntime = {
+  request(options: {
+    url: string;
+    method?: "GET" | "POST";
+    header?: Record<string, string>;
+    data?: ArrayBuffer;
+    success?: (response: { statusCode: number; data: unknown }) => void;
+    fail?: () => void;
+  }): void;
+  getFileSystemManager?: () => WxLibraryFileManager;
+};
+
+function wxRuntime() {
+  return wx as unknown as WxLibraryRuntime;
+}
+
+/** The only production transport: JSON responses use wx.request and local files use raw bytes. */
+export function createWxLibraryTransport(): LibraryHttpTransport {
+  return {
+    request(input) {
+      return new Promise((resolve, reject) => {
+        try {
+          wxRuntime().request({
+            url: input.url,
+            method: input.method,
+            header: { ...input.headers },
+            ...(input.body === undefined ? {} : { data: input.body }),
+            success: (response) => resolve({ status: response.statusCode, data: response.data }),
+            fail: () => reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "暂时无法连接，请稍后重试")),
+          });
+        } catch {
+          reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "暂时无法连接，请稍后重试"));
+        }
+      });
+    },
+    readFile(path) {
+      return new Promise((resolve, reject) => {
+        let fileManager: WxLibraryFileManager | undefined;
+        try {
+          fileManager = wxRuntime().getFileSystemManager?.();
+        } catch {
+          reject(new ClientBoundaryError("CLIENT_CAPABILITY_UNAVAILABLE", "当前客户端不支持读取本地文件"));
+          return;
+        }
+        if (!fileManager) {
+          reject(new ClientBoundaryError("CLIENT_CAPABILITY_UNAVAILABLE", "当前客户端不支持读取本地文件"));
+          return;
+        }
+        try {
+          fileManager.readFile({
+            filePath: path,
+            success: ({ data }) => {
+              if (data instanceof ArrayBuffer) {
+                resolve(data);
+                return;
+              }
+              if (ArrayBuffer.isView(data)) {
+                const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+                resolve(bytes.slice().buffer);
+                return;
+              }
+              reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "无法读取所选文件"));
+            },
+            fail: () => reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "无法读取所选文件")),
+          });
+        } catch {
+          reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "无法读取所选文件"));
+        }
+      });
+    },
+  };
+}
+
 export class LibraryHttpClient implements MiniappClient {
-  readonly kind = "unavailable" as const;
+  readonly kind = "production" as const;
   readonly development = false;
   readonly #baseUrl: string;
+  readonly #authProvider: LibraryHttpClientOptions["authProvider"];
   readonly #requestHeaders: LibraryHttpClientOptions["requestHeaders"];
+  readonly #onUnauthorized: LibraryHttpClientOptions["onUnauthorized"];
   readonly #transport: LibraryHttpTransport;
 
   constructor(options: LibraryHttpClientOptions) {
-    if (!options.baseUrl.trim() || typeof options.requestHeaders !== "function") {
+    if (
+      typeof options.baseUrl !== "string"
+      || !options.baseUrl.trim()
+      || (typeof options.authProvider !== "function" && typeof options.requestHeaders !== "function")
+    ) {
       throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端缺少 API 地址或会话接缝");
     }
     this.#baseUrl = options.baseUrl;
+    this.#authProvider = options.authProvider;
     this.#requestHeaders = options.requestHeaders;
-    this.#transport = options.transport;
+    this.#onUnauthorized = options.onUnauthorized;
+    this.#transport = options.transport ?? createWxLibraryTransport();
   }
 
   private async headers(contentType?: string) {
-    const provided = await this.#requestHeaders();
-    if (!provided || typeof provided !== "object") {
-      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+    let provided: Record<string, string>;
+    if (this.#authProvider) {
+      let session: ReturnType<NonNullable<LibraryHttpClientOptions["authProvider"]>>;
+      try {
+        session = this.#authProvider();
+      } catch {
+        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+      }
+      if (!session || session.kind !== "authenticated" || !session.token.trim()) {
+        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+      }
+      provided = { Authorization: `Bearer ${session.token.trim()}` };
+    } else {
+      let candidate: Record<string, string> | Promise<Record<string, string>>;
+      try {
+        candidate = await this.#requestHeaders!();
+      } catch {
+        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+      }
+      if (!candidate || typeof candidate !== "object") {
+        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+      }
+      provided = candidate;
     }
     const hasCallerSelectedAccount = Object.keys(provided)
       .some((key) => key.toLocaleLowerCase() === "x-selfalone-account");
@@ -129,6 +255,13 @@ export class LibraryHttpClient implements MiniappClient {
   private async request(input: LibraryHttpRequest) {
     try {
       const response = await this.#transport.request(input);
+      if (response.status === 401) {
+        try {
+          this.#onUnauthorized?.(response.status);
+        } catch {
+          // Session cleanup must not hide the original protected-request failure.
+        }
+      }
       if (response.status < 200 || response.status >= 300) {
         throw new ClientBoundaryError("HTTP_REQUEST_FAILED", `书架请求失败（${response.status}）`);
       }
@@ -159,6 +292,12 @@ export class LibraryHttpClient implements MiniappClient {
       body = await this.#transport.readFile(file.path);
     } catch (error) {
       if (error instanceof ClientBoundaryError) throw error;
+      throw new ClientBoundaryError("HTTP_REQUEST_FAILED", "无法读取所选文件");
+    }
+    if (!(body instanceof ArrayBuffer) || body.byteLength > MAX_IMPORT_BYTES) {
+      if (body instanceof ArrayBuffer && body.byteLength > MAX_IMPORT_BYTES) {
+        throw new ClientBoundaryError("BOOK_FILE_TOO_LARGE");
+      }
       throw new ClientBoundaryError("HTTP_REQUEST_FAILED", "无法读取所选文件");
     }
     const data = await this.request({

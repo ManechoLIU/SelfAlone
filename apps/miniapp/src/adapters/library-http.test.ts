@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createLibraryHttpClient, type LibraryHttpTransport } from "./library-http";
+import {
+  createLibraryHttpClient,
+  createWxLibraryTransport,
+  MAX_IMPORT_BYTES,
+  type LibraryHttpTransport,
+} from "./library-http";
 
 function transport(overrides: Partial<LibraryHttpTransport> = {}): LibraryHttpTransport {
   return {
@@ -60,6 +65,68 @@ describe("authenticated library HTTP client", () => {
     });
   });
 
+  it.each([
+    [0, 0],
+    [67, 0.67],
+    [100, 1],
+  ])("maps server progressPercent %s to Mini progress %s", async (progressPercent, progress) => {
+    const request = vi.fn(async () => ({
+      status: 200,
+      data: {
+        books: [{ id: `book-${progressPercent}`, title: "进度书", format: "txt", progressPercent }],
+      },
+    }));
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      requestHeaders: () => ({ authorization: "future-session-bound-header" }),
+      transport: transport({ request }),
+    });
+
+    await expect(client.listBooks()).resolves.toMatchObject([{ progress }]);
+  });
+
+  it.each([-1, 101, Number.NaN, Number.POSITIVE_INFINITY, null])(
+    "does not produce an invalid Mini progress value for progressPercent %s",
+    async (progressPercent) => {
+      const request = vi.fn(async () => ({
+        status: 200,
+        data: { books: [{ id: "book-invalid-progress", title: "进度书", format: "txt", progressPercent }] },
+      }));
+      const client = createLibraryHttpClient({
+        baseUrl: "https://api.example.test",
+        requestHeaders: () => ({ authorization: "future-session-bound-header" }),
+        transport: transport({ request }),
+      });
+
+      await expect(client.listBooks()).resolves.toMatchObject([{ progress: 0 }]);
+    },
+  );
+
+  it("maps multiple server records in one GET without a per-book request", async () => {
+    const request = vi.fn(async () => ({
+      status: 200,
+      data: {
+        books: [
+          { id: "book-zero", title: "零", format: "txt", progressPercent: 0 },
+          { id: "book-middle", title: "中", format: "epub", progressPercent: 67 },
+          { id: "book-end", title: "满", format: "pdf", progressPercent: 100 },
+        ],
+      },
+    }));
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      requestHeaders: () => ({ authorization: "future-session-bound-header" }),
+      transport: transport({ request }),
+    });
+
+    await expect(client.listBooks({ query: "" })).resolves.toMatchObject([
+      { id: "book-zero", progress: 0 },
+      { id: "book-middle", progress: 0.67 },
+      { id: "book-end", progress: 1 },
+    ]);
+    expect(request).toHaveBeenCalledOnce();
+  });
+
   it("never accepts a caller-selected account id as an ownership boundary", async () => {
     const request = vi.fn(async () => ({ status: 200, data: { books: [] } }));
     const client = createLibraryHttpClient({
@@ -98,6 +165,7 @@ describe("authenticated library HTTP client", () => {
         format: "epub",
         sourceLabel: "本地",
         parseStatus: "processing",
+        progressPercent: 67,
         errorCode: null,
         sectionCount: 0,
         pageCount: null,
@@ -115,6 +183,7 @@ describe("authenticated library HTTP client", () => {
       id: "book-processing",
       title: "山亭",
       parseStatus: "processing",
+      progress: 0.67,
       source: "local",
       format: "epub",
     });
@@ -130,6 +199,68 @@ describe("authenticated library HTTP client", () => {
       },
       body: new Uint8Array([80, 75, 3, 4]).buffer,
     });
+  });
+
+  it("rejects an oversized local file before upload", async () => {
+    const request = vi.fn(async () => ({ status: 202, data: {} }));
+    const readFile = vi.fn(async () => new ArrayBuffer(MAX_IMPORT_BYTES + 1));
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      requestHeaders: () => ({ authorization: "future-session-bound-header" }),
+      transport: transport({ request, readFile }),
+    });
+
+    await expect(client.importBook({ path: "/tmp/too-large.epub", name: "too-large.epub" }))
+      .rejects.toMatchObject({ code: "BOOK_FILE_TOO_LARGE" });
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("uses wx.request for JSON and the filesystem manager for ArrayBuffer imports", async () => {
+    const wxRequests: Array<{ url: string; method?: string; header?: Record<string, string>; data?: unknown }> = [];
+    const fileBytes = new Uint8Array([9, 8, 7]).buffer;
+    const wxRequest = vi.fn((input: {
+      url: string;
+      method?: string;
+      header?: Record<string, string>;
+      data?: unknown;
+      success?: (response: { statusCode: number; data: unknown }) => void;
+    }) => {
+      wxRequests.push({
+        url: input.url,
+        method: input.method,
+        header: input.header,
+        ...(input.data === undefined ? {} : { data: input.data }),
+      });
+      input.success?.({ statusCode: 200, data: { books: [] } });
+    });
+    const readFile = vi.fn((input: {
+      filePath: string;
+      success?: (result: { data: ArrayBuffer }) => void;
+      fail?: () => void;
+    }) => input.success?.({ data: fileBytes }));
+    vi.stubGlobal("wx", {
+      request: wxRequest,
+      getFileSystemManager: () => ({ readFile }),
+    });
+
+    try {
+      const transport = createWxLibraryTransport();
+      await expect(transport.request({
+        method: "GET",
+        url: "https://api.example.test/api/v1/books?query=",
+        headers: { accept: "application/json", Authorization: "Bearer token" },
+      })).resolves.toEqual({ status: 200, data: { books: [] } });
+      await expect(transport.readFile("/tmp/book.epub")).resolves.toBe(fileBytes);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    expect(readFile).toHaveBeenCalledWith(expect.objectContaining({ filePath: "/tmp/book.epub" }));
+    expect(wxRequests).toEqual([{
+      url: "https://api.example.test/api/v1/books?query=",
+      method: "GET",
+      header: { accept: "application/json", Authorization: "Bearer token" },
+    }]);
   });
 
   it("fails closed for non-success responses and malformed payloads", async () => {
