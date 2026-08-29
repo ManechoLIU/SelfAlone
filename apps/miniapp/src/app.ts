@@ -2,6 +2,8 @@ import { createClientAdapter } from "./adapters/index.js";
 import type { MiniappClient } from "./adapters/client";
 import type { LibraryHttpTransport } from "./adapters/library-http";
 import { createDevelopmentAnnotationsClient } from "./adapters/development-annotations";
+import { createDevelopmentWeReadPort } from "./adapters/development-weread";
+import { createNoCallWeReadPort, type WeReadClient } from "./adapters/weread";
 import {
   createConversationApiClient,
   type ConversationApiClient,
@@ -27,6 +29,7 @@ export type MiniappGlobalData = {
   authClient: MiniAuthClient;
   conversationClient: ConversationApiClient;
   annotationsClient: AnnotationsApiClient;
+  wereadClient: WeReadClient;
   session: Session;
   sessionStore: ReturnType<typeof createSessionStore>;
   pptIntentStore: ReturnType<typeof createPptIntentStore>;
@@ -86,12 +89,16 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
       transport: options.annotationsTransport,
     });
   const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });
+  // WeRead has no runtime override: develop gets the deterministic in-memory
+  // port, every other environment stays fail-closed on the no-call port.
+  const wereadClient = developmentAdapter ? createDevelopmentWeReadPort() : createNoCallWeReadPort();
 
   const globalData: MiniappGlobalData = {
     client,
     authClient,
     conversationClient,
     annotationsClient,
+    wereadClient,
     session: sessionStore.restore(),
     sessionStore,
     pptIntentStore,

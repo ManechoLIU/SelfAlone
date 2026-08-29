@@ -82,3 +82,88 @@ describe("miniapp runtime composition", () => {
     expect(globalData.session).toEqual({ kind: "signed-out" });
   });
 });
+
+describe("miniapp WeRead composition", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubReleaseWx() {
+    vi.stubGlobal("App", vi.fn());
+    vi.stubGlobal("wx", {
+      getAccountInfoSync: () => ({ miniProgram: { envVersion: "release" } }),
+      getStorageSync: () => undefined,
+      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+    });
+  }
+
+  it("injects the deterministic development WeRead port only for the develop runtime", async () => {
+    stubReleaseWx();
+    const { createMiniappGlobalData } = await import("./app");
+
+    const development = createMiniappGlobalData({ environment: "develop", storage: memoryStorage() });
+    const connectInput = { apiKey: "wrk-dev-a", requestId: "req-app-connect", expectedRevision: null };
+    await expect(development.wereadClient.putConnection(connectInput))
+      .rejects.toMatchObject({ code: "EXTERNAL_SERVICE_FAILED", retryable: true });
+    const saved = await development.wereadClient.putConnection(connectInput);
+    expect(saved.connection).toMatchObject({
+      accountExternalId: "weread-dev-account-a",
+      status: "verified",
+    });
+    await expect(development.wereadClient.getConnection()).resolves.toEqual({ connection: saved.connection });
+    const books = await development.wereadClient.getBooks();
+    expect(books.status).toBe("success");
+    expect(books.books.length).toBeGreaterThan(0);
+
+    for (const environment of ["release", "trial"]) {
+      const nonDevelop = createMiniappGlobalData({ environment, storage: memoryStorage() });
+      await expect(nonDevelop.wereadClient.getConnection()).resolves.toEqual({ connection: null });
+      await expect(nonDevelop.wereadClient.putConnection({
+        apiKey: "wrk-dev-a",
+        requestId: `req-app-${environment}`,
+        expectedRevision: null,
+      })).rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+      await expect(nonDevelop.wereadClient.getBooks())
+        .rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+    }
+  });
+
+  it("does not accept any runtime WeRead transport or client override", async () => {
+    stubReleaseWx();
+    const { createMiniappGlobalData } = await import("./app");
+    const injected = {
+      getConnection: vi.fn(async () => ({ connection: null })),
+      putConnection: vi.fn(),
+      getBooks: vi.fn(),
+    };
+
+    const releaseOptions = {
+      environment: "release",
+      storage: memoryStorage(),
+      wereadClient: injected,
+      wereadTransport: injected,
+    };
+    const release = createMiniappGlobalData(releaseOptions);
+    await expect(release.wereadClient.putConnection({
+      apiKey: "wrk-dev-a",
+      requestId: "req-app-override-release",
+      expectedRevision: null,
+    })).rejects.toMatchObject({ code: "WEREAD_NO_CALL" });
+
+    const developOptions = {
+      environment: "develop",
+      storage: memoryStorage(),
+      wereadClient: injected,
+      wereadTransport: injected,
+    };
+    const development = createMiniappGlobalData(developOptions);
+    const connectInput = { apiKey: "wrk-dev-a", requestId: "req-app-override-develop", expectedRevision: null };
+    await development.wereadClient.putConnection(connectInput).catch(() => undefined);
+    await development.wereadClient.putConnection(connectInput);
+
+    expect(injected.getConnection).not.toHaveBeenCalled();
+    expect(injected.putConnection).not.toHaveBeenCalled();
+    expect(injected.getBooks).not.toHaveBeenCalled();
+  });
+});
