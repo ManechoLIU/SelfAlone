@@ -941,9 +941,15 @@ Page<ReaderData>({
   openPpt() {
     const detail = this.data.detail;
     if (!detail) return;
+    const book = detail.book;
     const intent = getApp<MiniappApp>().globalData.pptIntentStore.selectBook({
-      id: detail.book.id,
-      title: detail.book.title,
+      id: book.id,
+      title: book.title,
+      ...(book.author ? { author: book.author } : {}),
+      source: book.source,
+      ...(book.sourceLabel ? { sourceLabel: book.sourceLabel } : {}),
+      ...(book.coverUrl ? { coverUrl: book.coverUrl } : {}),
+      coverVariant: book.coverVariant,
     });
     if (!intent) {
       wx.showModal({

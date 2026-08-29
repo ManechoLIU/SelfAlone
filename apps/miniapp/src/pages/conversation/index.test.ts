@@ -20,6 +20,8 @@ let productionConversationClient: {
 };
 let intentStore: {
   restore: ReturnType<typeof vi.fn>;
+  updateDraft: ReturnType<typeof vi.fn>;
+  activate: ReturnType<typeof vi.fn>;
   confirm: ReturnType<typeof vi.fn>;
   workspaceUrl: ReturnType<typeof vi.fn>;
 };
@@ -43,11 +45,15 @@ async function settleLocalSend() {
 
 beforeAll(async () => {
   storedIntent = {
-    version: 1,
+    version: 2,
     conversationId: "development-current",
-    taskId: "development-ppt-dev-local-ink",
     bookId: "dev-local-ink",
     bookTitle: "山窗读书札记",
+    author: "本地作者",
+    source: "local",
+    sourceLabel: "已导入",
+    coverVariant: 0,
+    draft: "帮我制作这本书PPT",
     phase: "awaiting-confirmation",
   };
   storedConversationState = undefined;
@@ -57,12 +63,20 @@ beforeAll(async () => {
   };
   intentStore = {
     restore: vi.fn(() => storedIntent),
+    updateDraft: vi.fn((draft: string) => {
+      storedIntent = storedIntent ? { ...storedIntent, draft } : null;
+      return storedIntent;
+    }),
+    activate: vi.fn(() => {
+      storedIntent = storedIntent ? { ...storedIntent, phase: "awaiting-confirmation" } : null;
+      return storedIntent;
+    }),
     confirm: vi.fn(() => {
       storedIntent = storedIntent ? { ...storedIntent, phase: "requirements-ready" } : null;
       return storedIntent;
     }),
     workspaceUrl: vi.fn(() => storedIntent?.phase === "requirements-ready"
-      ? "/pages/ppt/index?bookId=dev-local-ink&intentId=development-ppt-dev-local-ink"
+      ? "/pages/ppt/index?bookId=dev-local-ink"
       : null),
   };
   vi.stubGlobal("Page", (definition: ConversationPageHarness) => { pageDefinition = definition; });
@@ -100,6 +114,8 @@ beforeEach(() => {
     sendText: vi.fn(async () => { throw new Error("CONVERSATION_API_UNAVAILABLE"); }),
   };
   intentStore.confirm.mockClear();
+  intentStore.updateDraft.mockClear();
+  intentStore.activate.mockClear();
   intentStore.workspaceUrl.mockClear();
   (wx as unknown as { navigateTo: ReturnType<typeof vi.fn> }).navigateTo.mockClear();
 });
@@ -181,6 +197,62 @@ describe("conversation normal shell contract", () => {
     expect(conversationWxss).not.toMatch(/\.conversation-page\s+\*,\s*\.selection-layer\s+\*/);
   });
 
+  it("restores a book handoff as an editable draft without opening scope or stage", () => {
+    storedIntent = {
+      version: 2,
+      conversationId: "development-current",
+      bookId: "dev-local-ink",
+      bookTitle: "山窗读书札记",
+      author: "本地作者",
+      source: "local",
+      sourceLabel: "已导入",
+      coverVariant: 0,
+      draft: "帮我制作这本书PPT",
+      phase: "draft",
+    };
+    const page = createPage();
+
+    page.onShow();
+
+    expect(page.data).toMatchObject({
+      draft: "帮我制作这本书PPT",
+      pptIntent: null,
+      pptHandoff: {
+        conversationId: "development-current",
+        bookId: "dev-local-ink",
+        bookTitle: "山窗读书札记",
+        author: "本地作者",
+        sourceLabel: "已导入",
+        phase: "draft",
+      },
+      selectionSheetOpen: false,
+    });
+    expect(intentStore.activate).not.toHaveBeenCalled();
+    expect((wx as unknown as { navigateTo: ReturnType<typeof vi.fn> }).navigateTo).not.toHaveBeenCalled();
+  });
+
+  it("activates the handoff only when the user sends the prefilled draft", () => {
+    storedIntent = {
+      version: 2,
+      conversationId: "development-current",
+      bookId: "dev-local-ink",
+      bookTitle: "山窗读书札记",
+      draft: "帮我制作这本书PPT",
+      phase: "draft",
+    };
+    const page = createPage();
+    page.onShow();
+
+    page.sendDraft();
+
+    expect(intentStore.activate).toHaveBeenCalledTimes(1);
+    expect(page.data).toMatchObject({
+      pptIntent: { phase: "awaiting-confirmation", bookId: "dev-local-ink" },
+      pptHandoff: null,
+      selectionSheetOpen: true,
+    });
+  });
+
   it("opens the selection sheet, confirms a scope, writes a summary, and reopens it for editing", () => {
     const page = createPage();
 
@@ -216,7 +288,7 @@ describe("conversation normal shell contract", () => {
     page.openPptStage();
     expect(navigateTo).toHaveBeenCalledTimes(1);
     expect(navigateTo).toHaveBeenCalledWith({
-      url: "/pages/ppt/index?bookId=dev-local-ink&intentId=development-ppt-dev-local-ink",
+      url: "/pages/ppt/index?bookId=dev-local-ink",
     });
   });
 
@@ -577,6 +649,62 @@ describe("conversation normal shell contract", () => {
     expect(page.data.messages[0]).toMatchObject({ id: pendingId, status: "sent" });
     expect(page.data.messages[1]).toMatchObject({ replyTo: pendingId });
     expect(page.data.pendingSend).toBeNull();
+  });
+
+  it("restores the PPT handoff draft and book context after a failed send and refresh", async () => {
+    storedIntent = {
+      version: 2,
+      conversationId: "development-current",
+      bookId: "dev-local-ink",
+      bookTitle: "山窗读书札记",
+      author: "本地作者",
+      source: "local",
+      sourceLabel: "已导入",
+      coverVariant: 0,
+      draft: "帮我制作这本书PPT",
+      phase: "draft",
+    };
+    const page = createPage();
+    page.onLoad({ developmentSendFailure: "1" });
+    page.onShow();
+    page.onDraftInput({ detail: { value: "帮我制作这本书PPT，重点讲第二章" }, currentTarget: { dataset: {} } });
+
+    page.sendDraft();
+    await settleLocalSend();
+
+    expect(page.data).toMatchObject({
+      sendStatus: "failed",
+      draft: "帮我制作这本书PPT，重点讲第二章",
+      pptIntent: {
+        bookId: "dev-local-ink",
+        bookTitle: "山窗读书札记",
+        phase: "awaiting-confirmation",
+      },
+      pptHandoff: null,
+    });
+    expect(storedConversationState).toMatchObject({
+      conversationId: "development-current",
+      intentTaskId: null,
+      draft: "帮我制作这本书PPT，重点讲第二章",
+      pendingSend: { draft: "帮我制作这本书PPT，重点讲第二章" },
+    });
+
+    const refreshed = createPage();
+    refreshed.onShow();
+
+    expect(refreshed.data).toMatchObject({
+      draft: "帮我制作这本书PPT，重点讲第二章",
+      pptIntent: {
+        bookId: "dev-local-ink",
+        bookTitle: "山窗读书札记",
+        author: "本地作者",
+        sourceLabel: "已导入",
+        phase: "awaiting-confirmation",
+      },
+      selectionSheetOpen: true,
+      sendStatus: "failed",
+    });
+    expect((wx as unknown as { navigateTo: ReturnType<typeof vi.fn> }).navigateTo).not.toHaveBeenCalled();
   });
 
   it("restores committed messages without generating another reply", async () => {

@@ -36,6 +36,7 @@ type ConversationData = {
   keyboardOpen: boolean;
   viewportStyle: string;
   pptIntent: PptConversationIntent | null;
+  pptHandoff: PptConversationIntent | null;
   selectionSheetOpen: boolean;
   selectionOptions: ConversationScopeOption[];
   selectionDraftIds: string[];
@@ -189,6 +190,7 @@ Page<ConversationData>({
     keyboardOpen: false,
     viewportStyle: "",
     pptIntent: null,
+    pptHandoff: null,
     selectionSheetOpen: false,
     selectionOptions: defaultSelectionOptions,
     selectionDraftIds: [...defaultSelectionIds],
@@ -232,9 +234,16 @@ Page<ConversationData>({
 
     this.conversationStore = createConversationStore(app);
     const saved = this.conversationStore.restore();
-    const pptIntent = app.globalData.pptIntentStore.restore();
-    const intentTaskId = pptIntent?.taskId ?? null;
-    const savedForIntent = saved?.intentTaskId === intentTaskId ? saved : null;
+    const storedPptContext = app.globalData.pptIntentStore.restore();
+    const pptHandoff = storedPptContext?.phase === "draft" ? storedPptContext : null;
+    const pptIntent = storedPptContext && storedPptContext.phase !== "draft" ? storedPptContext : null;
+    const preferredConversationId = storedPptContext?.conversationId ?? saved?.conversationId;
+    const conversationId = app.globalData.developmentAdapter
+      ? preferredConversationId ?? developmentConversationId
+      : preferredConversationId && preferredConversationId !== developmentConversationId
+        ? preferredConversationId
+        : productionConversationPlaceholder;
+    const savedForIntent = saved?.conversationId === conversationId ? saved : null;
     const confirmedSelectionIds = pptIntent?.phase === "requirements-ready"
       ? savedForIntent?.confirmedSelectionIds ?? [...defaultSelectionIds]
       : [];
@@ -244,16 +253,10 @@ Page<ConversationData>({
         : savedForIntent?.confirmedSelectionIds.length
           ? savedForIntent.confirmedSelectionIds
           : [...defaultSelectionIds]
-      : confirmedSelectionIds;
+      : pptIntent?.phase === "requirements-ready" ? confirmedSelectionIds : [];
     const selectionSheetOpen = pptIntent?.phase === "awaiting-confirmation"
-      && (savedForIntent ? savedForIntent.selectionSheetOpen : true);
-    const restoredConversationId = saved?.conversationId;
-    const conversationId = app.globalData.developmentAdapter
-      ? restoredConversationId ?? pptIntent?.conversationId ?? developmentConversationId
-      : restoredConversationId && restoredConversationId !== developmentConversationId
-        ? restoredConversationId
-        : productionConversationPlaceholder;
-    const draft = saved?.draft ?? this.data.draft;
+      && (savedForIntent?.selectionSheetOpen ?? false);
+    const draft = pptHandoff?.draft ?? savedForIntent?.draft ?? this.data.draft;
     const attachments = saved?.attachmentPaths ?? this.data.attachments;
     const pendingSend = saved?.pendingSend ?? null;
     const restoredMessages = saved?.messages ?? [];
@@ -272,6 +275,7 @@ Page<ConversationData>({
       sendStatus: pendingSend ? "failed" : "idle",
       messageAnchor: messages.length ? conversationMessageAnchor(messages[messages.length - 1].id) : "",
       pptIntent,
+      pptHandoff,
       selectionSheetOpen,
       selectionDraftIds,
       confirmedSelectionIds,
@@ -298,10 +302,16 @@ Page<ConversationData>({
   onDraftInput(event: MiniappEvent<{ value: string }>) {
     if (this.data.sending) return;
     const draft = event.detail.value;
+    const context = this.data.pptHandoff ?? this.data.pptIntent;
+    const updatedContext = context
+      ? getApp<MiniappApp>().globalData.pptIntentStore.updateDraft(draft)
+      : null;
     this.setData({
       draft,
       canSend: Boolean(draft.trim() || this.data.attachments.length),
       boundaryMessage: "",
+      ...(this.data.pptHandoff ? { pptHandoff: updatedContext } : {}),
+      ...(this.data.pptIntent ? { pptIntent: updatedContext } : {}),
     }, () => this.persistLocalState());
   },
 
@@ -537,6 +547,14 @@ Page<ConversationData>({
   },
 
   beginSend() {
+    let pptIntent = this.data.pptIntent;
+    if (this.data.pptHandoff) {
+      pptIntent = getApp<MiniappApp>().globalData.pptIntentStore.activate();
+      if (!pptIntent) {
+        this.showFailure("PPT 书籍上下文暂时无法恢复，当前输入仍保留。");
+        return;
+      }
+    }
     const next = startConversationSend(
       this.data.messages,
       this.data.pendingSend,
@@ -552,6 +570,14 @@ Page<ConversationData>({
       canSend: false,
       boundaryMessage: "",
       messageAnchor: conversationMessageAnchor(pendingSend.id),
+      pptIntent,
+      pptHandoff: null,
+      selectionSheetOpen: pptIntent?.phase === "awaiting-confirmation",
+      selectionDraftIds: pptIntent?.phase === "awaiting-confirmation" ? [...defaultSelectionIds] : this.data.selectionDraftIds,
+      confirmedSelectionIds: pptIntent?.phase === "awaiting-confirmation" ? [] : this.data.confirmedSelectionIds,
+      selectionSummary: pptIntent?.phase === "awaiting-confirmation" ? "" : this.data.selectionSummary,
+      selectionOptions: selectionOptionsFor(pptIntent?.phase === "awaiting-confirmation" ? defaultSelectionIds : this.data.selectionDraftIds),
+      canConfirmSelection: canConfirmSelection(pptIntent?.phase === "awaiting-confirmation" ? defaultSelectionIds : this.data.selectionDraftIds),
     }, () => this.persistLocalState());
 
     const app = getApp<MiniappApp>();
@@ -702,12 +728,14 @@ Page<ConversationData>({
     const app = getApp<MiniappApp>();
     const conversationId = this.data.conversationId
       || (app.globalData.developmentAdapter
-        ? this.data.pptIntent?.conversationId ?? developmentConversationId
+        ? this.data.pptIntent?.conversationId
+          ?? this.data.pptHandoff?.conversationId
+          ?? developmentConversationId
         : productionConversationPlaceholder);
     const state: ConversationLocalState = {
       version: 1,
       conversationId,
-      intentTaskId: this.data.pptIntent?.taskId ?? null,
+      intentTaskId: null,
       draft: this.data.draft,
       attachmentPaths: this.data.attachments,
       selectionDraftIds: this.data.selectionDraftIds,

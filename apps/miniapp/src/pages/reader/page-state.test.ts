@@ -43,6 +43,7 @@ let readerClient: {
   getBook: ReturnType<typeof vi.fn>;
   savePosition: ReturnType<typeof vi.fn>;
 };
+let readerPptIntentStore: { selectBook: ReturnType<typeof vi.fn> };
 let annotationsClient: {
   getAnnotations: ReturnType<typeof vi.fn>;
   createNote: ReturnType<typeof vi.fn>;
@@ -105,6 +106,7 @@ beforeAll(async () => {
       version: Number(input.expectedVersion ?? 0) + 1,
     })),
   };
+  readerPptIntentStore = { selectBook: vi.fn() };
   annotationsClient = {
     getAnnotations: vi.fn(async () => ({ fileVersion: 1, highlights: [], notes: [] })),
     createNote: vi.fn(),
@@ -117,10 +119,10 @@ beforeAll(async () => {
       client: readerClient,
       annotationsClient,
       developmentAdapter: true,
-      pptIntentStore: { selectBook: vi.fn() },
+      pptIntentStore: readerPptIntentStore,
     },
   }));
-  vi.stubGlobal("wx", {});
+  vi.stubGlobal("wx", { navigateTo: vi.fn(), showModal: vi.fn() });
   await import("./index");
 });
 
@@ -313,6 +315,36 @@ describe("reader page state", () => {
 
   it("routes a book PPT intent through the current conversation before the workspace", () => {
     expect(pptConversationUrl()).toBe("/pages/conversation/index?intent=ppt");
+  });
+
+  it("hands the real book context to a draft without creating a task at the reader entry", () => {
+    const page = createReaderPage();
+    page.data = { ...page.data, detail: readerDetailWithBackground("light") };
+    readerPptIntentStore.selectBook.mockReturnValue({
+      version: 2,
+      conversationId: "development-current",
+      bookId: "reader-page-test-book",
+      bookTitle: "页面测试书籍",
+      author: "测试作者",
+      source: "local",
+      sourceLabel: "已导入",
+      coverVariant: 0,
+      draft: "帮我制作这本书PPT",
+      phase: "draft",
+    });
+
+    page.openPpt();
+
+    expect(readerPptIntentStore.selectBook).toHaveBeenCalledWith({
+      id: "reader-page-test-book",
+      title: "页面测试书籍",
+      author: "测试作者",
+      source: "local",
+      sourceLabel: "已导入",
+      coverVariant: 0,
+    });
+    expect(readerPptIntentStore.selectBook.mock.results[0]?.value).not.toHaveProperty("taskId");
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: "/pages/conversation/index?intent=ppt" });
   });
 
   it("drives the content sheet through initial, dragging, fullscreen, collapsed and closed", () => {
