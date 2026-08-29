@@ -253,6 +253,25 @@ function readerProgress(locator: ServerTextLocator, sections: ServerTextSection[
   return Math.min(1, Math.max(0, (beforeLength + locator.offset) / totalLength));
 }
 
+// Server locators use UTF-16 code-unit offsets into the source section.text,
+// while the Mini reader builds blocks from body.trim() starting at offset 0.
+// Both directions therefore stay in UTF-16 code units, never code points.
+function leadingTrimmedUnits(text: string) {
+  return /^\s*/.exec(text)?.[0].length ?? 0;
+}
+
+function displayOffsetFromSource(section: ServerTextSection, sourceOffset: number) {
+  return Math.min(
+    Math.max(sourceOffset - leadingTrimmedUnits(section.text), 0),
+    section.text.trim().length,
+  );
+}
+
+function sourceOffsetFromDisplay(section: ServerTextSection, displayOffset: number) {
+  return leadingTrimmedUnits(section.text)
+    + Math.min(Math.max(displayOffset, 0), section.text.trim().length);
+}
+
 function mapReaderPosition(
   value: unknown,
   sections: ServerTextSection[],
@@ -261,10 +280,13 @@ function mapReaderPosition(
   const position = parseReaderPosition(value);
   if (!position) return null;
   if (position.locator.fileVersion !== fileVersion) throw staleReaderResponse();
+  const progress = readerProgress(position.locator, sections);
+  const section = sections.find((candidate) => candidate.sectionId === position.locator.sectionId);
+  if (!section) return invalidReaderResponse();
   return {
     sectionId: position.locator.sectionId,
-    offset: position.locator.offset,
-    progress: readerProgress(position.locator, sections),
+    offset: displayOffsetFromSource(section, position.locator.offset),
+    progress,
     background: position.background,
     version: position.version,
   };
@@ -539,6 +561,8 @@ export class LibraryHttpClient implements MiniappClient {
     if (!snapshot) {
       throw new ClientBoundaryError("CLIENT_CAPABILITY_UNAVAILABLE", "书籍尚未载入，无法保存阅读位置");
     }
+    const section = snapshot.sections.find((candidate) => candidate.sectionId === input.sectionId);
+    const sourceOffset = section ? sourceOffsetFromDisplay(section, input.offset) : input.offset;
     const data = await this.request({
       method: "PUT",
       url: endpoint(this.#baseUrl, `/api/v1/books/${encodeURIComponent(bookId)}/position`),
@@ -549,7 +573,7 @@ export class LibraryHttpClient implements MiniappClient {
           kind: "text",
           fileVersion: snapshot.fileVersion,
           sectionId: input.sectionId,
-          offset: input.offset,
+          offset: sourceOffset,
         },
         background: input.background,
       },

@@ -158,6 +158,114 @@ describe("authenticated library HTTP client", () => {
     });
   });
 
+  it("round-trips UTF-16 code-unit offsets between source text and trimmed display text", async () => {
+    // Server locators are UTF-16 code-unit offsets into the source section.text,
+    // while the Mini reader builds blocks from body.trim() starting at offset 0.
+    const sourceText = "\n\n😀正文\n";
+    const request = vi.fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: {
+          bookId: "book-1",
+          title: "雨后山亭",
+          author: null,
+          contentMode: "text",
+          fileVersion: 2,
+          position: {
+            locator: { kind: "text", fileVersion: 2, sectionId: "txt:one", offset: 4 },
+            background: "light",
+            version: 4,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: {
+          fileVersion: 2,
+          sections: [{ sectionId: "txt:one", title: "第一章", order: 0, text: sourceText }],
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: {
+          locator: { kind: "text", fileVersion: 2, sectionId: "txt:one", offset: 2 },
+          background: "light",
+          version: 5,
+        },
+      });
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => ({ kind: "authenticated", token: "opaque-reader-token-1234567890", expiresAt: Date.now() + 60_000 }),
+      transport: transport({ request }),
+    });
+
+    // Source offset 4 (two newlines + one non-BMP emoji = 4 UTF-16 code units)
+    // must hydrate to display offset 2 in trimmed text "😀正文", not 4 and not 1.
+    const detail = await client.getBook("book-1");
+    expect(detail.position).toMatchObject({ sectionId: "txt:one", offset: 2 });
+
+    // Saving from the first visible character (display offset 0) must map back
+    // to source offset 2 in UTF-16 code units.
+    await expect(client.savePosition("book-1", {
+      sectionId: "txt:one",
+      offset: 0,
+      progress: 0,
+      background: "light",
+      expectedVersion: 4,
+    })).resolves.toMatchObject({ sectionId: "txt:one", offset: 0, version: 5 });
+    expect(request).toHaveBeenNthCalledWith(3, {
+      method: "PUT",
+      url: "https://api.example.test/api/v1/books/book-1/position",
+      headers: {
+        Authorization: "Bearer opaque-reader-token-1234567890",
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: {
+        expectedVersion: 4,
+        locator: { kind: "text", fileVersion: 2, sectionId: "txt:one", offset: 2 },
+        background: "light",
+      },
+    });
+  });
+
+  it("clamps hydrated offsets that land inside trimmed whitespace", async () => {
+    const sourceText = "  😀正文  ";
+    const request = vi.fn()
+      .mockResolvedValueOnce({
+        status: 200,
+        data: {
+          bookId: "book-1",
+          title: "雨后山亭",
+          author: null,
+          contentMode: "text",
+          fileVersion: 2,
+          position: {
+            locator: { kind: "text", fileVersion: 2, sectionId: "txt:one", offset: 8 },
+            background: "light",
+            version: 1,
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        data: {
+          fileVersion: 2,
+          sections: [{ sectionId: "txt:one", title: "第一章", order: 0, text: sourceText }],
+        },
+      });
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => ({ kind: "authenticated", token: "opaque-reader-token-1234567890", expiresAt: Date.now() + 60_000 }),
+      transport: transport({ request }),
+    });
+
+    // Source offset 8 lands in the trailing whitespace; the trimmed display
+    // text "😀正文" is 4 code units, so the hydrated offset clamps to 4.
+    const detail = await client.getBook("book-1");
+    expect(detail.position).toMatchObject({ sectionId: "txt:one", offset: 4 });
+  });
+
   it("reads the current authenticated session before every reader request", async () => {
     const sessions = [
       { kind: "authenticated" as const, token: "opaque-first-reader-token-1234567890", expiresAt: Date.now() + 60_000 },
