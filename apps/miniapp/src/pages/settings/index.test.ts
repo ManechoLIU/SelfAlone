@@ -270,6 +270,61 @@ describe("settings page product copy", () => {
     expect(page.data.wereadEditorOpen).toBe(true);
   });
 
+  it("adopts a legitimate account replacement when the saved key resolves to a different account", async () => {
+    const putConnection = vi.fn(async (input: { apiKey: string; requestId: string; expectedRevision: string | null }) => ({
+      connection: {
+        connectionId: "connection-b",
+        accountExternalId: "weread-account-b",
+        apiKeyHint: "wrk-••••••••",
+        status: "verified" as const,
+        verifiedAt: "2024-01-03T03:04:05.000Z",
+        revision: "4",
+      },
+      sync: { run: {
+        runId: "run-b",
+        requestId: input.requestId,
+        operation: "books" as const,
+        connectionId: "connection-b",
+        accountExternalId: "weread-account-b",
+        status: "queued" as const,
+        snapshot: "none" as const,
+        cursor: null,
+        nextCursor: null,
+        retryCount: 0,
+        createdAt: "2024-01-03T03:04:05.000Z",
+        updatedAt: "2024-01-03T03:04:05.000Z",
+      } },
+    }));
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      wereadClient: { putConnection },
+      sessionStore: { restore: () => ({ kind: "authenticated", token: "token" }) },
+      session: { kind: "authenticated", token: "token" },
+    } }));
+    const page = createPage();
+    page.data.wereadConnection = {
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      apiKeyHint: "old",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    page.showWeReadSettings();
+    page.onWeReadApiKeyInput({ detail: { value: "wrk-account-b" }, currentTarget: { dataset: {} } });
+
+    await page.saveWeReadConnection();
+
+    expect(putConnection).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: "3" }));
+    expect(page.data.wereadConnection).toEqual(expect.objectContaining({
+      connectionId: "connection-b",
+      accountExternalId: "weread-account-b",
+      revision: "4",
+    }));
+    expect(page.data.wereadEditorOpen).toBe(false);
+    expect(page.data.wereadApiKey).toBe("");
+    expect(page.data.wereadSaving).toBe(false);
+  });
+
   it("does not let an older connection load overwrite a newly opened connection session", async () => {
     let resolveConnection: ((value: any) => void) | undefined;
     const getConnection = vi.fn(() => new Promise((resolve) => {

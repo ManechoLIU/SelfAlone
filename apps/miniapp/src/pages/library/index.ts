@@ -168,6 +168,10 @@ Page<LibraryData>({
     };
     const expectedConnectionId = this.data.wereadConnection?.connectionId ?? null;
     const expectedAccountExternalId = this.data.wereadConnection?.accountExternalId ?? null;
+    const shelfOwner = this.wereadShelfOwner
+      ?? (expectedConnectionId !== null && expectedAccountExternalId !== null
+        ? { connectionId: expectedConnectionId, accountExternalId: expectedAccountExternalId }
+        : null);
     let activeConnection: WeReadConnectionProjection | null = null;
     const initialTargetStillCurrent = () => {
       const current = this.data.wereadConnection;
@@ -190,10 +194,9 @@ Page<LibraryData>({
       }
       const connection = response.connection?.status === "disconnected" ? null : response.connection;
       if (!connection) {
+        this.wereadShelfOwner = shelfOwner;
         this.setData({
           wereadConnection: null,
-          wereadBooks: [],
-          wereadAnnotations: {},
           wereadSyncStatus: "idle",
           wereadSyncLabel: "未连接",
           wereadNotice: "",
@@ -228,9 +231,17 @@ Page<LibraryData>({
       }
       const sync = presentWeReadSync(booksResponse);
       const snapshotBooks = booksResponse.books.map(mapWeReadBook);
+      const shelfOwnerChanged = !!shelfOwner
+        && (shelfOwner.connectionId !== connection.connectionId
+          || shelfOwner.accountExternalId !== connection.accountExternalId);
+      const cachedBooks = shelfOwnerChanged ? [] : this.data.wereadBooks;
       const wereadBooks = booksResponse.status === "success"
         ? snapshotBooks
-        : this.data.wereadBooks.length ? this.data.wereadBooks : snapshotBooks;
+        : cachedBooks.length ? cachedBooks : snapshotBooks;
+      this.wereadShelfOwner = {
+        connectionId: connection.connectionId,
+        accountExternalId: connection.accountExternalId,
+      };
       const localBooks = this.data.localBooks.length
         ? this.data.localBooks
         : this.data.books.filter((book: BookSummary) => book.source !== "weread");
@@ -238,6 +249,7 @@ Page<LibraryData>({
       this.setData({
         wereadConnection: connection,
         wereadBooks,
+        wereadAnnotations: shelfOwnerChanged ? {} : this.data.wereadAnnotations,
         wereadSyncStatus: sync.status,
         wereadSyncLabel: sync.label,
         wereadNotice: sync.message,

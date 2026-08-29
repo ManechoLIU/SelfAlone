@@ -775,6 +775,132 @@ describe("Library initial load failure", () => {
     expect(page.data.visibleBooks).toEqual([expect.objectContaining({ id: wereadBook.id })]);
   });
 
+  it("keeps synced WeRead books and annotations read-only after the connection is disconnected", async () => {
+    const wereadBook = {
+      id: "weread:synced-book",
+      title: "已同步书",
+      source: "weread" as const,
+      sourceLabel: "微信读书",
+      format: "weread" as const,
+      progress: 0.43,
+      coverVariant: 0,
+    };
+    const syncedAnnotation = {
+      externalId: "annotation-a",
+      quote: "已同步划线",
+      thought: null,
+      location: null,
+    };
+    const getBooks = vi.fn();
+    const wereadClient = {
+      getConnection: vi.fn(async () => ({ connection: null })),
+      getBooks,
+    };
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      client: { listBooks: vi.fn(async () => []) },
+      developmentAdapter: false,
+      wereadClient,
+    } }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+    page.data.wereadConnection = {
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      apiKeyHint: "wrk-••••••••",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    page.data.wereadBooks = [wereadBook];
+    page.data.wereadAnnotations = { [wereadBook.id]: [syncedAnnotation] };
+
+    await page.loadBooks();
+
+    expect(getBooks).not.toHaveBeenCalled();
+    expect(page.data.wereadConnection).toBeNull();
+    expect(page.data.wereadSyncStatus).toBe("idle");
+    expect(page.data.wereadSyncLabel).toBe("未连接");
+    expect(page.data.wereadBooks).toEqual([wereadBook]);
+    expect(page.data.wereadAnnotations).toEqual({ [wereadBook.id]: [syncedAnnotation] });
+    expect(page.data.visibleBooks).toEqual([expect.objectContaining({ id: wereadBook.id })]);
+  });
+
+  it.each([
+    ["failed", { code: "EXTERNAL_SERVICE_FAILED", message: "同步失败", retryable: true }],
+    ["paused", { reason: "upgrade_required", errcode: 1001, upgradeInfo: "请更新微信读书" }],
+  ] as const)("shows only the replacing account snapshot when account B returns a %s last_success response", async (status, detail) => {
+    const accountABook = {
+      id: "weread:account-a-book",
+      title: "A 账号书",
+      source: "weread" as const,
+      sourceLabel: "微信读书",
+      format: "weread" as const,
+      progress: 0.4,
+      coverVariant: 0,
+    };
+    const wereadClient = {
+      getConnection: vi.fn(async () => ({ connection: {
+        connectionId: "connection-b",
+        accountExternalId: "weread-account-b",
+        apiKeyHint: "wrk-••••••••",
+        status: "verified" as const,
+        verifiedAt: "2024-01-03T03:04:05.000Z",
+        revision: "4",
+      } })),
+      getBooks: vi.fn(async () => status === "failed"
+        ? {
+          status: "failed" as const,
+          snapshot: "last_success" as const,
+          connectionId: "connection-b",
+          accountExternalId: "weread-account-b",
+          cursor: null,
+          nextCursor: null,
+          books: [],
+          error: detail,
+        }
+        : {
+          status: "paused" as const,
+          snapshot: "last_success" as const,
+          connectionId: "connection-b",
+          accountExternalId: "weread-account-b",
+          cursor: null,
+          nextCursor: null,
+          books: [],
+          pause: detail,
+        }),
+    };
+    vi.stubGlobal("getApp", () => ({ globalData: {
+      client: { listBooks: vi.fn(async () => []) },
+      developmentAdapter: false,
+      wereadClient,
+    } }));
+    const page = createPage();
+    page.developmentState = "normal";
+    page.data.developmentAdapter = false;
+    page.data.wereadConnection = {
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      apiKeyHint: "old",
+      status: "verified",
+      verifiedAt: "2024-01-02T03:04:05.000Z",
+      revision: "3",
+    };
+    page.data.wereadBooks = [accountABook];
+    page.data.wereadAnnotations = { [accountABook.id]: [{ externalId: "annotation-a", quote: "A 的划线" }] };
+
+    await page.loadBooks();
+
+    expect(page.data.wereadConnection).toEqual(expect.objectContaining({
+      connectionId: "connection-b",
+      accountExternalId: "weread-account-b",
+    }));
+    expect(page.data.wereadSyncStatus).toBe(status);
+    expect(page.data.wereadBooks).toEqual([]);
+    expect(page.data.wereadAnnotations).toEqual({});
+    expect(page.data.visibleBooks).toEqual([]);
+  });
+
   it("routes the bookshelf connection entry to Settings instead of opening a static boundary modal", () => {
     const navigateTo = vi.fn();
     vi.stubGlobal("wx", { stopPullDownRefresh: vi.fn(), navigateTo });

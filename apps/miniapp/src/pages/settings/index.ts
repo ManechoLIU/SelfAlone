@@ -188,8 +188,6 @@ Page<SettingsData>({
         || this.wereadSaveRequestId !== requestId
         || this.wereadSaveInFlight !== saveGeneration
         || !saveTargetStillCurrent()
-        || (expectedAccountExternalId !== null
-          && response.connection.accountExternalId !== expectedAccountExternalId)
       ) {
         discardStaleSave();
         return;
