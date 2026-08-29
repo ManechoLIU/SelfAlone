@@ -8,6 +8,7 @@ import {
   type WeReadBooksSyncRunProjection,
   type WeReadConnectionProjection,
   type WeReadConnectionPutResponse,
+  type WeReadSyncOperation,
   type WeReadSyncRunProjection,
 } from "../core/weread-state";
 
@@ -163,6 +164,25 @@ export function createDevelopmentWeReadPort(): WeReadPort {
     return run;
   };
 
+  // A stored run may be replayed only while it still belongs to the live
+  // connection and matches the requested operation (and book). Anything else
+  // fails closed instead of returning a semantically wrong or stale run.
+  const assertSyncReplay = (
+    run: WeReadSyncRunProjection,
+    operation: WeReadSyncOperation,
+    bookId?: string,
+  ): void => {
+    if (!connection || run.connectionId !== connection.connectionId) {
+      throw conflict("同步任务已失效，请重新发起同步");
+    }
+    if (run.operation !== operation) {
+      throw conflict("同一 requestId 不能重放为不同的同步操作");
+    }
+    if (operation === "annotations" && run.bookId !== bookId) {
+      throw conflict("同一 requestId 不能重放为不同的书籍");
+    }
+  };
+
   const completedBooksRun = (requestId: string, cursor: string | null): WeReadBooksSyncRunProjection => {
     const active = requireAccount();
     const at = now();
@@ -197,8 +217,22 @@ export function createDevelopmentWeReadPort(): WeReadPort {
 
     putConnection: async (input) => {
       const prior = connectAttempts.get(input.requestId);
-      // Idempotent replay: a stored success keeps returning the first result.
-      if (prior?.response) return prior.response;
+      // Idempotent replay only while the stored success is still the live
+      // connection for the same account. After disconnect or replacement the
+      // old requestId fails closed and never resurrects stale state.
+      if (prior?.response) {
+        const stored = prior.response.connection;
+        const account = DEVELOPMENT_ACCOUNTS[input.apiKey];
+        if (
+          connection &&
+          connection.connectionId === stored.connectionId &&
+          connection.revision === stored.revision &&
+          account?.accountExternalId === stored.accountExternalId
+        ) {
+          return prior.response;
+        }
+        throw conflict("微信读书连接状态已变化，该请求不能重放");
+      }
       const expectedRevision = connection ? connection.revision : null;
       if (input.expectedRevision !== expectedRevision) {
         throw conflict("微信读书连接版本已变化，请刷新后重试");
@@ -257,7 +291,10 @@ export function createDevelopmentWeReadPort(): WeReadPort {
     syncBooks: async (input) => {
       requireAccount();
       const existing = syncRunsByRequestId.get(input.requestId);
-      if (existing) return { run: existing as WeReadBooksSyncRunProjection };
+      if (existing) {
+        assertSyncReplay(existing, "books");
+        return { run: existing as WeReadBooksSyncRunProjection };
+      }
       return { run: completedBooksRun(input.requestId, input.cursor ?? null) };
     },
 
@@ -279,7 +316,10 @@ export function createDevelopmentWeReadPort(): WeReadPort {
       const active = requireAccount();
       const book = findBook(input.bookId);
       const existing = syncRunsByRequestId.get(input.requestId);
-      if (existing) return { run: existing as WeReadAnnotationsSyncRunProjection };
+      if (existing) {
+        assertSyncReplay(existing, "annotations", input.bookId);
+        return { run: existing as WeReadAnnotationsSyncRunProjection };
+      }
       const at = now();
       const run: WeReadAnnotationsSyncRunProjection = registerRun({
         runId: `dev-wr-run-${(runCounter += 1)}`,
@@ -305,6 +345,12 @@ export function createDevelopmentWeReadPort(): WeReadPort {
       const run = syncRunsById.get(runId);
       if (!run) {
         throw validationFailed("同步任务不存在");
+      }
+      // Stale lifecycle: runs from a disconnected or replaced connection
+      // fail closed instead of exposing obsolete state.
+      requireAccount();
+      if (run.connectionId !== connection!.connectionId) {
+        throw conflict("同步任务已失效，请重新发起同步");
       }
       return { run };
     },

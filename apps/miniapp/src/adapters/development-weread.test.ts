@@ -246,4 +246,116 @@ describe("Mini development WeRead port", () => {
     const fresh = createDevelopmentWeReadPort();
     await expect(fresh.getConnection()).resolves.toEqual({ connection: null });
   });
+
+  describe("replay fencing", () => {
+    it("fails closed when one requestId is reused across sync operations", async () => {
+      const port = createDevelopmentWeReadPort();
+      await connectWithRetry(port, {
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-op-connect",
+        expectedRevision: null,
+      });
+      const bookId = (await port.getBooks()).books[0]!.bookId;
+
+      const booksRun = (await port.syncBooks({ requestId: "req-fence-op" })).run;
+      expect(booksRun.operation).toBe("books");
+      await expect(port.syncAnnotations({ requestId: "req-fence-op", bookId }))
+        .rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+
+      const annotationsRun = (await port.syncAnnotations({
+        requestId: "req-fence-op-reverse",
+        bookId,
+      })).run;
+      expect(annotationsRun.operation).toBe("annotations");
+      await expect(port.syncBooks({ requestId: "req-fence-op-reverse" }))
+        .rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+    });
+
+    it("fails closed when one requestId is reused across books but replays for the same book", async () => {
+      const port = createDevelopmentWeReadPort();
+      await connectWithRetry(port, {
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-book-connect",
+        expectedRevision: null,
+      });
+      const books = await port.getBooks();
+      const bookX = books.books[0]!;
+      const bookY = books.books[1]!;
+
+      const runX = (await port.syncAnnotations({ requestId: "req-fence-book", bookId: bookX.bookId })).run;
+      const replayed = (await port.syncAnnotations({ requestId: "req-fence-book", bookId: bookX.bookId })).run;
+      expect(replayed.runId).toBe(runX.runId);
+
+      await expect(port.syncAnnotations({ requestId: "req-fence-book", bookId: bookY.bookId }))
+        .rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+    });
+
+    it("fails closed for stale sync runs after account replacement and disconnect", async () => {
+      const port = createDevelopmentWeReadPort();
+      const connectionA = await connectWithRetry(port, {
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-stale-a",
+        expectedRevision: null,
+      });
+      const runA = (await port.syncBooks({ requestId: "req-fence-stale-sync" })).run;
+      expect(runA.connectionId).toBe(connectionA.connectionId);
+
+      // A -> B replacement: the old A requestId and run must not resolve.
+      const connectionB = await connectWithRetry(port, {
+        apiKey: "wrk-dev-b",
+        requestId: "req-fence-stale-b",
+        expectedRevision: connectionA.revision,
+      });
+      await expect(port.syncBooks({ requestId: "req-fence-stale-sync" }))
+        .rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+      await expect(port.getSyncStatus(runA.runId))
+        .rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+
+      // Disconnect: stale status lookup and replay fail closed as unauthenticated.
+      await port.deleteConnection({ expectedRevision: connectionB.revision });
+      await expect(port.getSyncStatus(runA.runId))
+        .rejects.toMatchObject({ code: "EXTERNAL_AUTH_REQUIRED", retryable: false });
+      await expect(port.syncBooks({ requestId: "req-fence-stale-sync" }))
+        .rejects.toMatchObject({ code: "EXTERNAL_AUTH_REQUIRED", retryable: false });
+    });
+
+    it("fails closed for stale connect replay after replacement and disconnect", async () => {
+      const port = createDevelopmentWeReadPort();
+      const connectionA = await connectWithRetry(port, {
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-conn-a",
+        expectedRevision: null,
+      });
+
+      // Valid replay while A is still the live connection.
+      const replayed = await port.putConnection({
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-conn-a",
+        expectedRevision: null,
+      });
+      expect(replayed.connection).toEqual(connectionA);
+
+      // After A -> B replacement the old A requestId fails closed; B stays current.
+      const connectionB = await connectWithRetry(port, {
+        apiKey: "wrk-dev-b",
+        requestId: "req-fence-conn-b",
+        expectedRevision: connectionA.revision,
+      });
+      await expect(port.putConnection({
+        apiKey: "wrk-dev-a",
+        requestId: "req-fence-conn-a",
+        expectedRevision: null,
+      })).rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+      await expect(port.getConnection()).resolves.toEqual({ connection: connectionB });
+
+      // After disconnect the old B requestId fails closed; nothing is resurrected.
+      await port.deleteConnection({ expectedRevision: connectionB.revision });
+      await expect(port.putConnection({
+        apiKey: "wrk-dev-b",
+        requestId: "req-fence-conn-b",
+        expectedRevision: connectionA.revision,
+      })).rejects.toMatchObject({ code: "CONFLICT", retryable: false });
+      await expect(port.getConnection()).resolves.toEqual({ connection: null });
+    });
+  });
 });
