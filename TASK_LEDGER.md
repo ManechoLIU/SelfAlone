@@ -36,6 +36,7 @@
 | `M1-F2-E` | `VERIFY / OPEN / SPLIT` / 项目总控 | 业务父闭环：同账户 Web / Mini 共享书籍、位置、划线与笔记；owner / 版本合同已冻结 | E-XEND 依赖真实 F1 会话、M2-F1身份与对应内容能力 |
 | `M1-F2-E-XEND` | `PENDING` / 待分配 | 同账户 Web / Mini 读取同一位置、划线与笔记并失败恢复 | 依赖 E-OWNER、F1、M2-F1、B / C / D；真实 AppID / 身份就绪后验收 |
 | `M1-F2-WEREAD` | `DONE / MAIN 42188f6+273c691+ff80382 / CURRENT-MAIN CHROME PASS` / 项目总控 | 10文件Desktop消费接缝及3文件fail-once follow-up实际diff已审并顺序合main；候选与current-main真实Chrome均完成未连接→no-call连接→失败保留→同requestId重试→刷新恢复，console warn / error 0 | 定向28、Web全量291、typecheck / build / visual-contract / diff-check通过；真实WeRead Key / H4仍是独立授权门，不扩Server / contracts / Mini，也不代表父业务闭环完成 |
+| `M1-F2-WEREAD-H4` | `READY / REAL KEY AUTHORIZED / BACKEND GATE FIRST` / 项目总控 | 腾讯官方 WeRead Gateway 真实 Adapter：Bearer API Key、skill_version、允许列表 api_name、errcode / upgrade_info fail-closed；先只闭合 provider adapter，不把真实 Key 传给 Agent | 用户已在本地产品入口填写真实 `wrk-...` Key；Key 不进入聊天、源码、命令、日志、截图或台账。Adapter PASS 后再释放 Server HTTP/composition 与 Desktop H4 |
 | `M1-F2-V1` | `PENDING` / 待分配 | 隔离账户完成导入、书架、文本 / PDF 阅读、划线、笔记、刷新恢复 | 依赖 A～E；真实文件、DB、视觉与可访问性 |
 | `M1-F3A` | `VERIFY` / 项目总控 | 文本模型加密配置与真实 H4 已 PASS | 图片模型独立配置仍开放 |
 | `M1-F3A-RUNTIME-REBIND` | `BLOCKED / LOCAL AUTH USER ACTION PENDING` / 项目总控 | 本轮保存失败演练重启 current-main API 后需把本机已保存 DeepSeek Key 重新绑定到新运行时加密主密钥；不新增供应商调用，不改变既有 H4 PASS | 唤醒=机主在 macOS Passwords / LocalAuthentication 系统提示以 Touch ID 或系统密码批准；系统未锁屏，当前仅等待本人认证，不绕过认证。随后仅安全摄入当前本地配置入口并清空剪贴板，Key 不输出、不落源码 / `.env` / 日志 / 截图 / 台账 |
