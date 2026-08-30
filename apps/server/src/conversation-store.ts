@@ -283,7 +283,12 @@ export class ConversationStore {
     } catch (error) {
       if (error instanceof ConversationStoreError && error.code === "STALE_REVISION") throw error;
       if (input.noteIntent || existingNoteOperation) {
-        return this.#finishNoteFailure(input, running, draft, "CONVERSATION_REPLY_FAILED");
+        return this.#finishNoteFailure(
+          input,
+          running,
+          draft,
+          getPlatformErrorCode(error) ?? "CONVERSATION_REPLY_FAILED",
+        );
       }
       const failed = this.#domain.settleRun(running, {
         requestId: input.requestId,
@@ -414,7 +419,7 @@ export class ConversationStore {
     session: ConversationRuntimeSession,
     expectedRevision: number,
     requestId: string,
-    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED",
+    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED" | PlatformTextCapabilityErrorCode,
   ): ConversationRuntimeSession {
     if (this.#domain.failNoteOperation) {
       return this.#domain.failNoteOperation(session, expectedRevision, requestId, errorCode);
@@ -460,7 +465,7 @@ export class ConversationStore {
     input: { accountId: string; conversationId: string; requestId: string },
     pending: ConversationRuntimeSession,
     draft: { text: string; attachments: readonly string[] },
-    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED",
+    errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED" | PlatformTextCapabilityErrorCode,
   ): Promise<ConversationSendResult> {
     const failedOperation = this.#failNoteOperation(
       pending,

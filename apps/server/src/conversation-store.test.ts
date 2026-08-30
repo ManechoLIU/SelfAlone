@@ -454,6 +454,102 @@ describe("conversation store", () => {
     expect(createCalls).toBe(1);
   });
 
+  it("keeps a platform-exhausted note intent retryable under one request id", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_note_platform_retry");
+    let responderCalls = 0;
+    let createCalls = 0;
+    const noteService = {
+      createNote: async (_accountId: string, bookId: string, input: any) => {
+        createCalls += 1;
+        return {
+          status: "saved" as const,
+          note: {
+            id: "note-platform-retried",
+            bookId,
+            body: input.body,
+            source: input.source ?? null,
+            version: 1,
+            createdAt: "2026-08-30T00:00:00.000Z",
+            updatedAt: "2026-08-30T00:00:00.000Z",
+          },
+        };
+      },
+      updateNote: async () => { throw new Error("not used"); },
+    };
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      responder: async () => {
+        responderCalls += 1;
+        if (responderCalls === 1) throw new Error("PLATFORM_EXHAUSTION");
+        return "平台恢复后的笔记";
+      },
+      textAnnotations: noteService,
+    } as never);
+    await store.createSession("account-a", "conversation-a");
+    const input = {
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "note-platform-retry-request",
+      text: "请整理并保留这次请求",
+      noteIntent: { kind: "create" as const, bookId: "book-1", source: noteSource },
+    };
+
+    const first = await store.sendText(input as never);
+    const retried = await store.sendText(input as never);
+
+    expect(first.status).toBe("failed");
+    if (first.status !== "failed") throw new Error("expected failed platform attempt");
+    expect(first).toMatchObject({
+      retainedDraft: { text: "请整理并保留这次请求", attachments: [] },
+      session: {
+        draft: { text: "请整理并保留这次请求", attachments: [] },
+        context: [{
+          id: "note-platform-retry-request:user",
+          role: "user",
+          requestId: "note-platform-retry-request",
+        }],
+        noteOperations: [{
+          requestId: "note-platform-retry-request",
+          body: null,
+          status: "failed",
+        }],
+      },
+    });
+    expect(retried).toMatchObject({
+      status: "completed",
+      reply: "平台恢复后的笔记",
+      session: {
+        draft: null,
+        noteOperations: [{
+          requestId: "note-platform-retry-request",
+          status: "completed",
+          errorCode: null,
+        }],
+      },
+    });
+    expect(retried.session.context.filter(
+      (entry) => entry.id === "note-platform-retry-request:user",
+    )).toHaveLength(1);
+    expect(retried.session.context.filter(
+      (entry) => entry.id === "note-platform-retry-request:assistant",
+    )).toHaveLength(1);
+    expect(responderCalls).toBe(2);
+    expect(createCalls).toBe(1);
+
+    const [messageCount] = await setup.sql<{ count: number }[]>`
+      SELECT count(*)::int AS count
+      FROM messages
+      WHERE account_id = 'account-a' AND conversation_id = 'conversation-a'
+    `;
+    expect(messageCount?.count).toBe(2);
+    expect({
+      resultErrorCode: first.errorCode,
+      noteErrorCode: first.session.noteOperations?.[0]?.errorCode,
+    }).toEqual({
+      resultErrorCode: "PLATFORM_EXHAUSTION",
+      noteErrorCode: "PLATFORM_EXHAUSTION",
+    });
+  });
+
   it("routes an update intent only to its explicit account, book, note, and version", async () => {
     const setup = await isolatedDatabase(databases, "conversation_store_note_update");
     const updateCalls: Array<{ accountId: string; bookId: string; noteId: string; input: any }> = [];
