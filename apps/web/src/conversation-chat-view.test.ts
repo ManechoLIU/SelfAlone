@@ -99,6 +99,44 @@ describe("conversation chat view", () => {
     expect(rendered.main).not.toContain("示例");
   });
 
+  it("guides a missing text-model configuration back to this conversation without losing its draft", () => {
+    const state = {
+      ...createConversationChatState("conversation-a"),
+      draft: "请保留这段输入",
+      status: "error" as const,
+      errorCode: "PLATFORM_CONFIGURATION_REQUIRED",
+      messages: [{ id: "user-1", role: "user" as const, text: "当前会话上下文" }],
+    };
+
+    const rendered = renderConversationChatView({ state });
+
+    expect(rendered.main).toContain("配置自己的 AI 模型后继续");
+    expect(rendered.main).toContain('href="#/settings/text-model?return=%23%2Fconversation"');
+    expect(rendered.main).toContain(">配置 AI 模型</a>");
+    expect(rendered.main).toContain('value="请保留这段输入"');
+    expect(rendered.main).toContain("当前会话上下文");
+  });
+
+  it.each(["PLATFORM_EXHAUSTION", "PLATFORM_UNAVAILABLE"])(
+    "keeps platform error %s in place with a retry prompt and no pricing copy",
+    (errorCode) => {
+      const state = {
+        ...createConversationChatState("conversation-a"),
+        draft: "请稍后继续",
+        status: "error" as const,
+        errorCode,
+      };
+
+      const rendered = renderConversationChatView({ state });
+
+      expect(rendered.main).toContain("当前会话和输入已保留，请稍后重试");
+      expect(rendered.main).toContain('value="请稍后继续"');
+      expect(rendered.main).not.toContain("余额");
+      expect(rendered.main).not.toContain("金额");
+      expect(rendered.main).not.toContain("价格");
+    },
+  );
+
   it("uses fixed understandable copy for initial load failures", () => {
     expect(mainSource).toContain("老己服务暂时无法连接，当前会话和输入已保留，请稍后重试。");
     expect(mainSource).not.toContain("conversationChatError = error instanceof Error ? error.message : \"CONVERSATION_REQUEST_FAILED\"");

@@ -317,6 +317,12 @@
 
 .conversation-chat-status { margin: 0; }
 .conversation-chat-status-error { color: #9a4737; }
+.conversation-chat-status-error a {
+  margin-left: 8px;
+  color: var(--conversation-accent-dark);
+  font-weight: 650;
+}
+.conversation-chat-status-error a:hover { color: var(--conversation-accent); }
 .conversation-chat-composer-help { color: var(--conversation-muted); }
 
 .conversation-chat-context {
