@@ -30,8 +30,11 @@ import {
 import { ConversationStore } from "./conversation-store";
 import { migrateConversationSelectionSchema } from "./conversation-selection-migration";
 import { ConversationSelectionStore } from "./conversation-selection-store";
+import { migrateCostLedgerSchema } from "./cost-ledger-migration";
+import { CostLedgerStore } from "./cost-ledger-store";
 import { migrateTrialQuotaSchema } from "./trial-quota-migration";
 import { TrialQuotaStore } from "./trial-quota-store";
+import { createPlatformTextCapability } from "./platform-text-capability";
 import { extractTextBook } from "@selfalone/domain";
 import {
   appendConversationNoteBody,
@@ -122,6 +125,22 @@ try {
   await conversationMigrationDatabase.end();
 }
 const conversationSql = postgres(databaseUrl, { max: 4 });
+const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);
+} finally {
+  await trialQuotaMigrationDatabase.end();
+}
+const trialQuotaSql = postgres(databaseUrl, { max: 2 });
+const trialQuota = new TrialQuotaStore(trialQuotaSql);
+const costLedgerMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateCostLedgerSchema(costLedgerMigrationDatabase);
+} finally {
+  await costLedgerMigrationDatabase.end();
+}
+const costLedgerSql = postgres(databaseUrl, { max: 2 });
+const costLedger = new CostLedgerStore(costLedgerSql);
 const developmentConversationResponder = createConversationResponderForMode(
   process.env.CONVERSATION_RESPONDER_MODE,
   process.env.APP_ENV,
@@ -130,8 +149,15 @@ const deepSeekChatAdapter = createDeepSeekTextModelAdapter({
   catalog: DEFAULT_DEEPSEEK_CATALOG,
   credentialProvider: modelConfig,
 });
+const platformTextCapability = createPlatformTextCapability({
+  configuredUserModel: deepSeekChatAdapter,
+  modelConfiguration: modelConfig,
+  trialQuota,
+  costLedger,
+  reservationAmountMicros: 500_000,
+});
 const conversationResponder = developmentConversationResponder
-  ?? createConversationResponder(deepSeekChatAdapter);
+  ?? createConversationResponder(platformTextCapability);
 const conversation = new ConversationStore(
   conversationSql,
   {
@@ -162,14 +188,6 @@ try {
 }
 const conversationSelectionSql = postgres(databaseUrl, { max: 2 });
 const selection = new ConversationSelectionStore(conversationSelectionSql);
-const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
-try {
-  await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);
-} finally {
-  await trialQuotaMigrationDatabase.end();
-}
-const trialQuotaSql = postgres(databaseUrl, { max: 2 });
-const trialQuota = new TrialQuotaStore(trialQuotaSql);
 const app = createApp({
   readiness: async () =>
     (await auth.ready())
@@ -204,6 +222,7 @@ const shutdown = async () => {
   await conversationSql.end();
   await conversationSelectionSql.end();
   await trialQuotaSql.end();
+  await costLedgerSql.end();
   process.exit(0);
 };
 

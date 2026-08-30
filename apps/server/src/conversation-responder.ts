@@ -48,11 +48,13 @@ export const CONVERSATION_RESPONDER_MODE_UNSUPPORTED =
  */
 export function createConversationResponder(
   adapter?: ChatResponderPort,
+  platformCapability?: ChatResponderPort,
 ): ConversationResponder {
   return async (accountId, text, context, signal = new AbortController().signal) => {
-    if (!adapter) throw new Error(CONVERSATION_RESPONDER_NOT_CONFIGURED);
+    const responder = adapter ?? platformCapability;
+    if (!responder) throw new Error(CONVERSATION_RESPONDER_NOT_CONFIGURED);
 
-    const result = await adapter.chat(
+    const result = await responder.chat(
       {
         accountId,
         text,

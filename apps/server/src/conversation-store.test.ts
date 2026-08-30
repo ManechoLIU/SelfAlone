@@ -962,6 +962,74 @@ describe("conversation store", () => {
     ]);
     expect(await store.listSessions("account-b", "山河")).toEqual([]);
   });
+
+  it("injects platform capability exhaustion/config-required responder error into generic CONVERSATION_REPLY_FAILED while preserving exact retained draft/request", async () => {
+    const setup = await isolatedDatabase(databases, "conversation_store_platform_exhaustion");
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      respond: async () => {
+        throw new Error("PLATFORM_EXHAUSTION");
+      },
+    });
+    await store.createSession("account-a", "conversation-a");
+
+    const input = {
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "exhaustion-request",
+      text: "test platform exhaustion",
+    };
+
+    await expect(store.sendText(input as never)).resolves.toMatchObject({
+      status: "failed",
+      errorCode: "PLATFORM_EXHAUSTION",
+      retainedDraft: { text: "test platform exhaustion", attachments: [] },
+      session: {
+        draft: { text: "test platform exhaustion", attachments: [] },
+        activeRun: null,
+      },
+    });
+  });
+
+  it.each([
+    "PLATFORM_CONFIGURATION_REQUIRED",
+    "PLATFORM_UNAVAILABLE",
+  ])("preserves distinct platform capability error %s across a same-request retry", async (errorCode) => {
+    const setup = await isolatedDatabase(
+      databases,
+      `conversation_store_${errorCode.toLowerCase()}`,
+    );
+    let responderCalls = 0;
+    const store = new ConversationStore(setup.sql, domainStateMachine, {
+      respond: async () => {
+        responderCalls += 1;
+        throw new Error(errorCode);
+      },
+    });
+    await store.createSession("account-a", "conversation-a");
+    const input = {
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      requestId: "platform-retry-request",
+      text: "保留这次平台请求",
+    };
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const result = await store.sendText(input);
+      expect(result).toMatchObject({
+        status: "failed",
+        errorCode,
+        retainedDraft: { text: "保留这次平台请求", attachments: [] },
+        session: {
+          draft: { text: "保留这次平台请求", attachments: [] },
+          activeRun: null,
+        },
+      });
+      expect(result.session.context.filter(
+        (entry) => entry.id === "platform-retry-request:user",
+      )).toHaveLength(1);
+    }
+    expect(responderCalls).toBe(2);
+  });
 });
 
 async function isolatedDatabase(

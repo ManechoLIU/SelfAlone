@@ -17,6 +17,12 @@ import {
   createConversationResponder,
   type ConversationResponder,
 } from "./conversation-responder";
+import {
+  PLATFORM_CONFIGURATION_REQUIRED,
+  PLATFORM_EXHAUSTION,
+  PLATFORM_UNAVAILABLE,
+  type PlatformTextCapabilityErrorCode,
+} from "./platform-text-capability";
 export type { ConversationResponder } from "./conversation-responder";
 import type { TextAnnotationService } from "./text-annotation-runtime";
 import {
@@ -46,7 +52,10 @@ export type ConversationSendResult =
   | {
       status: "failed";
       session: ConversationRuntimeSession;
-      errorCode: "CONVERSATION_REPLY_FAILED" | "NOTE_SAVE_FAILED";
+      errorCode:
+        | "CONVERSATION_REPLY_FAILED"
+        | "NOTE_SAVE_FAILED"
+        | PlatformTextCapabilityErrorCode;
       retainedDraft: { text: string; attachments: readonly string[] };
     };
 
@@ -282,10 +291,11 @@ export class ConversationStore {
       });
       const saved = await this.saveSession(input.accountId, failed, running.revision);
       if (saved === "stale") throw new ConversationStoreError("STALE_REVISION");
+      const errorCode = getPlatformErrorCode(error) ?? "CONVERSATION_REPLY_FAILED";
       return {
         status: "failed",
         session: cloneConversationSession(failed),
-        errorCode: "CONVERSATION_REPLY_FAILED",
+        errorCode,
         retainedDraft: draft,
       };
     }
@@ -593,6 +603,16 @@ function parseSession(row: ConversationRow): ConversationRuntimeSession {
 
 function assertIdentifier(value: string, code: string) {
   if (!value.trim() || value.length > 160) throw new Error(code);
+}
+
+function getPlatformErrorCode(error: unknown): PlatformTextCapabilityErrorCode | undefined {
+  if (!(error instanceof Error)) return undefined;
+  if (error.message === PLATFORM_EXHAUSTION) return PLATFORM_EXHAUSTION;
+  if (error.message === PLATFORM_CONFIGURATION_REQUIRED) {
+    return PLATFORM_CONFIGURATION_REQUIRED;
+  }
+  if (error.message === PLATFORM_UNAVAILABLE) return PLATFORM_UNAVAILABLE;
+  return undefined;
 }
 
 function mapStateError(error: unknown): Error {
