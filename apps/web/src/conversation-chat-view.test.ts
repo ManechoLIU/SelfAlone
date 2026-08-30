@@ -99,12 +99,14 @@ describe("conversation chat view", () => {
     expect(rendered.main).not.toContain("示例");
   });
 
-  it("guides a missing text-model configuration back to this conversation without losing its draft", () => {
+  it.each(["PLATFORM_CONFIGURATION_REQUIRED", "PLATFORM_EXHAUSTION"])(
+    "guides platform error %s back to text-model configuration without losing its draft",
+    (errorCode) => {
     const state = {
       ...createConversationChatState("conversation-a"),
       draft: "请保留这段输入",
       status: "error" as const,
-      errorCode: "PLATFORM_CONFIGURATION_REQUIRED",
+      errorCode,
       messages: [{ id: "user-1", role: "user" as const, text: "当前会话上下文" }],
     };
 
@@ -115,16 +117,33 @@ describe("conversation chat view", () => {
     expect(rendered.main).toContain(">配置 AI 模型</a>");
     expect(rendered.main).toContain('value="请保留这段输入"');
     expect(rendered.main).toContain("当前会话上下文");
+    },
+  );
+
+  it("uses the complete conversation handoff hash in its text-model configuration link", () => {
+    const state = {
+      ...createConversationChatState("conversation-a"),
+      draft: "保留阶段草稿",
+      status: "error" as const,
+      errorCode: "PLATFORM_CONFIGURATION_REQUIRED",
+    };
+
+    const rendered = renderConversationChatView({
+      state,
+      settingsReturnTo: "#/conversation?stage=outline&book=book-a",
+    });
+
+    expect(rendered.main).toContain(
+      'href="#/settings/text-model?return=%23%2Fconversation%3Fstage%3Doutline%26book%3Dbook-a"',
+    );
   });
 
-  it.each(["PLATFORM_EXHAUSTION", "PLATFORM_UNAVAILABLE"])(
-    "keeps platform error %s in place with a retry prompt and no pricing copy",
-    (errorCode) => {
+  it("keeps platform unavailability in place with a retry prompt and no pricing copy", () => {
       const state = {
         ...createConversationChatState("conversation-a"),
         draft: "请稍后继续",
         status: "error" as const,
-        errorCode,
+        errorCode: "PLATFORM_UNAVAILABLE",
       };
 
       const rendered = renderConversationChatView({ state });
@@ -134,8 +153,7 @@ describe("conversation chat view", () => {
       expect(rendered.main).not.toContain("余额");
       expect(rendered.main).not.toContain("金额");
       expect(rendered.main).not.toContain("价格");
-    },
-  );
+  });
 
   it("uses fixed understandable copy for initial load failures", () => {
     expect(mainSource).toContain("老己服务暂时无法连接，当前会话和输入已保留，请稍后重试。");

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyTextModelSettingsRoute,
   createTextModelPageState,
   createSettingsState,
   parseSettingsDraft,
@@ -11,6 +12,7 @@ import {
   settingsErrorMessage,
   type SettingsDraft,
 } from "./settings-state";
+import { renderTextModelPage } from "./model-config-page";
 
 const overview = {
   account: { id: "account-1", email: "reader@example.com" },
@@ -121,5 +123,25 @@ describe("desktop settings state", () => {
     expect(loaded.textModel).toMatchObject({ status: "editing", credential: null });
     expect(loaded.textModel.status).toBe("editing");
     if (loaded.textModel.status === "editing") expect(loaded.textModel.draft.apiKey).toBe("");
+  });
+
+  it("applies a text-model route return to its back and success links", () => {
+    const returnTo = "#/conversation?stage=outline&book=book-a";
+    const routed = applyTextModelSettingsRoute({
+      ...createSettingsState(overview),
+      textModel: createTextModelPageState(null),
+    }, returnTo);
+
+    expect(routed.view).toBe("text-model");
+    expect(routed.textModel.returnTo).toBe(returnTo);
+    expect(resolveTextModelPage(routed, new Error("REQUEST_FAILED")).textModel.returnTo).toBe(returnTo);
+    if (routed.textModel.status !== "editing") throw new Error("expected editable text-model state");
+    expect(renderTextModelPage({
+      status: "success",
+      credential: null,
+      draft: routed.textModel.draft,
+      returnTo: routed.textModel.returnTo,
+      notice: "已配置，可继续",
+    })).toContain('href="#/conversation?stage=outline&amp;book=book-a"');
   });
 });

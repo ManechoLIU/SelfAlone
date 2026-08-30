@@ -85,6 +85,20 @@ export function createSettingsState(overview: SettingsOverview | null = null): S
   };
 }
 
+export function applyTextModelSettingsRoute(
+  state: SettingsState,
+  returnTo: string | undefined,
+): SettingsState {
+  return {
+    ...state,
+    view: "text-model",
+    textModel: {
+      ...state.textModel,
+      returnTo: returnTo ?? settingsHash(),
+    },
+  };
+}
+
 export function resolveTextModelPage(
   state: SettingsState,
   result: TextModelCredential | null | Error,
@@ -94,7 +108,7 @@ export function resolveTextModelPage(
       ...state,
       textModel: {
         status: "error",
-        returnTo: settingsHash(),
+        returnTo: state.textModel.returnTo,
         message: getTextModelErrorMessage(result.message),
       },
     };

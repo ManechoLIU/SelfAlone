@@ -113,6 +113,7 @@ import { parseSettingsRoute } from "./model-config-page";
 import {
   createSettingsState,
   createTextModelPageState,
+  applyTextModelSettingsRoute,
   parseSettingsDraft,
   resolveTextModelPage,
   resolveSettingsOverview,
@@ -1582,6 +1583,7 @@ function renderConversationChat(session: ConversationChatSession) {
     title: "老己对话",
     selectionController: conversationSelectionController ?? undefined,
     hydrateSelection: !conversationSelectionHydrated,
+    settingsReturnTo: window.location.hash,
   });
   conversationSelectionCleanup = conversationChatCleanup;
   conversationSelectionHydrated = true;
@@ -2717,7 +2719,9 @@ function renderRoute() {
     destroyTextReader();
     const settingsRoute = parseSettingsRoute(window.location.hash);
     const settingsView = settingsRoute.kind === "text-model" ? "text-model" : "overview";
-    if (settingsState.view !== settingsView) {
+    if (settingsRoute.kind === "text-model") {
+      settingsState = applyTextModelSettingsRoute(settingsState, settingsRoute.returnTo);
+    } else if (settingsState.view !== settingsView) {
       settingsState = { ...settingsState, view: settingsView };
     }
     renderSettings();

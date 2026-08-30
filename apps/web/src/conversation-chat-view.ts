@@ -17,6 +17,7 @@ export type ConversationChatViewOptions = {
   state: ConversationChatState;
   title?: string;
   selectionState?: ConversationSelectionState;
+  settingsReturnTo?: string;
 };
 
 export type ConversationChatViewResult = {
@@ -28,6 +29,7 @@ export type ConversationChatMountOptions = {
   title?: string;
   selectionController?: ConversationSelectionController;
   hydrateSelection?: boolean;
+  settingsReturnTo?: string;
 };
 
 export function renderConversationChatView(options: ConversationChatViewOptions): ConversationChatViewResult {
@@ -37,7 +39,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
   const hasDraft = state.draft.trim().length > 0;
   const statusLabel = isSending ? "正在发送" : state.status === "error" ? "需要重试" : "空闲";
   const statusNotice = state.status === "error"
-    ? renderErrorNotice(state.errorCode)
+    ? renderErrorNotice(state.errorCode, options.settingsReturnTo)
     : isSending
       ? `<p class="conversation-chat-status" role="status">正在发送…</p>`
       : `<p class="conversation-chat-status" role="status">就绪</p>`;
@@ -66,11 +68,12 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
   };
 }
 
-function renderErrorNotice(errorCode: string | null) {
-  if (errorCode === "PLATFORM_CONFIGURATION_REQUIRED") {
-    return `<p class="conversation-chat-status conversation-chat-status-error" role="alert">配置自己的 AI 模型后继续。<a href="#/settings/text-model?return=%23%2Fconversation">配置 AI 模型</a></p>`;
+function renderErrorNotice(errorCode: string | null, settingsReturnTo = "#/conversation") {
+  if (errorCode === "PLATFORM_CONFIGURATION_REQUIRED" || errorCode === "PLATFORM_EXHAUSTION") {
+    const href = `#/settings/text-model?return=${encodeURIComponent(settingsReturnTo)}`;
+    return `<p class="conversation-chat-status conversation-chat-status-error" role="alert">配置自己的 AI 模型后继续。<a href="${href}">配置 AI 模型</a></p>`;
   }
-  if (errorCode === "PLATFORM_EXHAUSTION" || errorCode === "PLATFORM_UNAVAILABLE") {
+  if (errorCode === "PLATFORM_UNAVAILABLE") {
     return `<p class="conversation-chat-status conversation-chat-status-error" role="alert">当前会话和输入已保留，请稍后重试</p>`;
   }
   return `<p class="conversation-chat-status conversation-chat-status-error" role="alert">发送失败，输入仍保留，请重试</p>`;
@@ -139,6 +142,7 @@ export function mountConversationChatView(
       state: nextState,
       title: options.title,
       selectionState,
+      settingsReturnTo: options.settingsReturnTo,
     });
     mainRoot.innerHTML = rendered.main;
     if (taskRoot) {
