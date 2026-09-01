@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { WeReadAdapter, WeReadAccount, WeReadBook, WeReadSyncPage } from "@selfalone/contracts";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
@@ -258,12 +258,170 @@ describe("WeRead route runtime", () => {
     expect(queuedRun.json()).toMatchObject({ run: { status: "completed" } });
     expect(maximumActive).toBe(1);
   }, 2_000);
+
+  it("fences a replaced connection so an old books snapshot is immediately invisible", async () => {
+    const adapter = runtimeAdapter();
+    const harness = await setup(adapter);
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const first = await connect(app, "account-a", "wrk-account-a-secret", "fence-a");
+    adapter.bind(first.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    await harness.runtime.drainOnce();
+    const second = await app.inject({
+      method: "PUT",
+      url: "/api/v1/weread/connection",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { apiKey: "wrk-account-b-secret", requestId: "fence-b", expectedRevision: "1" },
+    });
+    adapter.bind(second.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-b");
+    const snapshot = await app.inject({
+      method: "GET",
+      url: "/api/v1/weread/books",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(snapshot.statusCode).toBe(422);
+    expect(snapshot.body).not.toContain("甲书");
+  });
+
+  it("uses an unforgeable per-connection initial sync id and rolls back a replacement if enqueue fails", async () => {
+    const adapter = runtimeAdapter();
+    let initialEnqueues = 0;
+    const harness = await setup(adapter, false, undefined, {
+      beforeInitialBooksEnqueue: () => {
+        initialEnqueues += 1;
+        if (initialEnqueues === 2) throw new Error("forced initial run outage");
+      },
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const first = await connect(app, "account-a", "wrk-account-a-secret", "victim");
+    adapter.bind(first.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const forged = `connection-books:${createHash("sha256").update("replace-b").digest("hex")}`;
+    const forgedRun = await app.inject({
+      method: "POST",
+      url: "/api/v1/weread/sync/books",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { requestId: forged },
+    });
+    expect(forgedRun.statusCode).toBe(202);
+    const failedReplacement = await app.inject({
+      method: "PUT",
+      url: "/api/v1/weread/connection",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { apiKey: "wrk-account-b-secret", requestId: "replace-b", expectedRevision: "1" },
+    });
+    const connection = await app.inject({
+      method: "GET",
+      url: "/api/v1/weread/connection",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(failedReplacement.statusCode).toBe(500);
+    expect(connection.json()).toMatchObject({ connection: {
+      connectionId: first.json<{ connection: { connectionId: string } }>().connection.connectionId,
+      revision: "1",
+    } });
+  });
+
+  it("does not let a client preempt a future connection's initial books run", async () => {
+    const adapter = runtimeAdapter();
+    const harness = await setup(adapter);
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const first = await connect(app, "account-a", "wrk-account-a-secret", "preempt-a");
+    adapter.bind(first.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const victim = "preempt-b";
+    const forged = `connection-books:${createHash("sha256").update(victim).digest("hex")}`;
+    const forgedRun = await app.inject({
+      method: "POST",
+      url: "/api/v1/weread/sync/books",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { requestId: forged },
+    });
+    const replacement = await app.inject({
+      method: "PUT",
+      url: "/api/v1/weread/connection",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { apiKey: "wrk-account-b-secret", requestId: victim, expectedRevision: "1" },
+    });
+    expect(forgedRun.statusCode).toBe(202);
+    expect(replacement.statusCode).toBe(200);
+    expect(replacement.json()).toMatchObject({
+      connection: { accountExternalId: "weread-account-b" },
+      sync: { run: { connectionId: replacement.json<{ connection: { connectionId: string } }>().connection.connectionId } },
+    });
+    expect(replacement.json<{ sync: { run: { runId: string } } }>().sync.run.runId)
+      .not.toBe(forgedRun.json<{ run: { runId: string } }>().run.runId);
+  });
+
+  it("re-arms one bounded recovery after a transient worker-store outage leaves a run running", async () => {
+    const adapter = runtimeAdapter();
+    const recovery = deferred<() => Promise<void>>();
+    let workerWrites = 0;
+    let terminalWrites = 0;
+    const harness = await setup(adapter, false, undefined, {
+      beforeWorkerStoreWrite: () => {
+        workerWrites += 1;
+        if (workerWrites === 1) throw new Error("temporary database outage");
+      },
+      beforeWorkerFailureWrite: () => {
+        terminalWrites += 1;
+        if (terminalWrites === 1) throw new Error("temporary database outage");
+      },
+      scheduleRecovery: (task: () => Promise<void>) => {
+        recovery.resolve(task);
+        return "test-recovery";
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      staleThresholdMs: 0,
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "recover-db");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.drainOnce();
+    const running = await app.inject({
+      method: "GET", url: `/api/v1/weread/sync/${runId}`, headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(running.json()).toMatchObject({ run: { status: "running" } });
+    await (await recovery.promise)();
+    const completed = await app.inject({
+      method: "GET", url: `/api/v1/weread/sync/${runId}`, headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(completed.json()).toMatchObject({ run: { status: "completed", retryCount: 1 } });
+  }, 2_000);
+
+  it("cancels a pending recovery timer when the runtime closes", async () => {
+    const adapter = runtimeAdapter();
+    const scheduled = deferred<() => Promise<void>>();
+    const cleared: unknown[] = [];
+    const harness = await setup(adapter, false, undefined, {
+      beforeWorkerStoreWrite: () => { throw new Error("temporary database outage"); },
+      beforeWorkerFailureWrite: () => { throw new Error("temporary database outage"); },
+      scheduleRecovery: (task: () => Promise<void>) => {
+        scheduled.resolve(task);
+        return "pending-recovery";
+      },
+      clearRecovery: (handle: unknown) => { cleared.push(handle); },
+      recoveryDelayMs: 1,
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "close-recovery");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    await harness.runtime.drainOnce();
+    await scheduled.promise;
+    await harness.runtime.close();
+    expect(cleared).toEqual(["pending-recovery"]);
+  });
 });
 
 async function setup(
   adapter: WeReadAdapter,
   autoStart = false,
   onIdleBeforeDrainRelease?: () => void | Promise<void>,
+  runtimeOptions: Record<string, unknown> = {},
 ) {
   const schema = `weread_runtime_${randomUUID().replaceAll("-", "")}`;
   const admin = postgres(baseDatabaseUrl, { max: 1 });
@@ -282,6 +440,7 @@ async function setup(
     autoStart,
     staleThresholdMs: 60_000,
     onIdleBeforeDrainRelease,
+    ...runtimeOptions,
   });
   const resource = { admin, databaseUrl: databaseUrl.toString(), runtime, schema, sql };
   resources.push(resource);
