@@ -563,7 +563,7 @@ describe("WeRead route runtime", () => {
       await queued.promise;
       const drainingB = runtimeB.start();
       await claimedByB.promise;
-      expect(await harness.runtime.ready()).toBe(true);
+      expect(await harness.runtime.ready()).toBe(false);
       expect(recoveryDelays).toEqual([1]);
       expect(recoveryTasks).toEqual([]);
       releaseB.resolve();
@@ -723,6 +723,67 @@ describe("WeRead route runtime", () => {
       run: { status: "completed", retryCount: 1 },
     });
     await expect(harness.runtime.getSyncStatus("account-a", r2)).resolves.toMatchObject({
+      run: { status: "completed" },
+    });
+    expect(await harness.runtime.ready()).toBe(true);
+  }, 2_000);
+
+  it("claims the tracked recovered run before an equal-time queued peer", async () => {
+    const adapter = runtimeAdapter();
+    const idle = deferred<void>();
+    const releaseIdle = deferred<void>();
+    const claimedRunIds: string[] = [];
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const clock = mutableClock("2026-09-01T17:30:00.000Z");
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, async () => {
+      idle.resolve();
+      await releaseIdle.promise;
+    }, {
+      now: clock.now,
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      onWorkerClaimed: (_accountId: string, runId: string) => { claimedRunIds.push(runId); },
+      scheduleRecovery: (task: () => Promise<void>) => {
+        recoveryTasks.push(task);
+        return `named-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      staleThresholdMs: 0,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "named-r1");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const queuedR1 = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.sql`UPDATE weread_sync_runs SET run_id = 'z-r1' WHERE run_id = ${queuedR1}`;
+    const activeDrain = harness.runtime.start();
+    await idle.promise;
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/weread/sync/books",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { requestId: "named-r2" },
+    });
+    const queuedR2 = second.json<{ run: { runId: string } }>().run.runId;
+    await harness.sql`UPDATE weread_sync_runs SET run_id = 'a-r2' WHERE run_id = ${queuedR2}`;
+    releaseIdle.resolve();
+    await activeDrain;
+    expect(claimedRunIds).toEqual(["z-r1"]);
+    clock.set("2026-09-01T17:30:00.001Z");
+    await recoveryTasks.shift()!();
+    expect(claimedRunIds).toEqual(["z-r1", "z-r1", "a-r2"]);
+    await expect(harness.runtime.getSyncStatus("account-a", "z-r1")).resolves.toMatchObject({
+      run: { status: "completed", retryCount: 1 },
+    });
+    await expect(harness.runtime.getSyncStatus("account-a", "a-r2")).resolves.toMatchObject({
       run: { status: "completed" },
     });
     expect(await harness.runtime.ready()).toBe(true);
