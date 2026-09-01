@@ -142,7 +142,7 @@ interface PublicBookSourceAdapter {
 - 文本 provider id 为 `deepseek`、`kimi`、`glm`、`qwen`；客户端不提交任意端点或模型名。
 - 服务端模型目录记录端点、允许模型、默认模型、能力、备案信息、地域、来源和最近核验时间；易变值不固化在本文。
 - 平台凭证与用户凭证复用适配器但使用不同凭证来源。平台调用事务性预占成本，完成后结算，失败则释放预占；若结算已经提交但确认响应丢失，服务端回读同一 reservation，只有状态与实际金额都一致时才返回原回答，避免重复调用供应商。
-- 正式 Server 只在部署侧同时提供 `PLATFORM_DEEPSEEK_API_KEY`、`PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_CNY_MICROS_PER_MILLION`、`PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_CNY_MICROS_PER_MILLION` 与 `PLATFORM_DEEPSEEK_OUTPUT_CNY_MICROS_PER_MILLION` 时启用平台文本模型；Key 不进入用户模型配置、源码、普通 `.env`、日志或客户端。四项全部缺失时保持 `PLATFORM_UNAVAILABLE`，部分或非法配置拒绝启动。价格值是部署时按供应商当前计费与换算核验的人民币微元快照，不在仓库写死；每次调用按供应商响应中的 cache hit、cache miss 与 completion token 用量向上取整到整数微元后结算。
+- 正式 Server 只在部署侧同时提供 `PLATFORM_DEEPSEEK_API_KEY`，以及高峰、空闲两档各自的 input cache hit、input cache miss、output 共六项 `CNY_MICROS_PER_MILLION` 价格时启用平台文本模型；Key 不进入用户模型配置、源码、普通 `.env`、日志或客户端。七项全部缺失时保持 `PLATFORM_UNAVAILABLE`；旧三价格配置、部分或非法配置拒绝启动。价格值是部署时按供应商当前计费与换算核验的人民币微元快照，不在仓库写死。每次调用在发起外部请求前按北京时间读取一次时钟：工作日 `09:00–12:00`、`14:00–18:00` 使用高峰档，其余时段及周末使用空闲档；再按供应商响应中的 cache hit、cache miss 与 completion token 用量向上取整到整数微元后结算。
 - 图片能力使用可空的独立适配器；没有图片适配器时 PPT 引擎仍须返回有效产物。
 - 公开资料结果保留来源 URL、标题、发布时间、抓取时间和使用范围。
 

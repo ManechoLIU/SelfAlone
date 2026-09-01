@@ -55,6 +55,18 @@ export const PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV =
   "PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_CNY_MICROS_PER_MILLION" as const;
 export const PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV =
   "PLATFORM_DEEPSEEK_OUTPUT_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_HIT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_HIT_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_MISS_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_MISS_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_PEAK_OUTPUT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_PEAK_OUTPUT_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_HIT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_HIT_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_MISS_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_MISS_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_OFF_PEAK_OUTPUT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_OFF_PEAK_OUTPUT_CNY_MICROS_PER_MILLION" as const;
 
 export type DeepSeekPlatformTextModelEnvironment = Record<string, string | undefined>;
 
@@ -63,6 +75,7 @@ export type DeepSeekPlatformTextModelOptions = {
   fetcher?: typeof fetch;
   timeoutMs?: number;
   catalog?: DeepSeekCatalog;
+  now?: () => Date;
 };
 
 export type DeepSeekMeteredPlatformChatPort = {
@@ -73,22 +86,42 @@ export type DeepSeekMeteredPlatformChatPort = {
 };
 
 /**
- * Resolves the server-owned platform credential and pricing snapshot. An
- * absent configuration keeps the free capability unavailable; a partial or
- * malformed configuration fails startup instead of silently undercounting.
+ * Resolves the server-owned platform credential and peak / off-peak pricing
+ * snapshots. An absent configuration keeps the free capability unavailable; a
+ * legacy, partial, or malformed configuration fails startup instead of
+ * silently undercounting.
  */
 export function createDeepSeekPlatformTextModelFromEnvironment(
   options: DeepSeekPlatformTextModelOptions,
 ): DeepSeekMeteredPlatformChatPort | undefined {
   const rawApiKey = options.environment[PLATFORM_DEEPSEEK_API_KEY_ENV];
   const apiKey = rawApiKey?.trim();
-  const cacheHitPrice = options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
-  const cacheMissPrice = options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
-  const outputPrice = options.environment[PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV]?.trim();
-  const configuredValues = [apiKey, cacheHitPrice, cacheMissPrice, outputPrice];
-  if (configuredValues.every((value) => !value)) return undefined;
+  const peakCacheHitPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
+  const peakCacheMissPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
+  const peakOutputPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_OUTPUT_PRICE_ENV]?.trim();
+  const offPeakCacheHitPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
+  const offPeakCacheMissPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
+  const offPeakOutputPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_OUTPUT_PRICE_ENV]?.trim();
+  const legacyPrices = [
+    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV]?.trim(),
+    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV]?.trim(),
+    options.environment[PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV]?.trim(),
+  ];
+  const configuredValues = [
+    apiKey,
+    peakCacheHitPrice,
+    peakCacheMissPrice,
+    peakOutputPrice,
+    offPeakCacheHitPrice,
+    offPeakCacheMissPrice,
+    offPeakOutputPrice,
+  ];
+  if (configuredValues.every((value) => !value) && legacyPrices.every((value) => !value)) {
+    return undefined;
+  }
   if (
-    configuredValues.some((value) => !value)
+    legacyPrices.some((value) => value)
+    || configuredValues.some((value) => !value)
     || !apiKey
     || apiKey.length > 4_096
     || (rawApiKey !== undefined && /[\u0000-\u001F\u007F-\u009F]/.test(rawApiKey))
@@ -96,11 +129,17 @@ export function createDeepSeekPlatformTextModelFromEnvironment(
     throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
   }
 
-  const pricing = {
-    cacheHitMicrosPerMillion: parsePositivePrice(cacheHitPrice),
-    cacheMissMicrosPerMillion: parsePositivePrice(cacheMissPrice),
-    outputMicrosPerMillion: parsePositivePrice(outputPrice),
+  const peakPricing = {
+    cacheHitMicrosPerMillion: parsePositivePrice(peakCacheHitPrice),
+    cacheMissMicrosPerMillion: parsePositivePrice(peakCacheMissPrice),
+    outputMicrosPerMillion: parsePositivePrice(peakOutputPrice),
   };
+  const offPeakPricing = {
+    cacheHitMicrosPerMillion: parsePositivePrice(offPeakCacheHitPrice),
+    cacheMissMicrosPerMillion: parsePositivePrice(offPeakCacheMissPrice),
+    outputMicrosPerMillion: parsePositivePrice(offPeakOutputPrice),
+  };
+  const clock = bindClock(options.now);
   const fetcher = options.fetcher ?? globalThis.fetch;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const catalog = options.catalog ?? DEFAULT_DEEPSEEK_CATALOG;
@@ -114,6 +153,8 @@ export function createDeepSeekPlatformTextModelFromEnvironment(
 
   return {
     async chat(input, signal) {
+      const startedAt = readClock(clock);
+      const pricing = isBeijingWeekdayPeak(startedAt) ? peakPricing : offPeakPricing;
       const payload = await requestChatPayload({
         fetcher,
         endpoint,
@@ -374,6 +415,58 @@ function extractChatUsage(value: unknown): DeepSeekChatUsage | undefined {
 
 function safeTokenCount(value: unknown) {
   return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : undefined;
+}
+
+const BEIJING_PRICE_PERIOD_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Shanghai",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+function bindClock(now: (() => Date) | undefined): () => Date {
+  if (now !== undefined && typeof now !== "function") {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  return now ?? (() => new Date());
+}
+
+function readClock(now: () => Date): Date {
+  let value: unknown;
+  try {
+    value = now();
+  } catch {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  return value;
+}
+
+function isBeijingWeekdayPeak(value: Date): boolean {
+  const parts = BEIJING_PRICE_PERIOD_FORMATTER.formatToParts(value);
+  const weekday = parts.find((part) => part.type === "weekday")?.value;
+  const hour = Number(parts.find((part) => part.type === "hour")?.value);
+  const minute = Number(parts.find((part) => part.type === "minute")?.value);
+  if (
+    !weekday
+    || !Number.isInteger(hour)
+    || hour < 0
+    || hour > 23
+    || !Number.isInteger(minute)
+    || minute < 0
+    || minute > 59
+  ) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  if (weekday === "Sat" || weekday === "Sun") return false;
+  const minuteOfDay = hour * 60 + minute;
+  return (
+    (minuteOfDay >= 9 * 60 && minuteOfDay < 12 * 60)
+    || (minuteOfDay >= 14 * 60 && minuteOfDay < 18 * 60)
+  );
 }
 
 function parsePositivePrice(value: string | undefined) {
