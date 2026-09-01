@@ -436,6 +436,96 @@ describe("WeRead route runtime", () => {
     expect(await harness.runtime.ready()).toBe(true);
   }, 2_000);
 
+  it("clears an unhealthy claimed run after another runtime completes it", async () => {
+    const adapter = runtimeAdapter();
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const recoveryDelays: number[] = [];
+    const clock = mutableClock("2026-09-01T16:00:00.000Z");
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, undefined, {
+      now: clock.now,
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      scheduleRecovery: (task: () => Promise<void>, delayMs: number) => {
+        recoveryTasks.push(task);
+        recoveryDelays.push(delayMs);
+        return `cross-runtime-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      maxRecoveryDelayMs: 4,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "cross-runtime");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.drainOnce();
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+
+    const runtimeB = await createWeReadRuntime({
+      databaseUrl: harness.databaseUrl,
+      encryptionKey: Buffer.alloc(32, 9),
+      adapter,
+      autoStart: false,
+      staleThresholdMs: 0,
+      now: () => new Date("2026-09-01T16:00:01.000Z"),
+    });
+    try {
+      await runtimeB.start();
+      await expect(runtimeB.getSyncStatus("account-a", runId)).resolves.toMatchObject({
+        run: { status: "completed" },
+      });
+      expect(await harness.runtime.ready()).toBe(false);
+      expect(recoveryDelays).toEqual([1]);
+      await recoveryTasks.shift()!();
+      expect(await harness.runtime.ready()).toBe(true);
+      expect(recoveryTasks).toEqual([]);
+    } finally {
+      await runtimeB.close();
+    }
+  }, 2_000);
+
+  it("clears unhealthy recovery when the terminal store commit succeeds but its acknowledgement is lost", async () => {
+    const adapter = runtimeAdapter();
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const recoveryDelays: number[] = [];
+    let acknowledgements = 0;
+    const harness = await setup(adapter, false, undefined, {
+      afterWorkerStoreWrite: () => {
+        acknowledgements += 1;
+        throw new Error("terminal acknowledgement lost");
+      },
+      scheduleRecovery: (task: () => Promise<void>, delayMs: number) => {
+        recoveryTasks.push(task);
+        recoveryDelays.push(delayMs);
+        return `lost-ack-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "lost-ack");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.drainOnce();
+    expect(acknowledgements).toBe(1);
+    await expect(harness.runtime.getSyncStatus("account-a", runId)).resolves.toMatchObject({
+      run: { status: "completed" },
+    });
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1]);
+    await recoveryTasks.shift()!();
+    expect(await harness.runtime.ready()).toBe(true);
+    expect(recoveryTasks).toEqual([]);
+  }, 2_000);
+
   it("preserves a recover request made while an idle drain is still live", async () => {
     const adapter = runtimeAdapter();
     const idle = deferred<void>();
