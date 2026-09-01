@@ -29,6 +29,7 @@ import { WeReadSyncStore } from "./weread-sync-store";
 
 const DEFAULT_STALE_THRESHOLD_MS = 60_000;
 const DEFAULT_RECOVERY_DELAY_MS = 250;
+const DEFAULT_MAX_RECOVERY_DELAY_MS = 5_000;
 
 type RecoveryScheduler = (task: () => Promise<void>, delayMs: number) => unknown;
 
@@ -41,13 +42,18 @@ export type CreateWeReadRuntimeOptions = {
   now?: () => Date;
   /** Test-only deterministic barrier after an empty claim and before release. */
   onIdleBeforeDrainRelease?: () => void | Promise<void>;
+  /** Test-only barrier after snapshot fencing acquired its connection lock. */
+  onSnapshotFenceLocked?: () => void | Promise<void>;
   /** Test-only failure seams for persisted-worker recovery. */
   beforeInitialBooksEnqueue?: () => void | Promise<void>;
   beforeWorkerStoreWrite?: () => void | Promise<void>;
   beforeWorkerFailureWrite?: () => void | Promise<void>;
   recoveryDelayMs?: number;
+  maxRecoveryDelayMs?: number;
   scheduleRecovery?: RecoveryScheduler;
   clearRecovery?: (handle: unknown) => void;
+  /** Test-only pool size override for bounded connection-regression coverage. */
+  sqlMax?: number;
 };
 
 /**
@@ -63,17 +69,23 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   readonly #staleThresholdMs: number;
   readonly #encryptionKey: Buffer;
   readonly #onIdleBeforeDrainRelease?: () => void | Promise<void>;
+  readonly #onSnapshotFenceLocked?: () => void | Promise<void>;
   readonly #beforeInitialBooksEnqueue?: () => void | Promise<void>;
   readonly #beforeWorkerStoreWrite?: () => void | Promise<void>;
   readonly #beforeWorkerFailureWrite?: () => void | Promise<void>;
   readonly #recoveryDelayMs: number;
+  readonly #maxRecoveryDelayMs: number;
   readonly #scheduleRecoveryTask: RecoveryScheduler;
   readonly #clearRecovery: (handle: unknown) => void;
   #autoDrain: boolean;
   #closed = false;
   #drain: Promise<void> | null = null;
   #wakeRequested = false;
+  #recoverRequested = false;
   #recoveryTimer: unknown | null = null;
+  #recoveryAttempt = 0;
+  #workerUnhealthy = false;
+  #recoveryNeedsRunning = false;
 
   constructor(options: {
     sql: Sql;
@@ -83,10 +95,12 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     now?: () => Date;
     autoDrain: boolean;
     onIdleBeforeDrainRelease?: () => void | Promise<void>;
+    onSnapshotFenceLocked?: () => void | Promise<void>;
     beforeInitialBooksEnqueue?: () => void | Promise<void>;
     beforeWorkerStoreWrite?: () => void | Promise<void>;
     beforeWorkerFailureWrite?: () => void | Promise<void>;
     recoveryDelayMs: number;
+    maxRecoveryDelayMs: number;
     scheduleRecovery: RecoveryScheduler;
     clearRecovery: (handle: unknown) => void;
   }) {
@@ -98,17 +112,19 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     this.#staleThresholdMs = options.staleThresholdMs;
     this.#encryptionKey = Buffer.from(options.encryptionKey);
     this.#onIdleBeforeDrainRelease = options.onIdleBeforeDrainRelease;
+    this.#onSnapshotFenceLocked = options.onSnapshotFenceLocked;
     this.#beforeInitialBooksEnqueue = options.beforeInitialBooksEnqueue;
     this.#beforeWorkerStoreWrite = options.beforeWorkerStoreWrite;
     this.#beforeWorkerFailureWrite = options.beforeWorkerFailureWrite;
     this.#recoveryDelayMs = options.recoveryDelayMs;
+    this.#maxRecoveryDelayMs = options.maxRecoveryDelayMs;
     this.#scheduleRecoveryTask = options.scheduleRecovery;
     this.#clearRecovery = options.clearRecovery;
     this.#autoDrain = options.autoDrain;
   }
 
   async ready() {
-    if (this.#closed) return false;
+    if (this.#closed || this.#workerUnhealthy) return false;
     try {
       const [result] = await this.#sql<Array<{ ready: number }>>`SELECT 1 AS ready`;
       return result?.ready === 1;
@@ -120,6 +136,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   async start() {
     this.#assertOpen();
     this.#autoDrain = true;
+    this.#recoverRequested = true;
     await this.#launchDrain(true);
   }
 
@@ -186,7 +203,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   ): Promise<WeReadBooksSnapshotResponse> {
     return this.#route(() => this.#withCurrentConnectionFence(
       accountId,
-      () => this.#sync.getBooksSnapshot(accountId, input),
+      (transaction) => this.#sync.getBooksSnapshot(accountId, input, transaction),
     ));
   }
 
@@ -211,7 +228,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   ): Promise<WeReadAnnotationsSnapshotResponse> {
     return this.#route(() => this.#withCurrentConnectionFence(
       accountId,
-      () => this.#sync.getAnnotationsSnapshot(accountId, input),
+      (transaction) => this.#sync.getAnnotationsSnapshot(accountId, input, transaction),
     ));
   }
 
@@ -238,7 +255,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     try {
       claimed = await this.#sync.claimNext();
     } catch {
-      this.#rearmRecovery();
+      this.#markWorkerUnhealthy(false);
       return false;
     }
     if (!claimed) return false;
@@ -283,7 +300,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
       } catch {
         // The worker owns no caller promise. A safe terminal failure is best-effort;
         // never let a provider or store exception become an unhandled rejection.
-        this.#rearmRecovery();
+        this.#markWorkerUnhealthy(true);
         return false;
       }
     }
@@ -292,7 +309,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
 
   async #withCurrentConnectionFence<T extends { connectionId: string }>(
     accountId: string,
-    readSnapshot: () => Promise<T>,
+    readSnapshot: (transaction: TransactionSql) => Promise<T>,
   ): Promise<T> {
     return await this.#sql.begin(async (transaction) => {
       const [account] = await transaction<Array<{ id: string }>>`
@@ -305,7 +322,8 @@ export class WeReadRuntime implements WeReadRouteRuntime {
         WHERE account_id = ${accountId} AND status IN ('verified', 'paused')
       `;
       if (!connection) throw new Error("WEREAD_SNAPSHOT_NOT_FOUND");
-      const snapshot = await readSnapshot();
+      await this.#onSnapshotFenceLocked?.();
+      const snapshot = await readSnapshot(transaction);
       if (snapshot.connectionId !== connection.connectionId) {
         throw new Error("WEREAD_SNAPSHOT_NOT_FOUND");
       }
@@ -313,16 +331,34 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     }) as T;
   }
 
+  #markWorkerUnhealthy(needsRunning: boolean) {
+    this.#workerUnhealthy = true;
+    this.#recoveryNeedsRunning ||= needsRunning;
+    this.#rearmRecovery();
+  }
+
+  #clearWorkerHealth() {
+    this.#workerUnhealthy = false;
+    this.#recoveryNeedsRunning = false;
+    this.#recoveryAttempt = 0;
+  }
+
   #rearmRecovery() {
     if (this.#closed || this.#recoveryTimer !== null) return;
+    const delay = Math.min(
+      this.#maxRecoveryDelayMs,
+      this.#recoveryDelayMs * (2 ** Math.min(this.#recoveryAttempt, 16)),
+    );
+    this.#recoveryAttempt += 1;
     this.#recoveryTimer = this.#scheduleRecoveryTask(async () => {
       this.#recoveryTimer = null;
+      this.#recoverRequested = true;
       try {
         await this.start();
       } catch {
         this.#rearmRecovery();
       }
-    }, this.#recoveryDelayMs);
+    }, delay);
   }
 
   #scheduleDrain() {
@@ -335,23 +371,35 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   }
 
   async #launchDrain(recover: boolean) {
+    if (recover) this.#recoverRequested = true;
     if (this.#drain) {
       this.#wakeRequested = true;
       await this.#drain;
       return;
     }
     const drain = (async () => {
-      if (recover) {
-        const staleBefore = new Date(this.#now().getTime() - this.#staleThresholdMs);
-        await this.#sync.recoverInterrupted(staleBefore);
-      }
       do {
+        if (this.#recoverRequested) {
+          this.#recoverRequested = false;
+          try {
+            const staleBefore = new Date(this.#now().getTime() - this.#staleThresholdMs);
+            const recovered = await this.#sync.recoverInterrupted(staleBefore);
+            if (this.#workerUnhealthy && this.#recoveryNeedsRunning && recovered === 0) {
+              this.#rearmRecovery();
+              return;
+            }
+            if (this.#workerUnhealthy) this.#clearWorkerHealth();
+          } catch {
+            this.#markWorkerUnhealthy(false);
+            return;
+          }
+        }
         this.#wakeRequested = false;
         const idle = await this.#drainUntilEmpty();
         if (idle && !this.#closed && !this.#wakeRequested) {
           await this.#onIdleBeforeDrainRelease?.();
         }
-      } while (!this.#closed && this.#wakeRequested);
+      } while (!this.#closed && (this.#wakeRequested || this.#recoverRequested));
     })();
     this.#drain = drain;
     try {
@@ -390,7 +438,13 @@ export async function createWeReadRuntime(options: CreateWeReadRuntimeOptions): 
   if (!Number.isFinite(recoveryDelayMs) || recoveryDelayMs < 1) {
     throw new Error("WEREAD_RECOVERY_DELAY_INVALID");
   }
-  const sql = postgres(options.databaseUrl, { max: 4 });
+  const maxRecoveryDelayMs = options.maxRecoveryDelayMs ?? DEFAULT_MAX_RECOVERY_DELAY_MS;
+  if (!Number.isFinite(maxRecoveryDelayMs) || maxRecoveryDelayMs < recoveryDelayMs) {
+    throw new Error("WEREAD_MAX_RECOVERY_DELAY_INVALID");
+  }
+  const sqlMax = options.sqlMax ?? 4;
+  if (!Number.isSafeInteger(sqlMax) || sqlMax < 1) throw new Error("WEREAD_SQL_POOL_INVALID");
+  const sql = postgres(options.databaseUrl, { max: sqlMax });
   try {
     const connections = new WeReadConnectionStore(sql, { encryptionKey });
     const runtime = new WeReadRuntime({
@@ -403,10 +457,12 @@ export async function createWeReadRuntime(options: CreateWeReadRuntimeOptions): 
       now: options.now,
       autoDrain: options.autoStart ?? true,
       onIdleBeforeDrainRelease: options.onIdleBeforeDrainRelease,
+      onSnapshotFenceLocked: options.onSnapshotFenceLocked,
       beforeInitialBooksEnqueue: options.beforeInitialBooksEnqueue,
       beforeWorkerStoreWrite: options.beforeWorkerStoreWrite,
       beforeWorkerFailureWrite: options.beforeWorkerFailureWrite,
       recoveryDelayMs,
+      maxRecoveryDelayMs,
       scheduleRecovery: options.scheduleRecovery ?? ((task, delayMs) => setTimeout(() => { void task(); }, delayMs)),
       clearRecovery: options.clearRecovery ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>)),
     });

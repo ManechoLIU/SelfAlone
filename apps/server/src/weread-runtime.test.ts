@@ -127,7 +127,7 @@ describe("WeRead route runtime", () => {
       encryptionKey: Buffer.alloc(32, 9),
       adapter,
       autoStart: false,
-      staleThresholdMs: 1,
+      now: () => new Date("2026-09-01T00:01:01.000Z"),
     });
     resources[0]!.runtime = recovered;
     await recovered.start();
@@ -283,6 +283,33 @@ describe("WeRead route runtime", () => {
     expect(snapshot.body).not.toContain("甲书");
   });
 
+  it("serves four concurrent fenced snapshot reads without borrowing a fifth pool connection", async () => {
+    const adapter = runtimeAdapter();
+    const locked = deferred<void>();
+    const release = deferred<void>();
+    let locks = 0;
+    const harness = await setup(adapter, false, undefined, {
+      sqlMax: 4,
+      onSnapshotFenceLocked: async () => {
+        locks += 1;
+        if (locks === 4) locked.resolve();
+        await release.promise;
+      },
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "pool-fence");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    await harness.runtime.drainOnce();
+    const reads = Array.from({ length: 4 }, () => app.inject({
+      method: "GET", url: "/api/v1/weread/books", headers: { "x-selfalone-account": "account-a" },
+    }));
+    await locked.promise;
+    release.resolve();
+    const responses = await Promise.all(reads);
+    expect(responses.map((response) => response.statusCode)).toEqual([200, 200, 200, 200]);
+  }, 2_000);
+
   it("uses an unforgeable per-connection initial sync id and rolls back a replacement if enqueue fails", async () => {
     const adapter = runtimeAdapter();
     let initialEnqueues = 0;
@@ -355,37 +382,86 @@ describe("WeRead route runtime", () => {
 
   it("re-arms one bounded recovery after a transient worker-store outage leaves a run running", async () => {
     const adapter = runtimeAdapter();
-    const recovery = deferred<() => Promise<void>>();
-    let workerWrites = 0;
-    let terminalWrites = 0;
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const recoveryDelays: number[] = [];
+    const clock = mutableClock("2026-09-01T15:00:00.000Z");
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
     const harness = await setup(adapter, false, undefined, {
-      beforeWorkerStoreWrite: () => {
-        workerWrites += 1;
-        if (workerWrites === 1) throw new Error("temporary database outage");
+      now: clock.now,
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
       },
-      beforeWorkerFailureWrite: () => {
-        terminalWrites += 1;
-        if (terminalWrites === 1) throw new Error("temporary database outage");
-      },
-      scheduleRecovery: (task: () => Promise<void>) => {
-        recovery.resolve(task);
-        return "test-recovery";
+      scheduleRecovery: (task: () => Promise<void>, delayMs: number) => {
+        recoveryTasks.push(task);
+        recoveryDelays.push(delayMs);
+        return `test-recovery-${recoveryTasks.length}`;
       },
       clearRecovery: () => undefined,
       recoveryDelayMs: 1,
-      staleThresholdMs: 0,
+      maxRecoveryDelayMs: 4,
+      staleThresholdMs: 1_000,
     });
+    sql = harness.sql;
     const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
     apps.push(app);
     const connected = await connect(app, "account-a", "wrk-account-a-secret", "recover-db");
     adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
     const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
     await harness.runtime.drainOnce();
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
     const running = await app.inject({
       method: "GET", url: `/api/v1/weread/sync/${runId}`, headers: { "x-selfalone-account": "account-a" },
     });
     expect(running.json()).toMatchObject({ run: { status: "running" } });
-    await (await recovery.promise)();
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1]);
+    await recoveryTasks.shift()!();
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1, 2]);
+    await recoveryTasks.shift()!();
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1, 2, 4]);
+    await recoveryTasks.shift()!();
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1, 2, 4, 4]);
+    clock.set("2026-09-01T15:00:01.001Z");
+    await recoveryTasks.shift()!();
+    const completed = await app.inject({
+      method: "GET", url: `/api/v1/weread/sync/${runId}`, headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(completed.json()).toMatchObject({ run: { status: "completed", retryCount: 1 } });
+    expect(await harness.runtime.ready()).toBe(true);
+  }, 2_000);
+
+  it("preserves a recover request made while an idle drain is still live", async () => {
+    const adapter = runtimeAdapter();
+    const idle = deferred<void>();
+    const release = deferred<void>();
+    let firstIdle = true;
+    const harness = await setup(adapter, false, async () => {
+      if (!firstIdle) return;
+      firstIdle = false;
+      idle.resolve();
+      await release.promise;
+    });
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const initialDrain = harness.runtime.start();
+    await idle.promise;
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "recover-intent");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.sql`
+      UPDATE weread_sync_runs
+      SET status = 'running', updated_at = ${new Date("2026-09-01T00:00:00.000Z")}
+      WHERE run_id = ${runId}
+    `;
+    const recovery = harness.runtime.start();
+    release.resolve();
+    await Promise.all([initialDrain, recovery]);
     const completed = await app.inject({
       method: "GET", url: `/api/v1/weread/sync/${runId}`, headers: { "x-selfalone-account": "account-a" },
     });
@@ -451,6 +527,14 @@ function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((next) => { resolve = next; });
   return { promise, resolve };
+}
+
+function mutableClock(initial: string) {
+  let current = new Date(initial);
+  return {
+    now: () => new Date(current),
+    set(value: string) { current = new Date(value); },
+  };
 }
 
 function connect(

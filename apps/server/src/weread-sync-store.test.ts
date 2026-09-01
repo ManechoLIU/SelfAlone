@@ -254,6 +254,24 @@ describe("WeRead persisted sync store", () => {
       bookId: "local-book-a",
     })).rejects.toThrow("WEREAD_BOOK_NOT_FOUND");
 
+    const [transactionBooks, transactionAnnotations] = await setup.sql.begin(async (transaction) => {
+      await transaction.unsafe("SET LOCAL statement_timeout = '50ms'");
+      await transaction.unsafe(`
+        LOCK TABLE weread_book_snapshot_state, weread_books,
+          weread_annotation_snapshot_state, weread_annotations, weread_sync_runs
+        IN ACCESS EXCLUSIVE MODE
+      `);
+      return Promise.all([
+        store.getBooksSnapshot("account-a", { cursor: null }, transaction),
+        store.getAnnotationsSnapshot("account-a", { bookId: "local-book-a" }, transaction),
+      ]);
+    });
+    expect(transactionBooks).toMatchObject({ status: "success", books: [{ title: "甲书" }] });
+    expect(transactionAnnotations).toMatchObject({
+      status: "failed",
+      annotations: annotations.annotations,
+    });
+
     clock.set("2026-09-01T13:01:00.000Z");
     const interrupted = await store.enqueueAnnotations("account-a", {
       requestId: "request-annotations-recovery",

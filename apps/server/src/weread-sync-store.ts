@@ -15,6 +15,8 @@ import type {
 } from "@selfalone/contracts";
 import type { Sql, TransactionSql } from "postgres";
 
+type SnapshotExecutor = Sql | TransactionSql;
+
 export type WeReadSyncStoreOptions = {
   now?: () => Date;
   runIdFactory?: () => string;
@@ -343,16 +345,17 @@ export class WeReadSyncStore {
   async getBooksSnapshot(
     accountIdInput: string,
     input: WeReadBooksSnapshotRequest,
+    executor: SnapshotExecutor = this.#sql,
   ): Promise<WeReadBooksSnapshotResponse> {
     const accountId = required(accountIdInput, "ACCOUNT_REQUIRED");
     const cursor = optionalCursor(input.cursor);
-    const [state] = await this.#sql<BookSnapshotStateRow[]>`
+    const [state] = await executor<BookSnapshotStateRow[]>`
       SELECT connection_id AS "connectionId", account_external_id AS "accountExternalId",
         cursor, next_cursor AS "nextCursor", status, pause, error
       FROM weread_book_snapshot_state WHERE account_id = ${accountId}
     `;
     if (!state || state.cursor !== cursor) throw new Error("WEREAD_SNAPSHOT_NOT_FOUND");
-    const rows = await this.#sql<BookRow[]>`
+    const rows = await executor<BookRow[]>`
       SELECT book_id AS "bookId", external_id AS "externalId", title, author,
         cover_url AS "coverUrl", progress_percent AS "progressPercent",
         last_read_at AS "lastReadAt"
@@ -383,17 +386,18 @@ export class WeReadSyncStore {
   async getAnnotationsSnapshot(
     accountIdInput: string,
     input: WeReadAnnotationsSnapshotRequest,
+    executor: SnapshotExecutor = this.#sql,
   ): Promise<WeReadAnnotationsSnapshotResponse> {
     const accountId = required(accountIdInput, "ACCOUNT_REQUIRED");
     const bookId = required(input.bookId, "WEREAD_BOOK_NOT_FOUND");
-    const [state] = await this.#sql<AnnotationSnapshotStateRow[]>`
+    const [state] = await executor<AnnotationSnapshotStateRow[]>`
       SELECT connection_id AS "connectionId", account_external_id AS "accountExternalId",
         book_external_id AS "bookExternalId", status, pause, error
       FROM weread_annotation_snapshot_state
       WHERE account_id = ${accountId} AND book_id = ${bookId}
     `;
     if (!state) throw new Error("WEREAD_SNAPSHOT_NOT_FOUND");
-    const rows = await this.#sql<AnnotationRow[]>`
+    const rows = await executor<AnnotationRow[]>`
       SELECT external_id AS "externalId",
         weread_annotations.book_external_id AS "bookExternalId",
         quote, thought, location, provider_created_at AS "createdAt",
