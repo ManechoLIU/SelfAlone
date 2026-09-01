@@ -71,15 +71,17 @@ export type PlatformTextCapabilityRuntimeOptions = Omit<
 > & {
   environment: DeepSeekPlatformTextModelEnvironment;
   fetcher?: typeof fetch;
+  now?: () => Date;
 };
 
 export function createPlatformTextCapabilityFromEnvironment(
   options: PlatformTextCapabilityRuntimeOptions,
 ): ChatResponderPort {
-  const { environment, fetcher, ...capabilityOptions } = options;
+  const { environment, fetcher, now, ...capabilityOptions } = options;
   const platformModel = createDeepSeekPlatformTextModelFromEnvironment({
     environment,
     ...(fetcher ? { fetcher } : {}),
+    ...(now !== undefined ? { now } : {}),
   });
   return createPlatformTextCapability({ ...capabilityOptions, platformModel });
 }
