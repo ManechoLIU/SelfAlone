@@ -394,12 +394,19 @@ export class WeReadSyncStore {
     `;
     if (!state) throw new Error("WEREAD_SNAPSHOT_NOT_FOUND");
     const rows = await this.#sql<AnnotationRow[]>`
-      SELECT external_id AS "externalId", book_external_id AS "bookExternalId",
+      SELECT external_id AS "externalId",
+        weread_annotations.book_external_id AS "bookExternalId",
         quote, thought, location, provider_created_at AS "createdAt",
         provider_updated_at AS "updatedAt"
       FROM weread_annotations
-      WHERE account_id = ${accountId} AND book_id = ${bookId} AND visible = true
-      ORDER BY sort_order, external_id
+      JOIN weread_sync_runs
+        ON weread_sync_runs.run_id = weread_annotations.snapshot_run_id
+        AND weread_sync_runs.account_id = weread_annotations.account_id
+      WHERE weread_annotations.account_id = ${accountId}
+        AND weread_annotations.book_id = ${bookId}
+        AND weread_annotations.visible = true
+        AND weread_sync_runs.connection_id = ${state.connectionId}
+      ORDER BY weread_annotations.sort_order, weread_annotations.external_id
     `;
     const base = {
       connectionId: state.connectionId,

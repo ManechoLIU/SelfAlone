@@ -379,6 +379,121 @@ describe("WeRead persisted sync store", () => {
     });
   });
 
+  it("does not return previous-connection annotations after a replacement reuses the book identity", async () => {
+    const setup = await isolatedDatabase(databases, "weread_cross_connection_annotations");
+    let runSequence = 0;
+    let bookSequence = 0;
+    const store = new WeReadSyncStore(setup.sql, {
+      now: () => new Date("2026-09-01T16:30:00.000Z"),
+      runIdFactory: () => `annotation-cross-run-${++runSequence}`,
+      bookIdFactory: () => `annotation-cross-book-${++bookSequence}`,
+    });
+    const firstBooks = await store.enqueueBooks("account-a", {
+      requestId: "request-annotations-connection-a-books",
+      cursor: null,
+    });
+    await store.start("account-a", firstBooks.runId);
+    await store.completeBooks("account-a", firstBooks.runId, {
+      status: "success",
+      snapshot: "fresh",
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      cursor: null,
+      nextCursor: null,
+      books: [{
+        externalId: "external-book-shared",
+        title: "甲书",
+        author: null,
+        coverUrl: null,
+        progressPercent: null,
+        lastReadAt: null,
+      }],
+    });
+    const firstAnnotations = await store.enqueueAnnotations("account-a", {
+      requestId: "request-annotations-connection-a",
+      bookId: "annotation-cross-book-1",
+    });
+    await store.start("account-a", firstAnnotations.runId);
+    await store.completeAnnotations("account-a", firstAnnotations.runId, {
+      status: "success",
+      snapshot: "fresh",
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      bookExternalId: "external-book-shared",
+      annotations: [{
+        externalId: "annotation-from-connection-a",
+        bookExternalId: "external-book-shared",
+        quote: "A 的划线",
+        thought: null,
+        location: null,
+        createdAt: "2026-08-31T10:00:00.000Z",
+        updatedAt: "2026-08-31T10:01:00.000Z",
+      }],
+    });
+
+    const connections = new WeReadConnectionStore(setup.sql, {
+      encryptionKey: Buffer.alloc(32, 11),
+      now: () => new Date("2026-09-01T16:31:00.000Z"),
+      connectionIdFactory: () => "connection-b-replaced",
+    });
+    await connections.replace("account-a", {
+      apiKey: "wrk-account-a-replaced",
+      requestId: "replace-account-a-annotations",
+      expectedRevision: "1",
+      accountExternalId: "weread-account-a-replaced",
+    });
+    const replacementBooks = await store.enqueueBooks("account-a", {
+      requestId: "request-annotations-connection-b-books",
+      cursor: null,
+    });
+    await store.start("account-a", replacementBooks.runId);
+    await store.completeBooks("account-a", replacementBooks.runId, {
+      status: "success",
+      snapshot: "fresh",
+      connectionId: "connection-b-replaced",
+      accountExternalId: "weread-account-a-replaced",
+      cursor: null,
+      nextCursor: null,
+      books: [{
+        externalId: "external-book-shared",
+        title: "乙书",
+        author: null,
+        coverUrl: null,
+        progressPercent: null,
+        lastReadAt: null,
+      }],
+    });
+    await expect(store.getBooksSnapshot("account-a", { cursor: null })).resolves.toMatchObject({
+      connectionId: "connection-b-replaced",
+      books: [{ bookId: "annotation-cross-book-1", title: "乙书" }],
+    });
+
+    const failedAnnotations = await store.enqueueAnnotations("account-a", {
+      requestId: "request-annotations-connection-b",
+      bookId: "annotation-cross-book-1",
+    });
+    await store.start("account-a", failedAnnotations.runId);
+    const providerFailure: WeReadApiError = {
+      code: "EXTERNAL_SERVICE_FAILED",
+      message: "微信读书暂时不可用",
+      retryable: true,
+    };
+    await store.fail("account-a", failedAnnotations.runId, providerFailure);
+
+    await expect(store.getAnnotationsSnapshot("account-a", {
+      bookId: "annotation-cross-book-1",
+    })).resolves.toEqual({
+      status: "failed",
+      snapshot: "last_success",
+      connectionId: "connection-b-replaced",
+      accountExternalId: "weread-account-a-replaced",
+      bookId: "annotation-cross-book-1",
+      bookExternalId: "external-book-shared",
+      annotations: [],
+      error: providerFailure,
+    });
+  });
+
   it("replays a terminal failure when semantic error fields match regardless of object key order", async () => {
     const setup = await isolatedDatabase(databases, "weread_fail_fingerprint");
     const store = new WeReadSyncStore(setup.sql, {
