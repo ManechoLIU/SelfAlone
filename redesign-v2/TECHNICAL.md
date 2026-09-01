@@ -158,6 +158,8 @@ interface WeReadAdapter {
 
 适配器通过 `POST https://i.weread.qq.com/api/agent/gateway` 调用允许列表内的 `api_name`，使用 Bearer 凭证并携带 `skill_version`。调用检查 `errcode` 与 `upgrade_info`；升级要求暂停同步并保留上次成功快照。分页游标、外部 ID 和连接账户相互隔离；新凭证验证成功后才原子替换旧连接。限流采用单连接串行、超时和对 `429/5xx` 的有界退避。
 
+服务端共享 HTTP 边界固定为 `/api/v1/weread`：连接读写删除位于 `/connection`，书籍同步与快照位于 `/sync/books`、`/books`，单次运行状态位于 `/sync/:runId`，单书批注同步与快照位于 `/sync/annotations`、`/annotations`。账户只由已认证服务端上下文注入；客户端提交的 cursor 保持不透明，连接替换 / 删除必须携带已观察 revision，两类同步接受后返回 HTTP 202。凭证持久化、后台恢复与真实腾讯调用属于后续 runtime 包，不由路由存在冒充完成。
+
 ### 5.4 PPT 引擎
 
 ```ts

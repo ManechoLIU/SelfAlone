@@ -20,6 +20,7 @@ import {
   type TextAnnotationService,
 } from "./text-annotation-runtime";
 import type { ModelConfigRuntime } from "./model-config-runtime";
+import { registerWeReadRoutes, type WeReadRouteRuntime } from "./weread-routes";
 
 type AppDependencies = {
   readiness: () => Promise<boolean>;
@@ -37,6 +38,7 @@ type AppDependencies = {
   conversation?: ConversationRouteRuntime;
   selection?: ConversationSelectionRouteRuntime;
   trialQuota?: TrialQuotaRouteRuntime;
+  weread?: WeReadRouteRuntime;
 };
 
 export const resolveAccountId = resolveAccountOwner;
@@ -292,6 +294,10 @@ export function createApp(dependencies: AppDependencies) {
 
   if (dependencies.trialQuota) {
     registerTrialQuotaRoutes(app, dependencies.trialQuota, resolveAccountId);
+  }
+
+  if (dependencies.weread) {
+    registerWeReadRoutes(app, dependencies.weread, resolveAccountId);
   }
 
   if (dependencies.m0) {
