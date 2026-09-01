@@ -160,6 +160,8 @@ interface WeReadAdapter {
 
 服务端共享 HTTP 边界固定为 `/api/v1/weread`：连接读写删除位于 `/connection`，书籍同步与快照位于 `/sync/books`、`/books`，单次运行状态位于 `/sync/:runId`，单书批注同步与快照位于 `/sync/annotations`、`/annotations`。账户只由已认证服务端上下文注入；客户端提交的 cursor 保持不透明，连接替换 / 删除必须携带已观察 revision，两类同步接受后返回 HTTP 202。凭证持久化、后台恢复与真实腾讯调用属于后续 runtime 包，不由路由存在冒充完成。
 
+微信读书连接凭证在 PostgreSQL 中按账户保存 AES-256-GCM 密文，账户 ID 与密钥版本共同作为附加认证数据；响应和持久化幂等指纹不包含明文 Key。连接替换先锁定账户行，再校验同一请求重放或 revision；断开连接会清空密文、nonce、认证标签与显示提示。该存储边界仍不代表同步任务、正式 Server 注入或真实腾讯调用已经完成。
+
 ### 5.4 PPT 引擎
 
 ```ts
