@@ -46,6 +46,9 @@ describe("platform text capability composition", () => {
           events.push("release");
           return {};
         },
+        async getReservation() {
+          throw new Error("COST_RESERVATION_NOT_FOUND");
+        },
       },
       reservationAmountMicros: 500_000,
       environment: {
@@ -82,6 +85,9 @@ describe("platform text capability composition", () => {
         async reserve() { return {}; },
         async settle() { return {}; },
         async release() { return {}; },
+        async getReservation() {
+          throw new Error("COST_RESERVATION_NOT_FOUND");
+        },
       },
       reservationAmountMicros: 500_000,
       fetcher: async () => new Response(null, { status: 500 }),

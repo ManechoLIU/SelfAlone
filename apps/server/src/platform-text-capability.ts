@@ -52,6 +52,13 @@ export type PlatformTextCapabilityOptions = {
       operationId: string;
       reservationId: string;
     }): Promise<unknown>;
+    getReservation(input: {
+      accountId: string;
+      reservationId: string;
+    }): Promise<{
+      status: "reserved" | "settled" | "released";
+      actualMicros: number | null;
+    }>;
   };
   platformModel?: MeteredPlatformChatPort;
   reservationAmountMicros: number;
@@ -115,8 +122,9 @@ export function createPlatformTextCapability(
         throw new Error(isCostLimit(error) ? PLATFORM_EXHAUSTION : PLATFORM_UNAVAILABLE);
       }
 
+      let result: MeteredPlatformChatResult;
       try {
-        const result = await options.platformModel.chat(input, signal);
+        result = await options.platformModel.chat(input, signal);
         if (
           !result
           || typeof result.text !== "string"
@@ -126,15 +134,24 @@ export function createPlatformTextCapability(
         ) {
           throw new Error(PLATFORM_UNAVAILABLE);
         }
-        await options.costLedger.settle({
-          ...reservation,
-          actualMicros: result.actualCostMicros,
-        });
-        return { text: result.text };
       } catch (error) {
         await releaseReservation(options, reservation);
         throw new Error(isCostLimit(error) ? PLATFORM_EXHAUSTION : PLATFORM_UNAVAILABLE);
       }
+
+      try {
+        await options.costLedger.settle({
+          ...reservation,
+          actualMicros: result.actualCostMicros,
+        });
+      } catch (error) {
+        if (await settlementWasCommitted(options, reservation, result.actualCostMicros)) {
+          return { text: result.text };
+        }
+        await releaseReservation(options, reservation);
+        throw new Error(isCostLimit(error) ? PLATFORM_EXHAUSTION : PLATFORM_UNAVAILABLE);
+      }
+      return { text: result.text };
     },
   };
 }
@@ -158,6 +175,19 @@ async function readTrialStatus(
     return await options.trialQuota.getStatus(accountId);
   } catch {
     throw new Error(PLATFORM_UNAVAILABLE);
+  }
+}
+
+async function settlementWasCommitted(
+  options: PlatformTextCapabilityOptions,
+  reservation: { accountId: string; reservationId: string },
+  actualMicros: number,
+) {
+  try {
+    const current = await options.costLedger.getReservation(reservation);
+    return current.status === "settled" && current.actualMicros === actualMicros;
+  } catch {
+    return false;
   }
 }
 

@@ -76,6 +76,47 @@ describe("platform text capability gate", () => {
     ]);
   });
 
+  it("releases and reports exhaustion when a failed settlement is still reserved", async () => {
+    const events: string[] = [];
+    const capability = createPlatformTextCapability({
+      configuredUserModel: responder("unused"),
+      modelConfiguration: { async getStatus() { return null; } },
+      trialQuota: { async getStatus() { return { status: "claimed" }; } },
+      costLedger: {
+        async reserve() {
+          events.push("reserve");
+          return {};
+        },
+        async settle() {
+          events.push("settle");
+          throw Object.assign(new Error("COST_LIMIT_EXCEEDED"), {
+            code: "COST_LIMIT_EXCEEDED",
+          });
+        },
+        async getReservation() {
+          events.push("read-reservation");
+          return { status: "reserved" as const, actualMicros: null };
+        },
+        async release() {
+          events.push("release");
+          return {};
+        },
+      },
+      platformModel: meteredResponder("平台回答", 7, () => events.push("platform-model")),
+      reservationAmountMicros: 10,
+      attemptIdFactory: () => "attempt-settle-failed",
+    });
+
+    await expect(capability.chat(input, signal())).rejects.toThrow(PLATFORM_EXHAUSTION);
+    expect(events).toEqual([
+      "reserve",
+      "platform-model",
+      "settle",
+      "read-reservation",
+      "release",
+    ]);
+  });
+
   it("maps exhausted capacity without calling the platform provider", async () => {
     const events: string[] = [];
     const capability = createPlatformTextCapability(createOptions({
@@ -172,6 +213,9 @@ function createOptions(overrides: Input): PlatformTextCapabilityOptions {
       async release(value) {
         overrides.onRelease?.(value);
         return {};
+      },
+      async getReservation() {
+        throw new Error("COST_RESERVATION_NOT_FOUND");
       },
     },
     platformModel: overrides.platformModel,
