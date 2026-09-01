@@ -111,7 +111,7 @@ export function createDeepSeekPlatformTextModelFromEnvironment(
     offPeakCacheHitPrice,
     offPeakCacheMissPrice,
     offPeakOutputPrice,
-  ] = rawScheduledPrices.map((value) => value?.trim());
+  ] = rawScheduledPrices;
   const rawLegacyPrices = [
     options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV],
     options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV],

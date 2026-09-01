@@ -253,7 +253,7 @@ describe("platform text capability composition", () => {
       },
     })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
 
-    for (const invalidPrice of ["0", "01", "-1", "1.5", "900000\n", "9007199254740992"]) {
+    for (const invalidPrice of ["0", "01", "-1", "1.5", " 900000 ", "900000\n", "9007199254740992"]) {
       expect(() => createPlatformTextCapabilityFromEnvironment({
         ...base,
         environment: {
