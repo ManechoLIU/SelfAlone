@@ -96,16 +96,26 @@ export function createDeepSeekPlatformTextModelFromEnvironment(
 ): DeepSeekMeteredPlatformChatPort | undefined {
   const rawApiKey = options.environment[PLATFORM_DEEPSEEK_API_KEY_ENV];
   const apiKey = rawApiKey?.trim();
-  const peakCacheHitPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
-  const peakCacheMissPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
-  const peakOutputPrice = options.environment[PLATFORM_DEEPSEEK_PEAK_OUTPUT_PRICE_ENV]?.trim();
-  const offPeakCacheHitPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
-  const offPeakCacheMissPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
-  const offPeakOutputPrice = options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_OUTPUT_PRICE_ENV]?.trim();
-  const legacyPrices = [
-    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV]?.trim(),
-    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV]?.trim(),
-    options.environment[PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV]?.trim(),
+  const rawScheduledPrices = [
+    options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_HIT_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_PEAK_INPUT_CACHE_MISS_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_PEAK_OUTPUT_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_HIT_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_INPUT_CACHE_MISS_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_OFF_PEAK_OUTPUT_PRICE_ENV],
+  ];
+  const [
+    peakCacheHitPrice,
+    peakCacheMissPrice,
+    peakOutputPrice,
+    offPeakCacheHitPrice,
+    offPeakCacheMissPrice,
+    offPeakOutputPrice,
+  ] = rawScheduledPrices.map((value) => value?.trim());
+  const rawLegacyPrices = [
+    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV],
+    options.environment[PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV],
   ];
   const configuredValues = [
     apiKey,
@@ -116,12 +126,17 @@ export function createDeepSeekPlatformTextModelFromEnvironment(
     offPeakCacheMissPrice,
     offPeakOutputPrice,
   ];
-  if (configuredValues.every((value) => !value) && legacyPrices.every((value) => !value)) {
+  if (
+    rawApiKey === undefined
+    && rawScheduledPrices.every((value) => value === undefined)
+    && rawLegacyPrices.every((value) => value === undefined)
+  ) {
     return undefined;
   }
   if (
-    legacyPrices.some((value) => value)
+    rawLegacyPrices.some((value) => value !== undefined)
     || configuredValues.some((value) => !value)
+    || rawScheduledPrices.some((value) => value !== undefined && /[\u0000-\u001F\u007F-\u009F]/.test(value))
     || !apiKey
     || apiKey.length > 4_096
     || (rawApiKey !== undefined && /[\u0000-\u001F\u007F-\u009F]/.test(rawApiKey))

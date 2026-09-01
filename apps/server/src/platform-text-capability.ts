@@ -81,7 +81,7 @@ export function createPlatformTextCapabilityFromEnvironment(
   const platformModel = createDeepSeekPlatformTextModelFromEnvironment({
     environment,
     ...(fetcher ? { fetcher } : {}),
-    ...(now ? { now } : {}),
+    ...(now !== undefined ? { now } : {}),
   });
   return createPlatformTextCapability({ ...capabilityOptions, platformModel });
 }

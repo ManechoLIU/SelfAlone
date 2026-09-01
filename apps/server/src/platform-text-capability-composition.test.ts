@@ -153,8 +153,12 @@ describe("platform text capability composition", () => {
       { at: "2026-09-01T09:00:00+08:00", settle: "settle:20" },
       { at: "2026-09-01T11:59:00+08:00", settle: "settle:20" },
       { at: "2026-09-01T12:00:00+08:00", settle: "settle:7" },
+      { at: "2026-09-01T13:59:00+08:00", settle: "settle:7" },
       { at: "2026-09-01T14:00:00+08:00", settle: "settle:20" },
+      { at: "2026-09-01T17:59:00+08:00", settle: "settle:20" },
       { at: "2026-09-01T18:00:00+08:00", settle: "settle:7" },
+      { at: "2026-09-01T01:00:00Z", settle: "settle:20" },
+      { at: "2026-09-01T04:00:00Z", settle: "settle:7" },
       { at: "2026-09-05T10:00:00+08:00", settle: "settle:7" },
       { at: "2026-09-06T15:00:00+08:00", settle: "settle:7" },
     ];
@@ -241,7 +245,15 @@ describe("platform text capability composition", () => {
       },
     })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
 
-    for (const invalidPrice of ["0", "01", "-1", "1.5"]) {
+    expect(() => createPlatformTextCapabilityFromEnvironment({
+      ...base,
+      environment: {
+        ...SIX_PERIOD_PRICES,
+        PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_CNY_MICROS_PER_MILLION: "100000",
+      },
+    })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
+
+    for (const invalidPrice of ["0", "01", "-1", "1.5", "900000\n", "9007199254740992"]) {
       expect(() => createPlatformTextCapabilityFromEnvironment({
         ...base,
         environment: {
@@ -250,6 +262,13 @@ describe("platform text capability composition", () => {
         },
       })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
     }
+
+    expect(() => createPlatformTextCapabilityFromEnvironment({
+      ...base,
+      environment: Object.fromEntries(
+        Object.keys(SIX_PERIOD_PRICES).map((key) => [key, " \t"]),
+      ),
+    })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
 
     expect(() => createPlatformTextCapabilityFromEnvironment({
       ...base,
@@ -263,8 +282,9 @@ describe("platform text capability composition", () => {
       () => { throw new Error("clock failed"); },
     ]) {
       let fetchCalls = 0;
+      const events: string[] = [];
       const invalidClock = createPlatformTextCapabilityFromEnvironment({
-        ...base,
+        ...scheduledCapabilityOptions({ environment: SIX_PERIOD_PRICES, events }),
         environment: SIX_PERIOD_PRICES,
         now,
         fetcher: async () => {
@@ -275,6 +295,22 @@ describe("platform text capability composition", () => {
       await expect(invalidClock.chat(platformChatInput, new AbortController().signal))
         .rejects.toThrow("PLATFORM_UNAVAILABLE");
       expect(fetchCalls).toBe(0);
+      expect(events).toEqual(["reserve:500000", "release"]);
+    }
+
+    for (const now of [null, 0, false, ""] as const) {
+      let fetchCalls = 0;
+      const events: string[] = [];
+      expect(() => createPlatformTextCapabilityFromEnvironment({
+        ...scheduledCapabilityOptions({ environment: SIX_PERIOD_PRICES, events }),
+        now: now as never,
+        fetcher: async () => {
+          fetchCalls += 1;
+          return platformUsageResponse();
+        },
+      })).toThrow("PLATFORM_MODEL_CONFIGURATION_INVALID");
+      expect(fetchCalls).toBe(0);
+      expect(events).toEqual([]);
     }
   });
 });
