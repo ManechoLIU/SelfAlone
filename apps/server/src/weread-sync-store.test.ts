@@ -311,6 +311,97 @@ describe("WeRead persisted sync store", () => {
       "WEREAD_SNAPSHOT_NOT_FOUND",
     );
   });
+
+  it("does not label a replaced connection snapshot with the previous connection's visible books", async () => {
+    const setup = await isolatedDatabase(databases, "weread_cross_connection_snapshot");
+    let runSequence = 0;
+    let bookSequence = 0;
+    const store = new WeReadSyncStore(setup.sql, {
+      now: () => new Date("2026-09-01T16:00:00.000Z"),
+      runIdFactory: () => `cross-run-${++runSequence}`,
+      bookIdFactory: () => `cross-book-${++bookSequence}`,
+    });
+    const first = await store.enqueueBooks("account-a", {
+      requestId: "request-books-connection-a",
+      cursor: null,
+    });
+    await store.start("account-a", first.runId);
+    await store.completeBooks("account-a", first.runId, {
+      status: "success",
+      snapshot: "fresh",
+      connectionId: "connection-a",
+      accountExternalId: "weread-account-a",
+      cursor: null,
+      nextCursor: null,
+      books: [{
+        externalId: "external-book-a",
+        title: "甲书",
+        author: "甲作者",
+        coverUrl: null,
+        progressPercent: 25,
+        lastReadAt: "2026-08-31T09:00:00.000Z",
+      }],
+    });
+
+    const connections = new WeReadConnectionStore(setup.sql, {
+      encryptionKey: Buffer.alloc(32, 11),
+      now: () => new Date("2026-09-01T16:01:00.000Z"),
+      connectionIdFactory: () => "connection-replaced",
+    });
+    await connections.replace("account-a", {
+      apiKey: "wrk-account-a-replaced",
+      requestId: "replace-account-a-cross",
+      expectedRevision: "1",
+      accountExternalId: "weread-account-a-replaced",
+    });
+
+    const failedRun = await store.enqueueBooks("account-a", {
+      requestId: "request-books-connection-b",
+      cursor: null,
+    });
+    await store.start("account-a", failedRun.runId);
+    const providerFailure: WeReadApiError = {
+      code: "EXTERNAL_SERVICE_FAILED",
+      message: "微信读书暂时不可用",
+      retryable: true,
+    };
+    await store.fail("account-a", failedRun.runId, providerFailure);
+
+    await expect(store.getBooksSnapshot("account-a", { cursor: null })).resolves.toEqual({
+      status: "failed",
+      snapshot: "last_success",
+      connectionId: "connection-replaced",
+      accountExternalId: "weread-account-a-replaced",
+      cursor: null,
+      nextCursor: null,
+      books: [],
+      error: providerFailure,
+    });
+  });
+
+  it("replays a terminal failure when semantic error fields match regardless of object key order", async () => {
+    const setup = await isolatedDatabase(databases, "weread_fail_fingerprint");
+    const store = new WeReadSyncStore(setup.sql, {
+      now: () => new Date("2026-09-01T17:00:00.000Z"),
+      runIdFactory: () => "fail-order-run",
+      bookIdFactory: () => "unused-book",
+    });
+    const run = await store.enqueueBooks("account-a", {
+      requestId: "request-fail-order",
+      cursor: null,
+    });
+    await store.start("account-a", run.runId);
+    const first = await store.fail("account-a", run.runId, {
+      code: "EXTERNAL_SERVICE_FAILED",
+      message: "微信读书暂时不可用",
+      retryable: true,
+    });
+    await expect(store.fail("account-a", run.runId, {
+      retryable: true,
+      message: "微信读书暂时不可用",
+      code: "EXTERNAL_SERVICE_FAILED",
+    })).resolves.toEqual(first);
+  });
 });
 
 async function isolatedDatabase(

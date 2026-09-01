@@ -299,7 +299,7 @@ export class WeReadSyncStore {
     const accountId = required(accountIdInput, "ACCOUNT_REQUIRED");
     const runId = required(runIdInput, "WEREAD_RUN_NOT_FOUND");
     const error = validApiError(errorInput);
-    const terminalFingerprint = fingerprint(["failed", error]);
+    const terminalFingerprint = fingerprintFailure(error);
     return this.#sql.begin(async (transaction) => {
       await lockAccount(transaction, accountId);
       const run = await findRun(transaction, accountId, runId);
@@ -357,7 +357,9 @@ export class WeReadSyncStore {
         cover_url AS "coverUrl", progress_percent AS "progressPercent",
         last_read_at AS "lastReadAt"
       FROM weread_books
-      WHERE account_id = ${accountId} AND visible = true
+      WHERE account_id = ${accountId}
+        AND connection_id = ${state.connectionId}
+        AND visible = true
       ORDER BY sort_order, book_id
     `;
     const base = {
@@ -861,6 +863,19 @@ function dateOrNull(value: string | null) {
 
 function fingerprint(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
+function fingerprintFailure(error: WeReadApiError) {
+  const fieldErrors = error.fieldErrors;
+  return fingerprint([
+    "failed",
+    error.code,
+    error.message,
+    error.retryable,
+    fieldErrors
+      ? Object.keys(fieldErrors).sort().map((field) => [field, fieldErrors[field]])
+      : null,
+  ]);
 }
 
 function fingerprintBooksResult(page: WeReadSyncPage) {
