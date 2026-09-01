@@ -448,6 +448,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
             return;
           }
         }
+        if (this.#workerUnhealthy) return;
         this.#wakeRequested = false;
         const idle = await this.#drainUntilEmpty();
         if (idle && !this.#closed && !this.#wakeRequested) {
@@ -462,8 +463,10 @@ export class WeReadRuntime implements WeReadRouteRuntime {
       if (this.#drain !== drain) return;
       this.#drain = null;
       const wakeRequested = this.#wakeRequested;
-      this.#wakeRequested = false;
-      if (wakeRequested && !this.#closed) void this.#launchDrain(false).catch(() => undefined);
+      if (wakeRequested && !this.#closed && !this.#workerUnhealthy) {
+        this.#wakeRequested = false;
+        void this.#launchDrain(false).catch(() => undefined);
+      }
     }
   }
 

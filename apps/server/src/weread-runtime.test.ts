@@ -667,6 +667,67 @@ describe("WeRead route runtime", () => {
     expect(await harness.runtime.ready()).toBe(true);
   }, 2_000);
 
+  it("keeps a wake queued when an active drain becomes unhealthy before the next claim", async () => {
+    const adapter = runtimeAdapter();
+    const idle = deferred<void>();
+    const releaseIdle = deferred<void>();
+    const claimedRunIds: string[] = [];
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const clock = mutableClock("2026-09-01T17:00:00.000Z");
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, async () => {
+      idle.resolve();
+      await releaseIdle.promise;
+    }, {
+      now: clock.now,
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      onWorkerClaimed: (_accountId: string, runId: string) => { claimedRunIds.push(runId); },
+      scheduleRecovery: (task: () => Promise<void>) => {
+        recoveryTasks.push(task);
+        return `active-drain-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      staleThresholdMs: 0,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "active-drain-r1");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const r1 = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    const activeDrain = harness.runtime.start();
+    await idle.promise;
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/weread/sync/books",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { requestId: "active-drain-r2" },
+    });
+    const r2 = second.json<{ run: { runId: string } }>().run.runId;
+    releaseIdle.resolve();
+    await activeDrain;
+    expect(claimedRunIds).toEqual([r1]);
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryTasks).toHaveLength(1);
+    clock.set("2026-09-01T17:00:00.001Z");
+    await recoveryTasks.shift()!();
+    expect(claimedRunIds).toEqual([r1, r1, r2]);
+    await expect(harness.runtime.getSyncStatus("account-a", r1)).resolves.toMatchObject({
+      run: { status: "completed", retryCount: 1 },
+    });
+    await expect(harness.runtime.getSyncStatus("account-a", r2)).resolves.toMatchObject({
+      run: { status: "completed" },
+    });
+    expect(await harness.runtime.ready()).toBe(true);
+  }, 2_000);
+
   it("clears unhealthy recovery when the terminal store commit succeeds but its acknowledgement is lost", async () => {
     const adapter = runtimeAdapter();
     const recoveryTasks: Array<() => Promise<void>> = [];
