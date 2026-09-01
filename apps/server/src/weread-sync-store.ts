@@ -158,6 +158,21 @@ export class WeReadSyncStore {
     });
   }
 
+  async claimQueuedRun(
+    accountIdInput: string,
+    runIdInput: string,
+  ): Promise<{ accountId: string; run: WeReadSyncRunProjection } | null> {
+    const accountId = required(accountIdInput, "ACCOUNT_REQUIRED");
+    const runId = required(runIdInput, "WEREAD_RUN_NOT_FOUND");
+    const [updated] = await this.#sql<RunRow[]>`
+      UPDATE weread_sync_runs
+      SET status = 'running', updated_at = ${validDate(this.#now(), "WEREAD_CLOCK_INVALID")}
+      WHERE account_id = ${accountId} AND run_id = ${runId} AND status = 'queued'
+      RETURNING ${this.#sql.unsafe(runColumns)}
+    `;
+    return updated ? { accountId, run: toRunProjection(updated) } : null;
+  }
+
   async recoverInterrupted(staleBeforeInput: Date) {
     const staleBefore = validDate(staleBeforeInput, "WEREAD_CLOCK_INVALID");
     const recovered = await this.#sql<Array<{ count: number }>>`

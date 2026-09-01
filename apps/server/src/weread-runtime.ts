@@ -16,6 +16,7 @@ import type {
   WeReadConnectionPutRequest,
   WeReadConnectionPutResponse,
   WeReadAnnotationsSyncRunProjection,
+  WeReadSyncRunProjection,
   WeReadSyncStatusResponse,
 } from "@selfalone/contracts";
 import { createCipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
@@ -266,7 +267,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   }
 
   async #drainOne(): Promise<boolean> {
-    let claimed;
+    let claimed: { accountId: string; run: WeReadSyncRunProjection } | null;
     try {
       claimed = await this.#sync.claimNext();
     } catch {
@@ -274,6 +275,10 @@ export class WeReadRuntime implements WeReadRouteRuntime {
       return false;
     }
     if (!claimed) return false;
+    return this.#processClaimed(claimed);
+  }
+
+  async #processClaimed(claimed: { accountId: string; run: WeReadSyncRunProjection }): Promise<boolean> {
     try {
       await this.#onWorkerClaimed?.(claimed.accountId, claimed.run.runId);
       if (claimed.run.operation === "books") {
@@ -437,8 +442,36 @@ export class WeReadRuntime implements WeReadRouteRuntime {
                     this.#rearmRecovery();
                     return;
                   } else {
-                    this.#clearWorkerHealth();
                     await this.#onUnhealthyRunObserved?.();
+                    const claimed = await this.#sync.claimQueuedRun(
+                      unhealthyRun.accountId,
+                      unhealthyRun.runId,
+                    );
+                    if (claimed) {
+                      if (!await this.#processClaimed(claimed) || this.#workerUnhealthy) return;
+                    } else {
+                      let current;
+                      try {
+                        current = await this.#sync.getRun(unhealthyRun.accountId, unhealthyRun.runId);
+                      } catch (error) {
+                        if (error instanceof Error && error.message === "WEREAD_RUN_NOT_FOUND") {
+                          this.#clearWorkerHealth();
+                        } else {
+                          throw error;
+                        }
+                      }
+                      if (current) {
+                        if (current.status === "completed" || current.status === "paused" || current.status === "failed") {
+                          this.#clearWorkerHealth();
+                        } else if (current.status === "running") {
+                          this.#rearmRecovery();
+                          return;
+                        } else {
+                          this.#rearmRecovery();
+                          return;
+                        }
+                      }
+                    }
                   }
                 }
               }

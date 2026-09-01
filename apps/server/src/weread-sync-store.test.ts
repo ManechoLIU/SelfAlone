@@ -292,6 +292,34 @@ describe("WeRead persisted sync store", () => {
     });
   });
 
+  it("atomically claims a named recovered run before equal-time queued peers", async () => {
+    const setup = await isolatedDatabase(databases, "weread_named_claim");
+    const clock = mutableClock("2026-09-01T13:30:00.000Z");
+    const runIds = ["z-r1", "a-r2"];
+    const store = new WeReadSyncStore(setup.sql, {
+      now: clock.now,
+      runIdFactory: () => runIds.shift()!,
+      bookIdFactory: () => "unused-book",
+    });
+    const r1 = await store.enqueueBooks("account-a", { requestId: "named-r1", cursor: null });
+    await store.start("account-a", r1.runId);
+    const r2 = await store.enqueueBooks("account-a", { requestId: "named-r2", cursor: null });
+    clock.set("2026-09-01T13:30:00.001Z");
+    await expect(store.recoverInterrupted(new Date("2026-09-01T13:30:00.001Z"))).resolves.toBe(1);
+
+    const namedClaimStore = store as unknown as {
+      claimQueuedRun: (accountId: string, runId: string) => Promise<unknown>;
+    };
+    await expect(namedClaimStore.claimQueuedRun("account-a", r1.runId)).resolves.toMatchObject({
+      accountId: "account-a",
+      run: { runId: r1.runId, status: "running", retryCount: 1 },
+    });
+    await expect(store.claimNext()).resolves.toMatchObject({
+      accountId: "account-a",
+      run: { runId: r2.runId, status: "running", retryCount: 0 },
+    });
+  });
+
   it("rejects a late result after the account replaces its connection", async () => {
     const setup = await isolatedDatabase(databases, "weread_stale_connection");
     const store = new WeReadSyncStore(setup.sql, {
