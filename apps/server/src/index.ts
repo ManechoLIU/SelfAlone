@@ -34,7 +34,7 @@ import { migrateCostLedgerSchema } from "./cost-ledger-migration";
 import { CostLedgerStore } from "./cost-ledger-store";
 import { migrateTrialQuotaSchema } from "./trial-quota-migration";
 import { TrialQuotaStore } from "./trial-quota-store";
-import { createPlatformTextCapability } from "./platform-text-capability";
+import { createPlatformTextCapabilityFromEnvironment } from "./platform-text-capability";
 import { extractTextBook } from "@selfalone/domain";
 import {
   appendConversationNoteBody,
@@ -149,12 +149,13 @@ const deepSeekChatAdapter = createDeepSeekTextModelAdapter({
   catalog: DEFAULT_DEEPSEEK_CATALOG,
   credentialProvider: modelConfig,
 });
-const platformTextCapability = createPlatformTextCapability({
+const platformTextCapability = createPlatformTextCapabilityFromEnvironment({
   configuredUserModel: deepSeekChatAdapter,
   modelConfiguration: modelConfig,
   trialQuota,
   costLedger,
   reservationAmountMicros: 500_000,
+  environment: process.env,
 });
 const conversationResponder = developmentConversationResponder
   ?? createConversationResponder(platformTextCapability);

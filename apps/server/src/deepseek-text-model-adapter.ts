@@ -45,6 +45,94 @@ export type DeepSeekTextModelAdapterOptions = {
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const DEEPSEEK_CREDENTIAL_UNAVAILABLE = "DEEPSEEK_CREDENTIAL_UNAVAILABLE" as const;
 export const DEEPSEEK_CHAT_FAILED = "DEEPSEEK_CHAT_FAILED" as const;
+export const PLATFORM_MODEL_CONFIGURATION_INVALID =
+  "PLATFORM_MODEL_CONFIGURATION_INVALID" as const;
+
+export const PLATFORM_DEEPSEEK_API_KEY_ENV = "PLATFORM_DEEPSEEK_API_KEY" as const;
+export const PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_CNY_MICROS_PER_MILLION" as const;
+export const PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV =
+  "PLATFORM_DEEPSEEK_OUTPUT_CNY_MICROS_PER_MILLION" as const;
+
+export type DeepSeekPlatformTextModelEnvironment = Record<string, string | undefined>;
+
+export type DeepSeekPlatformTextModelOptions = {
+  environment: DeepSeekPlatformTextModelEnvironment;
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+  catalog?: DeepSeekCatalog;
+};
+
+export type DeepSeekMeteredPlatformChatPort = {
+  chat(
+    input: ChatInput,
+    signal: AbortSignal,
+  ): Promise<ChatResult & { actualCostMicros: number }>;
+};
+
+/**
+ * Resolves the server-owned platform credential and pricing snapshot. An
+ * absent configuration keeps the free capability unavailable; a partial or
+ * malformed configuration fails startup instead of silently undercounting.
+ */
+export function createDeepSeekPlatformTextModelFromEnvironment(
+  options: DeepSeekPlatformTextModelOptions,
+): DeepSeekMeteredPlatformChatPort | undefined {
+  const rawApiKey = options.environment[PLATFORM_DEEPSEEK_API_KEY_ENV];
+  const apiKey = rawApiKey?.trim();
+  const cacheHitPrice = options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_HIT_PRICE_ENV]?.trim();
+  const cacheMissPrice = options.environment[PLATFORM_DEEPSEEK_INPUT_CACHE_MISS_PRICE_ENV]?.trim();
+  const outputPrice = options.environment[PLATFORM_DEEPSEEK_OUTPUT_PRICE_ENV]?.trim();
+  const configuredValues = [apiKey, cacheHitPrice, cacheMissPrice, outputPrice];
+  if (configuredValues.every((value) => !value)) return undefined;
+  if (
+    configuredValues.some((value) => !value)
+    || !apiKey
+    || apiKey.length > 4_096
+    || (rawApiKey !== undefined && /[\u0000-\u001F\u007F-\u009F]/.test(rawApiKey))
+  ) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+
+  const pricing = {
+    cacheHitMicrosPerMillion: parsePositivePrice(cacheHitPrice),
+    cacheMissMicrosPerMillion: parsePositivePrice(cacheMissPrice),
+    outputMicrosPerMillion: parsePositivePrice(outputPrice),
+  };
+  const fetcher = options.fetcher ?? globalThis.fetch;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const catalog = options.catalog ?? DEFAULT_DEEPSEEK_CATALOG;
+  if (!fetcher || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  const endpoint = joinEndpoint(catalog.endpoint, catalog.validationPath ?? "/chat/completions");
+  if (!endpoint || !catalog.model.trim()) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+
+  return {
+    async chat(input, signal) {
+      const payload = await requestChatPayload({
+        fetcher,
+        endpoint,
+        model: catalog.model,
+        timeoutMs,
+        input,
+        apiKey,
+        signal,
+      });
+      const text = extractChatText(payload);
+      const usage = extractChatUsage(payload);
+      if (!text || !usage) throw new Error(DEEPSEEK_CHAT_FAILED);
+      return {
+        text,
+        actualCostMicros: calculateActualCostMicros(usage, pricing),
+      };
+    },
+  };
+}
 
 /**
  * DeepSeek validation is intentionally a small injected seam. Production
@@ -201,6 +289,21 @@ async function requestChat(input: {
   apiKey: string;
   signal: AbortSignal;
 }): Promise<ChatResult> {
+  const payload = await requestChatPayload(input);
+  const text = extractChatText(payload);
+  if (!text) throw new Error(DEEPSEEK_CHAT_FAILED);
+  return { text };
+}
+
+async function requestChatPayload(input: {
+  fetcher: typeof fetch;
+  endpoint: string;
+  model: string;
+  timeoutMs: number;
+  input: ChatInput;
+  apiKey: string;
+  signal: AbortSignal;
+}): Promise<unknown> {
   const controller = new AbortController();
   const forwardAbort = () => controller.abort();
   if (input.signal.aborted) {
@@ -230,15 +333,75 @@ async function requestChat(input: {
       signal: controller.signal,
     });
     if (!response.ok) throw new Error(DEEPSEEK_CHAT_FAILED);
-    const text = extractChatText(await readJson(response));
-    if (!text) throw new Error(DEEPSEEK_CHAT_FAILED);
-    return { text };
+    return await readJson(response);
   } catch {
     throw new Error(DEEPSEEK_CHAT_FAILED);
   } finally {
     clearTimeout(timeout);
     input.signal.removeEventListener("abort", forwardAbort);
   }
+}
+
+type DeepSeekChatUsage = {
+  promptCacheHitTokens: number;
+  promptCacheMissTokens: number;
+  completionTokens: number;
+};
+
+function extractChatUsage(value: unknown): DeepSeekChatUsage | undefined {
+  if (!value || typeof value !== "object" || !("usage" in value)) return undefined;
+  const usage = (value as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") return undefined;
+  const input = usage as Record<string, unknown>;
+  const promptTokens = safeTokenCount(input.prompt_tokens);
+  const promptCacheHitTokens = safeTokenCount(input.prompt_cache_hit_tokens);
+  const promptCacheMissTokens = safeTokenCount(input.prompt_cache_miss_tokens);
+  const completionTokens = safeTokenCount(input.completion_tokens);
+  const totalTokens = safeTokenCount(input.total_tokens);
+  if (
+    promptTokens === undefined
+    || promptCacheHitTokens === undefined
+    || promptCacheMissTokens === undefined
+    || completionTokens === undefined
+    || totalTokens === undefined
+    || promptTokens !== promptCacheHitTokens + promptCacheMissTokens
+    || totalTokens !== promptTokens + completionTokens
+  ) {
+    return undefined;
+  }
+  return { promptCacheHitTokens, promptCacheMissTokens, completionTokens };
+}
+
+function safeTokenCount(value: unknown) {
+  return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : undefined;
+}
+
+function parsePositivePrice(value: string | undefined) {
+  if (!value || !/^[1-9][0-9]*$/.test(value)) {
+    throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  }
+  const price = Number(value);
+  if (!Number.isSafeInteger(price)) throw new Error(PLATFORM_MODEL_CONFIGURATION_INVALID);
+  return price;
+}
+
+function calculateActualCostMicros(
+  usage: DeepSeekChatUsage,
+  pricing: {
+    cacheHitMicrosPerMillion: number;
+    cacheMissMicrosPerMillion: number;
+    outputMicrosPerMillion: number;
+  },
+) {
+  const numerator =
+    BigInt(usage.promptCacheHitTokens) * BigInt(pricing.cacheHitMicrosPerMillion)
+    + BigInt(usage.promptCacheMissTokens) * BigInt(pricing.cacheMissMicrosPerMillion)
+    + BigInt(usage.completionTokens) * BigInt(pricing.outputMicrosPerMillion);
+  const micros = (numerator + 999_999n) / 1_000_000n;
+  if (micros > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new Error(DEEPSEEK_CHAT_FAILED);
+  }
+  return Number(micros);
 }
 
 function extractChatText(value: unknown): string | undefined {

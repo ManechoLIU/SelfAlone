@@ -4,6 +4,10 @@ import type {
   ChatResponderPort,
   ChatResult,
 } from "./conversation-responder";
+import {
+  createDeepSeekPlatformTextModelFromEnvironment,
+  type DeepSeekPlatformTextModelEnvironment,
+} from "./deepseek-text-model-adapter";
 
 export const PLATFORM_EXHAUSTION = "PLATFORM_EXHAUSTION" as const;
 export const PLATFORM_CONFIGURATION_REQUIRED = "PLATFORM_CONFIGURATION_REQUIRED" as const;
@@ -53,6 +57,25 @@ export type PlatformTextCapabilityOptions = {
   reservationAmountMicros: number;
   attemptIdFactory?: () => string;
 };
+
+export type PlatformTextCapabilityRuntimeOptions = Omit<
+  PlatformTextCapabilityOptions,
+  "platformModel"
+> & {
+  environment: DeepSeekPlatformTextModelEnvironment;
+  fetcher?: typeof fetch;
+};
+
+export function createPlatformTextCapabilityFromEnvironment(
+  options: PlatformTextCapabilityRuntimeOptions,
+): ChatResponderPort {
+  const { environment, fetcher, ...capabilityOptions } = options;
+  const platformModel = createDeepSeekPlatformTextModelFromEnvironment({
+    environment,
+    ...(fetcher ? { fetcher } : {}),
+  });
+  return createPlatformTextCapability({ ...capabilityOptions, platformModel });
+}
 
 export function createPlatformTextCapability(
   options: PlatformTextCapabilityOptions,
