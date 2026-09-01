@@ -34,6 +34,9 @@ import { migrateCostLedgerSchema } from "./cost-ledger-migration";
 import { CostLedgerStore } from "./cost-ledger-store";
 import { migrateTrialQuotaSchema } from "./trial-quota-migration";
 import { TrialQuotaStore } from "./trial-quota-store";
+import { migrateWeReadConnectionSchema } from "./weread-connection-migration";
+import { createWeReadRuntime } from "./weread-runtime";
+import { migrateWeReadSyncSchema } from "./weread-sync-migration";
 import { createPlatformTextCapabilityFromEnvironment } from "./platform-text-capability";
 import { extractTextBook } from "@selfalone/domain";
 import {
@@ -69,6 +72,17 @@ const port = Number(process.env.PORT ?? 4100);
 
 assertDevelopmentAdapterAllowed(process.env.APP_ENV);
 const auth = await createAuthRuntime({ databaseUrl, appEnv: process.env.APP_ENV });
+const wereadMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migrateWeReadConnectionSchema(wereadMigrationDatabase);
+  await migrateWeReadSyncSchema(wereadMigrationDatabase);
+} finally {
+  await wereadMigrationDatabase.end();
+}
+const weread = await createWeReadRuntime({
+  databaseUrl,
+  encryptionKey: process.env.MODEL_CREDENTIALS_ENCRYPTION_KEY,
+});
 const settingsMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateAccountSettingsSchema(settingsMigrationDatabase);
@@ -196,7 +210,8 @@ const app = createApp({
     && (await library.ready())
     && (await textReader.ready())
     && (await textAnnotations.ready())
-    && (await modelConfig.ready()),
+    && (await modelConfig.ready())
+    && (await weread.ready()),
   library,
   bookPresentation,
   auth,
@@ -208,6 +223,7 @@ const app = createApp({
   conversation,
   selection,
   trialQuota,
+  weread,
 });
 
 const shutdown = async () => {
@@ -218,6 +234,7 @@ const shutdown = async () => {
   await runtime.close();
   await accountSettings.close();
   await modelConfig.close();
+  await weread.close();
   await auth.close();
   await bookPresentationDatabase.end({ timeout: 2 });
   await conversationSql.end();
