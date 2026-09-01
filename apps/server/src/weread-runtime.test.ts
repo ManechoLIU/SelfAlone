@@ -491,6 +491,182 @@ describe("WeRead route runtime", () => {
     }
   }, 2_000);
 
+  it("clears unhealthy recovery before another runtime claims its requeued run", async () => {
+    const adapter = runtimeAdapter();
+    const queued = deferred<void>();
+    const releaseA = deferred<void>();
+    const claimedByB = deferred<void>();
+    const releaseB = deferred<void>();
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const recoveryDelays: number[] = [];
+    const clock = mutableClock("2026-09-01T16:30:00.000Z");
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, undefined, {
+      now: clock.now,
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      onUnhealthyRunObserved: async () => {
+        queued.resolve();
+        await releaseA.promise;
+      },
+      scheduleRecovery: (task: () => Promise<void>, delayMs: number) => {
+        recoveryTasks.push(task);
+        recoveryDelays.push(delayMs);
+        return `queued-race-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      staleThresholdMs: 0,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "queued-race");
+    const connectionId = connected.json<{ connection: { connectionId: string } }>().connection.connectionId;
+    adapter.bind(connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.drainOnce();
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+    clock.set("2026-09-01T16:30:00.001Z");
+
+    const runtimeB = await createWeReadRuntime({
+      databaseUrl: harness.databaseUrl,
+      encryptionKey: Buffer.alloc(32, 9),
+      autoStart: false,
+      staleThresholdMs: 0,
+      now: () => new Date("2026-09-01T16:30:01.000Z"),
+      adapter: {
+        async validate() { return { externalId: "weread-account-a", displayName: null }; },
+        async syncBooks() {
+          claimedByB.resolve();
+          await releaseB.promise;
+          return {
+            status: "paused",
+            snapshot: "last_success",
+            connectionId,
+            accountExternalId: "weread-account-a",
+            cursor: null,
+            nextCursor: null,
+            books: [],
+            pause: { reason: "upgrade_required", errcode: 426, upgradeInfo: "upgrade" },
+          };
+        },
+        async syncAnnotations() { return []; },
+      },
+    });
+    try {
+      const recoveringA = recoveryTasks.shift()!();
+      await queued.promise;
+      const drainingB = runtimeB.start();
+      await claimedByB.promise;
+      expect(await harness.runtime.ready()).toBe(true);
+      expect(recoveryDelays).toEqual([1]);
+      expect(recoveryTasks).toEqual([]);
+      releaseB.resolve();
+      await drainingB;
+      await expect(runtimeB.getSyncStatus("account-a", runId)).resolves.toMatchObject({
+        run: { status: "paused", retryCount: 1 },
+      });
+      releaseA.resolve();
+      await recoveringA;
+      expect(await harness.runtime.ready()).toBe(true);
+      expect(recoveryTasks).toEqual([]);
+    } finally {
+      releaseA.resolve();
+      releaseB.resolve();
+      await runtimeB.close();
+    }
+  }, 2_000);
+
+  it("clears the tracked recovery when its run no longer exists", async () => {
+    const adapter = runtimeAdapter();
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    const recoveryDelays: number[] = [];
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, undefined, {
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      scheduleRecovery: (task: () => Promise<void>, delayMs: number) => {
+        recoveryTasks.push(task);
+        recoveryDelays.push(delayMs);
+        return `missing-run-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "missing-run");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const runId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.drainOnce();
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+    await harness.sql`DELETE FROM weread_sync_runs WHERE run_id = ${runId}`;
+    expect(await harness.runtime.ready()).toBe(false);
+    expect(recoveryDelays).toEqual([1]);
+    await recoveryTasks.shift()!();
+    expect(await harness.runtime.ready()).toBe(true);
+    expect(recoveryTasks).toEqual([]);
+  }, 2_000);
+
+  it("defers new queued work until unhealthy recovery has reconciled its claimed run", async () => {
+    const adapter = runtimeAdapter();
+    const claimedRunIds: string[] = [];
+    const recoveryTasks: Array<() => Promise<void>> = [];
+    let sql: Sql | undefined;
+    let tookTableOffline = false;
+    const harness = await setup(adapter, false, undefined, {
+      beforeWorkerStoreWrite: async () => {
+        if (tookTableOffline) return;
+        tookTableOffline = true;
+        await sql!.unsafe("ALTER TABLE weread_sync_runs RENAME TO weread_sync_runs_offline");
+      },
+      onWorkerClaimed: (_accountId: string, runId: string) => { claimedRunIds.push(runId); },
+      scheduleRecovery: (task: () => Promise<void>) => {
+        recoveryTasks.push(task);
+        return `single-slot-recovery-${recoveryTasks.length}`;
+      },
+      clearRecovery: () => undefined,
+      recoveryDelayMs: 1,
+      staleThresholdMs: 0,
+    });
+    sql = harness.sql;
+    const app = createApp({ readiness: () => harness.runtime.ready(), weread: harness.runtime });
+    apps.push(app);
+    const connected = await connect(app, "account-a", "wrk-account-a-secret", "single-slot");
+    adapter.bind(connected.json<{ connection: { connectionId: string } }>().connection.connectionId, "weread-account-a");
+    const firstRunId = connected.json<{ sync: { run: { runId: string } } }>().sync.run.runId;
+    await harness.runtime.start();
+    await harness.sql.unsafe("ALTER TABLE weread_sync_runs_offline RENAME TO weread_sync_runs");
+    const second = await app.inject({
+      method: "POST",
+      url: "/api/v1/weread/sync/books",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { requestId: "single-slot-second" },
+    });
+    const secondRunId = second.json<{ run: { runId: string } }>().run.runId;
+    expect(claimedRunIds).toEqual([firstRunId]);
+    expect(await harness.runtime.ready()).toBe(false);
+    await recoveryTasks.shift()!();
+    expect(claimedRunIds).toEqual([firstRunId, firstRunId, secondRunId]);
+    await expect(harness.runtime.getSyncStatus("account-a", firstRunId)).resolves.toMatchObject({
+      run: { status: "completed", retryCount: 1 },
+    });
+    await expect(harness.runtime.getSyncStatus("account-a", secondRunId)).resolves.toMatchObject({
+      run: { status: "completed" },
+    });
+    expect(await harness.runtime.ready()).toBe(true);
+  }, 2_000);
+
   it("clears unhealthy recovery when the terminal store commit succeeds but its acknowledgement is lost", async () => {
     const adapter = runtimeAdapter();
     const recoveryTasks: Array<() => Promise<void>> = [];

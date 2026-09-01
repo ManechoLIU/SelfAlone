@@ -44,6 +44,10 @@ export type CreateWeReadRuntimeOptions = {
   onIdleBeforeDrainRelease?: () => void | Promise<void>;
   /** Test-only barrier after snapshot fencing acquired its connection lock. */
   onSnapshotFenceLocked?: () => void | Promise<void>;
+  /** Test-only barrier after an unhealthy run is observed requeued. */
+  onUnhealthyRunObserved?: () => void | Promise<void>;
+  /** Test-only observation after this runtime has claimed one run. */
+  onWorkerClaimed?: (accountId: string, runId: string) => void | Promise<void>;
   /** Test-only failure seams for persisted-worker recovery. */
   beforeInitialBooksEnqueue?: () => void | Promise<void>;
   beforeWorkerStoreWrite?: () => void | Promise<void>;
@@ -71,6 +75,8 @@ export class WeReadRuntime implements WeReadRouteRuntime {
   readonly #encryptionKey: Buffer;
   readonly #onIdleBeforeDrainRelease?: () => void | Promise<void>;
   readonly #onSnapshotFenceLocked?: () => void | Promise<void>;
+  readonly #onUnhealthyRunObserved?: () => void | Promise<void>;
+  readonly #onWorkerClaimed?: (accountId: string, runId: string) => void | Promise<void>;
   readonly #beforeInitialBooksEnqueue?: () => void | Promise<void>;
   readonly #beforeWorkerStoreWrite?: () => void | Promise<void>;
   readonly #afterWorkerStoreWrite?: () => void | Promise<void>;
@@ -98,6 +104,8 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     autoDrain: boolean;
     onIdleBeforeDrainRelease?: () => void | Promise<void>;
     onSnapshotFenceLocked?: () => void | Promise<void>;
+    onUnhealthyRunObserved?: () => void | Promise<void>;
+    onWorkerClaimed?: (accountId: string, runId: string) => void | Promise<void>;
     beforeInitialBooksEnqueue?: () => void | Promise<void>;
     beforeWorkerStoreWrite?: () => void | Promise<void>;
     afterWorkerStoreWrite?: () => void | Promise<void>;
@@ -116,6 +124,8 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     this.#encryptionKey = Buffer.from(options.encryptionKey);
     this.#onIdleBeforeDrainRelease = options.onIdleBeforeDrainRelease;
     this.#onSnapshotFenceLocked = options.onSnapshotFenceLocked;
+    this.#onUnhealthyRunObserved = options.onUnhealthyRunObserved;
+    this.#onWorkerClaimed = options.onWorkerClaimed;
     this.#beforeInitialBooksEnqueue = options.beforeInitialBooksEnqueue;
     this.#beforeWorkerStoreWrite = options.beforeWorkerStoreWrite;
     this.#afterWorkerStoreWrite = options.afterWorkerStoreWrite;
@@ -265,6 +275,7 @@ export class WeReadRuntime implements WeReadRouteRuntime {
     }
     if (!claimed) return false;
     try {
+      await this.#onWorkerClaimed?.(claimed.accountId, claimed.run.runId);
       if (claimed.run.operation === "books") {
         const page = await this.#adapter.syncBooks(claimed.run.connectionId, claimed.run.cursor ?? undefined);
         await this.#beforeWorkerStoreWrite?.();
@@ -379,6 +390,10 @@ export class WeReadRuntime implements WeReadRouteRuntime {
 
   #scheduleDrain() {
     if (this.#closed || !this.#autoDrain) return;
+    if (this.#workerUnhealthy) {
+      this.#wakeRequested = true;
+      return;
+    }
     if (this.#drain) {
       this.#wakeRequested = true;
       return;
@@ -405,12 +420,26 @@ export class WeReadRuntime implements WeReadRouteRuntime {
               if (!unhealthyRun) {
                 this.#clearWorkerHealth();
               } else {
-                const run = await this.#sync.getRun(unhealthyRun.accountId, unhealthyRun.runId);
-                if (run.status === "completed" || run.status === "paused" || run.status === "failed") {
-                  this.#clearWorkerHealth();
-                } else if (run.status === "running") {
-                  this.#rearmRecovery();
-                  return;
+                let run;
+                try {
+                  run = await this.#sync.getRun(unhealthyRun.accountId, unhealthyRun.runId);
+                } catch (error) {
+                  if (error instanceof Error && error.message === "WEREAD_RUN_NOT_FOUND") {
+                    this.#clearWorkerHealth();
+                  } else {
+                    throw error;
+                  }
+                }
+                if (run) {
+                  if (run.status === "completed" || run.status === "paused" || run.status === "failed") {
+                    this.#clearWorkerHealth();
+                  } else if (run.status === "running") {
+                    this.#rearmRecovery();
+                    return;
+                  } else {
+                    this.#clearWorkerHealth();
+                    await this.#onUnhealthyRunObserved?.();
+                  }
                 }
               }
             }
@@ -483,6 +512,8 @@ export async function createWeReadRuntime(options: CreateWeReadRuntimeOptions): 
       autoDrain: options.autoStart ?? true,
       onIdleBeforeDrainRelease: options.onIdleBeforeDrainRelease,
       onSnapshotFenceLocked: options.onSnapshotFenceLocked,
+      onUnhealthyRunObserved: options.onUnhealthyRunObserved,
+      onWorkerClaimed: options.onWorkerClaimed,
       beforeInitialBooksEnqueue: options.beforeInitialBooksEnqueue,
       beforeWorkerStoreWrite: options.beforeWorkerStoreWrite,
       afterWorkerStoreWrite: options.afterWorkerStoreWrite,
