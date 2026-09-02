@@ -69,6 +69,17 @@ export class PptWorkspaceStore {
         throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
       }
 
+      const [sentMessage] = await transaction<Array<{ id: string }>>`
+        SELECT id
+        FROM messages
+        WHERE account_id = ${accountId}
+          AND conversation_id = ${conversationId}
+          AND request_id = ${requestId}
+          AND role = 'user'
+        LIMIT 1
+      `;
+      if (!sentMessage) throw new PptWorkspaceStoreError("PPT_INTENT_NOT_SENT");
+
       const [existing] = await transaction<Array<{ id: string; intentSourceBookId: string | null }>>`
         SELECT id, intent_source_book_id AS "intentSourceBookId"
         FROM ppt_drafts
@@ -92,17 +103,6 @@ export class PptWorkspaceStore {
       if (!book) {
         throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
       }
-
-      const [sentMessage] = await transaction<Array<{ id: string }>>`
-        SELECT id
-        FROM messages
-        WHERE account_id = ${accountId}
-          AND conversation_id = ${conversationId}
-          AND request_id = ${requestId}
-          AND role = 'user'
-        LIMIT 1
-      `;
-      if (!sentMessage) throw new PptWorkspaceStoreError("PPT_INTENT_NOT_SENT");
 
       const draftId = randomUUID();
       const [inserted] = await transaction<Array<{ id: string }>>`

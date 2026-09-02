@@ -120,6 +120,36 @@ describe("PPT workspace store", () => {
     expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toEqual(replaced);
   });
 
+  it.each(["deleted", "non-user"] as const)(
+    "keeps the sent-message gate when an existing intent's message is %s",
+    async (messageState) => {
+      const input = {
+        accountId: "account-a",
+        conversationId: "conversation-a",
+        bookId: "book-a",
+        requestId: "request-a",
+      };
+      await store.createFromSentIntent(input);
+      if (messageState === "deleted") {
+        await sql`
+          DELETE FROM messages
+          WHERE account_id = 'account-a'
+            AND conversation_id = 'conversation-a'
+            AND request_id = 'request-a'
+        `;
+      } else {
+        await sql`
+          UPDATE messages SET role = 'assistant'
+          WHERE account_id = 'account-a'
+            AND conversation_id = 'conversation-a'
+            AND request_id = 'request-a'
+        `;
+      }
+
+      await expect(store.createFromSentIntent(input)).rejects.toThrow("PPT_INTENT_NOT_SENT");
+    },
+  );
+
   it("fails closed when an upgraded intent has no immutable source fingerprint", async () => {
     const input = {
       accountId: "account-a",

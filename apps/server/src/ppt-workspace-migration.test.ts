@@ -42,6 +42,7 @@ describe("PPT workspace schema migration", () => {
     databases.push({ administration, schema, sql });
 
     await createLegacySchema(sql);
+    await addBaseWorkspaceSurface(sql);
     await migratePptWorkspaceSchema(sql);
     await migratePptWorkspaceSchema(sql);
 
@@ -66,6 +67,24 @@ describe("PPT workspace schema migration", () => {
       purpose: null,
       additionalRequirements: "",
     });
+    const [existingIntent] = await sql<
+      Array<{ intentRequestId: string | null; intentSourceBookId: string | null }>
+    >`
+      SELECT intent_request_id AS "intentRequestId",
+             intent_source_book_id AS "intentSourceBookId"
+      FROM ppt_drafts
+      WHERE account_id = 'account-a' AND id = 'draft-existing-intent'
+    `;
+    expect(existingIntent).toEqual({
+      intentRequestId: "request-existing",
+      intentSourceBookId: null,
+    });
+    const existingSources = await sql<Array<{ bookId: string }>>`
+      SELECT book_id AS "bookId"
+      FROM ppt_draft_sources
+      WHERE account_id = 'account-a' AND draft_id = 'draft-existing-intent'
+    `;
+    expect(existingSources).toEqual([{ bookId: "book-a" }]);
 
     const [migration] = await sql<Array<{ name: string }>>`
       SELECT name FROM schema_migrations WHERE name = ${pptWorkspaceMigrationName}
@@ -241,5 +260,42 @@ async function createLegacySchema(sql: Sql) {
     ) VALUES (
       'draft-legacy', 'account-a', 'conversation-a', 'requirements', 1, '', '[]'::jsonb
     )
+  `;
+}
+
+async function addBaseWorkspaceSurface(sql: Sql) {
+  await sql`ALTER TABLE ppt_drafts ADD COLUMN intent_request_id text`;
+  await sql`
+    CREATE UNIQUE INDEX ppt_drafts_account_conversation_intent_request_unique
+    ON ppt_drafts (account_id, conversation_id, intent_request_id)
+    WHERE intent_request_id IS NOT NULL
+  `;
+  await sql`
+    CREATE TABLE ppt_draft_sources (
+      account_id text NOT NULL,
+      draft_id text NOT NULL,
+      book_id text NOT NULL,
+      source_order integer NOT NULL CHECK (source_order >= 0),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (account_id, draft_id, book_id),
+      UNIQUE (account_id, draft_id, source_order),
+      FOREIGN KEY (account_id, draft_id)
+        REFERENCES ppt_drafts(account_id, id) ON DELETE CASCADE,
+      FOREIGN KEY (account_id, book_id)
+        REFERENCES books(account_id, id) ON DELETE RESTRICT
+    )
+  `;
+  await sql`
+    INSERT INTO ppt_drafts (
+      id, account_id, conversation_id, stage, version, requirements,
+      outline, intent_request_id
+    ) VALUES (
+      'draft-existing-intent', 'account-a', 'conversation-a',
+      'requirements', 1, '', '[]'::jsonb, 'request-existing'
+    )
+  `;
+  await sql`
+    INSERT INTO ppt_draft_sources (account_id, draft_id, book_id, source_order)
+    VALUES ('account-a', 'draft-existing-intent', 'book-a', 0)
   `;
 }
