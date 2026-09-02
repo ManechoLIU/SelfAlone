@@ -171,6 +171,17 @@ describe("PPT workspace routes", () => {
         additionalRequirements: "",
       },
     });
+    const overflowingPageRange = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 2_147_483_648 },
+        additionalRequirements: "",
+      },
+    });
     const unsafe = await app.inject({
       method: "PUT",
       url: "/api/v1/ppt-drafts/draft-a/source",
@@ -182,7 +193,12 @@ describe("PPT workspace routes", () => {
       payload: { requestId: "request-a", bookId: "book-a", stage: "outline" },
     });
 
-    expect([reversed.statusCode, unsafe.statusCode, extra.statusCode]).toEqual([400, 400, 400]);
+    expect([
+      reversed.statusCode,
+      overflowingPageRange.statusCode,
+      unsafe.statusCode,
+      extra.statusCode,
+    ]).toEqual([400, 400, 400, 400]);
     expect(calls).toBe(0);
     await app.close();
   });

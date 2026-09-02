@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { PptWorkspaceSnapshot, PptWorkspaceSource } from "@selfalone/contracts";
 import type { Sql, TransactionSql } from "postgres";
 
+export const PPT_WORKSPACE_INTEGER_MAX = 2_147_483_647;
+
 export type PptWorkspaceStoreErrorCode =
   | "PPT_INTENT_CONFLICT"
   | "PPT_INTENT_NOT_SENT"
@@ -160,9 +162,12 @@ export class PptWorkspaceStore {
       || !audience
       || !Number.isSafeInteger(input.expectedVersion)
       || input.expectedVersion < 1
+      || input.expectedVersion > PPT_WORKSPACE_INTEGER_MAX
       || !Number.isSafeInteger(min)
       || !Number.isSafeInteger(max)
       || min < 1
+      || min > PPT_WORKSPACE_INTEGER_MAX
+      || max > PPT_WORKSPACE_INTEGER_MAX
       || max < min
     ) {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_INVALID_REQUIREMENTS");
@@ -209,7 +214,11 @@ export class PptWorkspaceStore {
     if (!accountId || !draftId || !bookId) {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
     }
-    if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 1) {
+    if (
+      !Number.isSafeInteger(input.expectedVersion)
+      || input.expectedVersion < 1
+      || input.expectedVersion > PPT_WORKSPACE_INTEGER_MAX
+    ) {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
     }
 

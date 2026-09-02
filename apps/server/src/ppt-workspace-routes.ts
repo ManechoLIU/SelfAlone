@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
 import {
+  PPT_WORKSPACE_INTEGER_MAX,
   PptWorkspaceStoreError,
   type PptWorkspaceStore,
 } from "./ppt-workspace-store";
@@ -12,7 +13,7 @@ export type PptWorkspaceRouteRuntime = Pick<
 >;
 
 const identifier = z.string().trim().min(1).max(256);
-const safePositiveInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+const safePositiveInteger = z.number().int().positive().max(PPT_WORKSPACE_INTEGER_MAX);
 const createParameters = z.object({ conversationId: identifier }).strict();
 const draftParameters = z.object({ draftId: identifier }).strict();
 const createBody = z.object({

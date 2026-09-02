@@ -174,6 +174,31 @@ describe("PPT workspace store", () => {
     })).rejects.toThrow("PPT_WORKSPACE_NOT_FOUND");
   });
 
+  it("rejects page counts that PostgreSQL integer columns cannot store", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+
+    await expect(store.saveRequirements({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      requirements: {
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 2_147_483_648 },
+        additionalRequirements: "",
+      },
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_INVALID_REQUIREMENTS" });
+
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toEqual(
+      created.workspace,
+    );
+  });
+
   it("replaces the only source before outline while preserving fixed requirements", async () => {
     const created = await store.createFromSentIntent({
       accountId: "account-a",
