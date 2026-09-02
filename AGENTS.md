@@ -64,6 +64,13 @@ SelfAlone（老己）是以对话为入口、覆盖个人书库、阅读笔记�
 
 ### 事实优先硬规则（Fact-First）
 
+### Controller 身份启动门（最高优先级）
+
+- 任何新会话、新宿主入口或恢复会话，在自称“总控 / Controller”、报告“我的总控履职评分”、执行总控专属调度或把当前会话描述为项目 owner 之前，必须先取得当前宿主可验证的 Controller identity receipt。仓库可访问、AI-Bridge 可操作、本项目历史任命、聊天记忆、project context、registered `controller_id` 存在、手工 `resume_only` lease 或同一 Git common-dir 都不能单独证明当前会话就是 Controller。
+- Web 会话必须由宿主提供可信 `web_session_id`，并与 registry 中该仓库唯一 registered Controller 的 Web binding 精确匹配；无法取得、未绑定或冲突时一律 `controller_identity=UNVERIFIED`、`controller_actions_allowed=false`，当前会话只能作为辅助/检查会话工作，禁止口头冒认。规则采用“没有证明 = 不是总控”，不得使用“没有反证 = 默认总控”。
+- Adaptive Agent Runtime 的 Web 入口用 `web_lifecycle_bridge.py controller-identity --repo <repo> --web-session-id <trusted-id>` 生成机器判定；只有 `VERIFIED` receipt 才能作为当前 Web 会话的 Controller 身份证据。没有可信宿主 session identity 时，该命令必须 fail closed（78），且不得生成 VERIFIED receipt。
+- 身份与权限必须分开报告：`repo_access` 只表示能读取/修改仓库；`controller_identity` 表示当前会话身份；`controller_actions_allowed` 表示是否允许执行 Controller 专属动作。不得从前者推导后两者。
+
 - 所有判断以可验证事实为最高优先级；证据不足时必须明确标记为“未知 / 尚未确认 / 推测”，禁止为了给出完整答案而用合理猜测补全事实。
 - 用户的认同、猜测或“应该是”不能替代事实校验，也不得把候选结论自动升级为已验证事实。
 - 缩写、专有名词、版本号、Commit、规则名等关键标识，在确定表述前必须核对真实对应关系；无法核实时保持未知。
