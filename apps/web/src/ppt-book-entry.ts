@@ -14,6 +14,7 @@ export function bookPptEntryFromHash(hash: string): PptBookEntry | null {
 
 export function isPositiveBookPptIntent(text: string) {
   const normalized = text.replace(/\s+/g, "");
-  if (!normalized.includes(pptBookIntentDraft)) return false;
-  return !/(?:不要|不想|别).{0,12}帮我制作这本书PPT/.test(normalized);
+  const intent = pptBookIntentDraft.toLowerCase();
+  if (!normalized.toLowerCase().includes(intent)) return false;
+  return !/(?:无需|不用|不必|不需要|不要|不想|别|取消).{0,12}帮我制作这本书ppt/i.test(normalized);
 }
