@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import postgres, { type Sql } from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
+import { createM0Runtime, type M0Runtime } from "./m0-runtime";
 import {
   migratePptWorkspaceSchema,
   pptWorkspaceMigrationName,
@@ -11,14 +15,20 @@ const baseDatabaseUrl =
 
 describe("PPT workspace schema migration", () => {
   const databases: Array<{ administration: Sql; schema: string; sql: Sql }> = [];
+  const runtimes: M0Runtime[] = [];
+  const temporaryDirectories: string[] = [];
 
   afterEach(async () => {
+    await Promise.all(runtimes.splice(0).map((runtime) => runtime.close()));
     await Promise.all(
       databases.splice(0).map(async ({ administration, schema, sql }) => {
         await sql.end();
         await administration.unsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
         await administration.end();
       }),
+    );
+    await Promise.all(
+      temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })),
     );
   });
 
@@ -38,17 +48,21 @@ describe("PPT workspace schema migration", () => {
     const [legacy] = await sql<
       Array<{
         intentRequestId: string | null;
+        intentSourceBookId: string | null;
         purpose: string | null;
         additionalRequirements: string;
       }>
     >`
-      SELECT intent_request_id AS "intentRequestId", purpose,
+      SELECT intent_request_id AS "intentRequestId",
+             intent_source_book_id AS "intentSourceBookId",
+             purpose,
              additional_requirements AS "additionalRequirements"
       FROM ppt_drafts
       WHERE account_id = 'account-a' AND id = 'draft-legacy'
     `;
     expect(legacy).toEqual({
       intentRequestId: null,
+      intentSourceBookId: null,
       purpose: null,
       additionalRequirements: "",
     });
@@ -102,6 +116,58 @@ describe("PPT workspace schema migration", () => {
         '[]'::jsonb, 'request-a'
       )
     `).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("resets M0 development data after the source table exists without clearing unrelated tables", async () => {
+    const schema = `ppt_workspace_reset_${randomUUID().replaceAll("-", "")}`;
+    const administration = postgres(baseDatabaseUrl, { max: 1 });
+    await administration.unsafe(`CREATE SCHEMA "${schema}"`);
+    const databaseUrl = new URL(baseDatabaseUrl);
+    databaseUrl.searchParams.set("options", `-csearch_path=${schema}`);
+    const sql = postgres(databaseUrl.toString(), { max: 1 });
+    databases.push({ administration, schema, sql });
+    const artifactDirectory = await mkdtemp(join(tmpdir(), "ppt-workspace-reset-"));
+    temporaryDirectories.push(artifactDirectory);
+
+    const runtime = await createM0Runtime({
+      databaseUrl: databaseUrl.toString(),
+      artifactDirectory,
+      progressDelayMs: 0,
+      resetDevelopmentData: true,
+    });
+    runtimes.push(runtime);
+    await migratePptWorkspaceSchema(sql);
+    await sql`
+      INSERT INTO ppt_draft_sources (account_id, draft_id, book_id, source_order)
+      SELECT draft.account_id, draft.id, conversation.book_id, 0
+      FROM ppt_drafts AS draft
+      JOIN conversations AS conversation
+        ON conversation.account_id = draft.account_id
+       AND conversation.id = draft.conversation_id
+    `;
+    await sql`CREATE TABLE leftover_dev_rows (id text PRIMARY KEY)`;
+    await sql`INSERT INTO leftover_dev_rows (id) VALUES ('keep-me')`;
+
+    await runtime.initialize(true);
+    await sql`
+      INSERT INTO ppt_draft_sources (account_id, draft_id, book_id, source_order)
+      SELECT draft.account_id, draft.id, conversation.book_id, 0
+      FROM ppt_drafts AS draft
+      JOIN conversations AS conversation
+        ON conversation.account_id = draft.account_id
+       AND conversation.id = draft.conversation_id
+    `;
+    await runtime.initialize(true);
+
+    const leftover = await sql<Array<{ id: string }>>`SELECT id FROM leftover_dev_rows`;
+    expect(leftover).toEqual([{ id: "keep-me" }]);
+    const sources = await sql<Array<{ draftId: string }>>`
+      SELECT draft_id AS "draftId" FROM ppt_draft_sources
+    `;
+    expect(sources).toEqual([]);
+    const restored = await runtime.getWorkspace();
+    expect(restored.draft.stage).toBe("requirements");
+    expect(restored.draft.version).toBe(1);
   });
 });
 

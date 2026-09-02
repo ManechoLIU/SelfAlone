@@ -2,7 +2,9 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
 import {
+  PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX,
   PPT_WORKSPACE_INTEGER_MAX,
+  PPT_WORKSPACE_PAGE_COUNT_MAX,
   PptWorkspaceStoreError,
   type PptWorkspaceStore,
 } from "./ppt-workspace-store";
@@ -12,17 +14,22 @@ export type PptWorkspaceRouteRuntime = Pick<
   "createFromSentIntent" | "getWorkspace" | "saveRequirements" | "replaceSource"
 >;
 
-const identifier = z.string().trim().min(1).max(256);
-const safePositiveInteger = z.number().int().positive().max(PPT_WORKSPACE_INTEGER_MAX);
-const createParameters = z.object({ conversationId: identifier }).strict();
-const draftParameters = z.object({ draftId: identifier }).strict();
+export const pptWorkspaceIdentifier = z.string().trim().min(1).max(256);
+const pageCount = z.number().int().positive().max(PPT_WORKSPACE_PAGE_COUNT_MAX);
+const storedVersion = z.number().int().positive().max(PPT_WORKSPACE_INTEGER_MAX);
+const incrementableVersion = z.number()
+  .int()
+  .positive()
+  .max(PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX);
+const createParameters = z.object({ conversationId: pptWorkspaceIdentifier }).strict();
+const draftParameters = z.object({ draftId: pptWorkspaceIdentifier }).strict();
 const createBody = z.object({
-  requestId: identifier,
-  bookId: identifier,
+  requestId: pptWorkspaceIdentifier,
+  bookId: pptWorkspaceIdentifier,
 }).strict();
 const pageRange = z.object({
-  min: safePositiveInteger,
-  max: safePositiveInteger,
+  min: pageCount,
+  max: pageCount,
 }).strict().superRefine((value, context) => {
   if (value.min > value.max) {
     context.addIssue({
@@ -32,22 +39,32 @@ const pageRange = z.object({
     });
   }
 });
-const requirementsBody = z.object({
-  expectedVersion: safePositiveInteger,
+export const pptWorkspaceRequirementsBody = z.object({
+  expectedVersion: incrementableVersion,
   purpose: z.string().trim().min(1).max(120),
   audience: z.string().trim().min(1).max(120),
   pageRange,
   additionalRequirements: z.string().trim().max(2_000),
 }).strict();
 const sourceBody = z.object({
-  expectedVersion: safePositiveInteger,
-  bookId: identifier,
+  expectedVersion: storedVersion,
+  bookId: pptWorkspaceIdentifier,
 }).strict();
+
+export const m0LegacyRequirementsBody = z.object({
+  expectedVersion: incrementableVersion,
+  requirements: z.string().trim().min(1).max(2_000),
+}).strict();
+
+type RegisterPptWorkspaceRouteOptions = {
+  registerRequirements?: boolean;
+};
 
 export function registerPptWorkspaceRoutes(
   app: FastifyInstance,
   runtime: PptWorkspaceRouteRuntime,
   resolveAccountId = resolveAccountOwner,
+  options: RegisterPptWorkspaceRouteOptions = {},
 ) {
   app.post("/api/v1/conversations/:conversationId/ppt-drafts", async (request, reply) => {
     try {
@@ -76,26 +93,28 @@ export function registerPptWorkspaceRoutes(
     }
   });
 
-  app.put("/api/v1/ppt-drafts/:draftId/requirements", async (request, reply) => {
-    try {
-      const { draftId } = draftParameters.parse(request.params);
-      const body = requirementsBody.parse(request.body);
-      const workspace = await runtime.saveRequirements({
-        accountId: resolveAccountId(request.headers),
-        draftId,
-        expectedVersion: body.expectedVersion,
-        requirements: {
-          purpose: body.purpose,
-          audience: body.audience,
-          pageRange: body.pageRange,
-          additionalRequirements: body.additionalRequirements,
-        },
-      });
-      return reply.send({ workspace });
-    } catch (error) {
-      return sendPptWorkspaceError(error, reply);
-    }
-  });
+  if (options.registerRequirements !== false) {
+    app.put("/api/v1/ppt-drafts/:draftId/requirements", async (request, reply) => {
+      try {
+        const { draftId } = draftParameters.parse(request.params);
+        const body = pptWorkspaceRequirementsBody.parse(request.body);
+        const workspace = await runtime.saveRequirements({
+          accountId: resolveAccountId(request.headers),
+          draftId,
+          expectedVersion: body.expectedVersion,
+          requirements: {
+            purpose: body.purpose,
+            audience: body.audience,
+            pageRange: body.pageRange,
+            additionalRequirements: body.additionalRequirements,
+          },
+        });
+        return reply.send({ workspace });
+      } catch (error) {
+        return sendPptWorkspaceError(error, reply);
+      }
+    });
+  }
 
   app.put("/api/v1/ppt-drafts/:draftId/source", async (request, reply) => {
     try {
@@ -114,9 +133,16 @@ export function registerPptWorkspaceRoutes(
   });
 }
 
-function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
+export function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
   if (error instanceof z.ZodError) {
     return reply.code(400).send({ code: "INVALID_REQUEST" });
+  }
+  const message = error instanceof Error ? error.message : "INTERNAL_ERROR";
+  if (message === "ACCOUNT_REQUIRED") {
+    return reply.code(401).send({ code: message });
+  }
+  if (message === "ACCOUNT_FORBIDDEN") {
+    return reply.code(403).send({ code: message });
   }
   if (!(error instanceof PptWorkspaceStoreError)) {
     return reply.code(500).send({ code: "INTERNAL_ERROR" });

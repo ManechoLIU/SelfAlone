@@ -14,7 +14,11 @@ import {
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
 import {
+  m0LegacyRequirementsBody,
+  pptWorkspaceIdentifier,
+  pptWorkspaceRequirementsBody,
   registerPptWorkspaceRoutes,
+  sendPptWorkspaceError,
   type PptWorkspaceRouteRuntime,
 } from "./ppt-workspace-routes";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
@@ -306,15 +310,13 @@ export function createApp(dependencies: AppDependencies) {
   }
 
   if (dependencies.pptWorkspace) {
-    registerPptWorkspaceRoutes(app, dependencies.pptWorkspace, resolveAccountId);
+    registerPptWorkspaceRoutes(app, dependencies.pptWorkspace, resolveAccountId, {
+      registerRequirements: !dependencies.m0,
+    });
   }
 
   if (dependencies.m0) {
     const m0 = dependencies.m0;
-    const requirementsBody = z.object({
-      expectedVersion: z.number().int().positive(),
-      requirements: z.string().trim().min(1).max(2_000),
-    });
     const outlineBody = z.object({
       expectedVersion: z.number().int().positive(),
       outline: z
@@ -336,10 +338,46 @@ export function createApp(dependencies: AppDependencies) {
 
     app.get("/api/v1/workspace", async () => m0.getWorkspace());
 
-    if (!dependencies.pptWorkspace) {
+    if (dependencies.pptWorkspace) {
+      const pptWorkspace = dependencies.pptWorkspace;
       app.put("/api/v1/ppt-drafts/:id/requirements", async (request, reply) => {
-        const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
-        const body = requirementsBody.parse(request.body);
+        const parameters = z.object({ id: pptWorkspaceIdentifier }).strict().parse(request.params);
+        const legacy = m0LegacyRequirementsBody.safeParse(request.body);
+        const workspaceBody = pptWorkspaceRequirementsBody.safeParse(request.body);
+        if (legacy.success && !workspaceBody.success) {
+          return reply.send(
+            await m0.saveRequirements(
+              parameters.id,
+              legacy.data.expectedVersion,
+              legacy.data.requirements,
+            ),
+          );
+        }
+        if (!workspaceBody.success || legacy.success) {
+          return reply.code(400).send({ code: "INVALID_REQUEST" });
+        }
+        try {
+          const body = workspaceBody.data;
+          const workspace = await pptWorkspace.saveRequirements({
+            accountId: resolveAccountId(request.headers),
+            draftId: parameters.id,
+            expectedVersion: body.expectedVersion,
+            requirements: {
+              purpose: body.purpose,
+              audience: body.audience,
+              pageRange: body.pageRange,
+              additionalRequirements: body.additionalRequirements,
+            },
+          });
+          return reply.send({ workspace });
+        } catch (error) {
+          return sendPptWorkspaceError(error, reply);
+        }
+      });
+    } else {
+      app.put("/api/v1/ppt-drafts/:id/requirements", async (request, reply) => {
+        const parameters = z.object({ id: pptWorkspaceIdentifier }).strict().parse(request.params);
+        const body = m0LegacyRequirementsBody.parse(request.body);
         return reply.send(
           await m0.saveRequirements(parameters.id, body.expectedVersion, body.requirements),
         );

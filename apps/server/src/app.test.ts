@@ -121,6 +121,166 @@ describe("PPT workspace composition", () => {
     expect(response.json()).toEqual({ workspace });
     expect(accountScopedCalls).toBe(1);
     expect(legacyRequirementsCalls).toBe(0);
+
+    const legacyBody = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        requirements: "为读书会生成三页分享，突出普通人的选择。",
+      },
+    });
+    expect(legacyBody.statusCode).toBe(200);
+    expect(legacyBody.json()).toEqual({ legacy: true });
+    expect(legacyRequirementsCalls).toBe(1);
+    expect(accountScopedCalls).toBe(1);
+
+    const mixedBody = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        requirements: "为读书会生成三页分享，突出普通人的选择。",
+        purpose: "读书会分享",
+      },
+    });
+    const extraField = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+        requirements: "额外文本不得混入新形状",
+      },
+    });
+    const nestedExtraField = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10, unit: "pages" },
+        additionalRequirements: "",
+      },
+    });
+    const overflowingLegacyVersion = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 2_147_483_647,
+        requirements: "不得触发 PostgreSQL int4 溢出。",
+      },
+    });
+    const blankDraftId = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/%20/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+    const oversizedDraftId = await app.inject({
+      method: "PUT",
+      url: `/api/v1/ppt-drafts/${"d".repeat(257)}/requirements`,
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+    expect(mixedBody.statusCode).toBe(400);
+    expect(mixedBody.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(extraField.statusCode).toBe(400);
+    expect(extraField.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(nestedExtraField.statusCode).toBe(400);
+    expect(nestedExtraField.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(overflowingLegacyVersion.statusCode).toBe(400);
+    expect(overflowingLegacyVersion.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(blankDraftId.statusCode).toBe(400);
+    expect(blankDraftId.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(oversizedDraftId.statusCode).toBe(414);
+    expect(legacyRequirementsCalls).toBe(1);
+    expect(accountScopedCalls).toBe(1);
+    await app.close();
+  });
+
+  it("keeps legacy STALE_VERSION and NOT_FOUND mapping when both runtimes share the path", async () => {
+    const pptWorkspace: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        throw new Error("PPT_WORKSPACE_UNUSED");
+      },
+      async getWorkspace() {
+        return null;
+      },
+      async saveRequirements() {
+        throw new Error("PPT_WORKSPACE_UNUSED");
+      },
+      async replaceSource() {
+        throw new Error("PPT_WORKSPACE_UNUSED");
+      },
+    };
+    const m0 = {
+      async getWorkspace() {
+        return { legacy: true };
+      },
+      async saveRequirements(_draftId: string, expectedVersion: number) {
+        if (expectedVersion === 2) throw new Error("STALE_VERSION");
+        throw new Error("DRAFT_NOT_FOUND");
+      },
+      async saveOutline() {
+        return { legacy: true };
+      },
+      async createTask() {
+        return { id: "task-legacy" };
+      },
+      async getTask() {
+        return { id: "task-legacy" };
+      },
+      async stopTask() {
+        return { id: "task-legacy" };
+      },
+      async getArtifact() {
+        throw new Error("ARTIFACT_NOT_FOUND");
+      },
+    } as unknown as M0Runtime;
+    const app = createApp({ readiness: async () => true, m0, pptWorkspace });
+
+    const stale = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 2,
+        requirements: "为读书会生成三页分享，突出普通人的选择。",
+      },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toEqual({ code: "STALE_VERSION" });
+
+    const missing = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 1,
+        requirements: "为读书会生成三页分享，突出普通人的选择。",
+      },
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json()).toEqual({ code: "DRAFT_NOT_FOUND" });
     await app.close();
   });
 });

@@ -154,9 +154,19 @@ export class M0Runtime {
     await migrateM0AccountOwnership(this.#sql);
 
     if (resetDevelopmentData) {
-      await this.#sql`
-        TRUNCATE ppt_artifacts, ppt_pages, ppt_tasks, ppt_drafts, conversations, books
+      const [{ exists: sourceTableExists }] = await this.#sql<Array<{ exists: boolean }>>`
+        SELECT to_regclass('ppt_draft_sources') IS NOT NULL AS exists
       `;
+      if (sourceTableExists) {
+        await this.#sql`
+          TRUNCATE ppt_artifacts, ppt_pages, ppt_tasks, ppt_draft_sources,
+                   ppt_drafts, conversations, books
+        `;
+      } else {
+        await this.#sql`
+          TRUNCATE ppt_artifacts, ppt_pages, ppt_tasks, ppt_drafts, conversations, books
+        `;
+      }
     }
 
     await this.#sql`

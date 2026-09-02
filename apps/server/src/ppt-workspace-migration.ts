@@ -13,6 +13,7 @@ export async function migratePptWorkspaceSchema(sql: Sql) {
     `;
 
     await transaction`ALTER TABLE ppt_drafts ADD COLUMN IF NOT EXISTS intent_request_id text`;
+    await transaction`ALTER TABLE ppt_drafts ADD COLUMN IF NOT EXISTS intent_source_book_id text`;
     await transaction`ALTER TABLE ppt_drafts ADD COLUMN IF NOT EXISTS purpose text`;
     await transaction`ALTER TABLE ppt_drafts ADD COLUMN IF NOT EXISTS audience text`;
     await transaction`ALTER TABLE ppt_drafts ADD COLUMN IF NOT EXISTS page_min integer`;

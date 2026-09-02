@@ -203,6 +203,135 @@ describe("PPT workspace routes", () => {
     await app.close();
   });
 
+  it("maps ACCOUNT_REQUIRED and ACCOUNT_FORBIDDEN instead of collapsing them to 500", async () => {
+    let runtimeCalls = 0;
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        runtimeCalls += 1;
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        runtimeCalls += 1;
+        return workspace;
+      },
+      async saveRequirements() {
+        runtimeCalls += 1;
+        return workspace;
+      },
+      async replaceSource() {
+        runtimeCalls += 1;
+        return workspace;
+      },
+    };
+
+    const missingApp = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(missingApp, runtime, () => {
+      throw new Error("ACCOUNT_REQUIRED");
+    });
+    const missing = await missingApp.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/workspace",
+    });
+    expect(missing.statusCode).toBe(401);
+    expect(missing.json()).toEqual({ code: "ACCOUNT_REQUIRED" });
+    await missingApp.close();
+
+    const forbiddenApp = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(forbiddenApp, runtime, () => {
+      throw new Error("ACCOUNT_FORBIDDEN");
+    });
+    const forbidden = await forbiddenApp.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+    expect(forbidden.statusCode).toBe(403);
+    expect(forbidden.json()).toEqual({ code: "ACCOUNT_FORBIDDEN" });
+    expect(runtimeCalls).toBe(0);
+    await forbiddenApp.close();
+  });
+
+  it("rejects incrementable versions at PostgreSQL int max while allowing that page count", async () => {
+    const app = Fastify({ logger: false });
+    const calls: unknown[] = [];
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return workspace;
+      },
+      async saveRequirements(input) {
+        calls.push(["requirements", input.expectedVersion, input.requirements.pageRange]);
+        return workspace;
+      },
+      async replaceSource(input) {
+        calls.push(["source", input.expectedVersion]);
+        if (input.expectedVersion === 2_147_483_647) {
+          throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+        }
+        return workspace;
+      },
+    };
+    await registerPptWorkspaceRoutes(app, runtime, () => "account-a");
+
+    const overflowingVersion = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 2_147_483_647,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+    const overflowingSourceVersion = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/source",
+      payload: { expectedVersion: 2_147_483_647, bookId: "book-b" },
+    });
+    const maxPageCount = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 1, max: 2_147_483_647 },
+        additionalRequirements: "",
+      },
+    });
+    const maxIncrementableVersion = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      payload: {
+        expectedVersion: 2_147_483_646,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+
+    expect(overflowingVersion.statusCode).toBe(400);
+    expect(overflowingSourceVersion.statusCode).toBe(409);
+    expect(maxPageCount.statusCode).toBe(200);
+    expect(maxIncrementableVersion.statusCode).toBe(200);
+    expect(calls).toEqual([
+      ["source", 2_147_483_647],
+      ["requirements", 1, { min: 1, max: 2_147_483_647 }],
+      ["requirements", 2_147_483_646, { min: 8, max: 10 }],
+    ]);
+    await app.close();
+  });
+
   it.each([
     ["PPT_WORKSPACE_NOT_FOUND", 404],
     ["PPT_WORKSPACE_STALE", 409],

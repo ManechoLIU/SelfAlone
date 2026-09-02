@@ -3,6 +3,8 @@ import type { PptWorkspaceSnapshot, PptWorkspaceSource } from "@selfalone/contra
 import type { Sql, TransactionSql } from "postgres";
 
 export const PPT_WORKSPACE_INTEGER_MAX = 2_147_483_647;
+export const PPT_WORKSPACE_PAGE_COUNT_MAX = PPT_WORKSPACE_INTEGER_MAX;
+export const PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX = PPT_WORKSPACE_INTEGER_MAX - 1;
 
 export type PptWorkspaceStoreErrorCode =
   | "PPT_INTENT_CONFLICT"
@@ -63,12 +65,31 @@ export class PptWorkspaceStore {
         WHERE account_id = ${accountId} AND id = ${conversationId} AND deleted = false
         FOR UPDATE
       `;
+      if (!conversation) {
+        throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+      }
+
+      const [existing] = await transaction<Array<{ id: string; intentSourceBookId: string | null }>>`
+        SELECT id, intent_source_book_id AS "intentSourceBookId"
+        FROM ppt_drafts
+        WHERE account_id = ${accountId}
+          AND conversation_id = ${conversationId}
+          AND intent_request_id = ${requestId}
+        FOR UPDATE
+      `;
+      if (existing) {
+        if (existing.intentSourceBookId !== bookId) {
+          throw new PptWorkspaceStoreError("PPT_INTENT_CONFLICT");
+        }
+        return { status: "reused" as const, draftId: existing.id };
+      }
+
       const [book] = await transaction<Array<{ id: string }>>`
         SELECT id
         FROM books
         WHERE account_id = ${accountId} AND id = ${bookId}
       `;
-      if (!conversation || !book) {
+      if (!book) {
         throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
       }
 
@@ -87,10 +108,10 @@ export class PptWorkspaceStore {
       const [inserted] = await transaction<Array<{ id: string }>>`
         INSERT INTO ppt_drafts (
           id, account_id, conversation_id, stage, version,
-          requirements, outline, intent_request_id
+          requirements, outline, intent_request_id, intent_source_book_id
         ) VALUES (
           ${draftId}, ${accountId}, ${conversationId}, 'requirements', 1,
-          '', '[]'::jsonb, ${requestId}
+          '', '[]'::jsonb, ${requestId}, ${bookId}
         )
         ON CONFLICT DO NOTHING
         RETURNING id
@@ -103,25 +124,19 @@ export class PptWorkspaceStore {
         return { status: "created" as const, draftId };
       }
 
-      const [existing] = await transaction<Array<{ id: string }>>`
-        SELECT id
+      const [racedExisting] = await transaction<Array<{ id: string; intentSourceBookId: string | null }>>`
+        SELECT id, intent_source_book_id AS "intentSourceBookId"
         FROM ppt_drafts
         WHERE account_id = ${accountId}
           AND conversation_id = ${conversationId}
           AND intent_request_id = ${requestId}
         FOR UPDATE
       `;
-      if (!existing) throw new PptWorkspaceStoreError("PPT_INTENT_CONFLICT");
-      const sources = await transaction<Array<{ bookId: string }>>`
-        SELECT book_id AS "bookId"
-        FROM ppt_draft_sources
-        WHERE account_id = ${accountId} AND draft_id = ${existing.id}
-        ORDER BY source_order, book_id
-      `;
-      if (sources.length !== 1 || sources[0]?.bookId !== bookId) {
+      if (!racedExisting) throw new PptWorkspaceStoreError("PPT_INTENT_CONFLICT");
+      if (racedExisting.intentSourceBookId !== bookId) {
         throw new PptWorkspaceStoreError("PPT_INTENT_CONFLICT");
       }
-      return { status: "reused" as const, draftId: existing.id };
+      return { status: "reused" as const, draftId: racedExisting.id };
     });
 
     const workspace = await this.getWorkspace(accountId, result.draftId);
@@ -162,12 +177,12 @@ export class PptWorkspaceStore {
       || !audience
       || !Number.isSafeInteger(input.expectedVersion)
       || input.expectedVersion < 1
-      || input.expectedVersion > PPT_WORKSPACE_INTEGER_MAX
+      || input.expectedVersion > PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX
       || !Number.isSafeInteger(min)
       || !Number.isSafeInteger(max)
       || min < 1
-      || min > PPT_WORKSPACE_INTEGER_MAX
-      || max > PPT_WORKSPACE_INTEGER_MAX
+      || min > PPT_WORKSPACE_PAGE_COUNT_MAX
+      || max > PPT_WORKSPACE_PAGE_COUNT_MAX
       || max < min
     ) {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_INVALID_REQUIREMENTS");
@@ -217,7 +232,7 @@ export class PptWorkspaceStore {
     if (
       !Number.isSafeInteger(input.expectedVersion)
       || input.expectedVersion < 1
-      || input.expectedVersion > PPT_WORKSPACE_INTEGER_MAX
+      || input.expectedVersion > PPT_WORKSPACE_PAGE_COUNT_MAX
     ) {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
     }
@@ -255,6 +270,9 @@ export class PptWorkspaceStore {
       }
 
       if (sources[0].bookId !== bookId) {
+        if (draft.version > PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX) {
+          throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+        }
         await transaction`
           DELETE FROM ppt_draft_sources
           WHERE account_id = ${accountId} AND draft_id = ${draftId}
@@ -281,28 +299,44 @@ export class PptWorkspaceStore {
     accountId: string,
     draftId: string,
   ): Promise<PptWorkspaceSnapshot | null> {
-
-    const [draft] = await query<DraftRow[]>`
-      SELECT id, conversation_id AS "conversationId", stage, version,
-             purpose, audience, page_min AS "pageMin", page_max AS "pageMax",
-             additional_requirements AS "additionalRequirements"
-      FROM ppt_drafts
-      WHERE account_id = ${accountId} AND id = ${draftId}
+    const rows = await query<Array<DraftRow & Partial<SourceRow>>>`
+      SELECT draft.id, draft.conversation_id AS "conversationId", draft.stage, draft.version,
+             draft.purpose, draft.audience, draft.page_min AS "pageMin",
+             draft.page_max AS "pageMax",
+             draft.additional_requirements AS "additionalRequirements",
+             source.book_id AS "bookId", source.source_order AS "sourceOrder",
+             book.title, book.author, book.source_label AS "sourceLabel"
+      FROM ppt_drafts AS draft
+      LEFT JOIN ppt_draft_sources AS source
+        ON source.account_id = draft.account_id AND source.draft_id = draft.id
+      LEFT JOIN books AS book
+        ON book.account_id = source.account_id AND book.id = source.book_id
+      WHERE draft.account_id = ${accountId} AND draft.id = ${draftId}
+      ORDER BY source.source_order, source.book_id
     `;
+    const [draft] = rows;
     if (!draft) return null;
     if (draft.stage !== "requirements") {
       throw new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
     }
 
-    const sources = await query<SourceRow[]>`
-      SELECT source.book_id AS "bookId", source.source_order AS "sourceOrder",
-             book.title, book.author, book.source_label AS "sourceLabel"
-      FROM ppt_draft_sources AS source
-      JOIN books AS book
-        ON book.account_id = source.account_id AND book.id = source.book_id
-      WHERE source.account_id = ${accountId} AND source.draft_id = ${draftId}
-      ORDER BY source.source_order, source.book_id
-    `;
+    const sources = rows.flatMap((row) => {
+      if (
+        row.bookId == null
+        || row.sourceOrder == null
+        || row.title == null
+        || row.sourceLabel == null
+      ) {
+        return [];
+      }
+      return [{
+        bookId: row.bookId,
+        sourceOrder: row.sourceOrder,
+        title: row.title,
+        author: row.author ?? null,
+        sourceLabel: row.sourceLabel,
+      } satisfies SourceRow];
+    });
     if (sources.length !== 1 || sources[0]?.sourceOrder !== 0) {
       throw new PptWorkspaceStoreError("PPT_SOURCE_CARDINALITY_INVALID");
     }
