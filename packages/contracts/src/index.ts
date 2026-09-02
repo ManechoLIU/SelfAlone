@@ -11,6 +11,31 @@ export type PptTaskSnapshot = {
   artifactId?: string;
 };
 
+export type PptFixedRequirements = {
+  purpose: string | null;
+  audience: string | null;
+  pageRange: { min: number; max: number } | null;
+  additionalRequirements: string;
+};
+
+export type PptWorkspaceSource = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  sourceLabel: string;
+};
+
+export type PptWorkspaceSnapshot = {
+  draft: {
+    id: string;
+    conversationId: string;
+    stage: "requirements";
+    version: number;
+    requirements: PptFixedRequirements;
+  };
+  sources: readonly [PptWorkspaceSource];
+};
+
 export type LocalBookFormat = "epub" | "txt" | "pdf";
 
 export type BookParseStatus = "processing" | "ready_text" | "ready_pages" | "failed";
