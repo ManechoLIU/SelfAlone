@@ -9,6 +9,8 @@ import {
   type ConversationChatState,
 } from "./conversation-chat-state";
 import type { ConversationNoteIntent } from "@selfalone/contracts";
+import { isPositiveBookPptIntent, type PptBookEntry } from "./ppt-book-entry";
+import type { PptWorkspaceCreateResult } from "./ppt-workspace-client";
 
 export type ConversationChatControllerClient = {
   getSession(conversationId: string): Promise<ConversationChatSession>;
@@ -26,6 +28,15 @@ export type ConversationChatControllerOptions = {
   initialDraft?: string;
   onDraftChange?: (draft: string) => void;
   onDraftCommit?: (sentText: string, noteIntent?: ConversationNoteIntent) => string | undefined;
+  pptBookEntry?: Pick<PptBookEntry, "bookId">;
+  pptWorkspaceClient?: {
+    createOrReuse(
+      conversationId: string,
+      input: { requestId: string; bookId: string },
+    ): Promise<PptWorkspaceCreateResult>;
+  };
+  onPptWorkspaceCreated?: (result: PptWorkspaceCreateResult) => void;
+  onPptWorkspaceError?: (error: unknown) => void;
 };
 
 export type ConversationChatStateListener = (state: ConversationChatState) => void;
@@ -149,6 +160,17 @@ export function createConversationChatController(
             publish(updateConversationDraft(nextState, restoredDraft));
           } else {
             handoffDraftActive = false;
+          }
+          if (options.pptBookEntry && options.pptWorkspaceClient && isPositiveBookPptIntent(text)) {
+            try {
+              const workspace = await options.pptWorkspaceClient.createOrReuse(options.conversationId, {
+                requestId: id,
+                bookId: options.pptBookEntry.bookId,
+              });
+              options.onPptWorkspaceCreated?.(workspace);
+            } catch (error) {
+              options.onPptWorkspaceError?.(error);
+            }
           }
         }
         return result;

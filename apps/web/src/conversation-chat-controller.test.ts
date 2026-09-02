@@ -6,6 +6,17 @@ import type {
 import type { ConversationNoteIntent } from "@selfalone/contracts";
 import { createConversationChatController } from "./conversation-chat-controller";
 
+const pptWorkspace = {
+  draft: {
+    id: "draft-1",
+    conversationId: "conversation-a",
+    stage: "requirements" as const,
+    version: 1,
+    requirements: { purpose: null, audience: null, pageRange: null, additionalRequirements: "" },
+  },
+  sources: [{ bookId: "book-1", title: "测试书", author: null, sourceLabel: "本地" }] as const,
+};
+
 function session(overrides: Partial<ConversationChatSession> = {}): ConversationChatSession {
   return {
     id: "conversation-a",
@@ -21,6 +32,53 @@ function session(overrides: Partial<ConversationChatSession> = {}): Conversation
 }
 
 describe("conversation chat controller", () => {
+  it("creates the book PPT workspace only after its positive user message is persisted", async () => {
+    const created: Array<{ conversationId: string; requestId: string; bookId: string }> = [];
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        async getSession() { return session(); },
+        async sendText(_conversationId, input) {
+          return { status: "completed" as const, session: session({
+            revision: 2,
+            context: [{ id: `${input.requestId}:user`, role: "user", text: input.text, requestId: input.requestId }],
+          }), reply: "已收到。" };
+        },
+      },
+      requestIdFactory: () => "request-ppt",
+      pptBookEntry: { bookId: "book-1" },
+      pptWorkspaceClient: {
+        async createOrReuse(conversationId, input) {
+          created.push({ conversationId, ...input });
+          return { status: "created" as const, workspace: pptWorkspace };
+        },
+      },
+    });
+
+    controller.setDraft("帮我制作这本书PPT");
+    expect(created).toEqual([]);
+    await controller.send();
+    expect(created).toEqual([{ conversationId: "conversation-a", requestId: "request-ppt", bookId: "book-1" }]);
+  });
+
+  it("does not create a book PPT workspace when the user send fails", async () => {
+    let created = 0;
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        async getSession() { return session(); },
+        async sendText() { return { status: "failed" as const, session: session(), errorCode: "SEND_FAILED", retainedDraft: { text: "帮我制作这本书PPT", attachments: [] } }; },
+      },
+      requestIdFactory: () => "request-ppt",
+      pptBookEntry: { bookId: "book-1" },
+      pptWorkspaceClient: { async createOrReuse() { created += 1; return { status: "created" as const, workspace: pptWorkspace }; } },
+    });
+
+    controller.setDraft("帮我制作这本书PPT");
+    await controller.send();
+    expect(created).toBe(0);
+  });
+
   it("hydrates, sends through the client, and exposes the deterministic reply", async () => {
     let current = session();
     const client = {

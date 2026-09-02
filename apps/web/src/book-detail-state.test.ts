@@ -40,10 +40,10 @@ function api(overrides: Partial<TextAnnotationApi> = {}): TextAnnotationApi {
 }
 
 describe("private book detail notes state", () => {
-  it("creates a recoverable book-scoped PPT handoff for the shared conversation route", () => {
+  it("creates an editable book-scoped PPT intent for the shared conversation route", () => {
     const href = bookDetailPptIntentHref("book/one");
-    expect(href).toBe("#/conversation?stage=requirements&book=book%2Fone");
-    expect(bookPptIntentHashForStage("book/one", "outline")).toBe("#/conversation?stage=outline&book=book%2Fone");
+    expect(href).toBe("#/conversation?book=book%2Fone");
+    expect(bookPptIntentHashForStage("book/one", "outline")).toBe("#/conversation?book=book%2Fone");
     expect(bookPptIntentFromHash(href)).toBe("book/one");
     const titledHref = bookDetailPptIntentHref("book/one", "真实书名");
     expect(bookPptIntentTitleFromHash(titledHref)).toBe("真实书名");

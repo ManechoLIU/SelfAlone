@@ -53,7 +53,7 @@ export function classifyConversationRoute(hash: string): ConversationRouteKind {
   const [route, query = ""] = hash.slice(1).split("?");
   if (route !== "/conversation") return "workspace";
   const parameters = new URLSearchParams(query);
-  return parameters.has("stage") || parameters.has("book") ? "workspace" : "chat";
+  return parameters.has("stage") ? "workspace" : "chat";
 }
 
 export function canonicalizeConversationStageRoute(hash: string, stage: string): string {

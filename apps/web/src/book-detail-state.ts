@@ -51,7 +51,7 @@ export type BookDetailSnapshot = {
 
 export function bookPptIntentHashForStage(bookId: string, stage: string | null = "requirements", title?: string) {
   const query = new URLSearchParams();
-  if (stage) query.set("stage", stage);
+  void stage;
   query.set("book", bookId);
   if (title?.trim()) query.set("bookTitle", title.trim());
   return `#/conversation?${query.toString()}`;
