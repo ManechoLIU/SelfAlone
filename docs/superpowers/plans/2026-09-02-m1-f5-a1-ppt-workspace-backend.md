@@ -247,7 +247,7 @@
 
 - [ ] **Step 1: Write failing route contract tests**
 
-  使用 Fastify 与完整形状的窄 fake runtime，验证账号 ID 被传入，创建返回 `201`、幂等复用返回 `200`、读取和更新返回 `200`。验证请求：所有 ID trim 后非空且不超过 256；`expectedVersion` 为正整数；用途和受众 trim 后 1–120 字符；补充要求最多 2,000 字符；页数为正安全整数、`min <= max` 且 `max <= 200`；body 使用 strict schema 拒绝未知字段。
+  使用 Fastify 与完整形状的窄 fake runtime，验证账号 ID 被传入，创建返回 `201`、幂等复用返回 `200`、读取和更新返回 `200`。验证请求：所有 ID trim 后非空且不超过 256；`expectedVersion` 为正整数；用途和受众 trim 后 1–120 字符；补充要求最多 2,000 字符；页数为正安全整数且 `min <= max`；body 使用 strict schema 拒绝未知字段。规格未定义自定义页数上限，本包不得擅自新增用户可见上限。
 
 - [ ] **Step 2: Run route tests and verify RED**
 
