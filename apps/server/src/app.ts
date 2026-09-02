@@ -13,6 +13,10 @@ import {
 } from "./conversation-selection-routes";
 import type { LibraryRuntime } from "./library-runtime";
 import type { M0Runtime } from "./m0-runtime";
+import {
+  registerPptWorkspaceRoutes,
+  type PptWorkspaceRouteRuntime,
+} from "./ppt-workspace-routes";
 import { registerTextReaderRoutes, type TextReaderRuntime } from "./text-reader";
 import { registerTrialQuotaRoutes, type TrialQuotaRouteRuntime } from "./trial-quota-routes";
 import {
@@ -28,6 +32,7 @@ type AppDependencies = {
   library?: LibraryRuntime;
   bookPresentation?: Pick<BookPresentationService, "getBookPresentation">;
   m0?: M0Runtime;
+  pptWorkspace?: PptWorkspaceRouteRuntime;
   textReader?: TextReaderRuntime;
   textAnnotations?: Pick<
     TextAnnotationService,
@@ -300,6 +305,10 @@ export function createApp(dependencies: AppDependencies) {
     registerWeReadRoutes(app, dependencies.weread, resolveAccountId);
   }
 
+  if (dependencies.pptWorkspace) {
+    registerPptWorkspaceRoutes(app, dependencies.pptWorkspace, resolveAccountId);
+  }
+
   if (dependencies.m0) {
     const m0 = dependencies.m0;
     const requirementsBody = z.object({
@@ -327,13 +336,15 @@ export function createApp(dependencies: AppDependencies) {
 
     app.get("/api/v1/workspace", async () => m0.getWorkspace());
 
-    app.put("/api/v1/ppt-drafts/:id/requirements", async (request, reply) => {
-      const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
-      const body = requirementsBody.parse(request.body);
-      return reply.send(
-        await m0.saveRequirements(parameters.id, body.expectedVersion, body.requirements),
-      );
-    });
+    if (!dependencies.pptWorkspace) {
+      app.put("/api/v1/ppt-drafts/:id/requirements", async (request, reply) => {
+        const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
+        const body = requirementsBody.parse(request.body);
+        return reply.send(
+          await m0.saveRequirements(parameters.id, body.expectedVersion, body.requirements),
+        );
+      });
+    }
 
     app.put("/api/v1/ppt-drafts/:id/outline", async (request, reply) => {
       const parameters = z.object({ id: z.string().min(1) }).parse(request.params);

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { developmentAccountId } from "./account-migration";
 import { createApp } from "./app";
 import { createM0Runtime, type M0Runtime } from "./m0-runtime";
+import type { PptWorkspaceRouteRuntime } from "./ppt-workspace-routes";
 
 describe("health endpoints", () => {
   const apps: Array<ReturnType<typeof createApp>> = [];
@@ -32,6 +33,95 @@ describe("health endpoints", () => {
     const response = await app.inject({ method: "GET", url: "/api/v1/health/ready" });
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ status: "not_ready" });
+  });
+});
+
+describe("PPT workspace composition", () => {
+  it("lets the account-scoped runtime own requirements while preserving other M0 routes", async () => {
+    let accountScopedCalls = 0;
+    let legacyRequirementsCalls = 0;
+    const workspace = {
+      draft: {
+        id: "draft-a",
+        conversationId: "conversation-a",
+        stage: "requirements" as const,
+        version: 2,
+        requirements: {
+          purpose: "读书会分享",
+          audience: "产品团队",
+          pageRange: { min: 8, max: 10 },
+          additionalRequirements: "",
+        },
+      },
+      sources: [{
+        bookId: "book-a",
+        title: "第一本书",
+        author: "甲作者",
+        sourceLabel: "本地",
+      }] as const,
+    };
+    const pptWorkspace: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return workspace;
+      },
+      async saveRequirements() {
+        accountScopedCalls += 1;
+        return workspace;
+      },
+      async replaceSource() {
+        return workspace;
+      },
+    };
+    const m0 = {
+      async getWorkspace() {
+        return { legacy: true };
+      },
+      async saveRequirements() {
+        legacyRequirementsCalls += 1;
+        return { legacy: true };
+      },
+      async saveOutline() {
+        return { legacy: true };
+      },
+      async createTask() {
+        return { id: "task-legacy" };
+      },
+      async getTask() {
+        return { id: "task-legacy" };
+      },
+      async stopTask() {
+        return { id: "task-legacy" };
+      },
+      async getArtifact() {
+        throw new Error("ARTIFACT_NOT_FOUND");
+      },
+    } as unknown as M0Runtime;
+    const app = createApp({ readiness: async () => true, m0, pptWorkspace });
+
+    const legacyWorkspace = await app.inject({ method: "GET", url: "/api/v1/workspace" });
+    expect(legacyWorkspace.statusCode).toBe(200);
+    expect(legacyWorkspace.json()).toEqual({ legacy: true });
+
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/requirements",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 1,
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 8, max: 10 },
+        additionalRequirements: "",
+      },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ workspace });
+    expect(accountScopedCalls).toBe(1);
+    expect(legacyRequirementsCalls).toBe(0);
+    await app.close();
   });
 });
 

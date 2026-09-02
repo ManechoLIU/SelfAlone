@@ -23,6 +23,8 @@ import {
 import { createModelConfigRuntime } from "./model-config-runtime";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
+import { migratePptWorkspaceSchema } from "./ppt-workspace-migration";
+import { PptWorkspaceStore } from "./ppt-workspace-store";
 import {
   createConversationResponder,
   createConversationResponderForMode,
@@ -139,6 +141,14 @@ try {
   await conversationMigrationDatabase.end();
 }
 const conversationSql = postgres(databaseUrl, { max: 4 });
+const pptWorkspaceMigrationDatabase = postgres(databaseUrl, { max: 1 });
+try {
+  await migratePptWorkspaceSchema(pptWorkspaceMigrationDatabase);
+} finally {
+  await pptWorkspaceMigrationDatabase.end();
+}
+const pptWorkspaceSql = postgres(databaseUrl, { max: 4 });
+const pptWorkspace = new PptWorkspaceStore(pptWorkspaceSql);
 const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);
@@ -221,6 +231,7 @@ const app = createApp({
   accountSettings: accountSettings,
   modelConfig,
   conversation,
+  pptWorkspace,
   selection,
   trialQuota,
   weread,
@@ -238,6 +249,7 @@ const shutdown = async () => {
   await auth.close();
   await bookPresentationDatabase.end({ timeout: 2 });
   await conversationSql.end();
+  await pptWorkspaceSql.end();
   await conversationSelectionSql.end();
   await trialQuotaSql.end();
   await costLedgerSql.end();
