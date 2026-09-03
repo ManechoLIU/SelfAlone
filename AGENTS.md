@@ -64,6 +64,76 @@ SelfAlone（老己）是以对话为入口、覆盖个人书库、阅读笔记�
 
 ### 事实优先硬规则（Fact-First）
 
+### AI-Bridge Health Check
+
+Before starting any workflow that materially depends on AI-Bridge:
+
+1. Call bridge_get_status exactly once as a minimal no-side-effect health check.
+2. If the health check fails with Resource not found, tool disabled, unavailable routing, or another bridge-level error:
+    * stop all operations that depend on AI-Bridge;
+    * report the raw failure;
+    * do not continue into shell/browser/computer/controller operations.
+3. If the health check succeeds, continue the requested workflow normally.
+4. A later failure of one specific AI-Bridge action does not by itself mean the entire bridge is unavailable.
+    * Identify and report the exact failing action.
+    * Prefer an allowed lower-risk equivalent when one exists.
+    * Do not attempt to bypass platform safety checks.
+5. Do not repeatedly change AI-Bridge plugin permissions as a generic recovery step. Connection/tool-routing failures and platform safety denials must be diagnosed separately.
+
+### Web Controller Binding Standard
+
+When a ChatGPT Web session is appointed or resumed as the project controller:
+
+1. The formal runtime name is **Adaptive Agent Runtime**.
+   `adaptive-delivery-*` names are legacy-compatible file/path names only.
+
+2. Reuse the project's existing unique logical `controller_id`.
+   Never create a second logical controller when a valid one already exists.
+   Historical tasks, sessions, execution targets, or Web lineage do not constitute another logical controller.
+
+3. The user should preferably provide the current ChatGPT Web conversation/session ID explicitly.
+
+4. Web session identity verification must use only:
+   - the user-confirmed conversation/session ID; and
+   - `browser.list_tabs` to verify that the active ChatGPT tab URL contains the same conversation ID.
+
+5. Do **not** use `snapshot`, `screenshot`, CDP DOM/Accessibility reads, Runtime.evaluate, or any other ChatGPT page-body read merely to verify the current conversation identity.
+
+6. Never substitute any of the following for the Web conversation/session ID:
+   - AI-Bridge `instance_id`
+   - desktop execution target
+   - project ID
+   - GPT ID
+   - previous Web session IDs
+
+7. Before binding, read the current Adaptive Agent Runtime/controller state and preserve:
+   - the existing desktop execution target;
+   - the existing generation;
+   - existing valid Web session lineage.
+
+8. Before modifying controller registry or Web lease state, create timestamped backups.
+
+9. Bind the current Web session idempotently to the existing logical controller and update the active Web lease with semantics equivalent to:
+   - `controller_id` = existing unique logical controller
+   - `repo` = current real project root
+   - `web_session_id` = verified current conversation ID
+   - `provenance = manual_user_authorized`
+   - `mode = resume_only`
+
+10. Prefer the current Adaptive Agent Runtime's official schema/API/command if it has evolved. Use legacy compatibility JSON only when it remains the active mechanism.
+
+11. Use atomic writes and independently verify after binding:
+   - exactly one logical controller remains;
+   - the Web session is registered;
+   - the lease points to the current session;
+   - provenance and mode are correct;
+   - desktop execution target and generation are unchanged;
+   - valid lineage was not deleted;
+   - no project repository files were unintentionally modified.
+
+12. If a platform safety check rejects a specific operation, stop that operation chain and report the exact failing step. Do not attempt to bypass the safety mechanism.
+
+
 ### Controller 身份启动门（最高优先级）
 
 - 任何新会话、新宿主入口或恢复会话，在自称“总控 / Controller”、报告“我的总控履职评分”、执行总控专属调度或把当前会话描述为项目 owner 之前，必须先取得当前宿主可验证的 Controller identity receipt。仓库可访问、AI-Bridge 可操作、本项目历史任命、聊天记忆、project context、registered `controller_id` 存在、手工 `resume_only` lease 或同一 Git common-dir 都不能单独证明当前会话就是 Controller。
