@@ -69,16 +69,31 @@ SelfAlone（老己）是以对话为入口、覆盖个人书库、阅读笔记�
 Before starting any workflow that materially depends on AI-Bridge:
 
 1. Call bridge_get_status exactly once as a minimal no-side-effect health check.
-2. If the health check fails with Resource not found, tool disabled, unavailable routing, or another bridge-level error:
-    * stop all operations that depend on AI-Bridge;
-    * report the raw failure;
-    * do not continue into shell/browser/computer/controller operations.
-3. If the health check succeeds, continue the requested workflow normally.
-4. A later failure of one specific AI-Bridge action does not by itself mean the entire bridge is unavailable.
-    * Identify and report the exact failing action.
+2. Treat failures at the smallest proven scope. Never promote one failed action or one stale tool handle into a permanent conclusion that AI-Bridge as a whole is unavailable.
+    * **Action-level failure:** if one specific action/resource fails, only that action is considered unavailable for the current attempt. Stop only the operations that require that action; other independently available Bridge actions may continue.
+    * **Registration/routing failure:** if a call fails because a tool/resource cannot be found or routing appears stale, first determine which object actually failed. If current resource/tool discovery still exposes AI-Bridge, refresh discovery and use only the newly returned current tool name/handle for one new read-only bridge_get_status verification. Do not keep invoking an old handle from a prior registration snapshot.
+    * **Bridge/session-level disablement:** stop further AI-Bridge calls only when the current session/platform explicitly reports a Bridge-level signal such as tool disabled, unavailable capability, or an equivalent instruction that AI-Bridge must not be called.
+3. Interpret `Resource not found` narrowly:
+    * a missing action/resource does not mean the entire Bridge is missing;
+    * if fresh discovery still shows AI-Bridge, treat the failure as a possible stale registration or routing mismatch and re-verify once with the current discovered bridge_get_status handle;
+    * never persist or inherit a permanent `Bridge unavailable` conclusion solely from an old handle or a single action/resource `Resource not found` failure.
+4. Minimize the stop scope after a failed health check or action:
+    * action-level failure → stop only work that depends on that action;
+    * Bridge-level verification failure without an explicit platform disable signal → pause the current work that materially depends on Bridge, report the raw failure, and allow a later fresh tool registration/session to re-discover and re-verify;
+    * explicit platform/session-level disablement → stop all further AI-Bridge calls for that registration/session as instructed.
+    Temporary failures must not be upgraded into cross-session, permanent, or unrecoverable state by the agent.
+5. If tool information is refreshed later, historical failures must not block fresh discovery. A new registration snapshot or new session may perform a new minimal read-only bridge_get_status verification using the actual tool handle returned by that snapshot.
+6. Do not use retry loops to bypass platform controls:
+    * do not repeatedly retry the same failed handle/action under the same registration snapshot;
+    * if the platform explicitly says the tool/capability is disabled or instructs the agent to stop calling it, stop immediately;
+    * wait for a genuinely refreshed tool registration or a new session before re-validating.
+7. If bridge_get_status succeeds, continue the requested workflow normally. A later failure of one specific AI-Bridge action still does not by itself mean the entire bridge is unavailable.
+    * Identify and report the exact failing action and failure object.
     * Prefer an allowed lower-risk equivalent when one exists.
     * Do not attempt to bypass platform safety checks.
-5. Do not repeatedly change AI-Bridge plugin permissions as a generic recovery step. Connection/tool-routing failures and platform safety denials must be diagnosed separately.
+8. Do not repeatedly change AI-Bridge plugin permissions as a generic recovery step. Connection/tool-routing failures, action failures, registration mismatches, and platform safety denials must be diagnosed separately.
+
+The governing principle is **fail-closed, not fail-dead**: do not continue through a dependency that is currently unverified or unavailable, but do not permanently kill a healthy Bridge because of one local routing or registration failure.
 
 ### Web Controller Binding Standard
 
