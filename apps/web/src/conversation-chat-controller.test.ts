@@ -34,6 +34,8 @@ function session(overrides: Partial<ConversationChatSession> = {}): Conversation
 describe("conversation chat controller", () => {
   it("creates the book PPT workspace only after its positive user message is persisted", async () => {
     const created: Array<{ conversationId: string; requestId: string; bookId: string }> = [];
+    const requestBodies: Array<{ requestId: string; bookId: string }> = [];
+    const callbacks: Array<{ conversationId: string; requestId: string; bookId: string }> = [];
     const controller = createConversationChatController({
       conversationId: "conversation-a",
       client: {
@@ -50,15 +52,19 @@ describe("conversation chat controller", () => {
       pptWorkspaceClient: {
         async createOrReuse(conversationId, input) {
           created.push({ conversationId, ...input });
+          requestBodies.push(input);
           return { status: "created" as const, workspace: pptWorkspace };
         },
       },
+      onPptWorkspaceCreated: (_result, context) => callbacks.push(context),
     });
 
     controller.setDraft("帮我制作这本书PPT");
     expect(created).toEqual([]);
     await controller.send();
     expect(created).toEqual([{ conversationId: "conversation-a", requestId: "request-ppt", bookId: "book-1" }]);
+    expect(requestBodies).toEqual([{ requestId: "request-ppt", bookId: "book-1" }]);
+    expect(callbacks).toEqual([{ conversationId: "conversation-a", requestId: "request-ppt", bookId: "book-1" }]);
   });
 
   it("does not create a book PPT workspace when the user send fails", async () => {
@@ -76,6 +82,29 @@ describe("conversation chat controller", () => {
 
     controller.setDraft("帮我制作这本书PPT");
     await controller.send();
+    expect(created).toBe(0);
+  });
+
+  it.each([
+    [undefined, "帮我制作这本书PPT"],
+    [{ bookId: "book-1" }, "我暂时不想制作这本书PPT"],
+  ] as const)("does not create a workspace without a positive book PPT intent", async (pptBookEntry, text) => {
+    let created = 0;
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        async getSession() { return session(); },
+        async sendText(_conversationId, input) {
+          return { status: "completed" as const, session: session({ revision: 2, context: [{ id: "user-1", role: "user", text: input.text }] }), reply: "已收到。" };
+        },
+      },
+      pptBookEntry,
+      pptWorkspaceClient: { async createOrReuse() { created += 1; return { status: "created" as const, workspace: pptWorkspace }; } },
+    });
+
+    controller.setDraft(text);
+    await controller.send();
+
     expect(created).toBe(0);
   });
 

@@ -1,6 +1,9 @@
 import "./conversation-chat.css";
+import "./ppt-requirements-workspace.css";
 import { escapeHtml } from "./ui/desktop-shell";
 import type { ConversationChatController } from "./conversation-chat-controller";
+import type { PptRequirementsWorkspaceState } from "./ppt-requirements-workspace-state";
+import { renderPptRequirementsWorkspaceNotice, renderPptRequirementsWorkspaceView } from "./ppt-requirements-workspace-view";
 import type { ConversationChatMessage, ConversationChatState } from "./conversation-chat-state";
 import type { ConversationSelectionController } from "./conversation-selection-controller";
 import {
@@ -18,6 +21,7 @@ export type ConversationChatViewOptions = {
   title?: string;
   selectionState?: ConversationSelectionState;
   settingsReturnTo?: string;
+  workspaceState?: PptRequirementsWorkspaceState;
 };
 
 export type ConversationChatViewResult = {
@@ -30,6 +34,11 @@ export type ConversationChatMountOptions = {
   selectionController?: ConversationSelectionController;
   hydrateSelection?: boolean;
   settingsReturnTo?: string;
+  workspaceStore?: {
+    getState(): PptRequirementsWorkspaceState;
+    subscribe(listener: (state: PptRequirementsWorkspaceState) => void): () => void;
+  };
+  onWorkspaceRetry?: (context: { conversationId: string; requestId: string; bookId: string }) => void;
 };
 
 export function renderConversationChatView(options: ConversationChatViewOptions): ConversationChatViewResult {
@@ -44,6 +53,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
       ? `<p class="conversation-chat-status" role="status">正在发送…</p>`
       : `<p class="conversation-chat-status" role="status">就绪</p>`;
 
+  const workspaceState = options.workspaceState ?? { phase: "hidden" };
   return {
     main: `
       <section class="conversation-chat-view" data-conversation-chat="${escapeHtml(state.conversationId)}" aria-labelledby="conversation-chat-title" aria-busy="${isSending ? "true" : "false"}">
@@ -54,6 +64,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
             ${renderMessages(state.messages, options.selectionState)}
           </div>
         </div>
+        <div class="conversation-chat-notice" data-ppt-workspace-notice>${renderPptRequirementsWorkspaceNotice(workspaceState)}</div>
         <form class="conversation-chat-composer" data-conversation-chat-form>
           <img class="conversation-chat-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" aria-hidden="true" />
           <label class="conversation-chat-input-label" for="conversation-chat-input-${escapeHtml(state.conversationId)}">
@@ -64,7 +75,7 @@ export function renderConversationChatView(options: ConversationChatViewOptions)
           <span id="conversation-chat-status-${escapeHtml(state.conversationId)}" class="conversation-chat-status-wrap">${statusNotice}<span class="conversation-chat-composer-help">Enter 发送，Shift+Enter 换行</span></span>
         </form>
       </section>`,
-    taskPanel: "",
+    taskPanel: renderPptRequirementsWorkspaceView(workspaceState),
   };
 }
 
@@ -88,6 +99,7 @@ export function mountConversationChatView(
   let disposed = false;
   let renderedState: ConversationChatState | null = null;
   let selectionState = options.selectionController?.getState();
+  let workspaceState = options.workspaceStore?.getState() ?? { phase: "hidden" } as PptRequirementsWorkspaceState;
   const selectionMounts = new Map<string, () => void>();
 
   const disposeSelectionMounts = () => {
@@ -129,6 +141,53 @@ export function mountConversationChatView(
     });
   };
 
+  const syncWorkspaceNotice = () => {
+    const region = mainRoot.querySelector<HTMLElement>("[data-ppt-workspace-notice]");
+    if (!region) return;
+    region.innerHTML = renderPptRequirementsWorkspaceNotice(workspaceState);
+    region.querySelector<HTMLButtonElement>("[data-ppt-workspace-retry]")?.addEventListener("click", () => {
+      const context = workspaceState.phase === "error" ? workspaceState.context : null;
+      if (context) options.onWorkspaceRetry?.(context);
+    });
+  };
+
+  const syncTaskPanel = () => {
+    if (!taskRoot) return;
+    const taskPanel = taskRoot.closest<HTMLElement>(".desktop-task-panel");
+    const shell = taskPanel?.closest<HTMLElement>(".desktop-app-shell")
+      ?? taskRoot.closest<HTMLElement>(".desktop-app-shell");
+    const taskPanelHtml = renderPptRequirementsWorkspaceView(workspaceState);
+    if (taskPanelHtml) {
+      shell?.style.removeProperty("--desktop-task-width");
+      taskRoot.innerHTML = taskPanelHtml;
+      taskPanel?.removeAttribute("hidden");
+    } else {
+      shell?.style.setProperty("--desktop-task-width", "0px");
+      taskPanel?.setAttribute("hidden", "");
+      taskRoot.innerHTML = "";
+    }
+    if ("querySelector" in taskRoot) {
+      const requirementsForm = taskRoot.querySelector<HTMLFormElement>("[data-ppt-requirements-form]");
+      const preset = taskRoot.querySelector<HTMLSelectElement>("[data-ppt-page-preset]");
+      const minInput = taskRoot.querySelector<HTMLInputElement>("[data-ppt-page-min]");
+      const maxInput = taskRoot.querySelector<HTMLInputElement>("[data-ppt-page-max]");
+      preset?.addEventListener("change", () => {
+        if (!minInput || !maxInput || preset.value === "custom") return;
+        const [min, max] = preset.value.split("-").map(Number);
+        minInput.value = String(min);
+        maxInput.value = String(max);
+      });
+      requirementsForm?.addEventListener("submit", (event) => {
+        event.preventDefault();
+      });
+    }
+  };
+
+  const patchWorkspaceRegions = () => {
+    syncWorkspaceNotice();
+    syncTaskPanel();
+  };
+
   const render = (nextState: ConversationChatState = controller.getState()) => {
     if (disposed) return;
     if (renderedState && isDraftOnlyChange(renderedState, nextState)) {
@@ -143,20 +202,10 @@ export function mountConversationChatView(
       title: options.title,
       selectionState,
       settingsReturnTo: options.settingsReturnTo,
+      workspaceState,
     });
     mainRoot.innerHTML = rendered.main;
-    if (taskRoot) {
-      const taskPanel = taskRoot.closest<HTMLElement>(".desktop-task-panel");
-      const shell = taskPanel?.closest<HTMLElement>(".desktop-app-shell")
-        ?? taskRoot.closest<HTMLElement>(".desktop-app-shell");
-      if (rendered.taskPanel) {
-        shell?.style.removeProperty("--desktop-task-width");
-        taskRoot.innerHTML = rendered.taskPanel;
-      } else {
-        shell?.style.setProperty("--desktop-task-width", "0px");
-        taskPanel?.remove();
-      }
-    }
+    patchWorkspaceRegions();
     renderedState = nextState;
     syncSelectionMounts();
 
@@ -182,6 +231,10 @@ export function mountConversationChatView(
     selectionState = nextState;
     syncSelectionMounts(nextState);
   });
+  const unsubscribeWorkspace = options.workspaceStore?.subscribe((nextState) => {
+    workspaceState = nextState;
+    patchWorkspaceRegions();
+  });
   render(controller.getState());
   void controller.hydrate();
   if (options.selectionController && options.hydrateSelection !== false) {
@@ -192,6 +245,7 @@ export function mountConversationChatView(
     disposed = true;
     unsubscribe();
     unsubscribeSelection?.();
+    unsubscribeWorkspace?.();
     disposeSelectionMounts();
   };
 }

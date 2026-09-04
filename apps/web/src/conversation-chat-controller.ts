@@ -35,9 +35,12 @@ export type ConversationChatControllerOptions = {
       input: { requestId: string; bookId: string },
     ): Promise<PptWorkspaceCreateResult>;
   };
-  onPptWorkspaceCreated?: (result: PptWorkspaceCreateResult) => void;
-  onPptWorkspaceError?: (error: unknown) => void;
+  onPptWorkspacePending?: (context: PptWorkspaceContext) => void;
+  onPptWorkspaceCreated?: (result: PptWorkspaceCreateResult, context: PptWorkspaceContext) => void;
+  onPptWorkspaceError?: (error: unknown, context: PptWorkspaceContext) => void;
 };
+
+export type PptWorkspaceContext = { conversationId: string; requestId: string; bookId: string };
 
 export type ConversationChatStateListener = (state: ConversationChatState) => void;
 
@@ -162,14 +165,16 @@ export function createConversationChatController(
             handoffDraftActive = false;
           }
           if (options.pptBookEntry && options.pptWorkspaceClient && isPositiveBookPptIntent(text)) {
+            const context = { conversationId: options.conversationId, requestId: id, bookId: options.pptBookEntry.bookId };
+            options.onPptWorkspacePending?.(context);
             try {
-              const workspace = await options.pptWorkspaceClient.createOrReuse(options.conversationId, {
-                requestId: id,
-                bookId: options.pptBookEntry.bookId,
+              const workspace = await options.pptWorkspaceClient.createOrReuse(context.conversationId, {
+                requestId: context.requestId,
+                bookId: context.bookId,
               });
-              options.onPptWorkspaceCreated?.(workspace);
+              options.onPptWorkspaceCreated?.(workspace, context);
             } catch (error) {
-              options.onPptWorkspaceError?.(error);
+              options.onPptWorkspaceError?.(error, context);
             }
           }
         }

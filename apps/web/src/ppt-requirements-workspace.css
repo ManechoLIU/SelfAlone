@@ -1,0 +1,49 @@
+/* PPT requirements workspace slice: reuses the shared desktop shell tokens, the
+   `.desktop-task-panel-inner` / `.desktop-task-header` / `.desktop-stage-steps` structure
+   and the conversation chat composer contract; no private color or step-bar parallel. */
+.ppt-requirements-workspace { min-width: 0; overflow-wrap: anywhere; }
+.ppt-requirements-source { margin: 0 0 20px; color: var(--desktop-muted, #5f6f69); font-size: 14px; overflow-wrap: anywhere; }
+
+/* Chat route height chain: the shell grid row minmax(0,1fr) gives the scroll container a
+   definite height; the quota host keeps its own size, the mount fills the rest, and the
+   view pins stream (scrolls) / workspace notice (stable) / composer (stable) rows. */
+.desktop-conversation-scroll-chat { display: flex; flex-direction: column; overflow: hidden; }
+.desktop-conversation-scroll-chat > [data-conversation-quota-host] { flex: none; }
+.conversation-chat-mount { flex: 1 1 auto; min-height: 0; display: grid; }
+.conversation-chat-mount > .conversation-chat-view { height: 100%; grid-template-rows: minmax(0, 1fr) auto auto; }
+
+/* Stable workspace notice region between the scrollable stream and the pinned composer. */
+.conversation-chat-notice { width: min(calc(100% - 44px), 760px); margin: 0 auto; }
+.conversation-chat-notice:empty { display: none; }
+.ppt-requirements-notice { margin: 0 0 12px; color: var(--desktop-muted, #5f6f69); font-size: 14px; }
+.ppt-requirements-notice-error { color: #b44432; }
+.ppt-requirements-notice button { min-height: 44px; margin-left: 8px; border: 0; border-radius: 8px; background: var(--desktop-celadon, #0d6a57); color: #fff; padding: 0 14px; font: inherit; cursor: pointer; }
+.ppt-requirements-notice button:focus-visible { outline: 2px solid var(--desktop-celadon, #0d6a57); outline-offset: 2px; }
+
+/* Form controls follow the shared desktop field contract: white surface, 1px token border,
+   8px radius, 2px accent focus outline. */
+.ppt-requirements-form { display: grid; gap: 16px; }
+.ppt-requirements-form > label, .ppt-requirements-form fieldset { display: grid; gap: 8px; margin: 0; color: var(--desktop-muted, #5f6f69); font-size: 13px; font-weight: 650; }
+.ppt-requirements-form fieldset { padding: 14px; border: 1px solid var(--desktop-line, #cbd8d3); border-radius: 8px; }
+.ppt-requirements-form legend { padding: 0 6px; }
+.ppt-requirements-form input, .ppt-requirements-form textarea, .ppt-requirements-form select { box-sizing: border-box; width: 100%; min-height: 44px; border: 1px solid var(--desktop-line, #cbd8d3); border-radius: 8px; background: #fff; color: var(--desktop-ink, #21312d); padding: 10px 12px; font: inherit; font-weight: 500; }
+.ppt-requirements-form textarea { resize: vertical; min-height: 108px; line-height: 1.5; }
+.ppt-requirements-form input:focus-visible, .ppt-requirements-form textarea:focus-visible, .ppt-requirements-form select:focus-visible { outline: 2px solid var(--desktop-celadon, #0d6a57); outline-offset: 1px; border-color: var(--desktop-celadon, #0d6a57); }
+.ppt-requirements-field-help { color: var(--desktop-muted, #5f6f69); font-size: 12px; font-weight: 400; line-height: 1.45; }
+.ppt-requirements-preset { display: grid; gap: 6px; }
+.ppt-requirements-range { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 8px; }
+.ppt-requirements-range label { display: grid; gap: 6px; }
+.ppt-requirements-range > span { min-height: 44px; display: grid; place-items: center; }
+
+@media (max-width: 1279px) {
+  .conversation-chat-notice { width: min(calc(100% - 32px), 720px); }
+}
+@media (max-width: 1024px) {
+  .conversation-chat-notice { width: min(calc(100% - 24px), 680px); }
+}
+@media (max-width: 768px) {
+  .conversation-chat-notice { width: calc(100% - 16px); }
+  .ppt-requirements-range { grid-template-columns: 1fr; }
+  .ppt-requirements-range > span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .ppt-requirements-workspace *, .conversation-chat-notice * { scroll-behavior: auto; } }
