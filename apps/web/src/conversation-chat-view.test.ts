@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import { createConversationChatState, updateConversationDraft } from "./conversation-chat-state";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView, renderConversationChatView } from "./conversation-chat-view";
+import { createPptRequirementsWorkspaceStore } from "./ppt-requirements-workspace-state";
 
 const conversationChatCss = readFileSync(new URL("./conversation-chat.css", import.meta.url), "utf8");
+const requirementsCss = readFileSync(new URL("./ppt-requirements-workspace.css", import.meta.url), "utf8");
 const mainSource = readFileSync(new URL("./main.ts", import.meta.url), "utf8");
 
 class FakeTextArea {
@@ -30,9 +32,44 @@ class FakeForm {
   }
 }
 
+class FakeButton {
+  private readonly listeners = new Map<string, Array<() => void>>();
+
+  addEventListener(type: string, listener: () => void) {
+    const listeners = this.listeners.get(type) ?? [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  dispatchClick() {
+    for (const listener of [...(this.listeners.get("click") ?? [])]) listener();
+  }
+}
+
+class FakeNoticeRegion {
+  retry = new FakeButton();
+  patchCount = 0;
+  private markup = "";
+
+  set innerHTML(value: string) {
+    this.markup = value;
+    this.patchCount += 1;
+  }
+
+  get innerHTML() {
+    return this.markup;
+  }
+
+  querySelector<T>(selector: string) {
+    if (selector.includes("ppt-workspace-retry") && this.markup.includes("data-ppt-workspace-retry")) return this.retry as T;
+    return null;
+  }
+}
+
 class FakeMainRoot {
   input = new FakeTextArea();
   form = new FakeForm();
+  notice = new FakeNoticeRegion();
   renderCount = 0;
   private markup = "";
 
@@ -48,6 +85,7 @@ class FakeMainRoot {
   querySelector<T>(selector: string) {
     if (selector.includes("conversation-chat-form")) return this.form as T;
     if (selector.includes("conversation-chat-input")) return this.input as T;
+    if (selector.includes("ppt-workspace-notice")) return this.notice as T;
     return null;
   }
 }
@@ -164,6 +202,12 @@ describe("conversation chat view", () => {
     expect(mainSource).toContain('<div class="desktop-app-shell" data-active-section="conversation" style="--desktop-task-width: 0px;">');
   });
 
+  it("keeps the EARLY workspace on create/reuse only without GET or requirements save calls", () => {
+    expect(mainSource).toContain("pptWorkspaceClient.createOrReuse");
+    expect(mainSource).not.toContain("pptWorkspaceClient.getWorkspace");
+    expect(mainSource).not.toContain("pptWorkspaceClient.saveRequirements");
+  });
+
   it("does not rebuild the composer DOM for consecutive input events", () => {
     const controller = createConversationChatController({
       conversationId: "conversation-a",
@@ -202,6 +246,110 @@ describe("conversation chat view", () => {
     expect(controller.getState().draft).toBe("连续");
     expect(mainRoot.renderCount).toBe(initialRenderCount);
     expect(mainRoot.input).toBe(input);
+    dispose();
+  });
+
+  it("retries the failed workspace with the stored request context without resending its message", () => {
+    const context = { conversationId: "conversation-a", requestId: "request-workspace-1", bookId: "book-1" };
+    const workspaceStore = createPptRequirementsWorkspaceStore();
+    workspaceStore.begin(context);
+    workspaceStore.fail(context, new Error("workspace offline"));
+    const retries: Array<typeof context> = [];
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        getSession: async () => ({ id: "conversation-a", revision: 1, draft: null, context: [], activeRun: null, tasks: [], works: [], deleted: false }),
+        sendText: async () => { throw new Error("not used"); },
+      },
+    });
+    const mainRoot = new FakeMainRoot();
+
+    const dispose = mountConversationChatView(
+      mainRoot as unknown as HTMLElement,
+      new FakeTaskRoot() as unknown as HTMLElement,
+      controller,
+      { workspaceStore, onWorkspaceRetry: (retryContext) => retries.push(retryContext) },
+    );
+    mainRoot.notice.retry.dispatchClick();
+
+    expect(retries).toEqual([context]);
+    dispose();
+  });
+
+  it("establishes a definite chat height chain so the stream scrolls and the composer stays pinned", () => {
+    expect(mainSource).toContain('class="desktop-conversation-scroll desktop-conversation-scroll-chat"');
+    expect(mainSource).toMatch(/id=\\?"conversation-chat-main-mount\\?" class=\\?"conversation-chat-mount\\?"/);
+    expect(requirementsCss).toMatch(/\.desktop-conversation-scroll-chat\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*overflow:\s*hidden/s);
+    expect(requirementsCss).toMatch(/\.desktop-conversation-scroll-chat\s*>\s*\[data-conversation-quota-host\]\s*\{[^}]*flex:\s*none/s);
+    expect(requirementsCss).toMatch(/\.conversation-chat-mount\s*\{[^}]*flex:\s*1\s+1\s+auto[^}]*min-height:\s*0/s);
+    expect(requirementsCss).toMatch(/\.conversation-chat-mount\s*>\s*\.conversation-chat-view\s*\{[^}]*height:\s*100%[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto\s+auto/s);
+    expect(conversationChatCss).toMatch(/\.conversation-chat-scroll\s*\{[^}]*overflow:\s*auto/s);
+  });
+
+  it("keeps the workspace notice in a stable region between the stream and the composer", () => {
+    const rendered = renderConversationChatView({
+      state: createConversationChatState("conversation-a"),
+      workspaceState: {
+        phase: "error",
+        context: { conversationId: "conversation-a", requestId: "request-1", bookId: "book-1" },
+        error: new Error("offline"),
+      },
+    });
+
+    const scrollIndex = rendered.main.indexOf('class="conversation-chat-scroll"');
+    const noticeIndex = rendered.main.indexOf("data-ppt-workspace-notice");
+    const composerIndex = rendered.main.indexOf('class="conversation-chat-composer"');
+    expect(noticeIndex).toBeGreaterThan(scrollIndex);
+    expect(composerIndex).toBeGreaterThan(noticeIndex);
+    const scrollBlock = rendered.main.slice(scrollIndex, noticeIndex);
+    expect(scrollBlock).not.toContain("ppt-requirements-notice");
+    const noticeRegion = rendered.main.slice(noticeIndex, composerIndex);
+    expect(noticeRegion).toContain("PPT 工作区暂时无法准备");
+    expect(noticeRegion).toContain("data-ppt-workspace-retry");
+  });
+
+  it("patches only the workspace regions on workspace transitions, preserving composer focus and draft", () => {
+    const context = { conversationId: "conversation-a", requestId: "request-focus-1", bookId: "book-1" };
+    const workspaceStore = createPptRequirementsWorkspaceStore();
+    const controller = createConversationChatController({
+      conversationId: "conversation-a",
+      client: {
+        getSession: async () => ({ id: "conversation-a", revision: 1, draft: null, context: [], activeRun: null, tasks: [], works: [], deleted: false }),
+        sendText: async () => { throw new Error("not used"); },
+      },
+    });
+    const mainRoot = new FakeMainRoot();
+    const taskRoot = new FakeTaskRoot();
+
+    const dispose = mountConversationChatView(
+      mainRoot as unknown as HTMLElement,
+      taskRoot as unknown as HTMLElement,
+      controller,
+      { workspaceStore },
+    );
+    const initialRenderCount = mainRoot.renderCount;
+    const composerInput = mainRoot.input;
+    composerInput.value = "正在输入的草稿";
+    composerInput.dispatchInput();
+
+    workspaceStore.begin(context);
+    expect(mainRoot.renderCount).toBe(initialRenderCount);
+    expect(mainRoot.input).toBe(composerInput);
+    expect(mainRoot.notice.innerHTML).toContain("正在准备这本书的 PPT 范围与需求");
+    expect(taskRoot.innerHTML).toBe("");
+
+    workspaceStore.ready(context, {
+      status: "created",
+      workspace: {
+        draft: { id: "draft-1", conversationId: "conversation-a", stage: "requirements", version: 1, requirements: { purpose: null, audience: null, pageRange: null, additionalRequirements: "" } },
+        sources: [{ bookId: "book-1", title: "测试书", author: null, sourceLabel: "本地" }],
+      },
+    });
+    expect(mainRoot.renderCount).toBe(initialRenderCount);
+    expect(mainRoot.input).toBe(composerInput);
+    expect(controller.getState().draft).toBe("正在输入的草稿");
+    expect(taskRoot.innerHTML).toContain("范围与需求");
+    expect(taskRoot.innerHTML).toContain("desktop-stage-steps");
     dispose();
   });
 

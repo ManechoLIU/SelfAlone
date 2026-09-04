@@ -80,6 +80,9 @@ import {
 import { createConversationChatQuotaFlow } from "./conversation-chat-quota";
 import { createConversationChatController } from "./conversation-chat-controller";
 import { mountConversationChatView } from "./conversation-chat-view";
+import { bookPptEntryFromHash } from "./ppt-book-entry";
+import { createPptWorkspaceClient } from "./ppt-workspace-client";
+import { createPptRequirementsWorkspaceStore } from "./ppt-requirements-workspace-state";
 import { createConversationSelectionClient } from "./conversation-selection-client";
 import { createConversationSelectionController } from "./conversation-selection-controller";
 import {
@@ -1489,11 +1492,12 @@ function renderConversationChatShell(content: string, session: ConversationChatS
       <header class="desktop-conversation-header">
         <div class="desktop-current-title"><h1>老己对话</h1><span>当前会话</span></div>
       </header>
-      <div class="desktop-conversation-scroll">
+      <div class="desktop-conversation-scroll desktop-conversation-scroll-chat">
         <div data-conversation-quota-host>${renderConversationChatQuota(conversationChatQuota, conversationChatQuotaViewState)}</div>
         ${content}
       </div>
     </main>
+    <aside class="desktop-task-panel" aria-label="当前任务工作区" hidden><div data-ppt-requirements-task-root></div></aside>
   </div>`;
 }
 
@@ -1531,7 +1535,8 @@ function renderConversationChat(session: ConversationChatSession) {
     : activeHandoff?.conversationId === session.id
       ? activeHandoff
       : null;
-  const initialDraft = claimedHandoff?.draft;
+  const pptBookEntry = bookPptEntryFromHash(window.location.hash);
+  const initialDraft = claimedHandoff?.draft ?? pptBookEntry?.draft;
   const previousCleanup = conversationChatCleanup ?? conversationSelectionCleanup;
   previousCleanup?.();
   conversationChatCleanup = null;
@@ -1554,11 +1559,29 @@ function renderConversationChat(session: ConversationChatSession) {
     ...conversationChatSessions.filter((candidate) => candidate.id !== session.id),
   ];
   conversationChatDirectoryViewState = { loading: false };
-  app.innerHTML = renderConversationChatShell(`<div id="conversation-chat-main-mount"></div>`, session);
+  app.innerHTML = renderConversationChatShell("<div id=\"conversation-chat-main-mount\" class=\"conversation-chat-mount\"></div>", session);
   bindConversationChatDirectory();
   bindConversationChatQuota();
   const mainMount = document.querySelector<HTMLElement>("#conversation-chat-main-mount");
+  const taskMount = document.querySelector<HTMLElement>("[data-ppt-requirements-task-root]");
   if (!mainMount) return;
+
+  const pptWorkspaceClient = pptBookEntry ? createPptWorkspaceClient() : null;
+  const pptWorkspaceStore = createPptRequirementsWorkspaceStore();
+  const retryWorkspace = async (context: { conversationId: string; requestId: string; bookId: string }) => {
+    if (!pptWorkspaceClient) return;
+    pptWorkspaceStore.begin(context);
+    try {
+      const result = await pptWorkspaceClient.createOrReuse(context.conversationId, {
+        requestId: context.requestId,
+        bookId: context.bookId,
+      });
+      pptWorkspaceStore.ready(context, result);
+    } catch (error) {
+      pptWorkspaceStore.fail(context, error);
+    }
+  };
+
   const controller = createConversationChatController({
     conversationId: session.id,
     client: conversationChatClient,
@@ -1578,12 +1601,20 @@ function renderConversationChat(session: ConversationChatSession) {
           noteIntent,
         )
       : undefined,
+    pptBookEntry: pptBookEntry ?? undefined,
+    pptWorkspaceClient: pptWorkspaceClient ?? undefined,
+    onPptWorkspacePending: (context) => pptWorkspaceStore.begin(context),
+    onPptWorkspaceCreated: (result, context) => { pptWorkspaceStore.ready(context, result); },
+    onPptWorkspaceError: (error, context) => pptWorkspaceStore.fail(context, error),
   });
-  conversationChatCleanup = mountConversationChatView(mainMount, null, controller, {
+
+  conversationChatCleanup = mountConversationChatView(mainMount, taskMount, controller, {
     title: "老己对话",
     selectionController: conversationSelectionController ?? undefined,
     hydrateSelection: !conversationSelectionHydrated,
     settingsReturnTo: window.location.hash,
+    workspaceStore: pptWorkspaceStore,
+    onWorkspaceRetry: (context) => { void retryWorkspace(context); },
   });
   conversationSelectionCleanup = conversationChatCleanup;
   conversationSelectionHydrated = true;
