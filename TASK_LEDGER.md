@@ -5,8 +5,8 @@
 ## 1. 当前控制面
 
 - 当前 Goal：`M1-F5-B / OUTLINE GENERATION AND EDITING`。`M1-F5-A / BOOK-TO-PPT REQUIREMENTS ENTRY` 已在 current-main 关闭；项目级 rollover 选择其直接关键路径后继，范围仅为公开资料补全、大纲生成、连续分层编辑与自动保存，不提前进入模板、生成或 PPTX。
-- 下一可见检查点：`M1-F5-B` 已完成项目级 rollover，但当前明确为 `BLOCKED / RUNTIME LIVE E2E`；先用 `new_assignments=[]` 闭合 revision `78285b066e37decd0836799f1ce875a7d24eeb2b` 的 canonical CLOSED control cycle，再执行该 revision 的 `accept-live-e2e`。门解除后才拆出单目标、互斥文件边界的 Server / Web 工作包并重新计算 READY。
-- 当前阻塞：项目范围内当前没有允许派发的新 Assignment：critical Runtime update 已 `LOADED ACK`、仍为 `pending_live_e2e`，安装合同明确只允许安全控制回合，因此 `M1-F5-B` 暂停在可验证的 control-plane gate；这不是业务永久阻塞。`M1-F5-B` 的真实联网、模型调用与预算仍分别受既有授权边界约束，但不妨碍门解除后先形成本地合同与假实现工作包。六份 terminal receipt 已读取：四份临时结果文件已不存在且 delivery 均 unresolved，只作为进程终态；Grok A1 与 Kimi book-seam 的历史范围均已由后续 main 事实吸收，不重复调用。
+- 下一可见检查点：revision `78285b066e37decd0836799f1ce875a7d24eeb2b` 的 post-wake CLOSED cycle 与 `accept-live-e2e` 已机器闭合，handshake=`current / blocking=false`。当前直接推进 `M1-F5-B`：先冻结 Server 侧公开资料来源 + 分层大纲持久化/API 合同，再释放 Web 连续分层编辑与自动保存；真实联网与真实文本模型调用继续单独受既有授权边界约束。
+- 当前阻塞：Runtime 发布门已解除，不再阻塞新 Assignment。`M1-F5-B` 的真实联网、真实文本模型调用与预算仍分别受既有授权边界约束；当前先实现不产生外部调用的本地合同、持久化、假适配器与编辑/自动保存闭环。六份历史 terminal receipt 已读取并消费：四份临时结果文件已不存在且 delivery 均 unresolved，只作为进程终态；Grok A1 与 Kimi book-seam 的历史范围均已由后续 main 事实吸收，不重复调用。
 - 规则版本：总控已从真实 `main@7f79454` 加载当前 AGENTS（SHA-256 `eb6896fc…c109`）。Adaptive Agent Runtime 安装副本已由 logical controller `01a03c61-5dd2-7553-968b-a3bc2f5777c9` 机器 ACK 精确 revision `78285b066e37decd0836799f1ce875a7d24eeb2b`（manifest SHA-256 `03405911…9de`；`SKILL.md` SHA-256 `927f24cc…15ef4`；`control_event_guard.py` SHA-256 `5fb0e4b4…974`；`lifecycle_hook.py` SHA-256 `399ac946…536b`；`web_lifecycle_bridge.py` SHA-256 `438d01d9…172b`；`controller_target_guard.py` SHA-256 `aa3c4003…2647`）。该 critical update 当前为 `pending_live_e2e`，不得把安装与 LOADED ACK 冒充宿主级完全生效；本轮只允许 `new_assignments=[]` 的控制闭环，不创建第二 logical Controller。
 - 业务父闭环只按用户结果组织为：身份、阅读与笔记、会话、PPT、跨端同步、发布 / 安全；下表技术、端侧与共享合同项均是相应父闭环的执行子包，不单独升级成用户完成宣称。
 - 用户反馈分诊：Reader 草稿缺位置为 `P0 / 当前阅读→会话闭环`，立即返原 writer；Mini 搜索事件缺真实 production query 为 `P2 / 阅读与笔记旁路`，已以 `cda7b4d` 修复并顺序集成；其他既有视觉 / 外部门仍留在原业务父闭环，不打断当前 Writer。
@@ -73,7 +73,7 @@
 | `M1-F5-A1-REWORK-04` | `DONE / CANDIDATE a2c78b4+bf2d95f → MAIN 3a67c1b+c05f2cb / RECOVERED` / 项目总控 | Grok OAuth session `01a0614f-426d-75c2-b0b9-d6894fde4b02` 已 terminal，`result_unknown=false / no-repeat`；总控从同一 clean 工作树恢复未决交付，按同一测试重放 base RED 与 candidate GREEN，关闭 legacy共享路径、不可变首次来源指纹、已发送消息门、单快照、多来源 fail-closed、int4与reset外键边界 | 三路独立非作者审计分别覆盖累计10文件、Store快照与route/reset，均 PASS `0/0/0`；current-main 全门通过后已顺序集成，候选工作树与分支完成内容等价核验后回收，Writer / reviewer / 文件租约全部释放；未改 Web / Mini、未调用真实 Provider |
 | `M1-F5-A1-INT4-VERIFY-02` | `DONE / CANDIDATE 301026d / WRITER VERIFY PASS` / `/root/m1_f5_a1_int4_rework` | 复用既有 clean 修复提交，零新增写入；核验 HTTP 400 / 零 runtime、Store 写前拒绝与快照不变、`expectedVersion` 同单位 | delivered ACK 后定向13、Server270、typecheck、diff-check均PASS；Assignment TERMINAL，文件租约已释放 |
 | `M1-F5-A1-INT4-NONAUTHOR-03` | `DONE / NONAUTHOR PASS / 0-0-0` / `/root/pricing_schedule_review` | 只读复审 `8725581..301026d` 四文件；越界 HTTP / Store 在数据库前拒绝，合法上界不误拒 | 定向13、Server typecheck与fix-range diff-check PASS；Assignment TERMINAL，零写入 |
-| `M1-F5-B` | `BLOCKED / RUNTIME LIVE E2E` / 待分配 | 公开资料补全、大纲生成、分层编辑与自动保存；作为 A 完成后的直接关键路径后继 | A 已关闭；唯一即时恢复动作是闭合 revision `78285b066e37decd0836799f1ce875a7d24eeb2b` 的 canonical CLOSED cycle 并 `accept-live-e2e`，随后重新拆包与计算 READY。真实联网 / 模型调用 / 预算继续单独受授权门约束 |
+| `M1-F5-B` | `READY / CONTRACT-FIRST` / 待分配 | 公开资料补全、大纲生成、连续分层编辑与自动保存；作为 A 完成后的直接关键路径后继 | Runtime handshake 已 `current / blocking=false`；先落 Server 本地合同/持久化/假适配器，冻结 outline API 后释放 Web 编辑器。真实联网 / 模型调用 / 预算继续单独受授权门约束 |
 | `M1-F5-C` | `PENDING` / 待分配 | 三套16:9青瓷模板、真实预览与选择 | 依赖 B；`39b84a4`仅Presenton种子 |
 | `M1-F5-D` | `PENDING` / 待分配 | 任务幂等、Worker租约、停止 / 重启恢复与Presenton适配 | 依赖 C；版本、安全、许可证与真实进度不明时暂停 |
 | `M1-F5-E` | `PENDING` / 待分配 | 生成中、停止、失败、重试、修改大纲、删除与完成瀑布流 | 依赖 D |
