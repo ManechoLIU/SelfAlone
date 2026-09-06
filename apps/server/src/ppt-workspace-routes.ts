@@ -12,7 +12,7 @@ import {
 export type PptWorkspaceRouteRuntime = Pick<
   PptWorkspaceStore,
   "createFromSentIntent" | "getWorkspace" | "saveRequirements" | "replaceSource"
->;
+> & Partial<Pick<PptWorkspaceStore, "saveOutline">>;
 
 export const pptWorkspaceIdentifier = z.string().trim().min(1).max(256);
 const pageCount = z.number().int().positive().max(PPT_WORKSPACE_PAGE_COUNT_MAX);
