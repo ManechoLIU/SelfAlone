@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { PptWorkspaceSnapshot, PptWorkspaceSource } from "@selfalone/contracts";
 import type { Sql, TransactionSql } from "postgres";
+import { PptOutlineRuntime, type PptOutlineParagraph } from "./ppt-outline-runtime";
 
 export const PPT_WORKSPACE_INTEGER_MAX = 2_147_483_647;
 export const PPT_WORKSPACE_PAGE_COUNT_MAX = PPT_WORKSPACE_INTEGER_MAX;
@@ -215,6 +216,52 @@ export class PptWorkspaceStore {
       if (!workspace) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
       return workspace;
     });
+  }
+
+  async saveOutline(input: {
+    accountId: string;
+    draftId: string;
+    expectedVersion: number;
+    paragraphs: PptOutlineParagraph[];
+  }) {
+    const runtime = new PptOutlineRuntime({
+      save: async ({ accountId, draftId, expectedVersion, paragraphs, pageCount }) => {
+        return this.sql.begin(async (transaction) => {
+          const [draft] = await transaction<Array<{ version: number }>>`
+            SELECT version FROM ppt_drafts
+            WHERE account_id = ${accountId} AND id = ${draftId}
+            FOR UPDATE
+          `;
+          if (!draft) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+          if (draft.version !== expectedVersion) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+
+          await transaction`
+            DELETE FROM ppt_outline_nodes
+            WHERE account_id = ${accountId} AND draft_id = ${draftId}
+          `;
+          for (const [nodeOrder, paragraph] of paragraphs.entries()) {
+            await transaction`
+              INSERT INTO ppt_outline_nodes (
+                account_id, draft_id, node_id, node_order, level, body
+              ) VALUES (
+                ${accountId}, ${draftId}, ${paragraph.id}, ${nodeOrder},
+                ${paragraph.level}, ${paragraph.text.trim()}
+              )
+            `;
+          }
+          const [updated] = await transaction<Array<{ version: number }>>`
+            UPDATE ppt_drafts
+            SET version = version + 1, updated_at = now()
+            WHERE account_id = ${accountId} AND id = ${draftId}
+              AND version = ${expectedVersion}
+            RETURNING version
+          `;
+          if (!updated) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+          return { version: updated.version, pageCount };
+        });
+      },
+    });
+    return runtime.saveOutline(input);
   }
 
   async replaceSource(input: {

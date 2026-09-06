@@ -100,6 +100,39 @@ describe("PPT workspace schema migration", () => {
       "PRIMARY KEY (account_id, draft_id, book_id)",
     );
 
+    const outlineColumns = await sql<Array<{ columnName: string; dataType: string }>>`
+      SELECT column_name AS "columnName", data_type AS "dataType"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'ppt_outline_nodes'
+      ORDER BY ordinal_position
+    `;
+    expect(outlineColumns).toEqual(expect.arrayContaining([
+      { columnName: "account_id", dataType: "text" },
+      { columnName: "draft_id", dataType: "text" },
+      { columnName: "node_id", dataType: "text" },
+      { columnName: "node_order", dataType: "integer" },
+      { columnName: "level", dataType: "integer" },
+      { columnName: "body", dataType: "text" },
+    ]));
+
+    const publicSourceColumns = await sql<Array<{ columnName: string }>>`
+      SELECT column_name AS "columnName"
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'ppt_public_sources'
+      ORDER BY ordinal_position
+    `;
+    expect(publicSourceColumns.map((column) => column.columnName)).toEqual(expect.arrayContaining([
+      "account_id",
+      "draft_id",
+      "url",
+      "title",
+      "published_at",
+      "fetched_at",
+      "usage_scope",
+    ]));
+
     await sql`
       INSERT INTO books (id, account_id, title, source_label)
       VALUES ('book-b', 'account-a', '第二本书', '本地')

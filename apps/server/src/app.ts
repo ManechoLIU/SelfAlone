@@ -329,6 +329,14 @@ export function createApp(dependencies: AppDependencies) {
         .min(1)
         .max(15),
     });
+    const workspaceOutlineBody = z.object({
+      expectedVersion: z.number().int().positive(),
+      paragraphs: z.array(z.object({
+        id: pptWorkspaceIdentifier,
+        level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+        text: z.string().trim().min(1).max(2_000),
+      }).strict()).max(1_000),
+    }).strict();
     const taskBody = z.object({
       draftId: z.string().min(1),
       expectedVersion: z.number().int().positive(),
@@ -385,7 +393,21 @@ export function createApp(dependencies: AppDependencies) {
     }
 
     app.put("/api/v1/ppt-drafts/:id/outline", async (request, reply) => {
-      const parameters = z.object({ id: z.string().min(1) }).parse(request.params);
+      const parameters = z.object({ id: pptWorkspaceIdentifier }).strict().parse(request.params);
+      const workspaceBody = workspaceOutlineBody.safeParse(request.body);
+      if (workspaceBody.success && dependencies.pptWorkspace?.saveOutline) {
+        try {
+          const outline = await dependencies.pptWorkspace.saveOutline({
+            accountId: resolveAccountId(request.headers),
+            draftId: parameters.id,
+            expectedVersion: workspaceBody.data.expectedVersion,
+            paragraphs: workspaceBody.data.paragraphs,
+          });
+          return reply.send({ outline });
+        } catch (error) {
+          return sendPptWorkspaceError(error, reply);
+        }
+      }
       const body = outlineBody.parse(request.body);
       return reply.send(await m0.saveOutline(parameters.id, body.expectedVersion, body.outline));
     });

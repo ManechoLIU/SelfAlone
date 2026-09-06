@@ -360,6 +360,59 @@ describe("PPT workspace store", () => {
     expect(await store.getWorkspace("account-b", created.workspace.draft.id)).toBeNull();
   });
 
+  it("persists hierarchical outline paragraphs with optimistic versioning", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await store.saveRequirements({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      requirements: {
+        purpose: "读书会分享",
+        audience: "产品团队",
+        pageRange: { min: 2, max: 6 },
+        additionalRequirements: "",
+      },
+    });
+
+    const saved = await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+      paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+        { id: "point-1", level: 2, text: "核心观点" },
+        { id: "detail-1", level: 3, text: "观点说明" },
+        { id: "page-2", level: 1, text: "第二章" },
+      ],
+    });
+
+    expect(saved).toMatchObject({ version: 3, pageCount: 2 });
+    const rows = await sql<Array<{ nodeId: string; level: number; body: string }>>`
+      SELECT node_id AS "nodeId", level, body
+      FROM ppt_outline_nodes
+      WHERE account_id = 'account-a' AND draft_id = ${created.workspace.draft.id}
+      ORDER BY node_order
+    `;
+    expect(rows).toEqual([
+      { nodeId: "page-1", level: 1, body: "第一章" },
+      { nodeId: "point-1", level: 2, body: "核心观点" },
+      { nodeId: "detail-1", level: 3, body: "观点说明" },
+      { nodeId: "page-2", level: 1, body: "第二章" },
+    ]);
+
+    await expect(store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+      paragraphs: [{ id: "page-x", level: 1, text: "过期写入" }],
+    })).rejects.toThrow("PPT_WORKSPACE_STALE");
+  });
+
   it("persists only normalized fixed requirements with optimistic versioning", async () => {
     const created = await store.createFromSentIntent({
       accountId: "account-a",

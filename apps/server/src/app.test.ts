@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import postgres, { type Sql } from "postgres";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { developmentAccountId } from "./account-migration";
 import { createApp } from "./app";
 import { createM0Runtime, type M0Runtime } from "./m0-runtime";
@@ -217,6 +217,43 @@ describe("PPT workspace composition", () => {
     expect(legacyRequirementsCalls).toBe(1);
     expect(accountScopedCalls).toBe(1);
     await app.close();
+  });
+
+  it("delegates hierarchical outline payloads to the account-scoped workspace runtime", async () => {
+    const saveOutline = vi.fn(async () => ({ version: 3, pageCount: 2, paragraphs: [] }));
+    const m0 = {
+      async getWorkspace() { return { legacy: true }; },
+      async saveRequirements() { return { legacy: true }; },
+      async saveOutline() { return { legacy: true }; },
+      async createTask() { return { id: "task-legacy" }; },
+      async getTask() { return { id: "task-legacy" }; },
+      async stopTask() { return { id: "task-legacy" }; },
+      async getArtifact() { throw new Error("ARTIFACT_NOT_FOUND"); },
+    } as unknown as M0Runtime;
+    const app = createApp({
+      readiness: async () => true,
+      m0,
+      pptWorkspace: {
+        createFromSentIntent: vi.fn(),
+        getWorkspace: vi.fn(),
+        saveRequirements: vi.fn(),
+        replaceSource: vi.fn(),
+        saveOutline,
+      },
+    });
+    const response = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2, paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+        { id: "page-2", level: 1, text: "第二章" },
+      ] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(saveOutline).toHaveBeenCalledWith(expect.objectContaining({
+      draftId: "draft-a", expectedVersion: 2,
+    }));
   });
 
   it("keeps legacy STALE_VERSION and NOT_FOUND mapping when both runtimes share the path", async () => {
