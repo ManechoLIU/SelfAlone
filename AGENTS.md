@@ -95,66 +95,32 @@ Before starting any workflow that materially depends on AI-Bridge:
 
 The governing principle is **fail-closed, not fail-dead**: do not continue through a dependency that is currently unverified or unavailable, but do not permanently kill a healthy Bridge because of one local routing or registration failure.
 
-### Web Controller Binding Standard
+### Controller 会话接续与 Web 临时绑定
 
-When a ChatGPT Web session is appointed or resumed as the project controller:
+新 ChatGPT 会话接续项目时，默认语义是“同一个 logical Controller 换执行会话继续当前 Goal”，不是重新任命 Controller，也不是重新开始 Goal。
 
-1. The formal runtime name is **Adaptive Agent Runtime**.
-   `adaptive-delivery-*` names are legacy-compatible file/path names only.
-
-2. Reuse the project's existing unique logical `controller_id`.
-   Never create a second logical controller when a valid one already exists.
-   Historical tasks, sessions, execution targets, or Web lineage do not constitute another logical controller.
-
-3. The user should preferably provide the current ChatGPT Web conversation/session ID explicitly.
-
-4. Web session identity verification must use only:
-   - the user-confirmed conversation/session ID; and
-   - `browser.list_tabs` to verify that the active ChatGPT tab URL contains the same conversation ID.
-
-5. Do **not** use `snapshot`, `screenshot`, CDP DOM/Accessibility reads, Runtime.evaluate, or any other ChatGPT page-body read merely to verify the current conversation identity.
-
-6. Never substitute any of the following for the Web conversation/session ID:
-   - AI-Bridge `instance_id`
-   - desktop execution target
-   - project ID
-   - GPT ID
-   - previous Web session IDs
-
-7. Before binding, read the current Adaptive Agent Runtime/controller state and preserve:
-   - the existing desktop execution target;
-   - the existing generation;
-   - existing valid Web session lineage.
-
-8. Before modifying controller registry or Web lease state, create timestamped backups.
-
-9. Bind the current Web session idempotently to the existing logical controller and update the active Web lease with semantics equivalent to:
-   - `controller_id` = existing unique logical controller
-   - `repo` = current real project root
-   - `web_session_id` = verified current conversation ID
-   - `provenance = manual_user_authorized`
-   - `mode = resume_only`
-
-10. Prefer the current Adaptive Agent Runtime's official schema/API/command if it has evolved. Use legacy compatibility JSON only when it remains the active mechanism.
-
-11. Use atomic writes and independently verify after binding:
-   - exactly one logical controller remains;
-   - the Web session is registered;
-   - the lease points to the current session;
-   - provenance and mode are correct;
-   - desktop execution target and generation are unchanged;
-   - valid lineage was not deleted;
-   - no project repository files were unintentionally modified.
-
-12. If a platform safety check rejects a specific operation, stop that operation chain and report the exact failing step. Do not attempt to bypass the safety mechanism.
+1. 正式运行合同名为 **Adaptive Agent Runtime**；`adaptive-delivery-*` 仅是历史兼容文件名或路径。
+2. 必须先读取当前 Controller registry、canonical execution target、target generation、rule handshake、当前 Goal、`TASK_LEDGER.md`、WIP / READY、active assignments、terminal / candidate / review / integration 状态，再恢复执行。聊天历史不能替代这些机器事实。
+3. 项目已存在唯一 logical `controller_id` 时必须继续复用。新 Web session、Desktop session、历史 lineage 或 execution-target rotation 都不得创建第二个 logical Controller。
+4. 新会话必须继续当前未完成 Goal；若当前 Goal 已完成，则执行 project-wide recompute / Goal rollover 并继续下一个 Goal。换会话不得重置 Goal、台账或运行状态，也不得要求用户重新描述已经存在于事实源中的当前 Goal。
+5. 当前阶段如果用户希望新的 ChatGPT Web 会话成为接续输入，应由用户明确提供该会话的 conversation/session ID。该 ID 仅作为当前临时 reconcile / same-controller recovery 的**用户确认输入**，不是宿主级身份 attestation，也不能单独生成 `VERIFIED`。
+6. `browser.list_tabs`、当前 URL、截图、snapshot、页面 DOM、AI-Bridge `instance_id`、项目 ID、GPT ID、历史 Web session、Desktop target 或聊天记忆都不能升级为宿主可信 Web identity。它们最多用于辅助定位/一致性检查，不得替代强身份凭证。
+7. 在 AI-Bridge / ChatGPT 宿主尚未提供可信、不可伪造的当前 Web session identity/attestation 接口之前，Web 新会话强绑定属于**尚未具备的能力**。不得把 `manual_user_authorized`、`resume_only` lease、registry 写入或用户提供 session ID 描述成“已经完成强绑定”。
+8. 当前临时方案只允许在 Adaptive Agent Runtime 正式 recovery / reconcile 语义内接续**同一个 Controller**：保持原 `controller_id`、`UNIQUE` ownership、现有有效 lineage 和 canonical target 事实；不得手工伪造 identity receipt，不得为了让新会话通过身份门而覆盖或删除健康的现有 target。
+9. 如果现有 canonical execution target 仍健康、可恢复且能继续履职，优先恢复该 target。只有确有迁移需要时才旋转 execution target；迁移必须保持同一 logical Controller，并按 Runtime 正式 target generation / reconcile 规则完成。
+10. 新 Web 会话暂时不能取得强身份时，不得因此宣称“项目没有总控”或重置 Goal。应区分：项目 logical Controller 是否存在、canonical target 是否可履职、当前 Web 会话自身是否已强验证。安全 control-plane 按 Runtime 的 `DEGRADED` / same-controller recovery 语义继续；真正 identity-sensitive 动作继续 fail-closed。
+11. 未来宿主/AI-Bridge 提供可信 Web session attestation 接口后，应以该接口替换本节第 5–10 条临时兼容流程，并把强验证接入 canonical identity / target rotation；届时用户不应再需要手工提供 session ID。
+12. 如果平台安全检查拒绝具体操作，立即停止该操作链并报告精确失败步骤，不得通过其他工具或命令形式绕过。
 
 
 ### Controller 身份启动门（最高优先级）
 
-- 任何新会话、新宿主入口或恢复会话，在自称“总控 / Controller”、报告“我的总控履职评分”、执行总控专属调度或把当前会话描述为项目 owner 之前，必须先取得当前宿主可验证的 Controller identity receipt。仓库可访问、AI-Bridge 可操作、本项目历史任命、聊天记忆、project context、registered `controller_id` 存在、手工 `resume_only` lease 或同一 Git common-dir 都不能单独证明当前会话就是 Controller。
-- Web 会话必须由宿主提供可信 `web_session_id`，并与 registry 中该仓库唯一 registered Controller 的 Web binding 精确匹配；无法取得、未绑定或冲突时一律 `controller_identity=UNVERIFIED`、`controller_actions_allowed=false`，当前会话只能作为辅助/检查会话工作，禁止口头冒认。规则采用“没有证明 = 不是总控”，不得使用“没有反证 = 默认总控”。
-- Adaptive Agent Runtime 的 Web 入口用 `web_lifecycle_bridge.py controller-identity --repo <repo> --web-session-id <trusted-id>` 生成机器判定；只有 `VERIFIED` receipt 才能作为当前 Web 会话的 Controller 身份证据。没有可信宿主 session identity 时，该命令必须 fail closed（78），且不得生成 VERIFIED receipt。
-- 身份与权限必须分开报告：`repo_access` 只表示能读取/修改仓库；`controller_identity` 表示当前会话身份；`controller_actions_allowed` 表示是否允许执行 Controller 专属动作。不得从前者推导后两者。
+- 项目 ownership 与当前聊天会话身份必须分开判断。仓库可访问、AI-Bridge 可操作、本项目历史任命、聊天记忆、project context、registered `controller_id` 存在、手工 `resume_only` lease 或同一 Git common-dir，都不能单独证明某个 host/session 是 VERIFIED execution target。
+- 执行 Controller-exclusive mutation 前，必须确认**实际承载该动作的 canonical execution target** 已取得可验证的 Controller identity receipt。若当前 ChatGPT Web 会话本身要被提升为 execution target，则它必须先通过对应 Web identity 判定；若 registry 中同一唯一 logical Controller 已有另一个 `VERIFIED` canonical current target，则项目总控可继续通过该 target 履职，不能因为当前 Web 聊天自身未 VERIFIED 就把整个项目降级为“没有总控 / 只能只读”。
+- Web 会话强身份必须来自宿主可信、不可伪造的 session identity/attestation，并与 registry / canonical target 精确匹配。用户提供的 session ID、`browser.list_tabs`、URL、snapshot、DOM、截图、`manual_user_authorized` 或 `resume_only` lease 都不能单独升级为 `VERIFIED`；没有强身份能力时，当前 Web 会话只保持它实际拥有的辅助 / reconcile / same-controller recovery 权限。
+- Adaptive Agent Runtime 的直接身份入口使用 canonical CLI：`controller_target_guard.py identity --repo <repo> --host <host> --session-id <trusted-id>`。其结果以 `controller_identity_projection()` 为权威机器判定；`identity_state=VERIFIED` 且 `controller_actions_allowed=true` 只授权**被检查的该 host/session target**。`UNVERIFIED` / `DEGRADED` / `CONFLICTED` 必须保持对应失败关闭语义，不得口头升级。
+- 身份与权限必须分开报告：`repo_access` 只表示能读取/修改仓库；`project_controller_state` 表示项目唯一 logical Controller 是否存在及 ownership；`session_binding_state` / `identity_state` 表示被检查入口；`controller_actions_allowed` 表示该 target 是否可执行 Controller-exclusive mutation。不得从其中任一项越级推导其他项。
+- 身份结论必须明确写出被验证的 host、session_id、target generation / provenance。当前 Web 聊天未 VERIFIED，不等于项目唯一 logical Controller 的 canonical execution target 未 VERIFIED；另一个 Desktop/Web target 已 VERIFIED，也不能自动把当前 Web 聊天升级为 VERIFIED。
 
 - 所有判断以可验证事实为最高优先级；证据不足时必须明确标记为“未知 / 尚未确认 / 推测”，禁止为了给出完整答案而用合理猜测补全事实。
 - 用户的认同、猜测或“应该是”不能替代事实校验，也不得把候选结论自动升级为已验证事实。
@@ -192,6 +158,7 @@ When a ChatGPT Web session is appointed or resumed as the project controller:
 ## 5. 上下文、Goal 与台账
 
 - 长任务、台账粒度、Goal、Compact、Wiki、Raw Sources 和长期记忆的方法统一遵循全局 `adaptive-delivery` Skill；本项目文件不复制方法说明。
+- 新会话接续唯一项目总控时必须从当前主线与 Runtime 事实源恢复同一 logical Controller 的当前 Goal 和控制状态：当前 Goal 未完成则直接继续，已完成则自动 rollover 到下一 Goal；不得把“新聊天会话”解释成“新 Controller / 新 Goal / 重新开工”。若当前 Web 会话因宿主强身份接口尚未提供而无法成为 VERIFIED execution target，仍优先恢复现有 canonical target 或使用正式 same-controller recovery；不得因会话切换丢失 Goal 连续性。
 - `adaptive-delivery` 是 SelfAlone 唯一持续项目总控的运行合同，不是遇到台账问题才临时引用。项目总控保留范围、目标、动态拆分与调度、共享契约、文档职责与一致性、唯一台账、候选 / 分支集成、冲突处理和最终验收；实现、QA 与非作者审查按无写入重叠的边界分派。这里的“持续”指持续所有权与事件触发式履职，正常执行期间回到 idle，不以高频轮询或定时唤醒持续占用模型。不得按一个问题或一份文档机械增设长期管理 Agent；没有总控时由当前主 Agent 先接管并建立控制面。
 - 子任务 ACK、候选提交、验收结论、失败、用户反馈或主线集成任一事件发生后，项目总控必须在同一事件链先核对真实主线 `HEAD`、状态和唯一台账，再同步受影响任务的状态、证据、阻塞与下一步；不得用控制工作树中的旧台账副本继续调度。新证据否定既有视觉结论时自动重开受影响的视觉门，旧 `PASS` 只保留未受影响的局部收据，不得继续代表整页或整个工作包通过。
 - 项目总控必须从当前唯一主线加载适用的 `AGENTS.md` 与 Skill 合同；若总控运行在落后主线的隔离工作树，必须在每个事件回合开始时显式读取真实主线对应文件，并在调度收据记录已加载的主线提交。治理规则提交后，在总控回传“已加载精确提交”的 ACK 前不得宣称规则已经生效；长期落后的控制工作树不能继续作为调度事实源。
