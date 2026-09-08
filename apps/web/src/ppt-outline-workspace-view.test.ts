@@ -146,6 +146,22 @@ describe("PPT outline workspace view", () => {
     expect(empty).toContain("当前 0 页");
   });
 
+  it("documents the structural keys and the Escape exit next to the editor", () => {
+    const rendered = renderPptOutlineWorkspaceView(readyState(), { source });
+
+    expect(rendered).toContain("ppt-outline-editor-help");
+    expect(rendered).toContain("Enter");
+    expect(rendered).toContain("Tab");
+    expect(rendered).toContain("Esc");
+  });
+
+  it("keeps the back action and inline retry at least 44px interactive targets", () => {
+    expect(outlineCss).toMatch(/\.ppt-outline-back\s*\{[^}]*min-height:\s*44px/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-back\s*\{[^}]*min-width:\s*44px/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-status\s+button\s*\{[^}]*min-height:\s*44px/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-status\s+button\s*\{[^}]*min-width:\s*44px/s);
+  });
+
   it("keeps the visual contract on shared tokens, focus, responsive widths and reduced motion", () => {
     expect(outlineCss).toContain("var(--desktop-");
     expect(outlineCss).toContain("focus-visible");

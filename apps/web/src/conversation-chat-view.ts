@@ -5,8 +5,8 @@ import { escapeHtml } from "./ui/desktop-shell";
 import type { ConversationChatController } from "./conversation-chat-controller";
 import type { PptRequirementsWorkspaceState } from "./ppt-requirements-workspace-state";
 import { renderPptRequirementsWorkspaceNotice, renderPptRequirementsWorkspaceView } from "./ppt-requirements-workspace-view";
-import type { PptOutlineWorkspaceState } from "./ppt-outline-workspace-state";
-import { renderPptOutlineWorkspaceView } from "./ppt-outline-workspace-view";
+import type { PptOutlineFocusHint, PptOutlineWorkspaceState } from "./ppt-outline-workspace-state";
+import { renderPptOutlineRows, renderPptOutlineWorkspaceView } from "./ppt-outline-workspace-view";
 import type { ConversationChatMessage, ConversationChatState } from "./conversation-chat-state";
 import type { ConversationSelectionController } from "./conversation-selection-controller";
 import {
@@ -42,13 +42,13 @@ export type ConversationChatMountOptions = {
     subscribe(listener: (state: PptRequirementsWorkspaceState) => void): () => void;
   };
   onWorkspaceRetry?: (context: { conversationId: string; requestId: string; bookId: string }) => void;
-  onRequirementsSubmit?: (input: { purpose: string; audience: string; pageRange: { min: number; max: number }; additionalRequirements: string }) => void;
+  onRequirementsSubmit?: (input: { purpose: string; audience: string; pageRange: { min: number; max: number }; additionalRequirements: string }) => Promise<void> | void;
   outlineStore?: {
     getState(): PptOutlineWorkspaceState;
     subscribe(listener: (state: PptOutlineWorkspaceState) => void): () => void;
     editText(id: string, text: string): void;
-    split(id: string, offset: number): unknown;
-    backspaceAtStart(id: string): unknown;
+    split(id: string, offset: number): PptOutlineFocusHint | null;
+    backspaceAtStart(id: string): { kind: "removed" | "outdented" | "merged"; focus: PptOutlineFocusHint } | null;
     indent(id: string): boolean;
     outdent(id: string): boolean;
     retrySave(): Promise<void>;
@@ -168,6 +168,35 @@ export function mountConversationChatView(
     });
   };
 
+  const applyOutlineFocus = (hint: PptOutlineFocusHint | null | undefined) => {
+    if (!hint || !taskRoot) return;
+    const rows = Array.from(taskRoot.querySelectorAll<HTMLElement>("[data-paragraph-id]"));
+    const row = rows.find((candidate) => candidate.dataset.paragraphId === hint.id);
+    const target = row?.querySelector<HTMLTextAreaElement>("[data-ppt-outline-text]");
+    if (!target) return;
+    target.focus();
+    target.setSelectionRange(hint.offset, hint.offset);
+  };
+
+  // Rebuild the editor rows only when the paragraph structure (ids, levels,
+  // orphan hints) diverges from the store, so pure text edits keep their
+  // textarea, caret and focus while structural keys never leave ghost rows.
+  const syncOutlineRows = (nextState: PptOutlineWorkspaceState & { phase: "ready" }) => {
+    const editor = taskRoot?.querySelector<HTMLElement>("[data-ppt-outline-editor]");
+    if (!editor) return;
+    const desired = nextState.paragraphs.length > 0
+      ? nextState.paragraphs
+      : [{ id: "ppt-outline-first-page", level: 1 as const, text: "" }];
+    const rows = Array.from(editor.querySelectorAll<HTMLElement>("[data-paragraph-id]"));
+    const inSync = rows.length === desired.length && rows.every((row, index) => {
+      const paragraph = desired[index];
+      return row.dataset.paragraphId === paragraph.id
+        && row.dataset.level === String(paragraph.level)
+        && (row.querySelector("[data-ppt-outline-orphan]") !== null) === nextState.orphanIds.includes(paragraph.id);
+    });
+    if (!inSync) editor.innerHTML = renderPptOutlineRows(nextState);
+  };
+
   const syncTaskPanel = () => {
     if (!taskRoot) return;
     const taskPanel = taskRoot.closest<HTMLElement>(".desktop-task-panel");
@@ -198,27 +227,65 @@ export function mountConversationChatView(
       });
       requirementsForm?.addEventListener("submit", (event) => {
         event.preventDefault();
-        const fields = new FormData(requirementsForm);
-        const min = Number(fields.get("pageMin"));
-        const max = Number(fields.get("pageMax"));
-        if (Number.isSafeInteger(min) && Number.isSafeInteger(max) && min > 0 && max >= min) {
-          options.onRequirementsSubmit?.({
-            purpose: String(fields.get("purpose") ?? ""),
-            audience: String(fields.get("audience") ?? ""),
-            pageRange: { min, max },
-            additionalRequirements: String(fields.get("additionalRequirements") ?? ""),
-          });
-        }
-      });
-      taskRoot.querySelectorAll<HTMLTextAreaElement>("[data-ppt-outline-text]").forEach((input) => {
-        input.addEventListener("input", () => options.outlineStore?.editText(input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId ?? "", input.value));
-        input.addEventListener("keydown", (event) => {
-          const id = input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId;
-          if (!id) return;
-          if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); options.outlineStore?.split(id, input.selectionStart ?? input.value.length); }
-          if (event.key === "Tab") { event.preventDefault(); event.shiftKey ? options.outlineStore?.outdent(id) : options.outlineStore?.indent(id); }
-          if (event.key === "Backspace" && (input.selectionStart ?? 0) === 0 && (input.selectionEnd ?? 0) === 0) { const result = options.outlineStore?.backspaceAtStart(id); if (result) event.preventDefault(); }
+        const submitButton = requirementsForm.querySelector<HTMLButtonElement>("[data-ppt-requirements-generate]");
+        // A disabled submit means a save+generate chain is already in flight;
+        // duplicate submits must not start a second one with a stale version.
+        if (submitButton?.disabled) return;
+        const fieldValue = (name: string) => requirementsForm.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)?.value ?? "";
+        const min = Number(minInput?.value ?? "");
+        const max = Number(maxInput?.value ?? "");
+        if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min <= 0 || max < min) return;
+        setRequirementsSubmitBusy(submitButton, true);
+        const result = options.onRequirementsSubmit?.({
+          purpose: fieldValue("purpose"),
+          audience: fieldValue("audience"),
+          pageRange: { min, max },
+          additionalRequirements: fieldValue("additionalRequirements"),
         });
+        void Promise.resolve(result).catch(() => undefined).then(() => setRequirementsSubmitBusy(submitButton, false));
+      });
+      // Delegated editing: listeners live on the editor element so structural
+      // row rebuilds never orphan the handlers, and every structural key applies
+      // the store focus hint after the synchronous reconciliation.
+      const outlineEditor = taskRoot.querySelector<HTMLElement>("[data-ppt-outline-editor]");
+      outlineEditor?.addEventListener("input", (event) => {
+        const input = (event.target as HTMLElement | null)?.closest("[data-ppt-outline-text]") as HTMLTextAreaElement | null;
+        if (!input) return;
+        const id = input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId;
+        if (!id) return;
+        options.outlineStore?.editText(id, input.value);
+      });
+      outlineEditor?.addEventListener("keydown", (event) => {
+        const input = (event.target as HTMLElement | null)?.closest("[data-ppt-outline-text]") as HTMLTextAreaElement | null;
+        if (!input) return;
+        const id = input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId;
+        if (!id) return;
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          applyOutlineFocus(options.outlineStore?.split(id, input.selectionStart ?? input.value.length));
+          return;
+        }
+        if (event.key === "Tab") {
+          event.preventDefault();
+          const offset = input.selectionStart ?? 0;
+          const changed = event.shiftKey ? options.outlineStore?.outdent(id) : options.outlineStore?.indent(id);
+          if (changed) applyOutlineFocus({ id, offset });
+          return;
+        }
+        if (event.key === "Backspace" && (input.selectionStart ?? 0) === 0 && (input.selectionEnd ?? 0) === 0) {
+          const result = options.outlineStore?.backspaceAtStart(id);
+          if (result) {
+            event.preventDefault();
+            applyOutlineFocus(result.focus);
+          }
+          return;
+        }
+        if (event.key === "Escape") {
+          // Tab is reserved for hierarchy inside the editor; Escape is the
+          // documented way out, landing on the next actionable control.
+          event.preventDefault();
+          taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-back]")?.focus();
+        }
       });
       taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-retry]")?.addEventListener("click", () => { void options.outlineStore?.retrySave(); });
       taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-back]")?.addEventListener("click", () => options.onOutlineBack?.());
@@ -284,6 +351,7 @@ export function mountConversationChatView(
       patchWorkspaceRegions();
       return;
     }
+    syncOutlineRows(nextState);
     const pageCount = taskRoot?.querySelector<HTMLElement>("[data-ppt-outline-pagecount]");
     if (pageCount) pageCount.textContent = `当前 ${nextState.paragraphs.filter((paragraph) => paragraph.level === 1).length} 页`;
     const rendered = document.createElement("div");
@@ -307,6 +375,14 @@ export function mountConversationChatView(
     unsubscribeOutline?.();
     disposeSelectionMounts();
   };
+}
+
+function setRequirementsSubmitBusy(button: HTMLButtonElement | null, busy: boolean) {
+  if (!button) return;
+  button.disabled = busy;
+  button.textContent = busy ? "正在生成大纲…" : "生成大纲";
+  if (busy) button.setAttribute("aria-busy", "true");
+  else button.removeAttribute("aria-busy");
 }
 
 function isDraftOnlyChange(previous: ConversationChatState, next: ConversationChatState) {

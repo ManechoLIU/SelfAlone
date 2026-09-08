@@ -40,6 +40,7 @@ export function renderPptOutlineWorkspaceView(
       <div class="ppt-outline-editor" data-ppt-outline-editor role="group" aria-label="大纲连续编辑">
         ${renderPptOutlineRows(state)}
       </div>
+      <p class="ppt-outline-editor-help">Enter 分段，Tab / Shift+Tab 调整层级，Esc 离开编辑器</p>
       ${renderProvenance(state)}
       ${renderSaveStatus(state)}
     </div>

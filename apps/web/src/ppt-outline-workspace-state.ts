@@ -180,7 +180,7 @@ export function createPptOutlineWorkspaceStore(options: PptOutlineStoreOptions) 
       dirty: true,
       orphanIds,
       saveBlocked,
-      saveStatus: saveBlocked ? "pending" : "pending",
+      saveStatus: "pending",
     });
     if (!saveBlocked) {
       timer = schedule(() => { void doSave(); }, delayMs);
@@ -325,6 +325,12 @@ export function createPptOutlineWorkspaceStore(options: PptOutlineStoreOptions) 
     async retrySave() {
       if (state.phase !== "ready") return;
       cancelTimer();
+      if (saving) {
+        // A save is already in flight: queue a resave so the inline retry has a
+        // deterministic visible outcome instead of being swallowed by the flight.
+        if (!state.dirty) publish({ ...state, dirty: true, saveStatus: "pending" });
+        return;
+      }
       await doSave();
     },
   };

@@ -341,6 +341,43 @@ describe("PPT outline workspace store", () => {
     ]);
   });
 
+  it("queues a visible resave when retrySave is requested during an in-flight save", async () => {
+    const scheduler = createScheduler();
+    const saves: number[] = [];
+    let resolveFirst: ((snapshot: PptOutlineSnapshot) => void) | null = null;
+    const store = createPptOutlineWorkspaceStore({
+      schedule: scheduler.schedule,
+      clearScheduled: scheduler.clear,
+      save: async (input) => {
+        saves.push(input.expectedVersion);
+        if (saves.length === 1) {
+          return new Promise<PptOutlineSnapshot>((resolve) => { resolveFirst = resolve; });
+        }
+        return snapshot({ version: input.expectedVersion + 1 });
+      },
+      recover: async () => null,
+    });
+    store.ready("draft-1", snapshot());
+    store.editText("page-1", "第一版修改");
+    scheduler.flush();
+    await Promise.resolve();
+    expect(saves).toEqual([3]);
+    expect(store.getState()).toMatchObject({ saveStatus: "saving", dirty: false });
+
+    await store.retrySave();
+    expect(store.getState()).toMatchObject({ saveStatus: "pending", dirty: true });
+
+    const completeFirstSave = resolveFirst as ((next: PptOutlineSnapshot) => void) | null;
+    expect(completeFirstSave).not.toBeNull();
+    completeFirstSave?.(snapshot({ version: 4 }));
+    for (let i = 0; i < 4; i += 1) await Promise.resolve();
+    expect(scheduler.scheduled).toHaveLength(1);
+    scheduler.flush();
+    for (let i = 0; i < 4; i += 1) await Promise.resolve();
+    expect(saves).toEqual([3, 4]);
+    expect(store.getState()).toMatchObject({ saveStatus: "saved", version: 5, dirty: false });
+  });
+
   it("resaves when edits arrive during an in-flight save", async () => {
     const scheduler = createScheduler();
     const saves: number[] = [];

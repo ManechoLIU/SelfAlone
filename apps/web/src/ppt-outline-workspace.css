@@ -11,6 +11,7 @@
 .ppt-outline-source,
 .ppt-outline-provenance,
 .ppt-outline-pagecount,
+.ppt-outline-editor-help,
 .ppt-outline-status {
   margin: 0;
   color: var(--desktop-text-muted);
@@ -130,6 +131,8 @@
 }
 
 .ppt-outline-status button {
+  min-width: 44px;
+  min-height: 44px;
   margin-left: 8px;
   padding: 2px 8px;
 }
@@ -142,7 +145,8 @@
 }
 
 .ppt-outline-back {
-  min-height: 40px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0 16px;
 }
 

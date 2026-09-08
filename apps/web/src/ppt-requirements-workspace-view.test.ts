@@ -24,7 +24,8 @@ describe("PPT requirements workspace view", () => {
     expect(rendered).toContain('value="10-12"');
     expect(rendered).toContain('name="additionalRequirements"');
     expect(rendered).not.toContain("保存需求");
-    expect(rendered).not.toContain("生成大纲");
+    expect(rendered).toContain('data-ppt-requirements-generate');
+    expect(rendered).toContain(">生成大纲</button>");
   });
 
   it("offers keyboard-native common purpose and audience options while preserving free custom input", () => {

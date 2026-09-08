@@ -1597,6 +1597,7 @@ function renderConversationChat(session: ConversationChatSession) {
   const workspaceRequestKey = pptBookEntry
     ? `${pptWorkspaceRequestStoragePrefix}:${encodeURIComponent(authState.account?.id ?? "account-development-local")}:${encodeURIComponent(session.id)}:${encodeURIComponent(pptBookEntry.bookId)}`
     : null;
+  let requirementsSubmitInFlight = false;
 
   const controller = createConversationChatController({
     conversationId: session.id,
@@ -1637,8 +1638,11 @@ function renderConversationChat(session: ConversationChatSession) {
     outlineStore: pptOutlineStore,
     onRequirementsSubmit: (input) => {
       const current = pptWorkspaceStore.getState();
-      if (!pptWorkspaceClient || !pptOutlineClient || current.phase !== "ready") return;
-      void (async () => {
+      if (!pptWorkspaceClient || !pptOutlineClient || current.phase !== "ready" || requirementsSubmitInFlight) {
+        return Promise.resolve();
+      }
+      requirementsSubmitInFlight = true;
+      return (async () => {
         try {
           const saved = await pptWorkspaceClient.saveRequirements(current.workspace.draft.id, {
             expectedVersion: current.workspace.draft.version,
@@ -1648,6 +1652,8 @@ function renderConversationChat(session: ConversationChatSession) {
           pptOutlineStore.ready(saved.draft.id, generated);
         } catch (error) {
           pptWorkspaceStore.fail(current.context, error);
+        } finally {
+          requirementsSubmitInFlight = false;
         }
       })();
     },
