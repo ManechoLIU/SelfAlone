@@ -290,8 +290,7 @@ export class PptWorkspaceStore {
     publicSources?: PptPublicSource[];
   }) {
     const normalized = normalizeOutlineWrite(input);
-    await this.#outlineRuntime().saveOutline(normalized);
-    return this.#requireOutline(normalized.accountId, normalized.draftId);
+    return canonicalizeOutlineSnapshot(await this.#outlineRuntime().saveOutline(normalized));
   }
 
   async generateOutline(input: {
@@ -308,7 +307,7 @@ export class PptWorkspaceStore {
     assertIncrementableVersion(input.expectedVersion);
     const workspace = await this.getWorkspace(accountId, draftId);
     if (!workspace) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
-    await this.#outlineRuntime().generateOutline({
+    return canonicalizeOutlineSnapshot(await this.#outlineRuntime().generateOutline({
       accountId,
       draftId,
       expectedVersion: input.expectedVersion,
@@ -318,14 +317,7 @@ export class PptWorkspaceStore {
       additionalRequirements: workspace.draft.requirements.additionalRequirements,
       sources: workspace.sources,
       signal: input.signal,
-    });
-    return this.#requireOutline(accountId, draftId);
-  }
-
-  async #requireOutline(accountId: string, draftId: string) {
-    const outline = await this.getOutline(accountId, draftId);
-    if (!outline) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
-    return outline;
+    }));
   }
 
   #outlineRuntime() {
@@ -572,6 +564,13 @@ function assertIncrementableVersion(expectedVersion: number) {
   ) {
     throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
   }
+}
+
+function canonicalizeOutlineSnapshot(snapshot: PptOutlineSnapshot): PptOutlineSnapshot {
+  return {
+    ...snapshot,
+    publicSources: [...snapshot.publicSources].sort((left, right) => left.url.localeCompare(right.url)),
+  };
 }
 
 function toPublicSource(row: PublicSourceRow): PptPublicSource {

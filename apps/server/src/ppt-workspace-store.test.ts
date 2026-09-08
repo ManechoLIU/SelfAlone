@@ -734,6 +734,69 @@ describe("PPT workspace store", () => {
     });
   });
 
+  it("returns the snapshot committed by this save rather than a later concurrent save", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    let releaseFirstResponse = () => {};
+    const firstResponsePaused = new Promise<void>((resolve) => {
+      releaseFirstResponse = resolve;
+    });
+    let firstCommitCompleted = () => {};
+    const firstResponseStarted = new Promise<void>((resolve) => {
+      firstCommitCompleted = resolve;
+    });
+    const firstWriter = new PptWorkspaceStore(interceptOutlineResponseRead(sql, async () => {
+      firstCommitCompleted();
+      await firstResponsePaused;
+    }));
+
+    const first = firstWriter.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "first-page", level: 1, text: "第一份大纲" }],
+      publicSources: [{
+        url: "https://example.invalid/first",
+        title: "第一份资料",
+        publishedAt: null,
+        fetchedAt: "2026-09-08T00:00:00.000Z",
+        usageScope: "outline",
+      }],
+    });
+    await firstResponseStarted;
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+      paragraphs: [{ id: "second-page", level: 1, text: "第二份大纲" }],
+      publicSources: [{
+        url: "https://example.invalid/second",
+        title: "第二份资料",
+        publishedAt: null,
+        fetchedAt: "2026-09-08T00:01:00.000Z",
+        usageScope: "outline",
+      }],
+    });
+    releaseFirstResponse();
+
+    await expect(first).resolves.toEqual({
+      version: 2,
+      pageCount: 1,
+      paragraphs: [{ id: "first-page", level: 1, text: "第一份大纲" }],
+      publicSources: [{
+        url: "https://example.invalid/first",
+        title: "第一份资料",
+        publishedAt: null,
+        fetchedAt: "2026-09-08T00:00:00.000Z",
+        usageScope: "outline",
+      }],
+    });
+  });
+
   it("accepts a page count at the PostgreSQL integer maximum", async () => {
     const created = await store.createFromSentIntent({
       accountId: "account-a",
@@ -958,6 +1021,21 @@ function interceptOutlineDraftRead(sql: Sql, barrier: () => Promise<void>): Sql 
         options,
         async (transaction) => callback(interceptQuery(transaction as unknown as Sql)),
       );
+    },
+  });
+}
+
+function interceptOutlineResponseRead(sql: Sql, barrier: () => Promise<void>): Sql {
+  return new Proxy(sql, {
+    get(target, property, receiver) {
+      if (property !== "begin") return Reflect.get(target, property, receiver);
+      return async (...args: unknown[]) => {
+        const result = await Reflect.apply(target.begin, target, args);
+        if (typeof args[0] === "function") {
+          await barrier();
+        }
+        return result;
+      };
     },
   });
 }
