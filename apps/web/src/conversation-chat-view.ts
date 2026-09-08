@@ -277,7 +277,22 @@ export function mountConversationChatView(
     workspaceState = nextState;
     patchWorkspaceRegions();
   });
-  const unsubscribeOutline = options.outlineStore?.subscribe((nextState) => { outlineState = nextState; patchWorkspaceRegions(); });
+  const unsubscribeOutline = options.outlineStore?.subscribe((nextState) => {
+    const previous = outlineState;
+    outlineState = nextState;
+    if (previous.phase !== "ready" || nextState.phase !== "ready") {
+      patchWorkspaceRegions();
+      return;
+    }
+    const pageCount = taskRoot?.querySelector<HTMLElement>("[data-ppt-outline-pagecount]");
+    if (pageCount) pageCount.textContent = `当前 ${nextState.paragraphs.filter((paragraph) => paragraph.level === 1).length} 页`;
+    const rendered = document.createElement("div");
+    rendered.innerHTML = renderPptOutlineWorkspaceView(nextState);
+    const nextStatus = rendered.querySelector<HTMLElement>("[data-ppt-outline-status]");
+    const currentStatus = taskRoot?.querySelector<HTMLElement>("[data-ppt-outline-status]");
+    if (nextStatus && currentStatus) currentStatus.replaceWith(nextStatus);
+    taskRoot?.querySelector<HTMLButtonElement>("[data-ppt-outline-retry]")?.addEventListener("click", () => { void options.outlineStore?.retrySave(); });
+  });
   render(controller.getState());
   void controller.hydrate();
   if (options.selectionController && options.hydrateSelection !== false) {
