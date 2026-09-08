@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  createFakePptOutlineGenerationAdapter,
+  createFakePptPublicSourceAdapter,
+} from "./ppt-outline-adapters";
 import { PptOutlineRuntime, PptOutlineRuntimeError } from "./ppt-outline-runtime";
 
 describe("PptOutlineRuntime", () => {
@@ -41,6 +45,47 @@ describe("PptOutlineRuntime", () => {
       ],
       pageCount: 2,
     });
+  });
+
+  it("uses the injected fake research and generation seam and fails closed without it", async () => {
+    const save = vi.fn(async () => ({ version: 4 }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      throw new Error("network disabled");
+    });
+    const missing = new PptOutlineRuntime({ save });
+    const generateInput = {
+      accountId: "account-a",
+      draftId: "draft-a",
+      expectedVersion: 3,
+      purpose: "读书会分享",
+      audience: "产品团队",
+      pageRange: { min: 2, max: 6 } as const,
+      additionalRequirements: "",
+      sources: [{ bookId: "book-a", title: "第一本书", author: "甲作者" }],
+    };
+
+    await expect(missing.generateOutline(generateInput)).rejects.toEqual(
+      new PptOutlineRuntimeError("PPT_OUTLINE_ADAPTER_NOT_CONFIGURED"),
+    );
+    expect(save).not.toHaveBeenCalled();
+
+    const runtime = new PptOutlineRuntime({ save }, {
+      generation: createFakePptOutlineGenerationAdapter(),
+      publicSources: createFakePptPublicSourceAdapter(),
+    });
+    const generated = await runtime.generateOutline(generateInput);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(generated.pageCount).toBe(1);
+    expect(generated.publicSources).toHaveLength(2);
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      accountId: "account-a",
+      draftId: "draft-a",
+      expectedVersion: 3,
+      pageCount: 1,
+      publicSources: generated.publicSources,
+    }));
+    fetchSpy.mockRestore();
   });
 });
 

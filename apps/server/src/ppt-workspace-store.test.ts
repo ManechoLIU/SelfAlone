@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
+import Fastify from "fastify";
 import postgres, { type Sql } from "postgres";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createFakePptOutlineGenerationAdapter,
+  createFakePptPublicSourceAdapter,
+} from "./ppt-outline-adapters";
+import { migratePptOutlineSchema } from "./ppt-outline-migration";
+import { PptOutlineRuntimeError } from "./ppt-outline-runtime";
 import { migratePptWorkspaceSchema } from "./ppt-workspace-migration";
+import { registerPptWorkspaceRoutes } from "./ppt-workspace-routes";
 import { PptWorkspaceStore } from "./ppt-workspace-store";
 
 const baseDatabaseUrl =
@@ -22,8 +30,12 @@ describe("PPT workspace store", () => {
     sql = postgres(databaseUrl.toString(), { max: 4 });
     await createBaseSchema(sql);
     await migratePptWorkspaceSchema(sql);
+    await migratePptOutlineSchema(sql);
     await seedAccountsAndMessages(sql);
-    store = new PptWorkspaceStore(sql);
+    store = new PptWorkspaceStore(sql, {
+      generation: createFakePptOutlineGenerationAdapter(),
+      publicSources: createFakePptPublicSourceAdapter(),
+    });
   });
 
   afterEach(async () => {
@@ -411,6 +423,104 @@ describe("PPT workspace store", () => {
       expectedVersion: 2,
       paragraphs: [{ id: "page-x", level: 1, text: "过期写入" }],
     })).rejects.toThrow("PPT_WORKSPACE_STALE");
+
+    const loaded = await store.getOutline("account-a", created.workspace.draft.id);
+    expect(loaded).toMatchObject({
+      version: 3,
+      pageCount: 2,
+      paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+        { id: "point-1", level: 2, text: "核心观点" },
+        { id: "detail-1", level: 3, text: "观点说明" },
+        { id: "page-2", level: 1, text: "第二章" },
+      ],
+    });
+    expect(await store.getOutline("account-b", created.workspace.draft.id)).toBeNull();
+  });
+
+  it("rejects orphan children without writing nodes and isolates outline writes by account", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+
+    await expect(store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "point-orphan", level: 2, text: "没有页面的要点" }],
+    })).rejects.toEqual(new PptOutlineRuntimeError("PPT_OUTLINE_ORPHAN_CHILD"));
+    const orphanRows = await sql<Array<{ nodeId: string }>>`
+      SELECT node_id AS "nodeId"
+      FROM ppt_outline_nodes
+      WHERE account_id = 'account-a' AND draft_id = ${created.workspace.draft.id}
+    `;
+    expect(orphanRows).toEqual([]);
+
+    await expect(store.saveOutline({
+      accountId: "account-b",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-stolen", level: 1, text: "串号写入" }],
+    })).rejects.toThrow("PPT_WORKSPACE_NOT_FOUND");
+    expect(await store.getOutline("account-a", created.workspace.draft.id)).toMatchObject({
+      version: 1,
+      paragraphs: [],
+      publicSources: [],
+    });
+  });
+
+  it("persists generated public-source provenance only for the owning account and draft", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      throw new Error("network disabled");
+    });
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+
+    const generated = await store.generateOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(generated.pageCount).toBe(1);
+    expect(generated.publicSources).toHaveLength(2);
+
+    const loaded = await store.getOutline("account-a", created.workspace.draft.id);
+    expect(loaded).toMatchObject({
+      version: 2,
+      pageCount: 1,
+      publicSources: generated.publicSources,
+    });
+    expect(await store.getOutline("account-b", created.workspace.draft.id)).toBeNull();
+
+    await expect(store.generateOutline({
+      accountId: "account-b",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    })).rejects.toThrow("PPT_WORKSPACE_NOT_FOUND");
+    await expect(sql`
+      INSERT INTO ppt_public_sources (
+        account_id, draft_id, url, title, fetched_at, usage_scope
+      ) VALUES (
+        'account-b', ${created.workspace.draft.id}, 'https://example.invalid/stolen',
+        '串号来源', '2026-09-06T00:00:00Z', 'outline'
+      )
+    `).rejects.toMatchObject({ code: "23503" });
+
+    const unconfigured = new PptWorkspaceStore(sql);
+    await expect(unconfigured.generateOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    })).rejects.toEqual(new PptOutlineRuntimeError("PPT_OUTLINE_ADAPTER_NOT_CONFIGURED"));
+    fetchSpy.mockRestore();
   });
 
   it("persists only normalized fixed requirements with optimistic versioning", async () => {
@@ -531,6 +641,97 @@ describe("PPT workspace store", () => {
     const snapshot = await store.getWorkspace("account-a", created.workspace.draft.id);
     expect(snapshot?.draft.version).toBe(2_147_483_647);
     expect(snapshot).toEqual(maxed);
+  });
+
+  it("rejects a nonincrementable outline version before dispatching a PostgreSQL overflow", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await sql`
+      UPDATE ppt_drafts SET version = ${2_147_483_647}
+      WHERE account_id = 'account-a' AND id = ${created.workspace.draft.id}
+    `;
+    const app = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(app, store, () => "account-a");
+
+    const outlinePut = await app.inject({
+      method: "PUT",
+      url: `/api/v1/ppt-drafts/${created.workspace.draft.id}/outline`,
+      payload: {
+        expectedVersion: 2_147_483_647,
+        paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+      },
+    });
+    const outlineGenerate = await app.inject({
+      method: "POST",
+      url: `/api/v1/ppt-drafts/${created.workspace.draft.id}/outline/generate`,
+      payload: { expectedVersion: 2_147_483_647 },
+    });
+    await app.close();
+
+    expect(outlinePut.statusCode).toBe(400);
+    expect(outlinePut.json()).toEqual({ code: "INVALID_REQUEST" });
+    expect(outlineGenerate.statusCode).toBe(400);
+    expect(outlineGenerate.json()).toEqual({ code: "INVALID_REQUEST" });
+    await expect(store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2_147_483_647,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STALE" });
+    await expect(store.generateOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2_147_483_647,
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STALE" });
+  });
+
+  it("reads outline version, nodes, and public sources from one PostgreSQL snapshot", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    let releaseReader = () => {};
+    const readerPaused = new Promise<void>((resolve) => {
+      releaseReader = resolve;
+    });
+    let releaseWriter = () => {};
+    const writerStarted = new Promise<void>((resolve) => {
+      releaseWriter = resolve;
+    });
+    const reader = new PptWorkspaceStore(interceptOutlineDraftRead(sql, async () => {
+      releaseWriter();
+      await readerPaused;
+    }));
+
+    const read = reader.getOutline("account-a", created.workspace.draft.id);
+    await writerStarted;
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-2", level: 1, text: "更新后的章节" }],
+      publicSources: [{
+        url: "https://example.invalid/new-source",
+        title: "更新后的公开资料",
+        publishedAt: null,
+        fetchedAt: "2026-09-08T00:00:00.000Z",
+        usageScope: "outline",
+      }],
+    });
+    releaseReader();
+
+    await expect(read).resolves.toEqual({
+      version: 1,
+      pageCount: 0,
+      paragraphs: [],
+      publicSources: [],
+    });
   });
 
   it("accepts a page count at the PostgreSQL integer maximum", async () => {
@@ -732,6 +933,38 @@ function isDraftSnapshotSelect(strings: TemplateStringsArray) {
     && /FROM\s+ppt_drafts\b/i.test(text)
     && !/\bUPDATE\b/i.test(text)
     && !/\bINSERT\b/i.test(text);
+}
+
+function interceptOutlineDraftRead(sql: Sql, barrier: () => Promise<void>): Sql {
+  const interceptQuery = (query: Sql) => new Proxy(query, {
+    apply(target, thisArg, argArray) {
+      const strings = argArray[0] as TemplateStringsArray;
+      const result = Reflect.apply(target, thisArg, argArray) as Promise<unknown>;
+      if (!isOutlineDraftSelect(strings)) return result;
+      return Promise.resolve(result).then(async (rows) => {
+        await barrier();
+        return rows;
+      });
+    },
+  });
+
+  return new Proxy(sql, {
+    apply(target, thisArg, argArray) {
+      return Reflect.apply(interceptQuery(target), thisArg, argArray);
+    },
+    get(target, property, receiver) {
+      if (property !== "begin") return Reflect.get(target, property, receiver);
+      return (options: string, callback: (transaction: Sql) => Promise<unknown>) => target.begin(
+        options,
+        async (transaction) => callback(interceptQuery(transaction as unknown as Sql)),
+      );
+    },
+  });
+}
+
+function isOutlineDraftSelect(strings: TemplateStringsArray) {
+  const text = strings.join("?");
+  return /SELECT\s+version\s+FROM\s+ppt_drafts\b/i.test(text);
 }
 
 async function seedAccountsAndMessages(sql: Sql) {

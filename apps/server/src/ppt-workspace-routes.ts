@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import { resolveAccountOwner } from "./account-owner";
+import { PptOutlineRuntimeError } from "./ppt-outline-runtime";
 import {
   PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX,
   PPT_WORKSPACE_INTEGER_MAX,
@@ -12,7 +13,7 @@ import {
 export type PptWorkspaceRouteRuntime = Pick<
   PptWorkspaceStore,
   "createFromSentIntent" | "getWorkspace" | "saveRequirements" | "replaceSource"
-> & Partial<Pick<PptWorkspaceStore, "saveOutline">>;
+> & Partial<Pick<PptWorkspaceStore, "saveOutline" | "getOutline" | "generateOutline">>;
 
 export const pptWorkspaceIdentifier = z.string().trim().min(1).max(256);
 const pageCount = z.number().int().positive().max(PPT_WORKSPACE_PAGE_COUNT_MAX);
@@ -50,6 +51,17 @@ const sourceBody = z.object({
   expectedVersion: storedVersion,
   bookId: pptWorkspaceIdentifier,
 }).strict();
+export const pptWorkspaceOutlineBody = z.object({
+  expectedVersion: incrementableVersion,
+  paragraphs: z.array(z.object({
+    id: pptWorkspaceIdentifier,
+    level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+    text: z.string().trim().min(1).max(2_000),
+  }).strict()).max(1_000),
+}).strict();
+const outlineGenerateBody = z.object({
+  expectedVersion: incrementableVersion,
+}).strict();
 
 export const m0LegacyRequirementsBody = z.object({
   expectedVersion: incrementableVersion,
@@ -58,6 +70,7 @@ export const m0LegacyRequirementsBody = z.object({
 
 type RegisterPptWorkspaceRouteOptions = {
   registerRequirements?: boolean;
+  registerOutlineWrite?: boolean;
 };
 
 export function registerPptWorkspaceRoutes(
@@ -131,6 +144,56 @@ export function registerPptWorkspaceRoutes(
       return sendPptWorkspaceError(error, reply);
     }
   });
+
+  app.get("/api/v1/ppt-drafts/:draftId/outline", async (request, reply) => {
+    try {
+      const { draftId } = draftParameters.parse(request.params);
+      const outline = await runtime.getOutline?.(resolveAccountId(request.headers), draftId);
+      if (!outline) return reply.code(404).send({ code: "PPT_WORKSPACE_NOT_FOUND" });
+      return reply.send({ outline });
+    } catch (error) {
+      return sendPptWorkspaceError(error, reply);
+    }
+  });
+
+  if (options.registerOutlineWrite !== false) {
+    app.put("/api/v1/ppt-drafts/:draftId/outline", async (request, reply) => {
+      try {
+        const { draftId } = draftParameters.parse(request.params);
+        const body = pptWorkspaceOutlineBody.parse(request.body);
+        if (!runtime.saveOutline) {
+          return reply.code(404).send({ code: "PPT_WORKSPACE_NOT_FOUND" });
+        }
+        const outline = await runtime.saveOutline({
+          accountId: resolveAccountId(request.headers),
+          draftId,
+          expectedVersion: body.expectedVersion,
+          paragraphs: body.paragraphs,
+        });
+        return reply.send({ outline });
+      } catch (error) {
+        return sendPptWorkspaceError(error, reply);
+      }
+    });
+  }
+
+  app.post("/api/v1/ppt-drafts/:draftId/outline/generate", async (request, reply) => {
+    try {
+      const { draftId } = draftParameters.parse(request.params);
+      const body = outlineGenerateBody.parse(request.body);
+      if (!runtime.generateOutline) {
+        return reply.code(404).send({ code: "PPT_WORKSPACE_NOT_FOUND" });
+      }
+      const outline = await runtime.generateOutline({
+        accountId: resolveAccountId(request.headers),
+        draftId,
+        expectedVersion: body.expectedVersion,
+      });
+      return reply.send({ outline });
+    } catch (error) {
+      return sendPptWorkspaceError(error, reply);
+    }
+  });
 }
 
 export function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
@@ -143,6 +206,17 @@ export function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
   }
   if (message === "ACCOUNT_FORBIDDEN") {
     return reply.code(403).send({ code: message });
+  }
+  if (error instanceof PptOutlineRuntimeError) {
+    if (error.code === "PPT_OUTLINE_ORPHAN_CHILD") {
+      return reply.code(400).send({ code: error.code });
+    }
+    if (error.code === "PPT_OUTLINE_ADAPTER_NOT_CONFIGURED") {
+      return reply.code(503).send({ code: error.code });
+    }
+    if (error.code === "PPT_OUTLINE_ABORTED") {
+      return reply.code(409).send({ code: error.code });
+    }
   }
   if (!(error instanceof PptWorkspaceStoreError)) {
     return reply.code(500).send({ code: "INTERNAL_ERROR" });

@@ -1,6 +1,8 @@
 import Fastify from "fastify";
 import type { PptWorkspaceSnapshot } from "@selfalone/contracts";
 import { describe, expect, it } from "vitest";
+import { resolveAccountOwner } from "./account-owner";
+import { PptOutlineRuntimeError } from "./ppt-outline-runtime";
 import {
   registerPptWorkspaceRoutes,
   type PptWorkspaceRouteRuntime,
@@ -363,6 +365,175 @@ describe("PPT workspace routes", () => {
     });
     expect(response.statusCode).toBe(expectedStatus);
     expect(response.json()).toEqual({ code });
+    await app.close();
+  });
+
+  it("reads, writes, and generates outline only for the authenticated account", async () => {
+    const outline = {
+      version: 3,
+      pageCount: 2,
+      paragraphs: [
+        { id: "page-1", level: 1 as const, text: "第一章" },
+        { id: "page-2", level: 1 as const, text: "第二章" },
+      ],
+      publicSources: [{
+        url: "https://publisher.example.invalid/catalog/book",
+        title: "出版社公开目录",
+        publishedAt: "2024-01-01T00:00:00.000Z",
+        fetchedAt: "2026-09-06T00:00:00.000Z",
+        usageScope: "outline:draft-a",
+      }],
+    };
+    const calls: unknown[] = [];
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return workspace;
+      },
+      async saveRequirements() {
+        return workspace;
+      },
+      async replaceSource() {
+        return workspace;
+      },
+      async getOutline(accountId, draftId) {
+        calls.push(["getOutline", accountId, draftId]);
+        if (accountId !== "account-a") return null;
+        return outline;
+      },
+      async saveOutline(input) {
+        calls.push(["saveOutline", input]);
+        if (input.accountId !== "account-a") {
+          throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+        }
+        return outline;
+      },
+      async generateOutline(input) {
+        calls.push(["generateOutline", input]);
+        if (input.accountId !== "account-a") {
+          throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+        }
+        return outline;
+      },
+    };
+    const app = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(app, runtime, resolveAccountOwner);
+
+    const ownedRead = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(ownedRead.statusCode).toBe(200);
+    expect(ownedRead.json()).toEqual({ outline });
+
+    const foreignRead = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-b" },
+    });
+    expect(foreignRead.statusCode).toBe(404);
+    expect(foreignRead.json()).toEqual({ code: "PPT_WORKSPACE_NOT_FOUND" });
+
+    const ownedWrite = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: {
+        expectedVersion: 2,
+        paragraphs: outline.paragraphs,
+      },
+    });
+    expect(ownedWrite.statusCode).toBe(200);
+
+    const foreignWrite = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-b" },
+      payload: {
+        expectedVersion: 2,
+        paragraphs: outline.paragraphs,
+      },
+    });
+    expect(foreignWrite.statusCode).toBe(404);
+
+    const generated = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-drafts/draft-a/outline/generate",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2 },
+    });
+    expect(generated.statusCode).toBe(200);
+    expect(generated.json()).toEqual({ outline });
+
+    expect(calls).toEqual([
+      ["getOutline", "account-a", "draft-a"],
+      ["getOutline", "account-b", "draft-a"],
+      ["saveOutline", {
+        accountId: "account-a",
+        draftId: "draft-a",
+        expectedVersion: 2,
+        paragraphs: outline.paragraphs,
+      }],
+      ["saveOutline", {
+        accountId: "account-b",
+        draftId: "draft-a",
+        expectedVersion: 2,
+        paragraphs: outline.paragraphs,
+      }],
+      ["generateOutline", {
+        accountId: "account-a",
+        draftId: "draft-a",
+        expectedVersion: 2,
+      }],
+    ]);
+    await app.close();
+  });
+
+  it("maps outline runtime domain errors instead of leaking 500s", async () => {
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return workspace;
+      },
+      async saveRequirements() {
+        return workspace;
+      },
+      async replaceSource() {
+        return workspace;
+      },
+      async saveOutline() {
+        throw new PptOutlineRuntimeError("PPT_OUTLINE_ORPHAN_CHILD");
+      },
+      async generateOutline() {
+        throw new PptOutlineRuntimeError("PPT_OUTLINE_ADAPTER_NOT_CONFIGURED");
+      },
+    };
+    const app = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(app, runtime, () => "account-a");
+
+    const orphan = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      payload: {
+        expectedVersion: 2,
+        paragraphs: [{ id: "point-orphan", level: 2, text: "没有页面的要点" }],
+      },
+    });
+    expect(orphan.statusCode).toBe(400);
+    expect(orphan.json()).toEqual({ code: "PPT_OUTLINE_ORPHAN_CHILD" });
+
+    const missingAdapter = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-drafts/draft-a/outline/generate",
+      payload: { expectedVersion: 2 },
+    });
+    expect(missingAdapter.statusCode).toBe(503);
+    expect(missingAdapter.json()).toEqual({ code: "PPT_OUTLINE_ADAPTER_NOT_CONFIGURED" });
     await app.close();
   });
 

@@ -16,6 +16,7 @@ import type { M0Runtime } from "./m0-runtime";
 import {
   m0LegacyRequirementsBody,
   pptWorkspaceIdentifier,
+  pptWorkspaceOutlineBody,
   pptWorkspaceRequirementsBody,
   registerPptWorkspaceRoutes,
   sendPptWorkspaceError,
@@ -312,6 +313,7 @@ export function createApp(dependencies: AppDependencies) {
   if (dependencies.pptWorkspace) {
     registerPptWorkspaceRoutes(app, dependencies.pptWorkspace, resolveAccountId, {
       registerRequirements: !dependencies.m0,
+      registerOutlineWrite: !dependencies.m0,
     });
   }
 
@@ -329,14 +331,6 @@ export function createApp(dependencies: AppDependencies) {
         .min(1)
         .max(15),
     });
-    const workspaceOutlineBody = z.object({
-      expectedVersion: z.number().int().positive(),
-      paragraphs: z.array(z.object({
-        id: pptWorkspaceIdentifier,
-        level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
-        text: z.string().trim().min(1).max(2_000),
-      }).strict()).max(1_000),
-    }).strict();
     const taskBody = z.object({
       draftId: z.string().min(1),
       expectedVersion: z.number().int().positive(),
@@ -394,7 +388,7 @@ export function createApp(dependencies: AppDependencies) {
 
     app.put("/api/v1/ppt-drafts/:id/outline", async (request, reply) => {
       const parameters = z.object({ id: pptWorkspaceIdentifier }).strict().parse(request.params);
-      const workspaceBody = workspaceOutlineBody.safeParse(request.body);
+      const workspaceBody = pptWorkspaceOutlineBody.safeParse(request.body);
       if (workspaceBody.success && dependencies.pptWorkspace?.saveOutline) {
         try {
           const outline = await dependencies.pptWorkspace.saveOutline({
