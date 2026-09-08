@@ -37,7 +37,7 @@ import {
   validateAuthInput,
   type AuthState,
 } from "./auth-state";
-import { renderAuthPage } from "./auth-page";
+import { bindAuthModeInteractions, renderAuthPage } from "./auth-page";
 import { bookPptIntentFromHash, bookPptIntentHashForStage, bookPptIntentTitleFromHash } from "./book-detail-state";
 import {
   parseTextReaderPptIntent,
@@ -1281,21 +1281,14 @@ function bindAuthInteractions() {
     confirmPassword: document.querySelector<HTMLInputElement>("#auth-confirmPassword")?.value ?? authState.confirmPassword,
   });
   const authTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".auth-tab[data-auth-mode]"));
-  authTabs.forEach((tab, index) => {
-    tab.addEventListener("keydown", (event) => {
-      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      event.preventDefault();
-      const delta = event.key === "ArrowRight" ? 1 : -1;
-      const target = authTabs[(index + delta + authTabs.length) % authTabs.length];
-      const mode = target?.dataset.authMode;
-      if (mode !== "login" && mode !== "register") return;
+  bindAuthModeInteractions(authTabs, (mode) => {
       authState = { ...setAuthMode(authState, mode), ...captureAuthDraft() };
       window.history.pushState(null, "", authHash(mode));
       renderAuth();
       document.querySelector<HTMLButtonElement>(`.auth-tab[data-auth-mode="${mode}"]`)?.focus();
-    });
   });
   document.querySelectorAll<HTMLButtonElement>("[data-auth-mode]").forEach((button) => {
+    if (button.classList.contains("auth-tab")) return;
     button.addEventListener("click", () => {
       const mode = button.dataset.authMode;
       if (mode !== "entry" && mode !== "login" && mode !== "register") return;

@@ -1,5 +1,29 @@
 import type { AuthMode, AuthState } from "./auth-state";
 
+type AuthModeTarget = EventTarget & { dataset: { authMode?: string }; focus(): void };
+
+export function bindAuthModeInteractions(targets: AuthModeTarget[], onMode: (mode: "login" | "register") => void) {
+  const listeners = targets.map((target, index) => {
+    const activate = () => {
+      const mode = target.dataset.authMode;
+      if (mode === "login" || mode === "register") onMode(mode);
+    };
+    const keydown = (event: Event) => {
+      const key = (event as KeyboardEvent).key;
+      if (key !== "ArrowLeft" && key !== "ArrowRight") return;
+      event.preventDefault();
+      const next = targets[(index + (key === "ArrowRight" ? 1 : -1) + targets.length) % targets.length];
+      next?.focus();
+      const mode = next?.dataset.authMode;
+      if (mode === "login" || mode === "register") onMode(mode);
+    };
+    target.addEventListener("click", activate);
+    target.addEventListener("keydown", keydown);
+    return () => { target.removeEventListener("click", activate); target.removeEventListener("keydown", keydown); };
+  });
+  return () => listeners.forEach((unbind) => unbind());
+}
+
 function escapeHtml(value: string) {
   return value
     .replaceAll("&", "&amp;")

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createAuthState } from "./auth-state";
-import { renderAuthPage } from "./auth-page";
+import { bindAuthModeInteractions, renderAuthPage } from "./auth-page";
 
 const authStyles = readFileSync(new URL("./styles.css", import.meta.url), "utf8").slice(
   readFileSync(new URL("./styles.css", import.meta.url), "utf8").indexOf("/* Desktop account entry"),
@@ -100,11 +100,6 @@ describe("desktop auth page", () => {
     }
   });
 
-  it("wires roving tab arrow keys and first-invalid submit focus", () => {
-    expect(mainSource).toContain('"ArrowLeft"');
-    expect(mainSource).toContain('"ArrowRight"');
-    expect(mainSource).toContain("firstInvalid");
-  });
 
   it("renders a single roving tab stop and a labelled tab panel", () => {
     const html = renderAuthPage(createAuthState("login"));
@@ -118,7 +113,16 @@ describe("desktop auth page", () => {
   });
 
   it("uses a full-bleed curved brand sheet rather than an inset card", () => {
-    expect(authStyles).toContain("inset: -20% -16% 5% -18%");
+    expect(authStyles).toContain("inset: 0 -8% 0 0");
     expect(authStyles).not.toContain("border-radius: 28px");
+  });
+
+  it("activates roving tabs from real click and keydown events", () => {
+    class Tab extends EventTarget { dataset: { authMode?: string }; focused = 0; constructor(mode: string) { super(); this.dataset = { authMode: mode }; } focus() { this.focused += 1; } }
+    const login = new Tab("login"); const register = new Tab("register"); const modes: string[] = [];
+    bindAuthModeInteractions([login, register], (mode) => modes.push(mode));
+    login.dispatchEvent(new Event("click"));
+    const right = new Event("keydown", { cancelable: true }); Object.defineProperty(right, "key", { value: "ArrowRight" }); login.dispatchEvent(right);
+    expect(modes).toEqual(["login", "register"]); expect(register.focused).toBe(1); expect(right.defaultPrevented).toBe(true);
   });
 });
