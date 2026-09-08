@@ -195,3 +195,4 @@ The governing principle is **fail-closed, not fail-dead**: do not continue throu
 - 最终说明完成内容、验证证据和真实限制；未实际验证的结果不得声称完成。
 
 backend default provider=grok-build model=grok-4.6 auth_mode=oauth
+frontend default provider=kimi-code model=kimi-k3 auth_mode=api
