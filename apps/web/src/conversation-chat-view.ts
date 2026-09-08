@@ -1,9 +1,12 @@
 import "./conversation-chat.css";
 import "./ppt-requirements-workspace.css";
+import "./ppt-outline-workspace.css";
 import { escapeHtml } from "./ui/desktop-shell";
 import type { ConversationChatController } from "./conversation-chat-controller";
 import type { PptRequirementsWorkspaceState } from "./ppt-requirements-workspace-state";
 import { renderPptRequirementsWorkspaceNotice, renderPptRequirementsWorkspaceView } from "./ppt-requirements-workspace-view";
+import type { PptOutlineWorkspaceState } from "./ppt-outline-workspace-state";
+import { renderPptOutlineWorkspaceView } from "./ppt-outline-workspace-view";
 import type { ConversationChatMessage, ConversationChatState } from "./conversation-chat-state";
 import type { ConversationSelectionController } from "./conversation-selection-controller";
 import {
@@ -39,6 +42,19 @@ export type ConversationChatMountOptions = {
     subscribe(listener: (state: PptRequirementsWorkspaceState) => void): () => void;
   };
   onWorkspaceRetry?: (context: { conversationId: string; requestId: string; bookId: string }) => void;
+  onRequirementsSubmit?: (input: { purpose: string; audience: string; pageRange: { min: number; max: number }; additionalRequirements: string }) => void;
+  outlineStore?: {
+    getState(): PptOutlineWorkspaceState;
+    subscribe(listener: (state: PptOutlineWorkspaceState) => void): () => void;
+    editText(id: string, text: string): void;
+    split(id: string, offset: number): unknown;
+    backspaceAtStart(id: string): unknown;
+    indent(id: string): boolean;
+    outdent(id: string): boolean;
+    retrySave(): Promise<void>;
+    hide(): void;
+  };
+  onOutlineBack?: () => void;
 };
 
 export function renderConversationChatView(options: ConversationChatViewOptions): ConversationChatViewResult {
@@ -100,6 +116,7 @@ export function mountConversationChatView(
   let renderedState: ConversationChatState | null = null;
   let selectionState = options.selectionController?.getState();
   let workspaceState = options.workspaceStore?.getState() ?? { phase: "hidden" } as PptRequirementsWorkspaceState;
+  let outlineState = options.outlineStore?.getState() ?? { phase: "hidden" } as PptOutlineWorkspaceState;
   const selectionMounts = new Map<string, () => void>();
 
   const disposeSelectionMounts = () => {
@@ -156,7 +173,9 @@ export function mountConversationChatView(
     const taskPanel = taskRoot.closest<HTMLElement>(".desktop-task-panel");
     const shell = taskPanel?.closest<HTMLElement>(".desktop-app-shell")
       ?? taskRoot.closest<HTMLElement>(".desktop-app-shell");
-    const taskPanelHtml = renderPptRequirementsWorkspaceView(workspaceState);
+    const taskPanelHtml = outlineState.phase === "ready"
+      ? renderPptOutlineWorkspaceView(outlineState)
+      : renderPptRequirementsWorkspaceView(workspaceState);
     if (taskPanelHtml) {
       shell?.style.removeProperty("--desktop-task-width");
       taskRoot.innerHTML = taskPanelHtml;
@@ -179,7 +198,30 @@ export function mountConversationChatView(
       });
       requirementsForm?.addEventListener("submit", (event) => {
         event.preventDefault();
+        const fields = new FormData(requirementsForm);
+        const min = Number(fields.get("pageMin"));
+        const max = Number(fields.get("pageMax"));
+        if (Number.isSafeInteger(min) && Number.isSafeInteger(max) && min > 0 && max >= min) {
+          options.onRequirementsSubmit?.({
+            purpose: String(fields.get("purpose") ?? ""),
+            audience: String(fields.get("audience") ?? ""),
+            pageRange: { min, max },
+            additionalRequirements: String(fields.get("additionalRequirements") ?? ""),
+          });
+        }
       });
+      taskRoot.querySelectorAll<HTMLTextAreaElement>("[data-ppt-outline-text]").forEach((input) => {
+        input.addEventListener("input", () => options.outlineStore?.editText(input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId ?? "", input.value));
+        input.addEventListener("keydown", (event) => {
+          const id = input.closest<HTMLElement>("[data-paragraph-id]")?.dataset.paragraphId;
+          if (!id) return;
+          if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); options.outlineStore?.split(id, input.selectionStart ?? input.value.length); }
+          if (event.key === "Tab") { event.preventDefault(); event.shiftKey ? options.outlineStore?.outdent(id) : options.outlineStore?.indent(id); }
+          if (event.key === "Backspace" && (input.selectionStart ?? 0) === 0 && (input.selectionEnd ?? 0) === 0) { const result = options.outlineStore?.backspaceAtStart(id); if (result) event.preventDefault(); }
+        });
+      });
+      taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-retry]")?.addEventListener("click", () => { void options.outlineStore?.retrySave(); });
+      taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-back]")?.addEventListener("click", () => options.onOutlineBack?.());
     }
   };
 
@@ -235,6 +277,7 @@ export function mountConversationChatView(
     workspaceState = nextState;
     patchWorkspaceRegions();
   });
+  const unsubscribeOutline = options.outlineStore?.subscribe((nextState) => { outlineState = nextState; patchWorkspaceRegions(); });
   render(controller.getState());
   void controller.hydrate();
   if (options.selectionController && options.hydrateSelection !== false) {
@@ -246,6 +289,7 @@ export function mountConversationChatView(
     unsubscribe();
     unsubscribeSelection?.();
     unsubscribeWorkspace?.();
+    unsubscribeOutline?.();
     disposeSelectionMounts();
   };
 }

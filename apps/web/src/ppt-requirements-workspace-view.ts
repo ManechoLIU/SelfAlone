@@ -57,6 +57,7 @@ export function renderPptRequirementsWorkspaceView(state: PptRequirementsWorkspa
         <div class="ppt-requirements-range"><label>最少<input name="pageMin" data-ppt-page-min type="number" min="1" max="2147483647" value="${range.min}" /></label><span aria-hidden="true">—</span><label>最多<input name="pageMax" data-ppt-page-max type="number" min="1" max="2147483647" value="${range.max}" /></label></div>
       </fieldset>
       <label>补充要求<textarea name="additionalRequirements" maxlength="2000" rows="5" placeholder="例如：保留关键案例，整体简洁">${escapeHtml(requirements.additionalRequirements)}</textarea></label>
+      <div class="ppt-requirements-actions"><button type="submit" data-ppt-requirements-generate>生成大纲</button></div>
       </form>
     </div>
   </section>`;

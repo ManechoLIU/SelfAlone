@@ -56,6 +56,79 @@ describe("PPT workspace client", () => {
       .resolves.toMatchObject({ status: "created", workspace });
   });
 
+  it("omits the account header in the current default construction and the frozen route contract rejects it with 401 ACCOUNT_REQUIRED", async () => {
+    // The frozen route resolves its owner only from x-selfalone-account
+    // (apps/server/src/ppt-workspace-routes.ts + account-owner.ts, pinned by
+    // apps/server/src/ppt-workspace-routes.test.ts "maps ACCOUNT_REQUIRED …").
+    const frozenRouteFetch: typeof globalThis.fetch = async (input, init) => {
+      const headers = new Headers(init?.headers);
+      if (!headers.get("x-selfalone-account")?.trim()) {
+        return new Response(JSON.stringify({ code: "ACCOUNT_REQUIRED" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({ status: "created", workspace }), { status: 201 });
+    };
+    const defaultClient = createPptWorkspaceClient({ fetch: frozenRouteFetch });
+    await expect(defaultClient.createOrReuse("conversation-1", { requestId: "request-1", bookId: "book-1" }))
+      .rejects.toEqual(new PptWorkspaceClientError(401, "ACCOUNT_REQUIRED"));
+
+    const accountScoped = createPptWorkspaceClient({
+      fetch: frozenRouteFetch,
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    await expect(accountScoped.createOrReuse("conversation-1", { requestId: "request-1", bookId: "book-1" }))
+      .resolves.toMatchObject({ status: "created" });
+  });
+
+  it("saves requirements through the frozen PUT with the current expectedVersion", async () => {
+    const requests: Array<{ url: string; method: string; headers: Headers; body: unknown }> = [];
+    const client = createPptWorkspaceClient({
+      headers: { "x-selfalone-account": "account-a" },
+      fetch: async (input, init) => {
+        requests.push({
+          url: String(input),
+          method: init?.method ?? "GET",
+          headers: new Headers(init?.headers),
+          body: JSON.parse(String(init?.body)),
+        });
+        return new Response(JSON.stringify({
+          workspace: { ...workspace, draft: { ...workspace.draft, version: 2 } },
+        }), { status: 200 });
+      },
+    });
+
+    await expect(client.saveRequirements("draft/1", {
+      expectedVersion: 1,
+      purpose: "读书分享",
+      audience: "同事",
+      pageRange: { min: 8, max: 10 },
+      additionalRequirements: "简洁",
+    })).resolves.toMatchObject({ draft: { id: "draft-1", version: 2 } });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].url).toBe("/api/v1/ppt-drafts/draft%2F1/requirements");
+    expect(requests[0].method).toBe("PUT");
+    expect(requests[0].headers.get("x-selfalone-account")).toBe("account-a");
+    expect(requests[0].body).toEqual({
+      expectedVersion: 1,
+      purpose: "读书分享",
+      audience: "同事",
+      pageRange: { min: 8, max: 10 },
+      additionalRequirements: "简洁",
+    });
+  });
+
+  it("preserves a stale requirements save as a typed conflict error", async () => {
+    const client = createPptWorkspaceClient({
+      fetch: async () => new Response(JSON.stringify({ code: "PPT_WORKSPACE_STALE" }), { status: 409 }),
+    });
+    await expect(client.saveRequirements("draft-1", {
+      expectedVersion: 1,
+      purpose: "读书分享",
+      audience: "同事",
+      pageRange: { min: 8, max: 10 },
+      additionalRequirements: "",
+    })).rejects.toEqual(new PptWorkspaceClientError(409, "PPT_WORKSPACE_STALE"));
+  });
+
   it("uses a typed safe error for a non-JSON server failure", async () => {
     const client = createPptWorkspaceClient({ fetch: async () => new Response("gateway down", { status: 502 }) });
     await expect(client.createOrReuse("conversation-1", { requestId: "request-1", bookId: "book-1" }))

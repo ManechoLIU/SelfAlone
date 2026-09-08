@@ -202,10 +202,11 @@ describe("conversation chat view", () => {
     expect(mainSource).toContain('<div class="desktop-app-shell" data-active-section="conversation" style="--desktop-task-width: 0px;">');
   });
 
-  it("keeps the EARLY workspace on create/reuse only without GET or requirements save calls", () => {
+  it("uses the account-scoped requirements save and outline recovery path after create/reuse", () => {
     expect(mainSource).toContain("pptWorkspaceClient.createOrReuse");
     expect(mainSource).not.toContain("pptWorkspaceClient.getWorkspace");
-    expect(mainSource).not.toContain("pptWorkspaceClient.saveRequirements");
+    expect(mainSource).toContain("pptWorkspaceClient.saveRequirements");
+    expect(mainSource).toContain("pptOutlineClient?.getOutline");
   });
 
   it("does not rebuild the composer DOM for consecutive input events", () => {

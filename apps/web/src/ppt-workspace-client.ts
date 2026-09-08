@@ -12,6 +12,14 @@ export type PptWorkspaceCreateResult = {
   workspace: PptWorkspaceSnapshot;
 };
 
+export type PptRequirementsSaveInput = {
+  expectedVersion: number;
+  purpose: string;
+  audience: string;
+  pageRange: { min: number; max: number };
+  additionalRequirements: string;
+};
+
 export type PptWorkspaceClientOptions = {
   fetch?: typeof globalThis.fetch;
   baseUrl?: string;
@@ -52,6 +60,31 @@ export function createPptWorkspaceClient(options: PptWorkspaceClientOptions = {}
         status: response.status === 201 ? "created" : "reused",
         workspace: body.workspace,
       };
+    },
+
+    async saveRequirements(
+      draftId: string,
+      input: PptRequirementsSaveInput,
+    ): Promise<PptWorkspaceSnapshot> {
+      const response = await fetcher(
+        `${baseUrl}/api/v1/ppt-drafts/${encodeURIComponent(draftId)}/requirements`,
+        {
+          method: "PUT",
+          headers: { ...options.headers, "content-type": "application/json" },
+          body: JSON.stringify(input),
+        },
+      );
+      const body = await responseBody(response);
+      if (!response.ok) {
+        const code = body && typeof body === "object" && "code" in body
+          ? String((body as { code: unknown }).code)
+          : "PPT_WORKSPACE_REQUEST_FAILED";
+        throw new PptWorkspaceClientError(response.status, code);
+      }
+      if (!isPptWorkspaceResponse(body)) {
+        throw new PptWorkspaceClientError(response.status, "PPT_WORKSPACE_RESPONSE_INVALID");
+      }
+      return body.workspace;
     },
   };
 }

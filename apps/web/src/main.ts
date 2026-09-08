@@ -83,6 +83,8 @@ import { mountConversationChatView } from "./conversation-chat-view";
 import { bookPptEntryFromHash } from "./ppt-book-entry";
 import { createPptWorkspaceClient } from "./ppt-workspace-client";
 import { createPptRequirementsWorkspaceStore } from "./ppt-requirements-workspace-state";
+import { createPptOutlineWorkspaceClient } from "./ppt-outline-workspace-client";
+import { createPptOutlineWorkspaceStore } from "./ppt-outline-workspace-state";
 import { createConversationSelectionClient } from "./conversation-selection-client";
 import { createConversationSelectionController } from "./conversation-selection-controller";
 import {
@@ -1566,8 +1568,16 @@ function renderConversationChat(session: ConversationChatSession) {
   const taskMount = document.querySelector<HTMLElement>("[data-ppt-requirements-task-root]");
   if (!mainMount) return;
 
-  const pptWorkspaceClient = pptBookEntry ? createPptWorkspaceClient() : null;
+  const pptWorkspaceClient = pptBookEntry ? createPptWorkspaceClient({ headers: { "x-selfalone-account": authState.account?.id ?? "account-development-local" } }) : null;
+  const pptOutlineClient = pptBookEntry ? createPptOutlineWorkspaceClient({ headers: { "x-selfalone-account": authState.account?.id ?? "account-development-local" } }) : null;
   const pptWorkspaceStore = createPptRequirementsWorkspaceStore();
+  const pptOutlineStore = createPptOutlineWorkspaceStore({
+    save: async (input) => {
+      if (!pptOutlineClient) throw new Error("PPT_OUTLINE_CLIENT_UNAVAILABLE");
+      return pptOutlineClient.saveOutline(input.draftId, { expectedVersion: input.expectedVersion, paragraphs: input.paragraphs });
+    },
+    recover: async (draftId) => pptOutlineClient?.getOutline(draftId) ?? null,
+  });
   const retryWorkspace = async (context: { conversationId: string; requestId: string; bookId: string }) => {
     if (!pptWorkspaceClient) return;
     pptWorkspaceStore.begin(context);
@@ -1577,6 +1587,8 @@ function renderConversationChat(session: ConversationChatSession) {
         bookId: context.bookId,
       });
       pptWorkspaceStore.ready(context, result);
+      const existingOutline = await pptOutlineClient?.getOutline(result.workspace.draft.id);
+      if (existingOutline) pptOutlineStore.ready(result.workspace.draft.id, existingOutline);
     } catch (error) {
       pptWorkspaceStore.fail(context, error);
     }
@@ -1615,6 +1627,24 @@ function renderConversationChat(session: ConversationChatSession) {
     settingsReturnTo: window.location.hash,
     workspaceStore: pptWorkspaceStore,
     onWorkspaceRetry: (context) => { void retryWorkspace(context); },
+    outlineStore: pptOutlineStore,
+    onRequirementsSubmit: (input) => {
+      const current = pptWorkspaceStore.getState();
+      if (!pptWorkspaceClient || !pptOutlineClient || current.phase !== "ready") return;
+      void (async () => {
+        try {
+          const saved = await pptWorkspaceClient.saveRequirements(current.workspace.draft.id, {
+            expectedVersion: current.workspace.draft.version,
+            ...input,
+          });
+          const generated = await pptOutlineClient.generateOutline(saved.draft.id, { expectedVersion: saved.draft.version });
+          pptOutlineStore.ready(saved.draft.id, generated);
+        } catch (error) {
+          pptWorkspaceStore.fail(current.context, error);
+        }
+      })();
+    },
+    onOutlineBack: () => { pptOutlineStore.hide(); },
   });
   conversationSelectionCleanup = conversationChatCleanup;
   conversationSelectionHydrated = true;

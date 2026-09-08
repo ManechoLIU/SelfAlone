@@ -1,0 +1,176 @@
+.ppt-outline-workspace {
+  min-width: 0;
+}
+
+.ppt-outline-workspace .desktop-task-body {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+.ppt-outline-source,
+.ppt-outline-provenance,
+.ppt-outline-pagecount,
+.ppt-outline-status {
+  margin: 0;
+  color: var(--desktop-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ppt-outline-pagecount {
+  color: var(--desktop-text);
+  font-weight: 600;
+}
+
+.ppt-outline-editor {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ppt-outline-paragraph {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 8px;
+  min-width: 0;
+  padding: 5px 0;
+}
+
+.ppt-outline-grip,
+.ppt-outline-index,
+.ppt-outline-marker {
+  color: var(--desktop-text-muted);
+  line-height: 32px;
+}
+
+.ppt-outline-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--desktop-border-strong);
+  cursor: grab;
+}
+
+.ppt-outline-index,
+.ppt-outline-marker {
+  grid-column: 1;
+  text-align: right;
+}
+
+.ppt-outline-paragraph[data-level="1"] .ppt-outline-grip {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.ppt-outline-paragraph[data-level="1"] .ppt-outline-index {
+  grid-column: 1;
+  grid-row: 1;
+  padding-right: 2px;
+}
+
+.ppt-outline-paragraph[data-level="2"] {
+  padding-left: 18px;
+}
+
+.ppt-outline-paragraph[data-level="3"] {
+  padding-left: 38px;
+}
+
+.ppt-outline-text {
+  grid-column: 2;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  resize: none;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--desktop-text);
+  font: inherit;
+  line-height: 1.8;
+  padding: 1px 7px;
+}
+
+.ppt-outline-text:hover {
+  background: var(--desktop-surface-hover);
+}
+
+.ppt-outline-text:focus-visible,
+.ppt-outline-back:focus-visible,
+.ppt-outline-status button:focus-visible {
+  outline: 2px solid var(--desktop-accent);
+  outline-offset: 2px;
+}
+
+.ppt-outline-orphan-hint {
+  grid-column: 2;
+  margin: 2px 7px 0;
+  color: var(--desktop-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ppt-outline-status-error,
+.ppt-outline-status-blocked {
+  color: var(--desktop-danger);
+}
+
+.ppt-outline-status button,
+.ppt-outline-back {
+  border: 1px solid var(--desktop-accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--desktop-accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+.ppt-outline-status button {
+  margin-left: 8px;
+  padding: 2px 8px;
+}
+
+.ppt-outline-actions {
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 14px;
+  border-top: 1px solid var(--desktop-border);
+}
+
+.ppt-outline-back {
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+@media (max-width: 1024px) {
+  .ppt-outline-paragraph[data-level="3"] {
+    padding-left: 26px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ppt-outline-paragraph {
+    grid-template-columns: 24px minmax(0, 1fr);
+    column-gap: 5px;
+  }
+
+  .ppt-outline-paragraph[data-level="2"] {
+    padding-left: 10px;
+  }
+
+  .ppt-outline-paragraph[data-level="3"] {
+    padding-left: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ppt-outline-text,
+  .ppt-outline-status button,
+  .ppt-outline-back {
+    transition: none;
+  }
+}
