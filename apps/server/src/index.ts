@@ -23,6 +23,11 @@ import {
 import { createModelConfigRuntime } from "./model-config-runtime";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
+import {
+  createFakePptOutlineGenerationAdapter,
+  createFakePptPublicSourceAdapter,
+} from "./ppt-outline-adapters";
+import { migratePptOutlineSchema } from "./ppt-outline-migration";
 import { migratePptWorkspaceSchema } from "./ppt-workspace-migration";
 import { PptWorkspaceStore } from "./ppt-workspace-store";
 import {
@@ -144,11 +149,15 @@ const conversationSql = postgres(databaseUrl, { max: 4 });
 const pptWorkspaceMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migratePptWorkspaceSchema(pptWorkspaceMigrationDatabase);
+  await migratePptOutlineSchema(pptWorkspaceMigrationDatabase);
 } finally {
   await pptWorkspaceMigrationDatabase.end();
 }
 const pptWorkspaceSql = postgres(databaseUrl, { max: 4 });
-const pptWorkspace = new PptWorkspaceStore(pptWorkspaceSql);
+const pptWorkspace = new PptWorkspaceStore(pptWorkspaceSql, {
+  generation: createFakePptOutlineGenerationAdapter(),
+  publicSources: createFakePptPublicSourceAdapter(),
+});
 const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);

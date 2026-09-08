@@ -83,31 +83,6 @@ export async function migratePptWorkspaceSchema(sql: Sql) {
     `;
 
     await transaction`
-      CREATE TABLE IF NOT EXISTS ppt_outline_nodes (
-        account_id text NOT NULL,
-        draft_id text NOT NULL,
-        node_id text NOT NULL,
-        node_order integer NOT NULL CHECK (node_order >= 0),
-        level integer NOT NULL CHECK (level BETWEEN 1 AND 3),
-        body text NOT NULL,
-        PRIMARY KEY (account_id, draft_id, node_id),
-        UNIQUE (account_id, draft_id, node_order)
-      )
-    `;
-    await transaction`
-      CREATE TABLE IF NOT EXISTS ppt_public_sources (
-        account_id text NOT NULL,
-        draft_id text NOT NULL,
-        url text NOT NULL,
-        title text NOT NULL,
-        published_at timestamptz,
-        fetched_at timestamptz NOT NULL,
-        usage_scope text NOT NULL,
-        PRIMARY KEY (account_id, draft_id, url)
-      )
-    `;
-
-    await transaction`
       INSERT INTO schema_migrations (name)
       VALUES (${pptWorkspaceMigrationName})
       ON CONFLICT (name) DO NOTHING

@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type { PptWorkspaceSnapshot, PptWorkspaceSource } from "@selfalone/contracts";
 import type { Sql, TransactionSql } from "postgres";
-import { PptOutlineRuntime, type PptOutlineParagraph } from "./ppt-outline-runtime";
+import type { PptOutlineAdapters, PptPublicSource } from "./ppt-outline-adapters";
+import {
+  PptOutlineRuntime,
+  countOutlinePages,
+  type PptOutlineParagraph,
+  type PptOutlineSaveInput,
+  type PptOutlineSnapshot,
+} from "./ppt-outline-runtime";
 
 export const PPT_WORKSPACE_INTEGER_MAX = 2_147_483_647;
 export const PPT_WORKSPACE_PAGE_COUNT_MAX = PPT_WORKSPACE_INTEGER_MAX;
@@ -41,8 +48,25 @@ type DraftRow = {
 
 type SourceRow = PptWorkspaceSource & { sourceOrder: number };
 
+type OutlineNodeRow = {
+  nodeId: string;
+  level: 1 | 2 | 3;
+  body: string;
+};
+
+type PublicSourceRow = {
+  url: string;
+  title: string;
+  publishedAt: Date | null;
+  fetchedAt: Date;
+  usageScope: string;
+};
+
 export class PptWorkspaceStore {
-  constructor(private readonly sql: Sql) {}
+  constructor(
+    private readonly sql: Sql,
+    private readonly adapters: PptOutlineAdapters = {},
+  ) {}
 
   async createFromSentIntent(input: {
     accountId: string;
@@ -218,50 +242,149 @@ export class PptWorkspaceStore {
     });
   }
 
+  async getOutline(accountIdInput: string, draftIdInput: string): Promise<PptOutlineSnapshot | null> {
+    const accountId = accountIdInput.trim();
+    const draftId = draftIdInput.trim();
+    if (!accountId || !draftId) return null;
+
+    return this.sql.begin("isolation level repeatable read read only", async (transaction) => {
+      const [draft] = await transaction<Array<{ version: number }>>`
+        SELECT version
+        FROM ppt_drafts
+        WHERE account_id = ${accountId} AND id = ${draftId}
+      `;
+      if (!draft) return null;
+
+      const nodes = await transaction<OutlineNodeRow[]>`
+        SELECT node_id AS "nodeId", level, body
+        FROM ppt_outline_nodes
+        WHERE account_id = ${accountId} AND draft_id = ${draftId}
+        ORDER BY node_order
+      `;
+      const publicSources = await transaction<PublicSourceRow[]>`
+        SELECT url, title, published_at AS "publishedAt", fetched_at AS "fetchedAt",
+               usage_scope AS "usageScope"
+        FROM ppt_public_sources
+        WHERE account_id = ${accountId} AND draft_id = ${draftId}
+        ORDER BY url
+      `;
+      const paragraphs = nodes.map((node) => ({
+        id: node.nodeId,
+        level: node.level,
+        text: node.body,
+      } satisfies PptOutlineParagraph));
+      return {
+        version: draft.version,
+        pageCount: countOutlinePages(paragraphs),
+        paragraphs,
+        publicSources: publicSources.map(toPublicSource),
+      };
+    });
+  }
+
   async saveOutline(input: {
     accountId: string;
     draftId: string;
     expectedVersion: number;
     paragraphs: PptOutlineParagraph[];
+    publicSources?: PptPublicSource[];
   }) {
-    const runtime = new PptOutlineRuntime({
-      save: async ({ accountId, draftId, expectedVersion, paragraphs, pageCount }) => {
-        return this.sql.begin(async (transaction) => {
-          const [draft] = await transaction<Array<{ version: number }>>`
-            SELECT version FROM ppt_drafts
-            WHERE account_id = ${accountId} AND id = ${draftId}
-            FOR UPDATE
-          `;
-          if (!draft) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
-          if (draft.version !== expectedVersion) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+    const normalized = normalizeOutlineWrite(input);
+    await this.#outlineRuntime().saveOutline(normalized);
+    return this.#requireOutline(normalized.accountId, normalized.draftId);
+  }
 
-          await transaction`
-            DELETE FROM ppt_outline_nodes
-            WHERE account_id = ${accountId} AND draft_id = ${draftId}
-          `;
-          for (const [nodeOrder, paragraph] of paragraphs.entries()) {
-            await transaction`
-              INSERT INTO ppt_outline_nodes (
-                account_id, draft_id, node_id, node_order, level, body
-              ) VALUES (
-                ${accountId}, ${draftId}, ${paragraph.id}, ${nodeOrder},
-                ${paragraph.level}, ${paragraph.text.trim()}
-              )
-            `;
-          }
-          const [updated] = await transaction<Array<{ version: number }>>`
-            UPDATE ppt_drafts
-            SET version = version + 1, updated_at = now()
-            WHERE account_id = ${accountId} AND id = ${draftId}
-              AND version = ${expectedVersion}
-            RETURNING version
-          `;
-          if (!updated) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
-          return { version: updated.version, pageCount };
-        });
-      },
+  async generateOutline(input: {
+    accountId: string;
+    draftId: string;
+    expectedVersion: number;
+    signal?: AbortSignal;
+  }) {
+    const accountId = input.accountId.trim();
+    const draftId = input.draftId.trim();
+    if (!accountId || !draftId) {
+      throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+    }
+    assertIncrementableVersion(input.expectedVersion);
+    const workspace = await this.getWorkspace(accountId, draftId);
+    if (!workspace) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+    await this.#outlineRuntime().generateOutline({
+      accountId,
+      draftId,
+      expectedVersion: input.expectedVersion,
+      purpose: workspace.draft.requirements.purpose,
+      audience: workspace.draft.requirements.audience,
+      pageRange: workspace.draft.requirements.pageRange,
+      additionalRequirements: workspace.draft.requirements.additionalRequirements,
+      sources: workspace.sources,
+      signal: input.signal,
     });
-    return runtime.saveOutline(input);
+    return this.#requireOutline(accountId, draftId);
+  }
+
+  async #requireOutline(accountId: string, draftId: string) {
+    const outline = await this.getOutline(accountId, draftId);
+    if (!outline) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+    return outline;
+  }
+
+  #outlineRuntime() {
+    return new PptOutlineRuntime({
+      save: (input) => this.#persistOutline(input),
+    }, this.adapters);
+  }
+
+  async #persistOutline(input: PptOutlineSaveInput & { pageCount: number }) {
+    const { accountId, draftId, expectedVersion, paragraphs, publicSources } = input;
+    return this.sql.begin(async (transaction) => {
+      const [draft] = await transaction<Array<{ version: number }>>`
+        SELECT version FROM ppt_drafts
+        WHERE account_id = ${accountId} AND id = ${draftId}
+        FOR UPDATE
+      `;
+      if (!draft) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+      if (draft.version !== expectedVersion) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+
+      await transaction`
+        DELETE FROM ppt_outline_nodes
+        WHERE account_id = ${accountId} AND draft_id = ${draftId}
+      `;
+      for (const [nodeOrder, paragraph] of paragraphs.entries()) {
+        await transaction`
+          INSERT INTO ppt_outline_nodes (
+            account_id, draft_id, node_id, node_order, level, body
+          ) VALUES (
+            ${accountId}, ${draftId}, ${paragraph.id}, ${nodeOrder},
+            ${paragraph.level}, ${paragraph.text.trim()}
+          )
+        `;
+      }
+      if (publicSources) {
+        await transaction`
+          DELETE FROM ppt_public_sources
+          WHERE account_id = ${accountId} AND draft_id = ${draftId}
+        `;
+        for (const source of publicSources) {
+          await transaction`
+            INSERT INTO ppt_public_sources (
+              account_id, draft_id, url, title, published_at, fetched_at, usage_scope
+            ) VALUES (
+              ${accountId}, ${draftId}, ${source.url}, ${source.title},
+              ${source.publishedAt}, ${source.fetchedAt}, ${source.usageScope}
+            )
+          `;
+        }
+      }
+      const [updated] = await transaction<Array<{ version: number }>>`
+        UPDATE ppt_drafts
+        SET version = version + 1, updated_at = now()
+        WHERE account_id = ${accountId} AND id = ${draftId}
+          AND version = ${expectedVersion}
+        RETURNING version
+      `;
+      if (!updated) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+      return { version: updated.version };
+    });
   }
 
   async replaceSource(input: {
@@ -417,4 +540,46 @@ export class PptWorkspaceStore {
 function requiredPageValue(value: number | null) {
   if (value === null) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
   return value;
+}
+
+function normalizeOutlineWrite(input: {
+  accountId: string;
+  draftId: string;
+  expectedVersion: number;
+  paragraphs: PptOutlineParagraph[];
+  publicSources?: PptPublicSource[];
+}): PptOutlineSaveInput {
+  const accountId = input.accountId.trim();
+  const draftId = input.draftId.trim();
+  if (!accountId || !draftId) {
+    throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+  }
+  assertIncrementableVersion(input.expectedVersion);
+  return {
+    accountId,
+    draftId,
+    expectedVersion: input.expectedVersion,
+    paragraphs: input.paragraphs,
+    publicSources: input.publicSources,
+  };
+}
+
+function assertIncrementableVersion(expectedVersion: number) {
+  if (
+    !Number.isSafeInteger(expectedVersion)
+    || expectedVersion < 1
+    || expectedVersion > PPT_WORKSPACE_INCREMENTABLE_VERSION_MAX
+  ) {
+    throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+  }
+}
+
+function toPublicSource(row: PublicSourceRow): PptPublicSource {
+  return {
+    url: row.url,
+    title: row.title,
+    publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    fetchedAt: row.fetchedAt.toISOString(),
+    usageScope: row.usageScope,
+  };
 }

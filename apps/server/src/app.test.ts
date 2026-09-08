@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { developmentAccountId } from "./account-migration";
 import { createApp } from "./app";
 import { createM0Runtime, type M0Runtime } from "./m0-runtime";
+import { PptOutlineRuntimeError } from "./ppt-outline-runtime";
 import type { PptWorkspaceRouteRuntime } from "./ppt-workspace-routes";
 
 describe("health endpoints", () => {
@@ -220,7 +221,12 @@ describe("PPT workspace composition", () => {
   });
 
   it("delegates hierarchical outline payloads to the account-scoped workspace runtime", async () => {
-    const saveOutline = vi.fn(async () => ({ version: 3, pageCount: 2, paragraphs: [] }));
+    const saveOutline = vi.fn(async () => ({
+      version: 3,
+      pageCount: 2,
+      paragraphs: [],
+      publicSources: [],
+    }));
     const m0 = {
       async getWorkspace() { return { legacy: true }; },
       async saveRequirements() { return { legacy: true }; },
@@ -251,9 +257,91 @@ describe("PPT workspace composition", () => {
       ] },
     });
     expect(response.statusCode).toBe(200);
-    expect(saveOutline).toHaveBeenCalledWith(expect.objectContaining({
-      draftId: "draft-a", expectedVersion: 2,
+    expect(saveOutline).toHaveBeenCalledWith({
+      accountId: "account-a",
+      draftId: "draft-a",
+      expectedVersion: 2,
+      paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+        { id: "page-2", level: 1, text: "第二章" },
+      ],
+    });
+
+    const read = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(read.statusCode).toBe(404);
+
+    const isolated = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-b" },
+      payload: { expectedVersion: 2, paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+      ] },
+    });
+    expect(isolated.statusCode).toBe(200);
+    expect(saveOutline).toHaveBeenLastCalledWith(expect.objectContaining({
+      accountId: "account-b",
+      draftId: "draft-a",
     }));
+    await app.close();
+  });
+
+  it("maps hierarchical outline runtime errors on the shared M0 PUT path", async () => {
+    const m0 = {
+      async getWorkspace() { return { legacy: true }; },
+      async saveRequirements() { return { legacy: true }; },
+      async saveOutline() { return { legacy: true }; },
+      async createTask() { return { id: "task-legacy" }; },
+      async getTask() { return { id: "task-legacy" }; },
+      async stopTask() { return { id: "task-legacy" }; },
+      async getArtifact() { throw new Error("ARTIFACT_NOT_FOUND"); },
+    } as unknown as M0Runtime;
+    const app = createApp({
+      readiness: async () => true,
+      m0,
+      pptWorkspace: {
+        createFromSentIntent: vi.fn(),
+        getWorkspace: vi.fn(),
+        saveRequirements: vi.fn(),
+        replaceSource: vi.fn(),
+        saveOutline: vi.fn(async () => {
+          throw new PptOutlineRuntimeError("PPT_OUTLINE_ORPHAN_CHILD");
+        }),
+        getOutline: vi.fn(async (accountId, draftId) => (
+          accountId === "account-a" && draftId === "draft-a"
+            ? { version: 3, pageCount: 1, paragraphs: [], publicSources: [] }
+            : null
+        )),
+      },
+    });
+    const orphan = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+      payload: { expectedVersion: 2, paragraphs: [
+        { id: "point-orphan", level: 2, text: "没有页面的要点" },
+      ] },
+    });
+    expect(orphan.statusCode).toBe(400);
+    expect(orphan.json()).toEqual({ code: "PPT_OUTLINE_ORPHAN_CHILD" });
+
+    const owned = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-a" },
+    });
+    expect(owned.statusCode).toBe(200);
+    const foreign = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/outline",
+      headers: { "x-selfalone-account": "account-b" },
+    });
+    expect(foreign.statusCode).toBe(404);
+    await app.close();
   });
 
   it("keeps legacy STALE_VERSION and NOT_FOUND mapping when both runtimes share the path", async () => {

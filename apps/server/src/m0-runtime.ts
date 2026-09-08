@@ -154,6 +154,19 @@ export class M0Runtime {
     await migrateM0AccountOwnership(this.#sql);
 
     if (resetDevelopmentData) {
+      const [{ exists: outlineTableExists }] = await this.#sql<Array<{ exists: boolean }>>`
+        SELECT to_regclass('ppt_outline_nodes') IS NOT NULL AS exists
+      `;
+      const [{ exists: publicSourceTableExists }] = await this.#sql<Array<{ exists: boolean }>>`
+        SELECT to_regclass('ppt_public_sources') IS NOT NULL AS exists
+      `;
+      if (outlineTableExists && publicSourceTableExists) {
+        await this.#sql`TRUNCATE ppt_outline_nodes, ppt_public_sources`;
+      } else if (outlineTableExists) {
+        await this.#sql`TRUNCATE ppt_outline_nodes`;
+      } else if (publicSourceTableExists) {
+        await this.#sql`TRUNCATE ppt_public_sources`;
+      }
       const [{ exists: sourceTableExists }] = await this.#sql<Array<{ exists: boolean }>>`
         SELECT to_regclass('ppt_draft_sources') IS NOT NULL AS exists
       `;
