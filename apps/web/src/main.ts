@@ -152,6 +152,7 @@ const conversationChatClient = createConversationChatClient();
 const conversationSelectionClient = createConversationSelectionClient();
 const conversationChatLoadCoordinator = createConversationChatLoadCoordinator();
 const conversationSelectionDraftStoragePrefix = "selfalone:m1:conversation-selection-draft";
+const pptWorkspaceRequestStoragePrefix = "selfalone:m1:ppt-workspace-request";
 
 const appRoot = document.querySelector<HTMLDivElement>("#app");
 if (!appRoot) {
@@ -1593,6 +1594,9 @@ function renderConversationChat(session: ConversationChatSession) {
       pptWorkspaceStore.fail(context, error);
     }
   };
+  const workspaceRequestKey = pptBookEntry
+    ? `${pptWorkspaceRequestStoragePrefix}:${encodeURIComponent(authState.account?.id ?? "account-development-local")}:${encodeURIComponent(session.id)}:${encodeURIComponent(pptBookEntry.bookId)}`
+    : null;
 
   const controller = createConversationChatController({
     conversationId: session.id,
@@ -1615,7 +1619,10 @@ function renderConversationChat(session: ConversationChatSession) {
       : undefined,
     pptBookEntry: pptBookEntry ?? undefined,
     pptWorkspaceClient: pptWorkspaceClient ?? undefined,
-    onPptWorkspacePending: (context) => pptWorkspaceStore.begin(context),
+    onPptWorkspacePending: (context) => {
+      if (workspaceRequestKey) window.localStorage.setItem(workspaceRequestKey, context.requestId);
+      pptWorkspaceStore.begin(context);
+    },
     onPptWorkspaceCreated: (result, context) => { pptWorkspaceStore.ready(context, result); },
     onPptWorkspaceError: (error, context) => pptWorkspaceStore.fail(context, error),
   });
@@ -1648,6 +1655,10 @@ function renderConversationChat(session: ConversationChatSession) {
   });
   conversationSelectionCleanup = conversationChatCleanup;
   conversationSelectionHydrated = true;
+  if (pptBookEntry && workspaceRequestKey) {
+    const requestId = window.localStorage.getItem(workspaceRequestKey);
+    if (requestId) void retryWorkspace({ conversationId: session.id, requestId, bookId: pptBookEntry.bookId });
+  }
 }
 
 function replaceConversationChatDirectory() {
