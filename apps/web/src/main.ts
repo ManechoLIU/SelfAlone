@@ -1281,8 +1281,8 @@ function bindAuthInteractions() {
     confirmPassword: document.querySelector<HTMLInputElement>("#auth-confirmPassword")?.value ?? authState.confirmPassword,
   });
   const authTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".auth-tab[data-auth-mode]"));
-  bindAuthModeInteractions(authTabs, (mode) => {
-      authState = { ...setAuthMode(authState, mode), ...captureAuthDraft() };
+  bindAuthModeInteractions(authTabs, captureAuthDraft, (mode, draft) => {
+      authState = { ...setAuthMode(authState, mode), ...draft };
       window.history.pushState(null, "", authHash(mode));
       renderAuth();
       document.querySelector<HTMLButtonElement>(`.auth-tab[data-auth-mode="${mode}"]`)?.focus();

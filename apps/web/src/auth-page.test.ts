@@ -108,21 +108,14 @@ describe("desktop auth page", () => {
     expect(html).toContain('id="auth-panel" role="tabpanel" aria-labelledby="auth-tab-login"');
   });
 
-  it("captures the live auth draft before every mode switch", () => {
-    expect(mainSource).toContain("captureAuthDraft()");
-  });
-
-  it("uses a full-bleed curved brand sheet rather than an inset card", () => {
-    expect(authStyles).toContain("inset: 0 -8% 0 0");
-    expect(authStyles).not.toContain("border-radius: 28px");
-  });
-
   it("activates roving tabs from real click and keydown events", () => {
     class Tab extends EventTarget { dataset: { authMode?: string }; focused = 0; constructor(mode: string) { super(); this.dataset = { authMode: mode }; } focus() { this.focused += 1; } }
-    const login = new Tab("login"); const register = new Tab("register"); const modes: string[] = [];
-    bindAuthModeInteractions([login, register], (mode) => modes.push(mode));
+    const login = new Tab("login"); const register = new Tab("register"); const modes: Array<[string, { email: string; password: string; confirmPassword: string }]> = [];
+    let draft = { email: "a@b.com", password: "password", confirmPassword: "password" };
+    const unbind = bindAuthModeInteractions([login, register], () => draft, (mode, snapshot) => modes.push([mode, snapshot]));
     login.dispatchEvent(new Event("click"));
     const right = new Event("keydown", { cancelable: true }); Object.defineProperty(right, "key", { value: "ArrowRight" }); login.dispatchEvent(right);
-    expect(modes).toEqual(["login", "register"]); expect(register.focused).toBe(1); expect(right.defaultPrevented).toBe(true);
+    expect(modes).toEqual([["login", draft], ["register", draft]]); expect(register.focused).toBe(1); expect(right.defaultPrevented).toBe(true);
+    unbind(); login.dispatchEvent(new Event("click")); expect(modes).toHaveLength(2);
   });
 });

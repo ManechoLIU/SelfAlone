@@ -2,11 +2,11 @@ import type { AuthMode, AuthState } from "./auth-state";
 
 type AuthModeTarget = EventTarget & { dataset: { authMode?: string }; focus(): void };
 
-export function bindAuthModeInteractions(targets: AuthModeTarget[], onMode: (mode: "login" | "register") => void) {
+export function bindAuthModeInteractions<T>(targets: AuthModeTarget[], readDraft: () => T, onMode: (mode: "login" | "register", draft: T) => void) {
   const listeners = targets.map((target, index) => {
     const activate = () => {
       const mode = target.dataset.authMode;
-      if (mode === "login" || mode === "register") onMode(mode);
+      if (mode === "login" || mode === "register") onMode(mode, readDraft());
     };
     const keydown = (event: Event) => {
       const key = (event as KeyboardEvent).key;
@@ -15,7 +15,7 @@ export function bindAuthModeInteractions(targets: AuthModeTarget[], onMode: (mod
       const next = targets[(index + (key === "ArrowRight" ? 1 : -1) + targets.length) % targets.length];
       next?.focus();
       const mode = next?.dataset.authMode;
-      if (mode === "login" || mode === "register") onMode(mode);
+      if (mode === "login" || mode === "register") onMode(mode, readDraft());
     };
     target.addEventListener("click", activate);
     target.addEventListener("keydown", keydown);
