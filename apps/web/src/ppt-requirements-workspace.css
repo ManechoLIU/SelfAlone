@@ -35,6 +35,12 @@
 .ppt-requirements-range label { display: grid; gap: 6px; }
 .ppt-requirements-range > span { min-height: 44px; display: grid; place-items: center; }
 
+/* Primary generate submit: intentional celadon button on the shared 44x44 target,
+   with visible focus and a non-color-only disabled state for in-flight submits. */
+.ppt-requirements-actions [data-ppt-requirements-generate] { min-width: 44px; min-height: 44px; border: 0; border-radius: 8px; background: var(--desktop-celadon, #0d6a57); color: #fff; padding: 0 20px; font: inherit; font-weight: 650; cursor: pointer; }
+.ppt-requirements-actions [data-ppt-requirements-generate]:focus-visible { outline: 2px solid var(--desktop-celadon, #0d6a57); outline-offset: 2px; }
+.ppt-requirements-actions [data-ppt-requirements-generate]:disabled { opacity: 0.6; cursor: not-allowed; }
+
 @media (max-width: 1279px) {
   .conversation-chat-notice { width: min(calc(100% - 32px), 720px); }
 }

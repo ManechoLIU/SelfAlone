@@ -83,6 +83,17 @@ describe("PPT requirements workspace view", () => {
     expect(requirementsCss).not.toMatch(/\.ppt-requirements-workspace\s*\{[^}]*padding:\s*32px/s);
   });
 
+  it("gives the generate outline submit an intentional button style with the 44px minimum target", () => {
+    const generateRule = requirementsCss.match(/[^{}]*\[data-ppt-requirements-generate\][^{}]*\{([^}]*)\}/);
+    expect(generateRule, "a loaded stylesheet rule must target the generate outline submit").toBeTruthy();
+    const declarations = generateRule?.[1] ?? "";
+    const minHeight = Number(declarations.match(/min-height:\s*(\d+)px/)?.[1] ?? 0);
+    const minWidth = Number(declarations.match(/min-width:\s*(\d+)px/)?.[1] ?? 0);
+    expect(minHeight).toBeGreaterThanOrEqual(44);
+    expect(minWidth).toBeGreaterThanOrEqual(44);
+    expect(declarations).toMatch(/background:\s*var\(--desktop-celadon/);
+  });
+
   it("renders no task panel for pending or normal conversation state", () => {
     expect(renderPptRequirementsWorkspaceView({ phase: "hidden" })).toBe("");
     expect(renderPptRequirementsWorkspaceView({ phase: "pending", context: { conversationId: "a", requestId: "r", bookId: "b" } })).toBe("");
