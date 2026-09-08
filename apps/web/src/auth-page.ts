@@ -65,21 +65,21 @@ function renderAccountPane(state: AuthState) {
   const formMode: AuthMode = state.mode === "register" ? "register" : "login";
   const tab = (mode: Exclude<AuthMode, "entry">, label: string) => {
     const active = formMode === mode;
-    return `<button type="button" role="tab" aria-selected="${active}" class="auth-tab${active ? " is-active" : ""}" data-auth-mode="${mode}">${label}${active ? '<span class="auth-tab-indicator" aria-hidden="true"></span>' : ""}</button>`;
+    return `<button id="auth-tab-${mode}" type="button" role="tab" aria-selected="${active}" aria-controls="auth-panel" tabindex="${active ? 0 : -1}" class="auth-tab${active ? " is-active" : ""}" data-auth-mode="${mode}">${label}${active ? '<span class="auth-tab-indicator" aria-hidden="true"></span>' : ""}</button>`;
   };
   return `<section class="auth-account-pane" aria-labelledby="auth-title">
     <div class="auth-tabs" role="tablist" aria-label="账户入口">
       ${tab("login", "登录")}
       ${tab("register", "注册")}
     </div>
-    <h1 id="auth-title">${formMode === "register" ? "创建账户" : "欢迎回来"}</h1>
+    <div id="auth-panel" role="tabpanel" aria-labelledby="auth-tab-${formMode}"><h1 id="auth-title">${formMode === "register" ? "创建账户" : "欢迎回来"}</h1>
     <p class="auth-subtitle">${formMode === "register" ? "从今天开始，留住你的阅读与灵感" : "继续整理你的阅读与灵感"}</p>
     <div class="auth-actions">
       ${renderWechatPrimaryAction()}
       ${renderAuthDivider()}
       ${state.mode === "entry" ? renderEmailEntry() : renderAuthForm(state)}
     </div>
-    <p class="auth-agreement">登录即表示你同意 <a href="#/terms">《用户协议》</a> 和 <a href="#/privacy">《隐私政策》</a></p>
+    <p class="auth-agreement">登录即表示你同意 <a href="#/terms">《用户协议》</a> 和 <a href="#/privacy">《隐私政策》</a></p></div>
   </section>`;
 }
 

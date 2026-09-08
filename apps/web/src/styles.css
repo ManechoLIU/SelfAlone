@@ -812,18 +812,19 @@ body { overflow-x: hidden; }
 }
 
 .auth-brand-panel {
+  position: relative;
   min-height: 100vh;
-  box-sizing: border-box;
-  padding: clamp(20px, 3vw, 44px);
+  overflow: hidden;
+  background: #e7eae8;
 }
 
 .auth-brand-sheet {
-  position: relative;
-  height: 100%;
+  position: absolute;
+  inset: -20% -16% 5% -18%;
   box-sizing: border-box;
   overflow: hidden;
   isolation: isolate;
-  border-radius: 28px;
+  border-radius: 0 0 58% 0;
   padding: clamp(36px, 4.6vw, 64px) clamp(28px, 4.5vw, 72px);
   background: #f8faf6;
 }
@@ -1113,14 +1114,14 @@ body { overflow-x: hidden; }
 
 @media (max-width: 900px) and (min-width: 761px) {
   .auth-page { grid-template-columns: minmax(0, 42fr) minmax(0, 58fr); }
-  .auth-brand-panel { padding: 20px; }
+  .auth-brand-panel { padding: 0; }
   .auth-brand-sheet { padding: 32px 28px; }
   .auth-mascot { left: 28px; width: 168px; }
 }
 
 @media (max-width: 760px) {
   .auth-page { grid-template-columns: 1fr; overflow: auto; }
-  .auth-brand-panel { min-height: 0; padding: 16px; }
+  .auth-brand-panel { min-height: 0; padding: 0; }
   .auth-brand-sheet { min-height: 260px; border-radius: 20px; padding: 28px 24px; }
   .auth-brand-lockup p { margin-top: 10px; font-size: 16px; }
   .auth-mascot { right: 20px; bottom: -2px; left: auto; width: 168px; }

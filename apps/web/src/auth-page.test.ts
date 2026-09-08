@@ -105,4 +105,20 @@ describe("desktop auth page", () => {
     expect(mainSource).toContain('"ArrowRight"');
     expect(mainSource).toContain("firstInvalid");
   });
+
+  it("renders a single roving tab stop and a labelled tab panel", () => {
+    const html = renderAuthPage(createAuthState("login"));
+    expect(html).toContain('aria-controls="auth-panel" tabindex="0"');
+    expect(html).toContain('aria-controls="auth-panel" tabindex="-1"');
+    expect(html).toContain('id="auth-panel" role="tabpanel" aria-labelledby="auth-tab-login"');
+  });
+
+  it("captures the live auth draft before every mode switch", () => {
+    expect(mainSource).toContain("captureAuthDraft()");
+  });
+
+  it("uses a full-bleed curved brand sheet rather than an inset card", () => {
+    expect(authStyles).toContain("inset: -20% -16% 5% -18%");
+    expect(authStyles).not.toContain("border-radius: 28px");
+  });
 });

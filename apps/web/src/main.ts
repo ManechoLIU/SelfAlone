@@ -1275,6 +1275,11 @@ function handleAuthDialogKeydown(event: KeyboardEvent) {
 }
 
 function bindAuthInteractions() {
+  const captureAuthDraft = () => ({
+    email: document.querySelector<HTMLInputElement>("#auth-email")?.value ?? authState.email,
+    password: document.querySelector<HTMLInputElement>("#auth-password")?.value ?? authState.password,
+    confirmPassword: document.querySelector<HTMLInputElement>("#auth-confirmPassword")?.value ?? authState.confirmPassword,
+  });
   const authTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".auth-tab[data-auth-mode]"));
   authTabs.forEach((tab, index) => {
     tab.addEventListener("keydown", (event) => {
@@ -1284,7 +1289,7 @@ function bindAuthInteractions() {
       const target = authTabs[(index + delta + authTabs.length) % authTabs.length];
       const mode = target?.dataset.authMode;
       if (mode !== "login" && mode !== "register") return;
-      authState = setAuthMode(authState, mode);
+      authState = { ...setAuthMode(authState, mode), ...captureAuthDraft() };
       window.history.pushState(null, "", authHash(mode));
       renderAuth();
       document.querySelector<HTMLButtonElement>(`.auth-tab[data-auth-mode="${mode}"]`)?.focus();
@@ -1294,7 +1299,7 @@ function bindAuthInteractions() {
     button.addEventListener("click", () => {
       const mode = button.dataset.authMode;
       if (mode !== "entry" && mode !== "login" && mode !== "register") return;
-      authState = setAuthMode(authState, mode);
+      authState = { ...setAuthMode(authState, mode), ...captureAuthDraft() };
       window.history.pushState(null, "", authHash(mode));
       renderAuth();
     });
