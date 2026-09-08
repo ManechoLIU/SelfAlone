@@ -1,5 +1,19 @@
 import type { BookSummary } from "../core/library-state";
-import type { MiniappClient, BookDetail, BookListOptions, DevelopmentState, LocalBookFile, PptWorkspace, ReadingPosition } from "./client";
+import type {
+  MiniappClient,
+  BookDetail,
+  BookListOptions,
+  DevelopmentState,
+  LocalBookFile,
+  PptDraftCreateResult,
+  PptDraftSnapshot,
+  PptOutlineParagraph,
+  PptOutlineSnapshot,
+  PptOutlineWrite,
+  PptRequirementsWrite,
+  PptWorkspace,
+  ReadingPosition,
+} from "./client";
 import { ClientBoundaryError, normalizeBookListOptions } from "./client";
 
 const books: BookSummary[] = [
@@ -102,11 +116,54 @@ function applyState<T>(state: DevelopmentState | undefined, value: T): Promise<T
   return Promise.resolve(value);
 }
 
+type DevelopmentPptDraft = {
+  workspace: PptDraftSnapshot;
+  paragraphs: PptOutlineParagraph[];
+};
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function countPages(paragraphs: readonly PptOutlineParagraph[]) {
+  return paragraphs.reduce((count, paragraph) => (paragraph.level === 1 ? count + 1 : count), 0);
+}
+
+function developmentOutlineParagraphs(): PptOutlineParagraph[] {
+  return [
+    { id: "dev-node-1", level: 1, text: "从书中提出一个问题" },
+    { id: "dev-node-2", level: 2, text: "解释问题为何值得讨论" },
+    { id: "dev-node-3", level: 3, text: "保留一个可继续思考的线索" },
+    { id: "dev-node-4", level: 1, text: "把阅读带回日常" },
+    { id: "dev-node-5", level: 2, text: "列出可以尝试的行动" },
+  ];
+}
+
+function outlineHierarchyError(paragraphs: readonly PptOutlineParagraph[]) {
+  let hasPage = false;
+  let hasPoint = false;
+  for (const paragraph of paragraphs) {
+    if (paragraph.level === 1) {
+      hasPage = true;
+      hasPoint = false;
+    } else if (paragraph.level === 2) {
+      if (!hasPage) return true;
+      hasPoint = true;
+    } else if (!hasPage || !hasPoint) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class DevelopmentClient implements MiniappClient {
   readonly kind = "development" as const;
   readonly development = true;
   private readonly positions = new Map<string, ReadingPosition>();
   private workspace = developmentWorkspace();
+  private readonly pptDrafts = new Map<string, DevelopmentPptDraft>();
+  private readonly pptDraftKeys = new Map<string, string>();
+  private pptDraftSequence = 0;
 
   listBooks(input: BookListOptions | DevelopmentState = "normal") {
     const { query, state } = normalizeBookListOptions(input);
@@ -143,5 +200,118 @@ export class DevelopmentClient implements MiniappClient {
   savePptWorkspace(workspace: PptWorkspace) {
     this.workspace = cloneWorkspace({ ...workspace, version: workspace.version + 1 });
     return Promise.resolve(cloneWorkspace(this.workspace));
+  }
+
+  private findPptDraft(draftId: string): DevelopmentPptDraft {
+    const draft = this.pptDrafts.get(draftId);
+    if (!draft) throw new ClientBoundaryError("PPT_WORKSPACE_NOT_FOUND");
+    return draft;
+  }
+
+  private outlineSnapshot(draft: DevelopmentPptDraft): PptOutlineSnapshot {
+    return {
+      version: draft.workspace.draft.version,
+      pageCount: countPages(draft.paragraphs),
+      paragraphs: clone(draft.paragraphs),
+    };
+  }
+
+  createPptDraft(input: { conversationId: string; requestId: string; bookId: string }): Promise<PptDraftCreateResult> {
+    const key = `${input.conversationId}\n${input.requestId}`;
+    const existingId = this.pptDraftKeys.get(key);
+    if (existingId) {
+      const existing = this.findPptDraft(existingId);
+      if (existing.workspace.sources[0].bookId !== input.bookId) {
+        return Promise.reject(new ClientBoundaryError("PPT_INTENT_CONFLICT"));
+      }
+      return Promise.resolve({ status: "reused", workspace: clone(existing.workspace) });
+    }
+    const book = books.find((item) => item.id === input.bookId);
+    if (!book || !input.conversationId.trim() || !input.requestId.trim()) {
+      return Promise.reject(new ClientBoundaryError("PPT_WORKSPACE_NOT_FOUND"));
+    }
+    const draftId = `dev-ppt-draft-${++this.pptDraftSequence}`;
+    const draft: DevelopmentPptDraft = {
+      workspace: {
+        draft: {
+          id: draftId,
+          conversationId: input.conversationId,
+          stage: "requirements",
+          version: 1,
+          requirements: { purpose: null, audience: null, pageRange: null, additionalRequirements: "" },
+        },
+        sources: [{ bookId: book.id, title: book.title, author: book.author ?? null, sourceLabel: book.sourceLabel }],
+      },
+      paragraphs: [],
+    };
+    this.pptDrafts.set(draftId, draft);
+    this.pptDraftKeys.set(key, draftId);
+    return Promise.resolve({ status: "created", workspace: clone(draft.workspace) });
+  }
+
+  getPptDraftWorkspace(draftId: string): Promise<PptDraftSnapshot> {
+    return Promise.resolve(clone(this.findPptDraft(draftId).workspace));
+  }
+
+  savePptRequirements(draftId: string, input: PptRequirementsWrite): Promise<PptDraftSnapshot> {
+    const draft = this.findPptDraft(draftId);
+    if (draft.workspace.draft.version !== input.expectedVersion) {
+      return Promise.reject(new ClientBoundaryError("PPT_WORKSPACE_STALE"));
+    }
+    if (!input.purpose.trim()
+      || !input.audience.trim()
+      || !Number.isSafeInteger(input.pageRange.min)
+      || !Number.isSafeInteger(input.pageRange.max)
+      || input.pageRange.min < 1
+      || input.pageRange.max < input.pageRange.min) {
+      return Promise.reject(new ClientBoundaryError("HTTP_REQUEST_FAILED", "PPT 需求填写不完整"));
+    }
+    draft.workspace = {
+      ...draft.workspace,
+      draft: {
+        ...draft.workspace.draft,
+        version: draft.workspace.draft.version + 1,
+        requirements: {
+          purpose: input.purpose.trim(),
+          audience: input.audience.trim(),
+          pageRange: { ...input.pageRange },
+          additionalRequirements: input.additionalRequirements.trim(),
+        },
+      },
+    };
+    return Promise.resolve(clone(draft.workspace));
+  }
+
+  getPptOutline(draftId: string): Promise<PptOutlineSnapshot> {
+    return Promise.resolve(this.outlineSnapshot(this.findPptDraft(draftId)));
+  }
+
+  savePptOutline(draftId: string, input: PptOutlineWrite): Promise<PptOutlineSnapshot> {
+    const draft = this.findPptDraft(draftId);
+    if (outlineHierarchyError(input.paragraphs)) {
+      return Promise.reject(new ClientBoundaryError("PPT_OUTLINE_ORPHAN_CHILD"));
+    }
+    if (draft.workspace.draft.version !== input.expectedVersion) {
+      return Promise.reject(new ClientBoundaryError("PPT_WORKSPACE_STALE"));
+    }
+    draft.paragraphs = clone(input.paragraphs);
+    draft.workspace = {
+      ...draft.workspace,
+      draft: { ...draft.workspace.draft, version: draft.workspace.draft.version + 1 },
+    };
+    return Promise.resolve(this.outlineSnapshot(draft));
+  }
+
+  generatePptOutline(draftId: string, input: { expectedVersion: number }): Promise<PptOutlineSnapshot> {
+    const draft = this.findPptDraft(draftId);
+    if (draft.workspace.draft.version !== input.expectedVersion) {
+      return Promise.reject(new ClientBoundaryError("PPT_WORKSPACE_STALE"));
+    }
+    draft.paragraphs = developmentOutlineParagraphs();
+    draft.workspace = {
+      ...draft.workspace,
+      draft: { ...draft.workspace.draft, version: draft.workspace.draft.version + 1 },
+    };
+    return Promise.resolve(this.outlineSnapshot(draft));
   }
 }

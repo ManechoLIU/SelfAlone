@@ -108,6 +108,6 @@ describe("PPT page development states", () => {
   it("lets the shared viewport tracker own keyboard displacement", () => {
     expect(pptWxml).not.toContain('adjust-position="{{true}}"');
     expect(pptWxml).not.toContain('cursor-spacing="120"');
-    expect(pptWxml.match(/adjust-position="{{false}}"/g)).toHaveLength(4);
+    expect(pptWxml.match(/adjust-position="{{false}}"/g)).toHaveLength(6);
   });
 });

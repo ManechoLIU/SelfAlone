@@ -41,6 +41,11 @@ afterAll(() => {
 });
 
 describe("PPT workspace load failure", () => {
+  it("exposes the sent-intent draft workspace loader", () => {
+    const page = createPage();
+    expect(page.loadDraftWorkspace).toBeTypeOf("function");
+  });
+
   it("presents a failed development route inside the recovered completed workspace", async () => {
     const page = createPage();
     page.bookId = "dev-local-ink";

@@ -36,7 +36,7 @@
 .scroll-bottom-space { height: var(--ppt-action-clearance, 96px); }
 
 .scope-summary { position: relative; margin-bottom: 22px; padding: 12px 14px 12px 20px; border: 1px solid #c9ddd5; border-radius: 14px; background: #edf6f2; color: #465a53; font-size: 13px; line-height: 20px; overflow: hidden; overflow-wrap: break-word; }
-.scope-summary::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: #82b3a3; }
+.scope-summary__bar { position: absolute; inset: 0 auto 0 0; width: 6px; background: #82b3a3; }
 .scope-summary__label { margin-bottom: 4px; color: #0d6a57; font-size: 11px; line-height: 18px; font-weight: 600; }
 .ppt-field { display: block; margin-top: 20px; }
 .ppt-field > text { display: block; margin-bottom: 7px; color: #68766f; font-size: 12px; line-height: 18px; }
@@ -47,6 +47,8 @@
 .range-options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; }
 .range-option { min-width: 0; min-height: 48px; margin: 0; padding: 0 4px; border: 1px solid #cbd8d3; border-radius: 14px; background: #fff; color: #21312d; font-size: 12px; }
 .range-option.is-selected { border-color: #0d6a57; background: #0d6a57; color: #fff; font-weight: 600; }
+.custom-range { display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 10px; color: #68766f; font-size: 13px; text-align: center; }
+.custom-range input { width: 100%; height: 48px; box-sizing: border-box; padding: 0 10px; border: 1px solid #cbd8d3; border-radius: 12px; background: #fff; color: #21312d; font-size: 14px; text-align: center; }
 .extra-input { width: 100%; min-height: 106px; box-sizing: border-box; padding: 13px 14px; border: 1px solid #cbd8d3; border-radius: 14px; background: #fff; font-size: 15px; line-height: 24px; }
 
 .outline-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; line-height: 22px; font-weight: 600; }
@@ -75,9 +77,9 @@
 .template-empty { min-height: 300px; }
 
 .generation-status { min-height: 26px; color: #0d6a57; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; line-height: 20px; font-weight: 500; }
-.generation-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #0d8067; flex: none; }
+.generation-status__dot { width: 8px; height: 8px; border-radius: 50%; background: #0d8067; flex: none; }
 .generation-status > text { margin-right: auto; }
-.generation-status.is-error { color: #b44432; }.generation-status.is-error::before { background: #b44432; }
+.generation-status.is-error { color: #b44432; }.generation-status.is-error .generation-status__dot { background: #b44432; }
 .task-menu { width: 44px; height: 44px; margin: -9px 0 -9px; padding: 0; background: transparent; }
 .task-menu image { width: 22px; height: 22px; }
 .ppt-preview-list { margin-top: 12px; display: grid; gap: 14px; }
@@ -107,6 +109,8 @@
 .editor-title { font-size: 20px; line-height: 28px; font-weight: 600; }.editor-status { margin-top: 4px; color: #0d6a57; font-size: 11px; line-height: 18px; }
 .editor-header button { width: 44px; height: 44px; margin: -4px -8px 0 0; padding: 0; background: transparent; }.editor-header image { width: 22px; height: 22px; }
 .outline-textarea { width: 100%; min-height: 0; flex: 1; box-sizing: border-box; margin-top: 18px; padding: 14px 4px; border-top: 1px solid #dce5e1; border-bottom: 1px solid #dce5e1; font-size: 16px; line-height: 2.2; }
+.editor-error { margin-top: 8px; color: #8f3527; font-size: 11px; line-height: 18px; }
+.editor-refresh { display: inline; min-height: 28px; margin: 2px 0 0 8px; padding: 0 8px; border: 1px solid #d59b90; border-radius: 8px; background: #fff8f6; color: #8f3527; font-size: 11px; line-height: 26px; }
 .editor-help { padding: 10px 0; color: #87938e; font-size: 11px; line-height: 18px; }
 
 @media (min-width: 430px) {

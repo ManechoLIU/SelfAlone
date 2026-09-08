@@ -20,6 +20,12 @@ class UnavailableClient implements MiniappClient {
   savePosition(): Promise<never> { return this.unavailable(); }
   getPptWorkspace(): Promise<never> { return this.unavailable(); }
   savePptWorkspace(): Promise<never> { return this.unavailable(); }
+  createPptDraft(): Promise<never> { return this.unavailable(); }
+  getPptDraftWorkspace(): Promise<never> { return this.unavailable(); }
+  savePptRequirements(): Promise<never> { return this.unavailable(); }
+  getPptOutline(): Promise<never> { return this.unavailable(); }
+  savePptOutline(): Promise<never> { return this.unavailable(); }
+  generatePptOutline(): Promise<never> { return this.unavailable(); }
 }
 
 export type ProductionClientOptions = {

@@ -625,3 +625,74 @@ describe("authenticated library HTTP client", () => {
     await expect(malformed.listBooks()).rejects.toMatchObject({ code: "INVALID_LIBRARY_RESPONSE" });
   });
 });
+
+describe("production Mini client PPT workspace capability", () => {
+  it("still rejects the legacy coarse PPT workspace operations as unsupported", async () => {
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => ({ kind: "authenticated", token: "ppt-token-1234567890", expiresAt: Date.now() + 60_000 }),
+      transport: transport(),
+    });
+
+    await expect(client.getPptWorkspace("book-1"))
+      .rejects.toMatchObject({ code: "CLIENT_CAPABILITY_UNAVAILABLE" });
+    await expect(client.savePptWorkspace({
+      draftId: "draft-1",
+      version: 1,
+      stage: "requirements",
+      bookId: "book-1",
+      bookTitle: "书",
+      purpose: "",
+      audience: "",
+      pageRange: "",
+      extra: "",
+      outline: [],
+      templateId: "celadon-reading",
+      task: null,
+      previews: [],
+    })).rejects.toMatchObject({ code: "CLIENT_CAPABILITY_UNAVAILABLE" });
+  });
+
+  it("creates or reuses a PPT draft through the frozen conversation endpoint", async () => {
+    const request = vi.fn(async () => ({
+      status: 201,
+      data: {
+        status: "created",
+        workspace: {
+          draft: {
+            id: "draft-1",
+            conversationId: "conv-1",
+            stage: "requirements",
+            version: 1,
+            requirements: { purpose: null, audience: null, pageRange: null, additionalRequirements: "" },
+          },
+          sources: [{ bookId: "book-1", title: "山窗读书札记", author: null, sourceLabel: "本地" }],
+        },
+      },
+    }));
+    const client = createLibraryHttpClient({
+      baseUrl: "https://api.example.test",
+      authProvider: () => ({ kind: "authenticated", token: "ppt-token-1234567890", expiresAt: Date.now() + 60_000 }),
+      transport: transport({ request }),
+    });
+
+    const result = await client.createPptDraft({
+      conversationId: "conv-1",
+      requestId: "req-1",
+      bookId: "book-1",
+    });
+
+    expect(request).toHaveBeenCalledWith({
+      method: "POST",
+      url: "https://api.example.test/api/v1/conversations/conv-1/ppt-drafts",
+      headers: {
+        Authorization: "Bearer ppt-token-1234567890",
+        accept: "application/json",
+        "content-type": "application/json",
+      },
+      body: { requestId: "req-1", bookId: "book-1" },
+    });
+    expect(result.status).toBe("created");
+    expect(result.workspace.draft).toMatchObject({ id: "draft-1", version: 1, stage: "requirements" });
+  });
+});

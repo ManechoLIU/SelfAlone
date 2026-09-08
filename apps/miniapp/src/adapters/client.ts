@@ -44,6 +44,62 @@ export type OutlineNode = {
   text: string;
 };
 
+/** Frozen Server contract: PPT draft workspace in the requirements stage. */
+export type PptDraftRequirements = {
+  purpose: string | null;
+  audience: string | null;
+  pageRange: { min: number; max: number } | null;
+  additionalRequirements: string;
+};
+
+export type PptDraftSource = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  sourceLabel: string;
+};
+
+export type PptDraftSnapshot = {
+  draft: {
+    id: string;
+    conversationId: string;
+    stage: "requirements";
+    version: number;
+    requirements: PptDraftRequirements;
+  };
+  sources: readonly [PptDraftSource];
+};
+
+export type PptOutlineParagraph = {
+  id: string;
+  level: 1 | 2 | 3;
+  text: string;
+};
+
+export type PptOutlineSnapshot = {
+  version: number;
+  pageCount: number;
+  paragraphs: PptOutlineParagraph[];
+};
+
+export type PptDraftCreateResult = {
+  status: "created" | "reused";
+  workspace: PptDraftSnapshot;
+};
+
+export type PptRequirementsWrite = {
+  expectedVersion: number;
+  purpose: string;
+  audience: string;
+  pageRange: { min: number; max: number };
+  additionalRequirements: string;
+};
+
+export type PptOutlineWrite = {
+  expectedVersion: number;
+  paragraphs: PptOutlineParagraph[];
+};
+
 export type PptPreviewPage = {
   id: string;
   eyebrow: string;
@@ -87,6 +143,12 @@ export interface MiniappClient {
   savePosition(bookId: string, input: Omit<ReadingPosition, "version"> & { expectedVersion: number }): Promise<ReadingPosition>;
   getPptWorkspace(bookId?: string, state?: DevelopmentState): Promise<PptWorkspace>;
   savePptWorkspace(workspace: PptWorkspace): Promise<PptWorkspace>;
+  createPptDraft(input: { conversationId: string; requestId: string; bookId: string }): Promise<PptDraftCreateResult>;
+  getPptDraftWorkspace(draftId: string): Promise<PptDraftSnapshot>;
+  savePptRequirements(draftId: string, input: PptRequirementsWrite): Promise<PptDraftSnapshot>;
+  getPptOutline(draftId: string): Promise<PptOutlineSnapshot>;
+  savePptOutline(draftId: string, input: PptOutlineWrite): Promise<PptOutlineSnapshot>;
+  generatePptOutline(draftId: string, input: { expectedVersion: number }): Promise<PptOutlineSnapshot>;
 }
 
 export type ClientBoundaryErrorCode =
@@ -95,8 +157,15 @@ export type ClientBoundaryErrorCode =
   | "DEVELOPMENT_STATE_FAILURE"
   | "HTTP_REQUEST_FAILED"
   | "INVALID_LIBRARY_RESPONSE"
+  | "INVALID_PPT_RESPONSE"
   | "BOOK_FILE_TOO_LARGE"
-  | "UNSUPPORTED_BOOK_FORMAT";
+  | "UNSUPPORTED_BOOK_FORMAT"
+  | "PPT_INTENT_CONFLICT"
+  | "PPT_INTENT_NOT_SENT"
+  | "PPT_OUTLINE_ORPHAN_CHILD"
+  | "PPT_OUTLINE_UNAVAILABLE"
+  | "PPT_WORKSPACE_NOT_FOUND"
+  | "PPT_WORKSPACE_STALE";
 
 export class ClientBoundaryError extends Error {
   constructor(readonly code: ClientBoundaryErrorCode, message?: string) {
@@ -112,7 +181,21 @@ export class ClientBoundaryError extends Error {
             ? "仅支持 EPUB、TXT 或 PDF 文件"
             : code === "INVALID_LIBRARY_RESPONSE"
               ? "书架响应无法识别"
-              : "书架请求失败"));
+              : code === "INVALID_PPT_RESPONSE"
+                ? "PPT 工作区响应无法识别"
+                : code === "PPT_INTENT_NOT_SENT"
+                  ? "PPT 意图尚未发送，无法创建工作区"
+                  : code === "PPT_INTENT_CONFLICT"
+                    ? "PPT 意图与已有草稿不一致"
+                    : code === "PPT_OUTLINE_ORPHAN_CHILD"
+                      ? "需要页面层级才能确认大纲"
+                      : code === "PPT_OUTLINE_UNAVAILABLE"
+                        ? "大纲生成暂不可用，请稍后重试"
+                        : code === "PPT_WORKSPACE_NOT_FOUND"
+                          ? "PPT 草稿不存在或已失效"
+                          : code === "PPT_WORKSPACE_STALE"
+                            ? "PPT 草稿已在别处更新，请刷新后重试"
+                            : "书架请求失败"));
     this.name = "ClientBoundaryError";
   }
 }

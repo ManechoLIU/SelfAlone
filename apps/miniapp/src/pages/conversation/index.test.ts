@@ -246,6 +246,7 @@ describe("conversation normal shell contract", () => {
     page.sendDraft();
 
     expect(intentStore.activate).toHaveBeenCalledTimes(1);
+    expect(intentStore.activate).toHaveBeenCalledWith(page.data.pendingSend.id);
     expect(page.data).toMatchObject({
       pptIntent: { phase: "awaiting-confirmation", bookId: "dev-local-ink" },
       pptHandoff: null,

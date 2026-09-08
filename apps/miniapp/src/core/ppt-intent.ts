@@ -25,6 +25,8 @@ export type PptConversationIntent = {
   coverUrl?: string;
   coverVariant?: number;
   draft: string;
+  /** Request id of the actually sent intent message; required to create/reuse the Server draft. */
+  requestId?: string;
   phase: "draft" | "awaiting-confirmation" | "requirements-ready";
 };
 
@@ -55,6 +57,7 @@ function isIntent(value: unknown): value is PptConversationIntent {
     && (candidate.coverVariant === undefined
       || (typeof candidate.coverVariant === "number" && Number.isFinite(candidate.coverVariant)))
     && typeof candidate.draft === "string"
+    && isOptionalString(candidate.requestId)
     && (candidate.phase === "draft"
       || candidate.phase === "awaiting-confirmation"
       || candidate.phase === "requirements-ready")
@@ -101,11 +104,16 @@ export function createPptIntentStore(
       if (!current) return null;
       return write({ ...current, draft: typeof draft === "string" ? draft : "" });
     },
-    activate(): PptConversationIntent | null {
+    activate(requestId?: string): PptConversationIntent | null {
       const current = restore();
       if (!current) return null;
       if (current.phase !== "draft") return current;
-      return write({ ...current, phase: "awaiting-confirmation" });
+      const sentRequestId = typeof requestId === "string" && requestId.trim() ? requestId : undefined;
+      return write({
+        ...current,
+        phase: "awaiting-confirmation",
+        ...(sentRequestId ? { requestId: sentRequestId } : {}),
+      });
     },
     confirm(): PptConversationIntent | null {
       const current = restore();
@@ -116,7 +124,9 @@ export function createPptIntentStore(
     workspaceUrl(): string | null {
       const current = restore();
       if (!current || current.phase !== "requirements-ready") return null;
-      return `/pages/ppt/index?bookId=${encodeURIComponent(current.bookId)}`;
+      const base = `/pages/ppt/index?bookId=${encodeURIComponent(current.bookId)}`;
+      if (!current.requestId) return base;
+      return `${base}&conversationId=${encodeURIComponent(current.conversationId)}&requestId=${encodeURIComponent(current.requestId)}`;
     },
     clear() {
       if (options.developmentAdapter) storage.remove(intentKey);

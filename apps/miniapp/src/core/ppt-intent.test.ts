@@ -71,6 +71,51 @@ describe("development PPT draft/context handoff", () => {
     expect(store.workspaceUrl()).toBe("/pages/ppt/index?bookId=book-a");
   });
 
+  it("binds the sent request id at activation and hands it to the workspace url", () => {
+    const store = createPptIntentStore(memoryStorage(), { developmentAdapter: true });
+    store.selectBook({ id: "book-a", title: "甲书" });
+
+    const activated = store.activate("req-sent-1");
+    expect(activated).toMatchObject({
+      phase: "awaiting-confirmation",
+      bookId: "book-a",
+      requestId: "req-sent-1",
+    });
+
+    store.confirm();
+    expect(store.workspaceUrl()).toBe(
+      "/pages/ppt/index?bookId=book-a&conversationId=development-current&requestId=req-sent-1",
+    );
+  });
+
+  it("restores the bound request id across page refreshes", () => {
+    const storage = memoryStorage();
+    const firstStore = createPptIntentStore(storage, { developmentAdapter: true });
+    firstStore.selectBook({ id: "book-a", title: "甲书" });
+    firstStore.activate("req-sent-1");
+    firstStore.confirm();
+
+    const restoredStore = createPptIntentStore(storage, { developmentAdapter: true });
+    expect(restoredStore.restore()).toMatchObject({
+      bookId: "book-a",
+      requestId: "req-sent-1",
+      phase: "requirements-ready",
+    });
+    expect(restoredStore.workspaceUrl()).toBe(
+      "/pages/ppt/index?bookId=book-a&conversationId=development-current&requestId=req-sent-1",
+    );
+  });
+
+  it("starts a fresh handoff without the previous sent request id", () => {
+    const store = createPptIntentStore(memoryStorage(), { developmentAdapter: true });
+    store.selectBook({ id: "book-a", title: "甲书" });
+    store.activate("req-sent-1");
+
+    const next = store.selectBook({ id: "book-b", title: "乙书" });
+    expect(next).toMatchObject({ bookId: "book-b", phase: "draft" });
+    expect(next).not.toHaveProperty("requestId");
+  });
+
   it("keeps the same conversation when another book starts a new handoff", () => {
     const store = createPptIntentStore(memoryStorage(), { developmentAdapter: true });
     const first = store.selectBook({ id: "book-a", title: "甲书" });

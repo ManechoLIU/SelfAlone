@@ -1,16 +1,32 @@
 import type { MiniappApp } from "../../app";
-import type { DevelopmentState, OutlineNode, PptWorkspace } from "../../adapters/client";
+import type {
+  DevelopmentState,
+  OutlineNode,
+  PptDraftSnapshot,
+  PptOutlineSnapshot,
+  PptWorkspace,
+} from "../../adapters/client";
 import { parseDevelopmentState } from "../../adapters/client";
 import { isOutlineHierarchyValid, resolvePptScreen, type PptScreen } from "../../core/ppt-state";
 import { createViewportTracker, viewportPresentation } from "../../core/viewport-state";
 import { readableError } from "../../platform";
 import {
+  countOutlinePages,
   editorPanelHeight,
+  isPptOutlineUnavailableError,
+  isPptStaleError,
   needsPptRecoverySnapshot,
-  preservePptFailureContext,
+  outlineParagraphsToText,
+  outlineTextToParagraphs,
+  PPT_CUSTOM_RANGE_LABEL,
+  PPT_OUTLINE_AUTOSAVE_DELAY_MS,
+  PPT_PAGE_RANGE_PRESETS,
   pptActionClearance,
+  pptPageRangeLabel,
+  preservePptFailureContext,
   pptWorkspaceRetryState,
   preparePptWorkspaceForState,
+  validatePptRequirementsForm,
 } from "./page-state";
 
 type TemplateOption = {
@@ -46,6 +62,18 @@ type PptData = {
   viewportMetrics: string;
   actionStyle: string;
   editorStyle: string;
+  /** Sent-intent draft mode bound to the frozen Server PPT workspace contract. */
+  draftMode: boolean;
+  generatingOutline: boolean;
+  rangeCustom: boolean;
+  rangeMin: string;
+  rangeMax: string;
+  outlinePageCount: number;
+  outlineHint: string;
+  editorSaveState: "idle" | "saving" | "saved" | "failed";
+  editorStatus: string;
+  editorError: string;
+  outlineConflict: boolean;
 };
 
 const templates: TemplateOption[] = [
@@ -59,6 +87,8 @@ const templates: TemplateOption[] = [
 
 const purposeOptions = ["读书分享", "课程讲解", "工作汇报", "自定义"];
 const audienceOptions = ["读书会成员", "同事", "学生", "公开观众", "自定义"];
+const DEFAULT_PURPOSE = "读书分享";
+const DEFAULT_AUDIENCE = "读书会成员";
 
 function choiceState(value: string, options: string[]) {
   const index = options.indexOf(value);
@@ -87,6 +117,25 @@ function textToOutline(value: string): OutlineNode[] {
   }).filter((node) => node.text);
 }
 
+function draftWorkspaceSnapshot(snapshot: PptDraftSnapshot, outline: PptOutlineSnapshot): PptWorkspace {
+  const requirements = snapshot.draft.requirements;
+  return {
+    draftId: snapshot.draft.id,
+    version: snapshot.draft.version,
+    stage: outline.paragraphs.length > 0 ? "outline" : "requirements",
+    bookId: snapshot.sources[0].bookId,
+    bookTitle: snapshot.sources[0].title,
+    purpose: requirements.purpose ?? DEFAULT_PURPOSE,
+    audience: requirements.audience ?? DEFAULT_AUDIENCE,
+    pageRange: pptPageRangeLabel(requirements.pageRange),
+    extra: requirements.additionalRequirements,
+    outline: outline.paragraphs.map(({ level, text }) => ({ level, text })),
+    templateId: "celadon-reading",
+    task: null,
+    previews: [],
+  };
+}
+
 Page<PptData>({
   data: {
     phase: "loading",
@@ -100,7 +149,7 @@ Page<PptData>({
     outlineEditorOpen: false,
     outlineText: "",
     templates,
-    rangeOptions: ["6–8 页", "8–10 页", "10–12 页", "自定义"],
+    rangeOptions: [...PPT_PAGE_RANGE_PRESETS],
     purposeOptions,
     audienceOptions,
     purposeIndex: 0,
@@ -115,13 +164,34 @@ Page<PptData>({
     viewportMetrics: "",
     actionStyle: "",
     editorStyle: "",
+    draftMode: false,
+    generatingOutline: false,
+    rangeCustom: false,
+    rangeMin: "",
+    rangeMax: "",
+    outlinePageCount: 0,
+    outlineHint: "",
+    editorSaveState: "idle",
+    editorStatus: "",
+    editorError: "",
+    outlineConflict: false,
   },
-  onLoad(options: { bookId?: string; state?: string; stage?: string }) {
+  onLoad(options: { bookId?: string; state?: string; stage?: string; conversationId?: string; requestId?: string }) {
     const app = getApp<MiniappApp>();
     this.bookId = options.bookId ? decodeURIComponent(options.bookId) : "";
+    this.conversationId = options.conversationId ? decodeURIComponent(options.conversationId) : "";
+    this.requestId = options.requestId ? decodeURIComponent(options.requestId) : "";
+    this.draftMode = Boolean(this.bookId && this.conversationId && this.requestId);
+    this.draftSnapshot = null;
+    this.adoptedOutline = null;
+    this.outlineDirty = false;
+    this.outlineAutosaveTimer = undefined;
     this.developmentState = parseDevelopmentState(options.state, app.globalData.developmentAdapter);
-    this.previewStage = app.globalData.developmentAdapter ? options.stage : undefined;
-    this.setData({ developmentAdapter: app.globalData.developmentAdapter });
+    this.previewStage = app.globalData.developmentAdapter && !this.draftMode ? options.stage : undefined;
+    this.setData({
+      developmentAdapter: app.globalData.developmentAdapter,
+      draftMode: this.draftMode,
+    });
     this.releaseViewport = createViewportTracker(wx, (geometry) => {
       if (this.isUnloaded) return;
       this.setData({
@@ -133,6 +203,7 @@ Page<PptData>({
   },
   onUnload() {
     this.isUnloaded = true;
+    if (this.outlineAutosaveTimer) clearTimeout(this.outlineAutosaveTimer);
     this.releaseViewport?.();
   },
   measureActions() {
@@ -142,6 +213,10 @@ Page<PptData>({
     }).exec();
   },
   async loadWorkspace(options?: { preserveShell?: boolean }) {
+    if (this.draftMode) {
+      await this.loadDraftWorkspace(options);
+      return;
+    }
     const state = (this.developmentState ?? "normal") as DevelopmentState;
     if (state === "loading") {
       this.setData({ phase: "loading", error: "", retryingWorkspace: false, workspaceVisible: false });
@@ -172,6 +247,49 @@ Page<PptData>({
       if (failure.workspace) this.applyWorkspace(failure.workspace, failure.phase, failure.error);
       else this.setData(failure);
     }
+  },
+  async loadDraftWorkspace(options?: { preserveShell?: boolean }) {
+    const existingWorkspace = this.data.workspace;
+    if (options?.preserveShell && existingWorkspace) this.setData({ error: "", retryingWorkspace: true });
+    else this.setData({ phase: "loading", error: "", retryingWorkspace: false, workspaceVisible: false });
+    try {
+      const client = getApp<MiniappApp>().globalData.client;
+      const created = await client.createPptDraft({
+        conversationId: this.conversationId,
+        requestId: this.requestId,
+        bookId: this.bookId,
+      });
+      const outline = await client.getPptOutline(created.workspace.draft.id);
+      this.applyDraftWorkspace(created.workspace, outline);
+    } catch (error) {
+      const failure = preservePptFailureContext(existingWorkspace, readableError(error));
+      if (failure.workspace) this.applyWorkspace(failure.workspace, failure.phase, failure.error);
+      else this.setData(failure);
+    }
+  },
+  applyDraftWorkspace(snapshot: PptDraftSnapshot, outline: PptOutlineSnapshot) {
+    this.draftSnapshot = snapshot;
+    this.adoptedOutline = outline;
+    const workspace = draftWorkspaceSnapshot(snapshot, outline);
+    const purpose = choiceState(workspace.purpose, purposeOptions);
+    const audience = choiceState(workspace.audience, audienceOptions);
+    this.applyWorkspace(workspace);
+    this.setData({
+      draftMode: true,
+      rangeCustom: workspace.pageRange === PPT_CUSTOM_RANGE_LABEL,
+      rangeMin: snapshot.draft.requirements.pageRange?.min?.toString() ?? "",
+      rangeMax: snapshot.draft.requirements.pageRange?.max?.toString() ?? "",
+      outlinePageCount: outline.pageCount,
+      outlineHint: outline.paragraphs.length ? "可直接编辑连续分层文本" : "确认需求后将生成大纲",
+      purposeIndex: purpose.index,
+      audienceIndex: audience.index,
+      customPurpose: purpose.custom,
+      customAudience: audience.custom,
+      editorSaveState: "idle",
+      editorStatus: "",
+      editorError: "",
+      outlineConflict: false,
+    });
   },
   applyPreviewStage(workspace: PptWorkspace, stage?: string): PptWorkspace {
     if (!stage) return workspace;
@@ -213,6 +331,9 @@ Page<PptData>({
       if (this.developmentState === "failed") this.developmentState = "normal";
       void this.loadWorkspace({ preserveShell: Boolean(workspace) });
     });
+  },
+  retryDraftWorkspace() {
+    void this.loadDraftWorkspace({ preserveShell: Boolean(this.data.workspace) });
   },
   async saveWorkspace(workspace: PptWorkspace) {
     this.setData({ saving: true, error: "" });
@@ -260,12 +381,127 @@ Page<PptData>({
     });
   },
   onExtra(event: MiniappEvent<{ value: string }>) { if (this.data.workspace) this.setData({ workspace: { ...this.data.workspace, extra: event.detail.value } }); },
-  chooseRange(event: MiniappEvent) { if (this.data.workspace) this.setData({ workspace: { ...this.data.workspace, pageRange: String(event.currentTarget.dataset.value) } }); },
-  confirmRequirements() { if (this.data.workspace) void this.saveWorkspace({ ...this.data.workspace, stage: "outline" }); },
-  openOutlineEditor() { this.setData({ outlineEditorOpen: true }); },
+  chooseRange(event: MiniappEvent) {
+    if (!this.data.workspace) return;
+    const pageRange = String(event.currentTarget.dataset.value);
+    this.setData({
+      workspace: { ...this.data.workspace, pageRange },
+      rangeCustom: this.draftMode && pageRange === PPT_CUSTOM_RANGE_LABEL,
+    });
+  },
+  onRangeMin(event: MiniappEvent<{ value: string }>) { this.setData({ rangeMin: event.detail.value }); },
+  onRangeMax(event: MiniappEvent<{ value: string }>) { this.setData({ rangeMax: event.detail.value }); },
+  confirmRequirements() {
+    if (this.draftMode) {
+      void this.saveDraftRequirements();
+      return;
+    }
+    if (this.data.workspace) void this.saveWorkspace({ ...this.data.workspace, stage: "outline" });
+  },
+  async saveDraftRequirements() {
+    const workspace = this.data.workspace;
+    const snapshot = this.draftSnapshot as PptDraftSnapshot | null;
+    if (!workspace || !snapshot) return;
+    const validation = validatePptRequirementsForm({
+      purpose: workspace.purpose,
+      audience: workspace.audience,
+      pageRangeLabel: workspace.pageRange,
+      rangeMin: this.data.rangeMin,
+      rangeMax: this.data.rangeMax,
+    });
+    if ("error" in validation) {
+      this.setData({ error: validation.error });
+      return;
+    }
+    this.setData({ saving: true, error: "", generatingOutline: false });
+    try {
+      const client = getApp<MiniappApp>().globalData.client;
+      const saved = await client.savePptRequirements(snapshot.draft.id, {
+        expectedVersion: snapshot.draft.version,
+        purpose: workspace.purpose,
+        audience: workspace.audience,
+        pageRange: validation.pageRange,
+        additionalRequirements: workspace.extra,
+      });
+      this.draftSnapshot = saved;
+      this.setData({ generatingOutline: true });
+      const outline = await client.generatePptOutline(saved.draft.id, { expectedVersion: saved.draft.version });
+      this.applyDraftWorkspace({
+        ...saved,
+        draft: { ...saved.draft, version: outline.version },
+      }, outline);
+    } catch (error) {
+      this.setData({ error: readableError(error) });
+    } finally {
+      this.setData({ saving: false, generatingOutline: false });
+    }
+  },
+  openOutlineEditor() {
+    this.setData({
+      outlineEditorOpen: true,
+      editorError: "",
+      editorStatus: this.draftMode ? "准备自动保存" : "",
+    });
+  },
   closeOutlineEditor() { this.setData({ outlineEditorOpen: false }); },
-  onOutlineInput(event: MiniappEvent<{ value: string }>) { this.setData({ outlineText: event.detail.value }); },
+  onOutlineInput(event: MiniappEvent<{ value: string }>) {
+    this.setData({ outlineText: event.detail.value });
+    if (!this.draftMode) return;
+    this.outlineDirty = true;
+    if (this.outlineAutosaveTimer) clearTimeout(this.outlineAutosaveTimer);
+    this.setData({ editorSaveState: "saving", editorStatus: "正在保存…", editorError: "", outlineConflict: false });
+    this.outlineAutosaveTimer = setTimeout(() => { void this.saveDraftOutline(); }, PPT_OUTLINE_AUTOSAVE_DELAY_MS);
+  },
+  async saveDraftOutline(options?: { closeWhenSaved?: boolean }) {
+    const snapshot = this.draftSnapshot as PptDraftSnapshot | null;
+    const previous = (this.adoptedOutline as PptOutlineSnapshot | null)?.paragraphs ?? [];
+    if (!snapshot || !this.outlineDirty) {
+      if (options?.closeWhenSaved) this.setData({ outlineEditorOpen: false });
+      return;
+    }
+    const paragraphs = outlineTextToParagraphs(this.data.outlineText, previous);
+    if (!paragraphs.length || !isOutlineHierarchyValid(paragraphs)) {
+      this.setData({
+        editorSaveState: "failed",
+        editorStatus: "未保存",
+        editorError: "大纲需从页面层级开始，三级内容必须归属二级小节",
+      });
+      return;
+    }
+    this.outlineDirty = false;
+    this.setData({ editorSaveState: "saving", editorStatus: "正在保存…", editorError: "" });
+    try {
+      const outline = await getApp<MiniappApp>().globalData.client.savePptOutline(snapshot.draft.id, {
+        expectedVersion: snapshot.draft.version,
+        paragraphs,
+      });
+      const savedSnapshot = { ...snapshot, draft: { ...snapshot.draft, version: outline.version } };
+      this.applyDraftWorkspace(savedSnapshot, outline);
+      this.setData({ editorSaveState: "saved", editorStatus: "已自动保存" });
+      if (options?.closeWhenSaved) this.setData({ outlineEditorOpen: false });
+    } catch (error) {
+      this.outlineDirty = true;
+      if (isPptStaleError(error)) {
+        this.setData({
+          editorSaveState: "failed",
+          editorStatus: "保存冲突",
+          editorError: "大纲已在别处更新，请刷新后重试；当前编辑内容仍保留。",
+          outlineConflict: true,
+        });
+      } else {
+        this.setData({
+          editorSaveState: "failed",
+          editorStatus: "保存失败",
+          editorError: `${isPptOutlineUnavailableError(error) ? "大纲服务暂不可用" : readableError(error)}，当前编辑内容仍保留。`,
+        });
+      }
+    }
+  },
   completeOutlineEdit() {
+    if (this.draftMode) {
+      void this.saveDraftOutline({ closeWhenSaved: true });
+      return;
+    }
     const workspace = this.data.workspace;
     const outline = textToOutline(this.data.outlineText);
     if (!workspace || !isOutlineHierarchyValid(outline)) {

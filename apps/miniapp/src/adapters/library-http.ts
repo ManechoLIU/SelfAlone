@@ -1,8 +1,21 @@
 import type { BookSummary } from "../core/library-state";
 import type { BookSection } from "../core/reader-state";
 import type { Session } from "../core/session";
-import type { BookDetail, BookListOptions, LocalBookFile, MiniappClient, PptWorkspace, ReadingPosition } from "./client";
+import type {
+  BookDetail,
+  BookListOptions,
+  LocalBookFile,
+  MiniappClient,
+  PptDraftCreateResult,
+  PptDraftSnapshot,
+  PptOutlineSnapshot,
+  PptOutlineWrite,
+  PptRequirementsWrite,
+  PptWorkspace,
+  ReadingPosition,
+} from "./client";
 import { ClientBoundaryError, normalizeBookListOptions } from "./client";
+import { PptWorkspaceHttpClient } from "./ppt-workspace-http";
 
 export type LibraryHttpRequest = {
   method: "GET" | "POST" | "PUT";
@@ -97,6 +110,49 @@ function mapBookSummary(value: unknown): BookSummary {
     sectionCount: optionalNumber(value.sectionCount),
     pageCount: optionalNumber(value.pageCount),
     createdAt: optionalString(value.createdAt),
+  };
+}
+
+export type SessionHeaderSource = Pick<LibraryHttpClientOptions, "authProvider" | "requestHeaders">;
+
+/** Shared session-header seam for production HTTP adapters; callers never pick the account. */
+export async function resolveSessionHeaders(
+  source: SessionHeaderSource,
+  contentType?: string,
+): Promise<Record<string, string>> {
+  let provided: Record<string, string>;
+  if (source.authProvider) {
+    let session: ReturnType<NonNullable<LibraryHttpClientOptions["authProvider"]>>;
+    try {
+      session = source.authProvider();
+    } catch {
+      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+    }
+    if (!session || session.kind !== "authenticated" || !session.token.trim()) {
+      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+    }
+    provided = { Authorization: `Bearer ${session.token.trim()}` };
+  } else {
+    let candidate: Record<string, string> | Promise<Record<string, string>>;
+    try {
+      candidate = await source.requestHeaders!();
+    } catch {
+      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+    }
+    if (!candidate || typeof candidate !== "object") {
+      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
+    }
+    provided = candidate;
+  }
+  const hasCallerSelectedAccount = Object.keys(provided)
+    .some((key) => key.toLocaleLowerCase() === "x-selfalone-account");
+  if (hasCallerSelectedAccount) {
+    throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "书架客户端不接受调用方指定账户");
+  }
+  return {
+    ...provided,
+    accept: provided.accept ?? "application/json",
+    ...(contentType ? { "content-type": contentType } : {}),
   };
 }
 
@@ -386,6 +442,7 @@ export class LibraryHttpClient implements MiniappClient {
   readonly #onUnauthorized: LibraryHttpClientOptions["onUnauthorized"];
   readonly #transport: LibraryHttpTransport;
   readonly #readerSnapshots = new Map<string, { fileVersion: number; sections: ServerTextSection[] }>();
+  readonly #pptWorkspace: PptWorkspaceHttpClient;
 
   constructor(options: LibraryHttpClientOptions) {
     if (
@@ -400,43 +457,14 @@ export class LibraryHttpClient implements MiniappClient {
     this.#requestHeaders = options.requestHeaders;
     this.#onUnauthorized = options.onUnauthorized;
     this.#transport = options.transport ?? createWxLibraryTransport();
+    this.#pptWorkspace = new PptWorkspaceHttpClient(options);
   }
 
   private async headers(contentType?: string) {
-    let provided: Record<string, string>;
-    if (this.#authProvider) {
-      let session: ReturnType<NonNullable<LibraryHttpClientOptions["authProvider"]>>;
-      try {
-        session = this.#authProvider();
-      } catch {
-        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
-      }
-      if (!session || session.kind !== "authenticated" || !session.token.trim()) {
-        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
-      }
-      provided = { Authorization: `Bearer ${session.token.trim()}` };
-    } else {
-      let candidate: Record<string, string> | Promise<Record<string, string>>;
-      try {
-        candidate = await this.#requestHeaders!();
-      } catch {
-        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
-      }
-      if (!candidate || typeof candidate !== "object") {
-        throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "真实客户端未提供会话请求头");
-      }
-      provided = candidate;
-    }
-    const hasCallerSelectedAccount = Object.keys(provided)
-      .some((key) => key.toLocaleLowerCase() === "x-selfalone-account");
-    if (hasCallerSelectedAccount) {
-      throw new ClientBoundaryError("CLIENT_ADAPTER_UNAVAILABLE", "书架客户端不接受调用方指定账户");
-    }
-    return {
-      ...provided,
-      accept: provided.accept ?? "application/json",
-      ...(contentType ? { "content-type": contentType } : {}),
-    };
+    return resolveSessionHeaders(
+      { authProvider: this.#authProvider, requestHeaders: this.#requestHeaders },
+      contentType,
+    );
   }
 
   private async request(input: LibraryHttpRequest) {
@@ -584,6 +612,30 @@ export class LibraryHttpClient implements MiniappClient {
   }
   getPptWorkspace(_bookId?: string): Promise<PptWorkspace> { return this.unsupported(); }
   savePptWorkspace(_workspace: PptWorkspace): Promise<PptWorkspace> { return this.unsupported(); }
+
+  createPptDraft(input: { conversationId: string; requestId: string; bookId: string }): Promise<PptDraftCreateResult> {
+    return this.#pptWorkspace.createDraft(input);
+  }
+
+  getPptDraftWorkspace(draftId: string): Promise<PptDraftSnapshot> {
+    return this.#pptWorkspace.getWorkspace(draftId);
+  }
+
+  savePptRequirements(draftId: string, input: PptRequirementsWrite): Promise<PptDraftSnapshot> {
+    return this.#pptWorkspace.saveRequirements(draftId, input);
+  }
+
+  getPptOutline(draftId: string): Promise<PptOutlineSnapshot> {
+    return this.#pptWorkspace.getOutline(draftId);
+  }
+
+  savePptOutline(draftId: string, input: PptOutlineWrite): Promise<PptOutlineSnapshot> {
+    return this.#pptWorkspace.saveOutline(draftId, input);
+  }
+
+  generatePptOutline(draftId: string, input: { expectedVersion: number }): Promise<PptOutlineSnapshot> {
+    return this.#pptWorkspace.generateOutline(draftId, input);
+  }
 }
 
 export function createLibraryHttpClient(options: LibraryHttpClientOptions) {

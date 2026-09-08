@@ -547,14 +547,6 @@ Page<ConversationData>({
   },
 
   beginSend() {
-    let pptIntent = this.data.pptIntent;
-    if (this.data.pptHandoff) {
-      pptIntent = getApp<MiniappApp>().globalData.pptIntentStore.activate();
-      if (!pptIntent) {
-        this.showFailure("PPT 书籍上下文暂时无法恢复，当前输入仍保留。");
-        return;
-      }
-    }
     const next = startConversationSend(
       this.data.messages,
       this.data.pendingSend,
@@ -562,6 +554,16 @@ Page<ConversationData>({
       this.data.attachments,
     );
     const pendingSend = next.pendingSend;
+    let pptIntent = this.data.pptIntent;
+    if (this.data.pptHandoff) {
+      // The activated handoff is bound to the request id of the message being sent,
+      // so the PPT stage can create/reuse the Server draft from this exact sent intent.
+      pptIntent = getApp<MiniappApp>().globalData.pptIntentStore.activate(pendingSend.id);
+      if (!pptIntent) {
+        this.showFailure("PPT 书籍上下文暂时无法恢复，当前输入仍保留。");
+        return;
+      }
+    }
     this.setData({
       messages: next.messages,
       pendingSend,

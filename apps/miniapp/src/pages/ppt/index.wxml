@@ -16,7 +16,7 @@
 
     <scroll-view class="ppt-scroll" scroll-y enhanced show-scrollbar="{{false}}">
       <view wx:if="{{screen === 'requirements'}}" class="ppt-content requirements-content">
-        <view class="scope-summary"><view class="scope-summary__label">已确认范围</view><view>当前书籍：{{workspace.bookTitle}}</view></view>
+        <view class="scope-summary"><view class="scope-summary__bar" aria-hidden="true"></view><view class="scope-summary__label">已确认范围</view><view>当前书籍：{{workspace.bookTitle}}</view></view>
         <view class="ppt-field"><text>用途</text>
           <picker mode="selector" range="{{purposeOptions}}" value="{{purposeIndex}}" bindchange="choosePurpose" aria-label="选择用途">
             <view class="select-field"><text>{{customPurpose ? '自定义' : workspace.purpose}}</text><image src="/assets/icons/arrow.svg" mode="aspectFit" aria-hidden="true"></image></view>
@@ -32,19 +32,20 @@
         <view class="ppt-field"><text>页数范围</text><view class="range-options">
           <button wx:for="{{rangeOptions}}" wx:key="*this" class="range-option {{workspace.pageRange === item ? 'is-selected' : ''}}" data-value="{{item}}" bindtap="chooseRange">{{item}}</button>
         </view></view>
+        <view wx:if="{{draftMode && rangeCustom}}" class="custom-range" aria-label="自定义页数范围"><input value="{{rangeMin}}" bindinput="onRangeMin" type="number" placeholder="最少页数" adjust-position="{{false}}" cursor-spacing="12" aria-label="最少页数"/><text>至</text><input value="{{rangeMax}}" bindinput="onRangeMax" type="number" placeholder="最多页数" adjust-position="{{false}}" cursor-spacing="12" aria-label="最多页数"/></view>
         <label class="ppt-field"><text>补充要求</text><textarea class="extra-input" value="{{workspace.extra}}" bindinput="onExtra" adjust-position="{{false}}" cursor-spacing="12" placeholder="可选，填写额外要求" aria-label="补充要求"></textarea></label>
         <view class="scroll-bottom-space"></view>
       </view>
 
       <view wx:elif="{{screen === 'outline'}}" class="ppt-content outline-content">
-        <view class="outline-summary"><text>《{{workspace.bookTitle}}》读书分享</text><text>共 {{workspace.outline.length}} 条</text></view>
+        <view class="outline-summary"><text>《{{workspace.bookTitle}}》读书分享</text><text>共 {{draftMode ? outlinePageCount : workspace.outline.length}} {{draftMode ? '页' : '条'}}</text></view>
         <view class="outline-flow">
           <view class="outline-node outline-node--{{item.level}}" wx:for="{{workspace.outline}}" wx:key="index">
             <text wx:if="{{item.level === 1}}" class="outline-number">0{{index + 1}}</text>
             <text>{{item.text}}</text>
           </view>
         </view>
-        <view class="outline-hint">大纲由开发适配器提供，可直接编辑连续分层文本。</view>
+        <view class="outline-hint">{{draftMode ? outlineHint : '大纲由开发适配器提供，可直接编辑连续分层文本。'}}</view>
         <view class="scroll-bottom-space"></view>
       </view>
 
@@ -63,7 +64,7 @@
       </view>
 
       <view wx:else class="ppt-content generation-content">
-        <view class="generation-status {{screen === 'failed' || screen === 'stopped' ? 'is-error' : ''}}">
+        <view class="generation-status {{screen === 'failed' || screen === 'stopped' ? 'is-error' : ''}}"><view class="generation-status__dot" aria-hidden="true"></view>
           <text wx:if="{{screen === 'generating'}}">正在生成第 {{workspace.task.completedPages + 1}} / {{workspace.task.totalPages}} 页</text>
           <text wx:elif="{{screen === 'completed'}}">PPT 已完成 · 共 {{workspace.task.totalPages}} 页</text>
           <text wx:elif="{{screen === 'failed'}}">生成失败 · 已保留 {{workspace.task.completedPages}} / {{workspace.task.totalPages}} 页</text>
@@ -86,7 +87,7 @@
 
     <view class="ppt-actions">
       <block wx:if="{{phase === 'failed'}}"><button class="primary-button" bindtap="retryWorkspace" disabled="{{retryingWorkspace}}">{{retryingWorkspace ? '正在重试' : '重试加载'}}</button></block>
-      <block wx:elif="{{screen === 'requirements'}}"><button class="primary-button" bindtap="confirmRequirements" disabled="{{saving}}">确认</button></block>
+      <block wx:elif="{{screen === 'requirements'}}"><button class="primary-button" bindtap="confirmRequirements" disabled="{{saving || generatingOutline}}">{{generatingOutline ? '正在生成大纲' : '确认'}}</button></block>
       <block wx:elif="{{screen === 'outline'}}"><button class="secondary-button" bindtap="openOutlineEditor">编辑大纲</button><button class="primary-button" bindtap="confirmOutline" disabled="{{saving}}">确认大纲并选择模板</button></block>
       <block wx:elif="{{screen === 'template'}}"><button class="primary-button" bindtap="startGeneration" disabled="{{saving}}">开始生成 PPT</button></block>
       <block wx:elif="{{screen === 'generating'}}"><button class="secondary-button" bindtap="stopGeneration" disabled="{{saving}}">停止生成</button></block>
@@ -98,8 +99,9 @@
       <view class="outline-editor-mask" bindtap="closeOutlineEditor"></view>
       <view class="outline-editor" role="dialog" aria-label="编辑大纲">
         <view class="editor-handle"></view>
-        <view class="editor-header"><view><view class="editor-title">编辑大纲</view><view class="editor-status">已在客户端内存中保存</view></view><button bindtap="closeOutlineEditor" aria-label="关闭编辑大纲"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button></view>
+        <view class="editor-header"><view><view class="editor-title">编辑大纲</view><view class="editor-status">{{draftMode ? editorStatus : '已在客户端内存中保存'}}</view></view><button bindtap="closeOutlineEditor" aria-label="关闭编辑大纲"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button></view>
         <textarea class="outline-textarea" value="{{outlineText}}" bindinput="onOutlineInput" auto-focus adjust-position="{{false}}" cursor-spacing="12" aria-label="连续分层大纲"></textarea>
+        <view wx:if="{{editorError}}" class="editor-error" role="alert">{{editorError}}<button wx:if="{{outlineConflict}}" class="editor-refresh" bindtap="retryDraftWorkspace">刷新大纲</button></view>
         <view class="editor-help">直接修改文字；换行后用两个空格进入下一层级。</view>
         <button class="primary-button" bindtap="completeOutlineEdit">完成编辑</button>
       </view>
