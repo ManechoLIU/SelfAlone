@@ -62,6 +62,11 @@
 .outline-node--3 { margin: 5px 0 0 68px; color: #68766f; font-size: 12px; line-height: 20px; }
 .outline-number { min-width: 34px; color: #0d6a57; font-size: 20px; line-height: 28px; font-weight: 600; }
 .outline-hint { margin-top: 38px; color: #84918c; font-size: 12px; line-height: 20px; }
+.outline-sources { margin-top: 24px; padding: 12px 14px; border: 1px solid #dce5e1; border-radius: 14px; background: #f6f9f7; }
+.outline-sources__title { color: #21312d; font-size: 12px; line-height: 18px; font-weight: 600; }
+.outline-source { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.outline-source__title { font-size: 12px; line-height: 18px; font-weight: 500; overflow-wrap: break-word; }
+.outline-source__meta { color: #68766f; font-size: 11px; line-height: 16px; overflow-wrap: break-word; }
 
 .template-instruction { margin-bottom: 16px; color: #68766f; font-size: 12px; line-height: 18px; }
 .template-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px 12px; }
@@ -111,6 +116,7 @@
 .outline-textarea { width: 100%; min-height: 0; flex: 1; box-sizing: border-box; margin-top: 18px; padding: 14px 4px; border-top: 1px solid #dce5e1; border-bottom: 1px solid #dce5e1; font-size: 16px; line-height: 2.2; }
 .editor-error { margin-top: 8px; color: #8f3527; font-size: 11px; line-height: 18px; }
 .editor-refresh { display: inline; min-height: 28px; margin: 2px 0 0 8px; padding: 0 8px; border: 1px solid #d59b90; border-radius: 8px; background: #fff8f6; color: #8f3527; font-size: 11px; line-height: 26px; }
+.editor-retry { display: inline; min-height: 28px; margin: 2px 0 0 8px; padding: 0 8px; border: 1px solid #d59b90; border-radius: 8px; background: #fff8f6; color: #8f3527; font-size: 11px; line-height: 26px; }
 .editor-help { padding: 10px 0; color: #87938e; font-size: 11px; line-height: 18px; }
 
 @media (min-width: 430px) {

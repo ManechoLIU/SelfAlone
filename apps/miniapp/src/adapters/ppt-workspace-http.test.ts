@@ -184,7 +184,51 @@ describe("PPT workspace HTTP client", () => {
       version: 3,
       pageCount: 2,
       paragraphs: outlinePayload.paragraphs,
+      publicSources: [],
     });
+  });
+
+  it("preserves the frozen publicSources provenance fields on outline snapshots", async () => {
+    const provenance = [
+      {
+        url: "https://example.com/report",
+        title: "年度阅读报告",
+        publishedAt: "2026-01-02T00:00:00.000Z",
+        fetchedAt: "2026-09-01T10:00:00.000Z",
+        usageScope: "背景佐证",
+      },
+      {
+        url: "https://example.com/interview",
+        title: "作者访谈",
+        publishedAt: null,
+        fetchedAt: "2026-09-01T10:05:00.000Z",
+        usageScope: "引用来源",
+      },
+    ];
+    const request = vi.fn(async () => ({
+      status: 200,
+      data: { outline: { ...outlinePayload, publicSources: provenance } },
+    }));
+    const client = clientWith(request);
+
+    const outline = await client.getOutline("draft-1");
+
+    expect(outline.publicSources).toEqual(provenance);
+  });
+
+  it("rejects outline snapshots with malformed publicSources instead of dropping them", async () => {
+    const broken = clientWith(vi.fn(async () => ({
+      status: 200,
+      data: {
+        outline: {
+          ...outlinePayload,
+          publicSources: [{ url: "", title: "缺少地址", publishedAt: null, fetchedAt: "2026-09-01T10:00:00.000Z", usageScope: "引用来源" }],
+        },
+      },
+    })));
+
+    await expect(broken.getOutline("draft-1"))
+      .rejects.toMatchObject({ code: "INVALID_PPT_RESPONSE" });
   });
 
   it("saves outline paragraphs with expectedVersion and maps orphan and stale errors", async () => {
@@ -238,6 +282,16 @@ describe("PPT workspace HTTP client", () => {
     const unavailable = clientWith(vi.fn(async () => ({ status: 503, data: { code: "PPT_OUTLINE_ADAPTER_NOT_CONFIGURED" } })));
     await expect(unavailable.generateOutline("draft-1", { expectedVersion: 2 }))
       .rejects.toMatchObject({ code: "PPT_OUTLINE_UNAVAILABLE" });
+  });
+
+  it("maps only the frozen 503 outline code to outline unavailable", async () => {
+    const other = clientWith(vi.fn(async () => ({ status: 503, data: { code: "INTERNAL_ERROR" } })));
+    await expect(other.generateOutline("draft-1", { expectedVersion: 2 }))
+      .rejects.toMatchObject({ code: "HTTP_REQUEST_FAILED" });
+
+    const bare = clientWith(vi.fn(async () => ({ status: 503, data: {} })));
+    await expect(bare.getOutline("draft-1"))
+      .rejects.toMatchObject({ code: "HTTP_REQUEST_FAILED" });
   });
 
   it("rejects malformed snapshots instead of guessing", async () => {

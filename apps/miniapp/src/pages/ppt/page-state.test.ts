@@ -5,6 +5,7 @@ import pptWxss from "./index.wxss?raw";
 import {
   editorPanelHeight,
   needsPptRecoverySnapshot,
+  outlinePageLabels,
   preservePptFailureContext,
   pptActionClearance,
   pptWorkspaceRetryState,
@@ -109,5 +110,34 @@ describe("PPT page development states", () => {
     expect(pptWxml).not.toContain('adjust-position="{{true}}"');
     expect(pptWxml).not.toContain('cursor-spacing="120"');
     expect(pptWxml.match(/adjust-position="{{false}}"/g)).toHaveLength(6);
+  });
+
+  it("numbers level-one pages by level-one order instead of the flat paragraph index", () => {
+    expect(outlinePageLabels([
+      { level: 1 },
+      { level: 2 },
+      { level: 3 },
+      { level: 1 },
+      { level: 2 },
+      { level: 1 },
+    ])).toEqual(["01", "", "", "02", "", "03"]);
+    expect(outlinePageLabels([])).toEqual([]);
+  });
+
+  it("renders outline numbering from level-one order in WXML", () => {
+    expect(pptWxml).toContain('wx:for="{{outlineDisplay}}"');
+    expect(pptWxml).toContain("{{item.pageLabel}}");
+    expect(pptWxml).not.toContain("0{{index + 1}}");
+  });
+
+  it("renders retained publicSources provenance in WXML", () => {
+    expect(pptWxml).toContain('wx:for="{{outlineSources}}"');
+    expect(pptWxml).toContain("{{item.title}}");
+    expect(pptWxml).toContain("{{item.url}}");
+  });
+
+  it("keeps failed outline saves open with explicit retry and stale refresh actions", () => {
+    expect(pptWxml).toContain('bindtap="retryDraftOutlineSave"');
+    expect(pptWxml).toContain('bindtap="refreshDraftOutline"');
   });
 });

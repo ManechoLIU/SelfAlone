@@ -5,6 +5,7 @@ import type {
   PptOutlineParagraph,
   PptOutlineSnapshot,
   PptOutlineWrite,
+  PptPublicSource,
   PptRequirementsWrite,
 } from "./client";
 import { ClientBoundaryError } from "./client";
@@ -110,19 +111,39 @@ function parseParagraph(value: unknown): PptOutlineParagraph {
   return { id: value.id, level: value.level, text: value.text };
 }
 
+function parsePublicSource(value: unknown): PptPublicSource {
+  if (!isRecord(value)
+    || !nonEmptyString(value.url)
+    || typeof value.title !== "string"
+    || !nullableString(value.publishedAt)
+    || !nonEmptyString(value.fetchedAt)
+    || typeof value.usageScope !== "string") {
+    return invalidPptResponse();
+  }
+  return {
+    url: value.url,
+    title: value.title,
+    publishedAt: value.publishedAt,
+    fetchedAt: value.fetchedAt,
+    usageScope: value.usageScope,
+  };
+}
+
 function parseOutline(value: unknown): PptOutlineSnapshot {
   if (!isRecord(value)
     || !safeInteger(value.version)
     || value.version < 1
     || !safeInteger(value.pageCount)
     || value.pageCount < 0
-    || !Array.isArray(value.paragraphs)) {
+    || !Array.isArray(value.paragraphs)
+    || !Array.isArray(value.publicSources)) {
     return invalidPptResponse();
   }
   return {
     version: value.version,
     pageCount: value.pageCount,
     paragraphs: value.paragraphs.map(parseParagraph),
+    publicSources: value.publicSources.map(parsePublicSource),
   };
 }
 
@@ -180,7 +201,9 @@ export class PptWorkspaceHttpClient {
     if (response.status === 400 && code === "PPT_OUTLINE_ORPHAN_CHILD") {
       throw new ClientBoundaryError("PPT_OUTLINE_ORPHAN_CHILD");
     }
-    if (response.status === 503) throw new ClientBoundaryError("PPT_OUTLINE_UNAVAILABLE");
+    if (response.status === 503 && code === "PPT_OUTLINE_ADAPTER_NOT_CONFIGURED") {
+      throw new ClientBoundaryError("PPT_OUTLINE_UNAVAILABLE");
+    }
     throw new ClientBoundaryError("HTTP_REQUEST_FAILED", `PPT 工作区请求失败（${response.status}）`);
   }
 

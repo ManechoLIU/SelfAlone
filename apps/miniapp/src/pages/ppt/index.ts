@@ -4,6 +4,7 @@ import type {
   OutlineNode,
   PptDraftSnapshot,
   PptOutlineSnapshot,
+  PptPublicSource,
   PptWorkspace,
 } from "../../adapters/client";
 import { parseDevelopmentState } from "../../adapters/client";
@@ -16,6 +17,7 @@ import {
   isPptOutlineUnavailableError,
   isPptStaleError,
   needsPptRecoverySnapshot,
+  outlinePageLabels,
   outlineParagraphsToText,
   outlineTextToParagraphs,
   PPT_CUSTOM_RANGE_LABEL,
@@ -70,6 +72,8 @@ type PptData = {
   rangeMax: string;
   outlinePageCount: number;
   outlineHint: string;
+  outlineDisplay: Array<{ level: 1 | 2 | 3; text: string; pageLabel: string }>;
+  outlineSources: PptPublicSource[];
   editorSaveState: "idle" | "saving" | "saved" | "failed";
   editorStatus: string;
   editorError: string;
@@ -171,6 +175,8 @@ Page<PptData>({
     rangeMax: "",
     outlinePageCount: 0,
     outlineHint: "",
+    outlineDisplay: [],
+    outlineSources: [],
     editorSaveState: "idle",
     editorStatus: "",
     editorError: "",
@@ -281,6 +287,7 @@ Page<PptData>({
       rangeMax: snapshot.draft.requirements.pageRange?.max?.toString() ?? "",
       outlinePageCount: outline.pageCount,
       outlineHint: outline.paragraphs.length ? "可直接编辑连续分层文本" : "确认需求后将生成大纲",
+      outlineSources: [...outline.publicSources],
       purposeIndex: purpose.index,
       audienceIndex: audience.index,
       customPurpose: purpose.custom,
@@ -309,6 +316,7 @@ Page<PptData>({
     const screen = resolvePptScreen({ draft: workspace, task: workspace.task });
     const purpose = choiceState(workspace.purpose, purposeOptions);
     const audience = choiceState(workspace.audience, audienceOptions);
+    const pageLabels = outlinePageLabels(workspace.outline);
     this.setData({
       phase,
       error,
@@ -318,6 +326,7 @@ Page<PptData>({
       screen,
       ...stageMeta(screen),
       outlineText: outlineToText(workspace.outline),
+      outlineDisplay: workspace.outline.map((node, index) => ({ ...node, pageLabel: pageLabels[index] ?? "" })),
       purposeIndex: purpose.index,
       audienceIndex: audience.index,
       customPurpose: purpose.custom,
@@ -332,8 +341,27 @@ Page<PptData>({
       void this.loadWorkspace({ preserveShell: Boolean(workspace) });
     });
   },
-  retryDraftWorkspace() {
-    void this.loadDraftWorkspace({ preserveShell: Boolean(this.data.workspace) });
+  async refreshDraftOutline() {
+    const snapshot = this.draftSnapshot as PptDraftSnapshot | null;
+    if (!snapshot) return;
+    this.setData({ editorSaveState: "saving", editorStatus: "正在刷新…", editorError: "", outlineConflict: false });
+    try {
+      const client = getApp<MiniappApp>().globalData.client;
+      const workspace = await client.getPptDraftWorkspace(snapshot.draft.id);
+      const outline = await client.getPptOutline(snapshot.draft.id);
+      this.outlineDirty = false;
+      this.applyDraftWorkspace(workspace, outline);
+      this.setData({ editorSaveState: "idle", editorStatus: "已刷新为最新大纲", editorError: "", outlineConflict: false });
+    } catch (error) {
+      this.setData({
+        editorSaveState: "failed",
+        editorStatus: "刷新失败",
+        editorError: `${readableError(error)}，当前编辑内容仍保留。`,
+      });
+    }
+  },
+  retryDraftOutlineSave() {
+    void this.saveDraftOutline();
   },
   async saveWorkspace(workspace: PptWorkspace) {
     this.setData({ saving: true, error: "" });
@@ -443,7 +471,12 @@ Page<PptData>({
       editorStatus: this.draftMode ? "准备自动保存" : "",
     });
   },
-  closeOutlineEditor() { this.setData({ outlineEditorOpen: false }); },
+  closeOutlineEditor() {
+    // A failed save in draft mode keeps its edits and error context open until
+    // the user retries the save or refreshes the authoritative outline.
+    if (this.draftMode && this.outlineDirty && this.data.editorSaveState === "failed") return;
+    this.setData({ outlineEditorOpen: false });
+  },
   onOutlineInput(event: MiniappEvent<{ value: string }>) {
     this.setData({ outlineText: event.detail.value });
     if (!this.draftMode) return;
@@ -459,7 +492,8 @@ Page<PptData>({
       if (options?.closeWhenSaved) this.setData({ outlineEditorOpen: false });
       return;
     }
-    const paragraphs = outlineTextToParagraphs(this.data.outlineText, previous);
+    const submittedText = this.data.outlineText;
+    const paragraphs = outlineTextToParagraphs(submittedText, previous);
     if (!paragraphs.length || !isOutlineHierarchyValid(paragraphs)) {
       this.setData({
         editorSaveState: "failed",
@@ -476,9 +510,25 @@ Page<PptData>({
         paragraphs,
       });
       const savedSnapshot = { ...snapshot, draft: { ...snapshot.draft, version: outline.version } };
-      this.applyDraftWorkspace(savedSnapshot, outline);
-      this.setData({ editorSaveState: "saved", editorStatus: "已自动保存" });
-      if (options?.closeWhenSaved) this.setData({ outlineEditorOpen: false });
+      if (this.data.outlineText === submittedText) {
+        this.applyDraftWorkspace(savedSnapshot, outline);
+        this.setData({ editorSaveState: "saved", editorStatus: "已自动保存" });
+        if (options?.closeWhenSaved) this.setData({ outlineEditorOpen: false });
+      } else {
+        // A newer edit arrived while this save was in flight: only advance the
+        // authoritative version and let the pending autosave persist that edit.
+        this.draftSnapshot = savedSnapshot;
+        this.adoptedOutline = outline;
+        this.outlineDirty = true;
+        const workspace = this.data.workspace;
+        this.setData({
+          workspace: workspace ? { ...workspace, version: outline.version } : workspace,
+          outlinePageCount: outline.pageCount,
+          outlineSources: [...outline.publicSources],
+          editorSaveState: "saving",
+          editorStatus: "正在保存…",
+        });
+      }
     } catch (error) {
       this.outlineDirty = true;
       if (isPptStaleError(error)) {

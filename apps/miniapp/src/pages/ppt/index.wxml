@@ -40,9 +40,16 @@
       <view wx:elif="{{screen === 'outline'}}" class="ppt-content outline-content">
         <view class="outline-summary"><text>《{{workspace.bookTitle}}》读书分享</text><text>共 {{draftMode ? outlinePageCount : workspace.outline.length}} {{draftMode ? '页' : '条'}}</text></view>
         <view class="outline-flow">
-          <view class="outline-node outline-node--{{item.level}}" wx:for="{{workspace.outline}}" wx:key="index">
-            <text wx:if="{{item.level === 1}}" class="outline-number">0{{index + 1}}</text>
+          <view class="outline-node outline-node--{{item.level}}" wx:for="{{outlineDisplay}}" wx:key="index">
+            <text wx:if="{{item.level === 1}}" class="outline-number">{{item.pageLabel}}</text>
             <text>{{item.text}}</text>
+          </view>
+        </view>
+        <view wx:if="{{draftMode && outlineSources.length}}" class="outline-sources">
+          <view class="outline-sources__title">公开资料来源</view>
+          <view class="outline-source" wx:for="{{outlineSources}}" wx:key="url">
+            <text class="outline-source__title">{{item.title}}</text>
+            <text class="outline-source__meta">{{item.usageScope}} · {{item.url}}</text>
           </view>
         </view>
         <view class="outline-hint">{{draftMode ? outlineHint : '大纲由开发适配器提供，可直接编辑连续分层文本。'}}</view>
@@ -101,7 +108,7 @@
         <view class="editor-handle"></view>
         <view class="editor-header"><view><view class="editor-title">编辑大纲</view><view class="editor-status">{{draftMode ? editorStatus : '已在客户端内存中保存'}}</view></view><button bindtap="closeOutlineEditor" aria-label="关闭编辑大纲"><image src="/assets/icons/close.svg" mode="aspectFit" aria-hidden="true"></image></button></view>
         <textarea class="outline-textarea" value="{{outlineText}}" bindinput="onOutlineInput" auto-focus adjust-position="{{false}}" cursor-spacing="12" aria-label="连续分层大纲"></textarea>
-        <view wx:if="{{editorError}}" class="editor-error" role="alert">{{editorError}}<button wx:if="{{outlineConflict}}" class="editor-refresh" bindtap="retryDraftWorkspace">刷新大纲</button></view>
+        <view wx:if="{{editorError}}" class="editor-error" role="alert">{{editorError}}<button wx:if="{{outlineConflict}}" class="editor-refresh" bindtap="refreshDraftOutline">刷新大纲</button><button wx:elif="{{draftMode && editorSaveState === 'failed'}}" class="editor-retry" bindtap="retryDraftOutlineSave">重试保存</button></view>
         <view class="editor-help">直接修改文字；换行后用两个空格进入下一层级。</view>
         <button class="primary-button" bindtap="completeOutlineEdit">完成编辑</button>
       </view>

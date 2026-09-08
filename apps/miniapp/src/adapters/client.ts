@@ -76,10 +76,20 @@ export type PptOutlineParagraph = {
   text: string;
 };
 
+/** Frozen Server contract: provenance for a public source used by the outline. */
+export type PptPublicSource = {
+  url: string;
+  title: string;
+  publishedAt: string | null;
+  fetchedAt: string;
+  usageScope: string;
+};
+
 export type PptOutlineSnapshot = {
   version: number;
   pageCount: number;
   paragraphs: PptOutlineParagraph[];
+  publicSources: PptPublicSource[];
 };
 
 export type PptDraftCreateResult = {

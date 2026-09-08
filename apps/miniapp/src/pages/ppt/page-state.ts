@@ -81,6 +81,12 @@ export function countOutlinePages(nodes: ReadonlyArray<{ level: 1 | 2 | 3 }>) {
   return nodes.reduce((count, node) => (node.level === 1 ? count + 1 : count), 0);
 }
 
+/** Level-one paragraphs are pages; labels follow level-one order, not the flat index. */
+export function outlinePageLabels(nodes: ReadonlyArray<{ level: 1 | 2 | 3 }>): string[] {
+  let page = 0;
+  return nodes.map((node) => (node.level === 1 ? String(++page).padStart(2, "0") : ""));
+}
+
 export function isPptStaleError(error: unknown) {
   return error instanceof ClientBoundaryError && error.code === "PPT_WORKSPACE_STALE";
 }

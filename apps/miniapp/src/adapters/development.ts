@@ -10,6 +10,7 @@ import type {
   PptOutlineParagraph,
   PptOutlineSnapshot,
   PptOutlineWrite,
+  PptPublicSource,
   PptRequirementsWrite,
   PptWorkspace,
   ReadingPosition,
@@ -119,6 +120,7 @@ function applyState<T>(state: DevelopmentState | undefined, value: T): Promise<T
 type DevelopmentPptDraft = {
   workspace: PptDraftSnapshot;
   paragraphs: PptOutlineParagraph[];
+  publicSources: PptPublicSource[];
 };
 
 function clone<T>(value: T): T {
@@ -136,6 +138,18 @@ function developmentOutlineParagraphs(): PptOutlineParagraph[] {
     { id: "dev-node-3", level: 3, text: "保留一个可继续思考的线索" },
     { id: "dev-node-4", level: 1, text: "把阅读带回日常" },
     { id: "dev-node-5", level: 2, text: "列出可以尝试的行动" },
+  ];
+}
+
+function developmentPublicSources(): PptPublicSource[] {
+  return [
+    {
+      url: "https://example.com/dev-outline-source",
+      title: "开发适配器示例公开来源",
+      publishedAt: null,
+      fetchedAt: "2026-01-01T00:00:00.000Z",
+      usageScope: "开发适配器样本，仅验证溯源保留与展示",
+    },
   ];
 }
 
@@ -213,6 +227,7 @@ export class DevelopmentClient implements MiniappClient {
       version: draft.workspace.draft.version,
       pageCount: countPages(draft.paragraphs),
       paragraphs: clone(draft.paragraphs),
+      publicSources: clone(draft.publicSources),
     };
   }
 
@@ -243,6 +258,7 @@ export class DevelopmentClient implements MiniappClient {
         sources: [{ bookId: book.id, title: book.title, author: book.author ?? null, sourceLabel: book.sourceLabel }],
       },
       paragraphs: [],
+      publicSources: [],
     };
     this.pptDrafts.set(draftId, draft);
     this.pptDraftKeys.set(key, draftId);
@@ -308,6 +324,7 @@ export class DevelopmentClient implements MiniappClient {
       return Promise.reject(new ClientBoundaryError("PPT_WORKSPACE_STALE"));
     }
     draft.paragraphs = developmentOutlineParagraphs();
+    draft.publicSources = developmentPublicSources();
     draft.workspace = {
       ...draft.workspace,
       draft: { ...draft.workspace.draft, version: draft.workspace.draft.version + 1 },
