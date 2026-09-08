@@ -193,3 +193,5 @@ The governing principle is **fail-closed, not fail-dead**: do not continue throu
 - 不新增生产依赖，不调用付费服务，不上传、发布或推送，除非用户明确授权；凭证不得进入聊天、源码、命令参数、日志或原型数据。
 - 按风险运行定向测试、相关回归、链接检查、残留扫描和 `git diff --check`。原型须验证完整用户路径及相关视口；不以文件存在、静态选择器或 HTTP 成功代替真实体验。
 - 最终说明完成内容、验证证据和真实限制；未实际验证的结果不得声称完成。
+
+backend default provider=grok-build model=grok-4.6 auth_mode=oauth
