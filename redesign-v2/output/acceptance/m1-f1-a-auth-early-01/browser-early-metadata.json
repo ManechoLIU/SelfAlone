@@ -1,0 +1,321 @@
+{
+  "browser": {
+    "Browser": "Chrome/152.0.7977.76",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+    "V8-Version": "15.2.124.19",
+    "WebKit-Version": "537.36 (@0d89dfa2dd7c1ec4b8a14b9f303f887bb63b6174)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9223/devtools/browser/234eb25b-72b1-46ed-82de-411fa7c60aee"
+  },
+  "viewport": "1440x844",
+  "states": {
+    "entry": {
+      "metrics": {
+        "innerWidth": 1440,
+        "innerHeight": 844,
+        "devicePixelRatio": 1,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 844,
+        "clientHeight": 844,
+        "horizontalOverflow": false,
+        "gridColumns": "755.984px 684px",
+        "paneWidth": 376,
+        "primaryButtonHeight": 52,
+        "fieldHeight": null,
+        "tabHeight": 44,
+        "wechatCount": 1,
+        "wechatAboveEmail": true,
+        "dividerLines": 2,
+        "tabIndicator": 1,
+        "pseudoContent": {
+          "panel": "none",
+          "divider": "none",
+          "activeTab": "none"
+        },
+        "brandSheetBg": "rgb(248, 250, 246)",
+        "canvasBg": "rgb(241, 241, 239)",
+        "mascotComplete": true,
+        "landscapeBg": true
+      }
+    },
+    "dialog": {
+      "metrics": {
+        "innerWidth": 1440,
+        "innerHeight": 844,
+        "devicePixelRatio": 1,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 844,
+        "clientHeight": 844,
+        "horizontalOverflow": false,
+        "gridColumns": "755.984px 684px",
+        "paneWidth": 376,
+        "primaryButtonHeight": 52,
+        "fieldHeight": null,
+        "tabHeight": 44,
+        "wechatCount": 1,
+        "wechatAboveEmail": true,
+        "dividerLines": 2,
+        "tabIndicator": 1,
+        "pseudoContent": {
+          "panel": "none",
+          "divider": "none",
+          "activeTab": "none"
+        },
+        "brandSheetBg": "rgb(248, 250, 246)",
+        "canvasBg": "rgb(241, 241, 239)",
+        "mascotComplete": true,
+        "landscapeBg": true
+      }
+    },
+    "login": {
+      "metrics": {
+        "innerWidth": 1440,
+        "innerHeight": 844,
+        "devicePixelRatio": 1,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 844,
+        "clientHeight": 844,
+        "horizontalOverflow": false,
+        "gridColumns": "755.984px 684px",
+        "paneWidth": 376,
+        "primaryButtonHeight": 52,
+        "fieldHeight": 48,
+        "tabHeight": 44,
+        "wechatCount": 1,
+        "wechatAboveEmail": true,
+        "dividerLines": 2,
+        "tabIndicator": 1,
+        "pseudoContent": {
+          "panel": "none",
+          "divider": "none",
+          "activeTab": "none"
+        },
+        "brandSheetBg": "rgb(248, 250, 246)",
+        "canvasBg": "rgb(241, 241, 239)",
+        "mascotComplete": true,
+        "landscapeBg": true
+      }
+    },
+    "register": {
+      "metrics": {
+        "innerWidth": 1440,
+        "innerHeight": 844,
+        "devicePixelRatio": 1,
+        "scrollWidth": 1440,
+        "clientWidth": 1440,
+        "scrollHeight": 844,
+        "clientHeight": 844,
+        "horizontalOverflow": false,
+        "gridColumns": "755.984px 684px",
+        "paneWidth": 376,
+        "primaryButtonHeight": 52,
+        "fieldHeight": 48,
+        "tabHeight": 44,
+        "wechatCount": 1,
+        "wechatAboveEmail": true,
+        "dividerLines": 2,
+        "tabIndicator": 1,
+        "pseudoContent": {
+          "panel": "none",
+          "divider": "none",
+          "activeTab": "none"
+        },
+        "brandSheetBg": "rgb(248, 250, 246)",
+        "canvasBg": "rgb(241, 241, 239)",
+        "mascotComplete": true,
+        "landscapeBg": true
+      },
+      "confirmField": true
+    }
+  },
+  "keyboard": {
+    "tabOrderEntry": [
+      {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "tab",
+        "text": "登录",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "tab",
+        "text": "注册",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "微信登录",
+        "wechat": true,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "邮箱登录",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "role": "",
+        "text": "《用户协议》",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "A",
+        "id": "",
+        "role": "",
+        "text": "《隐私政策》",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      {
+        "tag": "BODY",
+        "id": "",
+        "role": "",
+        "text": "老己遇见自己，爱你老己\n        \n   ",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      }
+    ],
+    "arrowRightActivatesRegister": {
+      "active": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "tab",
+        "text": "注册",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      "registerForm": true,
+      "hash": "#/auth?mode=register"
+    },
+    "arrowLeftActivatesLogin": {
+      "active": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "tab",
+        "text": "登录",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": false
+      },
+      "loginForm": true,
+      "hash": "#/auth?mode=login"
+    },
+    "dialogInitialFocus": {
+      "tag": "BUTTON",
+      "id": "",
+      "role": "",
+      "text": "",
+      "ariaLabel": "关闭微信登录提示",
+      "initialFocus": true,
+      "inDialog": true
+    },
+    "dialogCycle": {
+      "tab1": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "",
+        "wechat": false,
+        "initialFocus": true,
+        "inDialog": true
+      },
+      "tab2": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "返回账户入口",
+        "wechat": false,
+        "initialFocus": false,
+        "inDialog": true
+      },
+      "shiftTab": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "",
+        "wechat": false,
+        "initialFocus": true,
+        "inDialog": true
+      }
+    },
+    "escapeCloses": {
+      "dialogOpen": false,
+      "focus": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "微信登录",
+        "wechat": true,
+        "initialFocus": false,
+        "inDialog": false
+      }
+    },
+    "overlayClickCloses": {
+      "dialogOpen": false,
+      "focus": {
+        "tag": "BUTTON",
+        "id": "",
+        "role": "",
+        "text": "微信登录",
+        "wechat": true,
+        "initialFocus": false,
+        "inDialog": false
+      }
+    },
+    "invalidSubmitFocus": {
+      "tag": "INPUT",
+      "id": "auth-email",
+      "role": "",
+      "text": "",
+      "wechat": false,
+      "initialFocus": false,
+      "inDialog": false
+    },
+    "modeSwitchState": {
+      "loginEmail": "",
+      "loginPassword": ""
+    }
+  },
+  "startedAt": "2026-09-08T10:28:59.753Z",
+  "consoleEntries": [
+    {
+      "kind": "network",
+      "level": "error",
+      "source": "network",
+      "url": "http://127.0.0.1:4817/api/v1/account",
+      "status": 502,
+      "classification": "environmental: this isolated Vite instance proxies to an unavailable API target; it is not an Auth candidate console error and does not establish the expected unauthenticated 401 path"
+    },
+    {
+      "kind": "network",
+      "level": "info",
+      "source": "network",
+      "url": "http://127.0.0.1:4817/favicon.ico",
+      "classification": "not requested in the exact 1440x844 Cdp capture; the previous favicon 404 was not reproduced, so this receipt does not claim a zero-error console"
+    }
+  ],
+  "finishedAt": "2026-09-08T10:29:05.796Z"
+}

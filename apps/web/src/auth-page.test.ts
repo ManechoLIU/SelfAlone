@@ -64,4 +64,45 @@ describe("desktop auth page", () => {
     expect(mainSource).toContain("data-auth-dialog-initial-focus");
     expect(mainSource).toContain("data-auth-wechat");
   });
+
+  it.each(["entry", "login", "register"] as const)(
+    "keeps exactly one WeChat primary action before the email content in %s",
+    (mode) => {
+      const html = renderAuthPage(createAuthState(mode));
+      expect(html.match(/data-auth-wechat/g)).toHaveLength(1);
+      const wechatIndex = html.indexOf("data-auth-wechat");
+      expect(wechatIndex).toBeGreaterThan(-1);
+      if (mode === "entry") {
+        expect(html).toContain("邮箱登录");
+        expect(html.indexOf("邮箱登录")).toBeGreaterThan(wechatIndex);
+      } else {
+        expect(html).toContain(`data-auth-form="${mode}"`);
+        expect(html.indexOf(`data-auth-form="${mode}"`)).toBeGreaterThan(wechatIndex);
+      }
+    },
+  );
+
+  it("renders the divider and the active tab indicator as real DOM nodes", () => {
+    const html = renderAuthPage(createAuthState("login"));
+    expect(html).toContain("auth-divider-line");
+    expect(html).toContain("auth-tab-indicator");
+  });
+
+  it("removes all five historical Auth pseudo-element selector groups", () => {
+    for (const selector of [
+      ".auth-brand-panel::before",
+      ".auth-brand-panel::after",
+      ".auth-tab.is-active::after",
+      ".auth-divider::before",
+      ".auth-divider::after",
+    ]) {
+      expect(authStyles).not.toContain(selector);
+    }
+  });
+
+  it("wires roving tab arrow keys and first-invalid submit focus", () => {
+    expect(mainSource).toContain('"ArrowLeft"');
+    expect(mainSource).toContain('"ArrowRight"');
+    expect(mainSource).toContain("firstInvalid");
+  });
 });

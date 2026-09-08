@@ -16,11 +16,6 @@ apps/web/src/settings-page.css	.settings-page *::after {
 apps/web/src/settings-page.css	.settings-page *::before,
 apps/web/src/settings-page.css	.settings-page *::before,
 apps/web/src/styles.css	*, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-apps/web/src/styles.css	.auth-brand-panel::after {
-apps/web/src/styles.css	.auth-brand-panel::before {
-apps/web/src/styles.css	.auth-divider::after {
-apps/web/src/styles.css	.auth-divider::before,
-apps/web/src/styles.css	.auth-tab.is-active::after {
 apps/web/src/styles.css	.book-item.failed .parse-badge::after { display: none; }
 apps/web/src/styles.css	.book-item.processing .parse-badge::after { width: 34px; }
 apps/web/src/styles.css	.library-main::after {

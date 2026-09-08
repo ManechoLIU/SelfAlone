@@ -49,24 +49,36 @@ function renderAuthForm(state: AuthState) {
     </form>`;
 }
 
-function renderEntry(state: AuthState) {
-  return `<div class="auth-entry-actions">
-    <button class="auth-primary-button auth-wechat-button" type="button" data-auth-wechat>${wechatIcon}<span>微信登录</span></button>
-    <div class="auth-divider" role="separator"><span>或</span></div>
-    <button class="auth-secondary-button" type="button" data-auth-mode="login">${emailIcon}<span>邮箱登录</span></button>
-  </div>`;
+function renderWechatPrimaryAction() {
+  return `<button class="auth-primary-button auth-wechat-button" type="button" data-auth-wechat>${wechatIcon}<span>微信登录</span></button>`;
+}
+
+function renderAuthDivider() {
+  return `<div class="auth-divider" role="separator"><span class="auth-divider-line" aria-hidden="true"></span><span class="auth-divider-text">或</span><span class="auth-divider-line" aria-hidden="true"></span></div>`;
+}
+
+function renderEmailEntry() {
+  return `<button class="auth-secondary-button" type="button" data-auth-mode="login">${emailIcon}<span>邮箱登录</span></button>`;
 }
 
 function renderAccountPane(state: AuthState) {
   const formMode: AuthMode = state.mode === "register" ? "register" : "login";
+  const tab = (mode: Exclude<AuthMode, "entry">, label: string) => {
+    const active = formMode === mode;
+    return `<button type="button" role="tab" aria-selected="${active}" class="auth-tab${active ? " is-active" : ""}" data-auth-mode="${mode}">${label}${active ? '<span class="auth-tab-indicator" aria-hidden="true"></span>' : ""}</button>`;
+  };
   return `<section class="auth-account-pane" aria-labelledby="auth-title">
     <div class="auth-tabs" role="tablist" aria-label="账户入口">
-      <button type="button" role="tab" aria-selected="${formMode === "login"}" class="auth-tab${formMode === "login" ? " is-active" : ""}" data-auth-mode="login">登录</button>
-      <button type="button" role="tab" aria-selected="${formMode === "register"}" class="auth-tab${formMode === "register" ? " is-active" : ""}" data-auth-mode="register">注册</button>
+      ${tab("login", "登录")}
+      ${tab("register", "注册")}
     </div>
     <h1 id="auth-title">${formMode === "register" ? "创建账户" : "欢迎回来"}</h1>
     <p class="auth-subtitle">${formMode === "register" ? "从今天开始，留住你的阅读与灵感" : "继续整理你的阅读与灵感"}</p>
-    ${state.mode === "entry" ? renderEntry(state) : renderAuthForm(state)}
+    <div class="auth-actions">
+      ${renderWechatPrimaryAction()}
+      ${renderAuthDivider()}
+      ${state.mode === "entry" ? renderEmailEntry() : renderAuthForm(state)}
+    </div>
     <p class="auth-agreement">登录即表示你同意 <a href="#/terms">《用户协议》</a> 和 <a href="#/privacy">《隐私政策》</a></p>
   </section>`;
 }
@@ -86,9 +98,11 @@ function renderWechatDialog(open: boolean) {
 export function renderAuthPage(state: AuthState, wechatDialogOpen = false) {
   return `<main class="auth-page" data-auth-phase="${state.phase}">
     <section class="auth-brand-panel" aria-label="老己品牌">
-      <div class="auth-brand-lockup"><span class="auth-brand-mark">老己</span><span class="auth-brand-seal" aria-hidden="true">己</span><p>遇见自己，爱你老己</p></div>
-      <div class="auth-landscape" aria-hidden="true"></div>
-      <img class="auth-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
+      <div class="auth-brand-sheet">
+        <div class="auth-landscape" aria-hidden="true"></div>
+        <div class="auth-brand-lockup"><span class="auth-brand-mark">老己</span><p>遇见自己，爱你老己</p></div>
+        <img class="auth-mascot" src="/mascot/laoji-mascot-seated-reading-transparent-v1.png" alt="" />
+      </div>
     </section>
     ${renderAccountPane(state)}
     ${renderWechatDialog(wechatDialogOpen)}

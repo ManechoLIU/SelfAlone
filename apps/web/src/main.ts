@@ -1275,6 +1275,21 @@ function handleAuthDialogKeydown(event: KeyboardEvent) {
 }
 
 function bindAuthInteractions() {
+  const authTabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".auth-tab[data-auth-mode]"));
+  authTabs.forEach((tab, index) => {
+    tab.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      const delta = event.key === "ArrowRight" ? 1 : -1;
+      const target = authTabs[(index + delta + authTabs.length) % authTabs.length];
+      const mode = target?.dataset.authMode;
+      if (mode !== "login" && mode !== "register") return;
+      authState = setAuthMode(authState, mode);
+      window.history.pushState(null, "", authHash(mode));
+      renderAuth();
+      document.querySelector<HTMLButtonElement>(`.auth-tab[data-auth-mode="${mode}"]`)?.focus();
+    });
+  });
   document.querySelectorAll<HTMLButtonElement>("[data-auth-mode]").forEach((button) => {
     button.addEventListener("click", () => {
       const mode = button.dataset.authMode;
@@ -1326,7 +1341,11 @@ async function submitAuthForm(form: HTMLFormElement) {
     formError: "",
   };
   renderAuth();
-  if (Object.keys(fieldErrors).length > 0) return;
+  if (Object.keys(fieldErrors).length > 0) {
+    const firstInvalid = (["email", "password", "confirmPassword"] as const).find((name) => fieldErrors[name]);
+    if (firstInvalid) document.querySelector<HTMLInputElement>(`#auth-${firstInvalid}`)?.focus();
+    return;
+  }
   try {
     const response = await requestAuthJson<AuthAccountResponse>(
       mode === "register" ? "/api/v1/auth/email/register" : "/api/v1/auth/email/login",
