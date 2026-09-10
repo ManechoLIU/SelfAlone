@@ -1,5 +1,6 @@
+import { createRequire } from "node:module";
+import { PPT_TEMPLATE_IDS } from "@selfalone/contracts";
 import { describe, expect, it, vi } from "vitest";
-import { PPT_TEMPLATE_IDS } from "../../contracts/src/ppt-template";
 import { getPptTemplateCatalog as exportedCatalog } from "./index";
 import {
   CANONICAL_PPT_TEMPLATE_IDS,
@@ -9,6 +10,15 @@ import {
 } from "./template-catalog";
 
 describe("canonical PPT template catalog", () => {
+  it("resolves the canonical IDs through the declared contracts package", async () => {
+    const requireFromPackage = createRequire(
+      new URL("../package.json", import.meta.url),
+    );
+    expect(() => requireFromPackage.resolve("@selfalone/contracts")).not.toThrow();
+    const contracts = await import("@selfalone/contracts");
+    expect(CANONICAL_PPT_TEMPLATE_IDS).toBe(contracts.PPT_TEMPLATE_IDS);
+  });
+
   it("exposes exactly three 16:9 templates in stable order", () => {
     expect(CANONICAL_PPT_TEMPLATE_IDS).toBe(PPT_TEMPLATE_IDS);
     expect(Object.isFrozen(CANONICAL_PPT_TEMPLATE_IDS)).toBe(true);

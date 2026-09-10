@@ -76,6 +76,9 @@ importers:
 
   packages/presentation-adapter:
     dependencies:
+      '@selfalone/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       pptxgenjs:
         specifier: latest
         version: 4.0.1

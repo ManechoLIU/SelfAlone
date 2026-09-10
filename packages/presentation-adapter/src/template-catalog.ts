@@ -2,7 +2,7 @@ import {
   PPT_TEMPLATE_IDS,
   isPptTemplateId,
   type PptTemplateId,
-} from "../../contracts/src/ppt-template";
+} from "@selfalone/contracts";
 
 export const CANONICAL_PPT_TEMPLATE_IDS = PPT_TEMPLATE_IDS;
 
