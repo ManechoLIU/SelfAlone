@@ -27,7 +27,7 @@ describe("PPT draft state", () => {
 });
 
 describe("PPT outline confirmation to template", () => {
-  const requirementsDraft: PptDraft = { stage: "requirements", version: 2 };
+  const outlineDraft: PptDraft = { stage: "outline", version: 2 };
   const validOutline = [
     { level: 1 as const },
     { level: 2 as const },
@@ -36,7 +36,7 @@ describe("PPT outline confirmation to template", () => {
   ];
 
   it("confirms a valid saved outline into the template stage", () => {
-    expect(confirmOutlineToTemplate(requirementsDraft, 2, validOutline)).toEqual({
+    expect(confirmOutlineToTemplate(outlineDraft, 2, validOutline)).toEqual({
       stage: "template",
       version: 3,
     });
@@ -47,20 +47,25 @@ describe("PPT outline confirmation to template", () => {
   });
 
   it("rejects a missing page, orphan child, and stale confirmation", () => {
-    expect(() => confirmOutlineToTemplate(requirementsDraft, 2, [])).toThrow("INVALID_OUTLINE");
-    expect(() => confirmOutlineToTemplate(requirementsDraft, 2, [{ level: 2 }])).toThrow(
+    expect(() => confirmOutlineToTemplate(outlineDraft, 2, [])).toThrow("INVALID_OUTLINE");
+    expect(() => confirmOutlineToTemplate(outlineDraft, 2, [{ level: 2 }])).toThrow(
       "INVALID_OUTLINE",
     );
-    expect(() => confirmOutlineToTemplate(requirementsDraft, 2, [
+    expect(() => confirmOutlineToTemplate(outlineDraft, 2, [
       { level: 1 },
       { level: 3 },
     ])).toThrow("INVALID_OUTLINE");
-    expect(() => confirmOutlineToTemplate(requirementsDraft, 1, validOutline)).toThrow(
+    expect(() => confirmOutlineToTemplate(outlineDraft, 1, validOutline)).toThrow(
       "STALE_VERSION",
     );
   });
 
-  it("does not confirm from template or submitted", () => {
+  it("does not confirm before the outline is saved or after template", () => {
+    expect(() => confirmOutlineToTemplate(
+      { stage: "requirements", version: 2 },
+      2,
+      validOutline,
+    )).toThrow("INVALID_STAGE_TRANSITION");
     expect(() => confirmOutlineToTemplate(
       { stage: "template", version: 3 },
       3,

@@ -439,13 +439,17 @@ export class PptWorkspaceStore {
   async #persistOutline(input: PptOutlineSaveInput & { pageCount: number }) {
     const { accountId, draftId, expectedVersion, paragraphs, publicSources } = input;
     return this.sql.begin(async (transaction) => {
-      const [draft] = await transaction<Array<{ version: number }>>`
-        SELECT version FROM ppt_drafts
+      const [draft] = await transaction<Array<{ stage: string; version: number }>>`
+        SELECT stage, version FROM ppt_drafts
         WHERE account_id = ${accountId} AND id = ${draftId}
         FOR UPDATE
       `;
       if (!draft) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
       if (draft.version !== expectedVersion) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+      const stage = toDraftStage(draft.stage);
+      if (stage === "submitted") {
+        throw new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
+      }
 
       await transaction`
         DELETE FROM ppt_outline_nodes
@@ -480,8 +484,8 @@ export class PptWorkspaceStore {
       const [updated] = await transaction<Array<{ version: number }>>`
         UPDATE ppt_drafts
         SET version = version + 1,
-            stage = CASE WHEN stage = 'template' THEN 'outline' ELSE stage END,
-            template_id = CASE WHEN stage = 'template' THEN NULL ELSE template_id END,
+            stage = 'outline',
+            template_id = NULL,
             updated_at = now()
         WHERE account_id = ${accountId} AND id = ${draftId}
           AND version = ${expectedVersion}

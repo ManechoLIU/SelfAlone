@@ -1,28 +1,28 @@
-export const CANONICAL_PPT_TEMPLATE_IDS = Object.freeze([
-  "celadon-reading",
-  "editorial-paper",
-  "minimal-ink",
-] as const);
+import {
+  PPT_TEMPLATE_IDS,
+  isPptTemplateId,
+  type PptTemplateId,
+} from "../../contracts/src/ppt-template";
 
-export type CanonicalPptTemplateId = (typeof CANONICAL_PPT_TEMPLATE_IDS)[number];
+export const CANONICAL_PPT_TEMPLATE_IDS = PPT_TEMPLATE_IDS;
+
+export type CanonicalPptTemplateId = PptTemplateId;
 
 export type PptTemplateDefinition = {
   id: CanonicalPptTemplateId;
   aspectRatio: "16:9";
 };
 
-const PPT_TEMPLATE_CATALOG: readonly PptTemplateDefinition[] = Object.freeze([
-  Object.freeze({ id: "celadon-reading", aspectRatio: "16:9" }),
-  Object.freeze({ id: "editorial-paper", aspectRatio: "16:9" }),
-  Object.freeze({ id: "minimal-ink", aspectRatio: "16:9" }),
-]);
+const PPT_TEMPLATE_CATALOG: readonly PptTemplateDefinition[] = Object.freeze(
+  PPT_TEMPLATE_IDS.map((id) => Object.freeze({ id, aspectRatio: "16:9" as const })),
+);
 
 export function getPptTemplateCatalog(): PptTemplateDefinition[] {
   return PPT_TEMPLATE_CATALOG.map((template) => ({ ...template }));
 }
 
 export function isCanonicalPptTemplateId(value: string): value is CanonicalPptTemplateId {
-  return (CANONICAL_PPT_TEMPLATE_IDS as readonly string[]).includes(value);
+  return isPptTemplateId(value);
 }
 
 export function resolvePptTemplate(templateId: string): PptTemplateDefinition {

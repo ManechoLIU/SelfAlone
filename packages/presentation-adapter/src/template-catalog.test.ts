@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PPT_TEMPLATE_IDS } from "../../contracts/src/ppt-template";
 import { getPptTemplateCatalog as exportedCatalog } from "./index";
 import {
   CANONICAL_PPT_TEMPLATE_IDS,
@@ -9,6 +10,8 @@ import {
 
 describe("canonical PPT template catalog", () => {
   it("exposes exactly three 16:9 templates in stable order", () => {
+    expect(CANONICAL_PPT_TEMPLATE_IDS).toBe(PPT_TEMPLATE_IDS);
+    expect(Object.isFrozen(CANONICAL_PPT_TEMPLATE_IDS)).toBe(true);
     expect(CANONICAL_PPT_TEMPLATE_IDS).toEqual([
       "celadon-reading",
       "editorial-paper",

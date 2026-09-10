@@ -58,7 +58,7 @@ export function confirmOutlineToTemplate(
   outline: readonly PptOutlineStructureNode[],
 ): PptDraft {
   assertIncrementableDraftVersion(draft, expectedVersion);
-  if (draft.stage !== "requirements" && draft.stage !== "outline") {
+  if (draft.stage !== "outline") {
     throw new Error("INVALID_STAGE_TRANSITION");
   }
   if (!isConfirmableOutline(outline)) {

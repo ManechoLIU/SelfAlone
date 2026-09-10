@@ -1,8 +1,8 @@
-export const PPT_TEMPLATE_IDS = [
+export const PPT_TEMPLATE_IDS = Object.freeze([
   "celadon-reading",
   "editorial-paper",
   "minimal-ink",
-] as const;
+] as const);
 
 export type PptTemplateId = (typeof PPT_TEMPLATE_IDS)[number];
 

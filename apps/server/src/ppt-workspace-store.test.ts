@@ -969,6 +969,26 @@ describe("PPT workspace store", () => {
     fetchSpy.mockRestore();
   });
 
+  it("persists the first outline save as outline stage across workspace refresh", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+
+    const saved = await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    });
+    expect(saved.version).toBe(2);
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
+      draft: { stage: "outline", version: 2 },
+    });
+  });
+
   it("fails closed for invalid outlines, unknown IDs, stale versions, and cross-account access", async () => {
     const created = await store.createFromSentIntent({
       accountId: "account-a",
@@ -981,7 +1001,7 @@ describe("PPT workspace store", () => {
       accountId: "account-a",
       draftId: created.workspace.draft.id,
       expectedVersion: 1,
-    })).rejects.toMatchObject({ code: "PPT_OUTLINE_NOT_CONFIRMABLE" });
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STAGE_UNSUPPORTED" });
     expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
       draft: { stage: "requirements", version: 1 },
     });
@@ -992,6 +1012,10 @@ describe("PPT workspace store", () => {
       ) VALUES (
         'account-a', ${created.workspace.draft.id}, 'point-orphan', 0, 2, '没有页面的要点'
       )
+    `;
+    await sql`
+      UPDATE ppt_drafts SET stage = 'outline'
+      WHERE account_id = 'account-a' AND id = ${created.workspace.draft.id}
     `;
     await expect(store.confirmOutline({
       accountId: "account-a",
@@ -1152,6 +1176,54 @@ describe("PPT workspace store", () => {
       stage: "template",
       version: 6,
       templateId: null,
+    });
+  });
+
+  it("rejects outline writes after submission without changing saved state", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    });
+    await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    });
+    await store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 3,
+      templateId: "editorial-paper",
+    });
+    await sql`
+      UPDATE ppt_drafts SET stage = 'submitted'
+      WHERE account_id = 'account-a' AND id = ${created.workspace.draft.id}
+    `;
+
+    await expect(store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 4,
+      paragraphs: [{ id: "page-1", level: 1, text: "不应写入" }],
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STAGE_UNSUPPORTED" });
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
+      draft: {
+        stage: "submitted",
+        version: 4,
+        templateId: "editorial-paper",
+      },
+    });
+    expect(await store.getOutline("account-a", created.workspace.draft.id)).toMatchObject({
+      version: 4,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
     });
   });
 
