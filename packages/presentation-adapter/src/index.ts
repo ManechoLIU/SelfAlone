@@ -1,5 +1,7 @@
 import PptxGenJS from "pptxgenjs";
 
+export * from "./template-catalog";
+
 export type DevelopmentPage = {
   title: string;
   body: string;

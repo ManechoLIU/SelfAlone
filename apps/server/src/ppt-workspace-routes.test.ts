@@ -537,4 +537,167 @@ describe("PPT workspace routes", () => {
     await app.close();
   });
 
+  it("exposes catalog, outline confirm, and template select without M0 ppt-tasks", async () => {
+    const templateWorkspace = {
+      ...workspace,
+      draft: {
+        ...workspace.draft,
+        stage: "template" as const,
+        version: 3,
+        templateId: null,
+      },
+    };
+    const selectedWorkspace = {
+      ...templateWorkspace,
+      draft: {
+        ...templateWorkspace.draft,
+        version: 4,
+        templateId: "celadon-reading" as const,
+      },
+    };
+    const calls: unknown[] = [];
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return selectedWorkspace;
+      },
+      async saveRequirements() {
+        return workspace;
+      },
+      async replaceSource() {
+        return workspace;
+      },
+      async confirmOutline(input) {
+        calls.push(["confirm", input]);
+        return templateWorkspace;
+      },
+      async selectTemplate(input) {
+        calls.push(["select", input]);
+        return selectedWorkspace;
+      },
+    };
+    const app = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(app, runtime, () => "account-a");
+
+    const catalog = await app.inject({ method: "GET", url: "/api/v1/ppt-templates" });
+    expect(catalog.statusCode).toBe(200);
+    expect(catalog.json()).toEqual({
+      templates: [
+        { id: "celadon-reading", aspectRatio: "16:9" },
+        { id: "editorial-paper", aspectRatio: "16:9" },
+        { id: "minimal-ink", aspectRatio: "16:9" },
+      ],
+    });
+
+    const confirmed = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-drafts/draft-a/outline/confirm",
+      payload: { expectedVersion: 2 },
+    });
+    expect(confirmed.statusCode).toBe(200);
+    expect(confirmed.json()).toEqual({ workspace: templateWorkspace });
+
+    const selected = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/template",
+      payload: { expectedVersion: 3, templateId: "celadon-reading" },
+    });
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toEqual({ workspace: selectedWorkspace });
+
+    const reloaded = await app.inject({
+      method: "GET",
+      url: "/api/v1/ppt-drafts/draft-a/workspace",
+    });
+    expect(reloaded.statusCode).toBe(200);
+    expect(reloaded.json()).toEqual({ workspace: selectedWorkspace });
+
+    const tasks = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-tasks",
+      payload: {
+        draftId: "draft-a",
+        expectedVersion: 4,
+        idempotencyKey: "request-a",
+        templateId: "celadon-reading",
+      },
+    });
+    expect(tasks.statusCode).toBe(404);
+    expect(calls).toEqual([
+      ["confirm", {
+        accountId: "account-a",
+        draftId: "draft-a",
+        expectedVersion: 2,
+      }],
+      ["select", {
+        accountId: "account-a",
+        draftId: "draft-a",
+        expectedVersion: 3,
+        templateId: "celadon-reading",
+      }],
+    ]);
+    await app.close();
+  });
+
+  it("maps template contract failures without calling select for unknown IDs", async () => {
+    const calls: unknown[] = [];
+    const runtime: PptWorkspaceRouteRuntime = {
+      async createFromSentIntent() {
+        return { status: "created", workspace };
+      },
+      async getWorkspace() {
+        return workspace;
+      },
+      async saveRequirements() {
+        return workspace;
+      },
+      async replaceSource() {
+        return workspace;
+      },
+      async confirmOutline() {
+        throw new PptWorkspaceStoreError("PPT_OUTLINE_NOT_CONFIRMABLE");
+      },
+      async selectTemplate(input) {
+        calls.push(input);
+        throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+      },
+    };
+    const app = Fastify({ logger: false });
+    await registerPptWorkspaceRoutes(app, runtime, () => "account-a");
+
+    const invalidOutline = await app.inject({
+      method: "POST",
+      url: "/api/v1/ppt-drafts/draft-a/outline/confirm",
+      payload: { expectedVersion: 2 },
+    });
+    expect(invalidOutline.statusCode).toBe(400);
+    expect(invalidOutline.json()).toEqual({ code: "PPT_OUTLINE_NOT_CONFIRMABLE" });
+
+    const unknown = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/template",
+      payload: { expectedVersion: 3, templateId: "qingci-study" },
+    });
+    expect(unknown.statusCode).toBe(400);
+    expect(unknown.json()).toEqual({ code: "PPT_TEMPLATE_UNKNOWN" });
+    expect(calls).toEqual([]);
+
+    const stale = await app.inject({
+      method: "PUT",
+      url: "/api/v1/ppt-drafts/draft-a/template",
+      payload: { expectedVersion: 3, templateId: "editorial-paper" },
+    });
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json()).toEqual({ code: "PPT_WORKSPACE_STALE" });
+    expect(calls).toEqual([{
+      accountId: "account-a",
+      draftId: "draft-a",
+      expectedVersion: 3,
+      templateId: "editorial-paper",
+    }]);
+    await app.close();
+  });
+
 });

@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
+import {
+  getPptTemplateCatalog,
+  isCanonicalPptTemplateId,
+} from "@selfalone/presentation-adapter";
 import { resolveAccountOwner } from "./account-owner";
 import { PptOutlineRuntimeError } from "./ppt-outline-runtime";
 import {
@@ -13,7 +17,10 @@ import {
 export type PptWorkspaceRouteRuntime = Pick<
   PptWorkspaceStore,
   "createFromSentIntent" | "getWorkspace" | "saveRequirements" | "replaceSource"
-> & Partial<Pick<PptWorkspaceStore, "saveOutline" | "getOutline" | "generateOutline">>;
+> & Partial<Pick<
+  PptWorkspaceStore,
+  "saveOutline" | "getOutline" | "generateOutline" | "confirmOutline" | "selectTemplate"
+>>;
 
 export const pptWorkspaceIdentifier = z.string().trim().min(1).max(256);
 const pageCount = z.number().int().positive().max(PPT_WORKSPACE_PAGE_COUNT_MAX);
@@ -62,6 +69,13 @@ export const pptWorkspaceOutlineBody = z.object({
 const outlineGenerateBody = z.object({
   expectedVersion: incrementableVersion,
 }).strict();
+const outlineConfirmBody = z.object({
+  expectedVersion: incrementableVersion,
+}).strict();
+const templateSelectBody = z.object({
+  expectedVersion: incrementableVersion,
+  templateId: z.string().trim().min(1).max(256),
+}).strict();
 
 export const m0LegacyRequirementsBody = z.object({
   expectedVersion: incrementableVersion,
@@ -79,6 +93,10 @@ export function registerPptWorkspaceRoutes(
   resolveAccountId = resolveAccountOwner,
   options: RegisterPptWorkspaceRouteOptions = {},
 ) {
+  app.get("/api/v1/ppt-templates", async (_request, reply) => {
+    return reply.send({ templates: getPptTemplateCatalog() });
+  });
+
   app.post("/api/v1/conversations/:conversationId/ppt-drafts", async (request, reply) => {
     try {
       const { conversationId } = createParameters.parse(request.params);
@@ -194,6 +212,47 @@ export function registerPptWorkspaceRoutes(
       return sendPptWorkspaceError(error, reply);
     }
   });
+
+  app.post("/api/v1/ppt-drafts/:draftId/outline/confirm", async (request, reply) => {
+    try {
+      const { draftId } = draftParameters.parse(request.params);
+      const body = outlineConfirmBody.parse(request.body);
+      if (!runtime.confirmOutline) {
+        return reply.code(404).send({ code: "PPT_WORKSPACE_NOT_FOUND" });
+      }
+      const workspace = await runtime.confirmOutline({
+        accountId: resolveAccountId(request.headers),
+        draftId,
+        expectedVersion: body.expectedVersion,
+      });
+      return reply.send({ workspace });
+    } catch (error) {
+      return sendPptWorkspaceError(error, reply);
+    }
+  });
+
+  app.put("/api/v1/ppt-drafts/:draftId/template", async (request, reply) => {
+    try {
+      const { draftId } = draftParameters.parse(request.params);
+      const body = templateSelectBody.parse(request.body);
+      const accountId = resolveAccountId(request.headers);
+      if (!isCanonicalPptTemplateId(body.templateId)) {
+        throw new PptWorkspaceStoreError("PPT_TEMPLATE_UNKNOWN");
+      }
+      if (!runtime.selectTemplate) {
+        return reply.code(404).send({ code: "PPT_WORKSPACE_NOT_FOUND" });
+      }
+      const workspace = await runtime.selectTemplate({
+        accountId,
+        draftId,
+        expectedVersion: body.expectedVersion,
+        templateId: body.templateId,
+      });
+      return reply.send({ workspace });
+    } catch (error) {
+      return sendPptWorkspaceError(error, reply);
+    }
+  });
 }
 
 export function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
@@ -228,6 +287,12 @@ export function sendPptWorkspaceError(error: unknown, reply: FastifyReply) {
     return reply.code(422).send({ code: error.code });
   }
   if (error.code === "PPT_WORKSPACE_INVALID_REQUIREMENTS") {
+    return reply.code(400).send({ code: error.code });
+  }
+  if (
+    error.code === "PPT_OUTLINE_NOT_CONFIRMABLE"
+    || error.code === "PPT_TEMPLATE_UNKNOWN"
+  ) {
     return reply.code(400).send({ code: error.code });
   }
   if (

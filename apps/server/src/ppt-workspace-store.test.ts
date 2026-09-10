@@ -916,6 +916,279 @@ describe("PPT workspace store", () => {
     `;
     expect(sources).toEqual([{ bookId: "book-b" }]);
   });
+
+  it("confirms a valid saved outline into template and preserves a selected canonical ID on reload", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      throw new Error("network disabled");
+    });
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [
+        { id: "page-1", level: 1, text: "第一章" },
+        { id: "point-1", level: 2, text: "核心观点" },
+      ],
+    });
+
+    const confirmed = await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    });
+    expect(confirmed.draft).toMatchObject({
+      stage: "template",
+      version: 3,
+      templateId: null,
+    });
+
+    const selected = await store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 3,
+      templateId: "celadon-reading",
+    });
+    expect(selected.draft).toMatchObject({
+      stage: "template",
+      version: 4,
+      templateId: "celadon-reading",
+    });
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toEqual(selected);
+
+    const [tasks] = await sql<Array<{ exists: boolean }>>`
+      SELECT to_regclass('ppt_tasks') IS NOT NULL AS exists
+    `;
+    expect(tasks?.exists).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("fails closed for invalid outlines, unknown IDs, stale versions, and cross-account access", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+
+    await expect(store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+    })).rejects.toMatchObject({ code: "PPT_OUTLINE_NOT_CONFIRMABLE" });
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
+      draft: { stage: "requirements", version: 1 },
+    });
+
+    await sql`
+      INSERT INTO ppt_outline_nodes (
+        account_id, draft_id, node_id, node_order, level, body
+      ) VALUES (
+        'account-a', ${created.workspace.draft.id}, 'point-orphan', 0, 2, '没有页面的要点'
+      )
+    `;
+    await expect(store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+    })).rejects.toMatchObject({ code: "PPT_OUTLINE_NOT_CONFIRMABLE" });
+
+    await sql`
+      DELETE FROM ppt_outline_nodes
+      WHERE account_id = 'account-a' AND draft_id = ${created.workspace.draft.id}
+    `;
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    });
+    const confirmed = await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    });
+
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: confirmed.draft.version,
+      templateId: "qingci-study",
+    })).rejects.toMatchObject({ code: "PPT_TEMPLATE_UNKNOWN" });
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: confirmed.draft.version,
+      templateId: "paper-notes",
+    })).rejects.toMatchObject({ code: "PPT_TEMPLATE_UNKNOWN" });
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: confirmed.draft.version,
+      templateId: "ink-minimal",
+    })).rejects.toMatchObject({ code: "PPT_TEMPLATE_UNKNOWN" });
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      templateId: "editorial-paper",
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STALE" });
+    await expect(store.confirmOutline({
+      accountId: "account-b",
+      draftId: created.workspace.draft.id,
+      expectedVersion: confirmed.draft.version,
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_NOT_FOUND" });
+    await expect(store.selectTemplate({
+      accountId: "account-b",
+      draftId: created.workspace.draft.id,
+      expectedVersion: confirmed.draft.version,
+      templateId: "minimal-ink",
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_NOT_FOUND" });
+    expect(await store.getWorkspace("account-b", created.workspace.draft.id)).toBeNull();
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
+      draft: { stage: "template", version: confirmed.draft.version, templateId: null },
+    });
+  });
+
+  it("lets only one concurrent template selection commit", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    });
+    const confirmed = await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    });
+
+    const results = await Promise.allSettled([
+      store.selectTemplate({
+        accountId: "account-a",
+        draftId: created.workspace.draft.id,
+        expectedVersion: confirmed.draft.version,
+        templateId: "celadon-reading",
+      }),
+      store.selectTemplate({
+        accountId: "account-a",
+        draftId: created.workspace.draft.id,
+        expectedVersion: confirmed.draft.version,
+        templateId: "minimal-ink",
+      }),
+    ]);
+    const fulfilled = results.filter((result) => result.status === "fulfilled");
+    const rejected = results.filter((result) => result.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]).toMatchObject({
+      status: "rejected",
+      reason: expect.objectContaining({ code: "PPT_WORKSPACE_STALE" }),
+    });
+    const selected = (fulfilled[0] as PromiseFulfilledResult<{
+      draft: { stage: string; templateId: string | null; version: number };
+    }>).value;
+    expect(selected.draft.stage).toBe("template");
+    expect(["celadon-reading", "minimal-ink"]).toContain(selected.draft.templateId);
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toEqual(selected);
+  });
+
+  it("invalidates a selected template when the confirmed outline changes", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      paragraphs: [{ id: "page-1", level: 1, text: "第一章" }],
+    });
+    await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2,
+    });
+    await store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 3,
+      templateId: "editorial-paper",
+    });
+
+    await store.saveOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 4,
+      paragraphs: [{ id: "page-1", level: 1, text: "修改后的第一章" }],
+    });
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).toMatchObject({
+      draft: { stage: "outline", version: 5 },
+    });
+    expect(await store.getWorkspace("account-a", created.workspace.draft.id)).not.toMatchObject({
+      draft: { templateId: "editorial-paper" },
+    });
+
+    const reconfirmed = await store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 5,
+    });
+    expect(reconfirmed.draft).toMatchObject({
+      stage: "template",
+      version: 6,
+      templateId: null,
+    });
+  });
+
+  it("rejects template selection before confirmation and overflow versions without creating a task", async () => {
+    const created = await store.createFromSentIntent({
+      accountId: "account-a",
+      conversationId: "conversation-a",
+      bookId: "book-a",
+      requestId: "request-a",
+    });
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 1,
+      templateId: "celadon-reading",
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STAGE_UNSUPPORTED" });
+
+    await sql`
+      UPDATE ppt_drafts SET version = ${2_147_483_647}
+      WHERE account_id = 'account-a' AND id = ${created.workspace.draft.id}
+    `;
+    await expect(store.confirmOutline({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2_147_483_647,
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STALE" });
+    await expect(store.selectTemplate({
+      accountId: "account-a",
+      draftId: created.workspace.draft.id,
+      expectedVersion: 2_147_483_647,
+      templateId: "celadon-reading",
+    })).rejects.toMatchObject({ code: "PPT_WORKSPACE_STALE" });
+    const [tasks] = await sql<Array<{ exists: boolean }>>`
+      SELECT to_regclass('ppt_tasks') IS NOT NULL AS exists
+    `;
+    expect(tasks?.exists).toBe(false);
+  });
 });
 
 async function createBaseSchema(sql: Sql) {

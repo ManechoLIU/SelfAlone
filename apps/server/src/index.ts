@@ -28,6 +28,7 @@ import {
   createFakePptPublicSourceAdapter,
 } from "./ppt-outline-adapters";
 import { migratePptOutlineSchema } from "./ppt-outline-migration";
+import { migratePptTemplateSchema } from "./ppt-template-migration";
 import { migratePptWorkspaceSchema } from "./ppt-workspace-migration";
 import { PptWorkspaceStore } from "./ppt-workspace-store";
 import {
@@ -150,6 +151,7 @@ const pptWorkspaceMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migratePptWorkspaceSchema(pptWorkspaceMigrationDatabase);
   await migratePptOutlineSchema(pptWorkspaceMigrationDatabase);
+  await migratePptTemplateSchema(pptWorkspaceMigrationDatabase);
 } finally {
   await pptWorkspaceMigrationDatabase.end();
 }

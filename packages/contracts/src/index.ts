@@ -1,3 +1,7 @@
+import type { PptTemplateId } from "./ppt-template";
+
+export * from "./ppt-template";
+
 export type PptDraftStage = "requirements" | "outline" | "template" | "submitted";
 
 export type PptTaskStatus = "queued" | "running" | "completed" | "failed" | "stopped";
@@ -29,9 +33,10 @@ export type PptWorkspaceSnapshot = {
   draft: {
     id: string;
     conversationId: string;
-    stage: "requirements";
+    stage: PptDraftStage;
     version: number;
     requirements: PptFixedRequirements;
+    templateId?: PptTemplateId | null;
   };
   sources: readonly [PptWorkspaceSource];
 };

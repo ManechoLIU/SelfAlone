@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
-import type { PptWorkspaceSnapshot, PptWorkspaceSource } from "@selfalone/contracts";
+import type {
+  PptTemplateId,
+  PptWorkspaceSnapshot,
+  PptWorkspaceSource,
+} from "@selfalone/contracts";
+import { confirmOutlineToTemplate, selectDraftTemplate } from "@selfalone/domain";
+import { isCanonicalPptTemplateId } from "@selfalone/presentation-adapter";
 import type { Sql, TransactionSql } from "postgres";
 import type { PptOutlineAdapters, PptPublicSource } from "./ppt-outline-adapters";
 import {
@@ -19,6 +25,8 @@ export type PptWorkspaceStoreErrorCode =
   | "PPT_INTENT_NOT_SENT"
   | "PPT_SOURCE_CHANGE_REQUIRES_CONFIRMATION"
   | "PPT_SOURCE_CARDINALITY_INVALID"
+  | "PPT_OUTLINE_NOT_CONFIRMABLE"
+  | "PPT_TEMPLATE_UNKNOWN"
   | "PPT_WORKSPACE_INVALID_REQUIREMENTS"
   | "PPT_WORKSPACE_NOT_FOUND"
   | "PPT_WORKSPACE_STAGE_UNSUPPORTED"
@@ -44,6 +52,7 @@ type DraftRow = {
   pageMin: number | null;
   pageMax: number | null;
   additionalRequirements: string;
+  templateId: string | null;
 };
 
 type SourceRow = PptWorkspaceSource & { sourceOrder: number };
@@ -320,6 +329,107 @@ export class PptWorkspaceStore {
     }));
   }
 
+  async confirmOutline(input: {
+    accountId: string;
+    draftId: string;
+    expectedVersion: number;
+  }): Promise<PptWorkspaceSnapshot> {
+    const accountId = input.accountId.trim();
+    const draftId = input.draftId.trim();
+    if (!accountId || !draftId) {
+      throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+    }
+    assertIncrementableVersion(input.expectedVersion);
+
+    return this.sql.begin(async (transaction) => {
+      const [draft] = await transaction<Array<{ stage: string; version: number }>>`
+        SELECT stage, version
+        FROM ppt_drafts
+        WHERE account_id = ${accountId} AND id = ${draftId}
+        FOR UPDATE
+      `;
+      if (!draft) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+
+      const outline = await transaction<OutlineNodeRow[]>`
+        SELECT node_id AS "nodeId", level, body
+        FROM ppt_outline_nodes
+        WHERE account_id = ${accountId} AND draft_id = ${draftId}
+        ORDER BY node_order
+      `;
+      let nextDraft;
+      try {
+        nextDraft = confirmOutlineToTemplate(
+          { stage: toDraftStage(draft.stage), version: draft.version },
+          input.expectedVersion,
+          outline,
+        );
+      } catch (error) {
+        throw mapTemplateDomainError(error);
+      }
+
+      const [updated] = await transaction<Array<{ id: string }>>`
+        UPDATE ppt_drafts
+        SET stage = ${nextDraft.stage}, version = ${nextDraft.version},
+            template_id = NULL, updated_at = now()
+        WHERE account_id = ${accountId} AND id = ${draftId}
+          AND version = ${input.expectedVersion}
+        RETURNING id
+      `;
+      if (!updated) throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+      const workspace = await this.#getWorkspaceWith(transaction, accountId, draftId);
+      if (!workspace) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+      return workspace;
+    });
+  }
+
+  async selectTemplate(input: {
+    accountId: string;
+    draftId: string;
+    expectedVersion: number;
+    templateId: string;
+  }): Promise<PptWorkspaceSnapshot> {
+    const accountId = input.accountId.trim();
+    const draftId = input.draftId.trim();
+    if (!accountId || !draftId) {
+      throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+    }
+    assertIncrementableVersion(input.expectedVersion);
+    if (!isCanonicalPptTemplateId(input.templateId)) {
+      throw new PptWorkspaceStoreError("PPT_TEMPLATE_UNKNOWN");
+    }
+
+    return this.sql.begin(async (transaction) => {
+      const [updated] = await transaction<Array<{ id: string }>>`
+        UPDATE ppt_drafts
+        SET template_id = ${input.templateId}, version = version + 1, updated_at = now()
+        WHERE account_id = ${accountId} AND id = ${draftId}
+          AND stage = 'template' AND version = ${input.expectedVersion}
+        RETURNING id
+      `;
+      if (!updated) {
+        const [current] = await transaction<Array<{ stage: string; version: number }>>`
+          SELECT stage, version
+          FROM ppt_drafts
+          WHERE account_id = ${accountId} AND id = ${draftId}
+        `;
+        if (!current) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+        try {
+          selectDraftTemplate(
+            { stage: toDraftStage(current.stage), version: current.version },
+            input.expectedVersion,
+            input.templateId,
+          );
+        } catch (error) {
+          throw mapTemplateDomainError(error);
+        }
+        throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+      }
+      const workspace = await this.#getWorkspaceWith(transaction, accountId, draftId);
+      if (!workspace) throw new PptWorkspaceStoreError("PPT_WORKSPACE_NOT_FOUND");
+      return workspace;
+    });
+  }
+
   #outlineRuntime() {
     return new PptOutlineRuntime({
       save: (input) => this.#persistOutline(input),
@@ -369,7 +479,10 @@ export class PptWorkspaceStore {
       }
       const [updated] = await transaction<Array<{ version: number }>>`
         UPDATE ppt_drafts
-        SET version = version + 1, updated_at = now()
+        SET version = version + 1,
+            stage = CASE WHEN stage = 'template' THEN 'outline' ELSE stage END,
+            template_id = CASE WHEN stage = 'template' THEN NULL ELSE template_id END,
+            updated_at = now()
         WHERE account_id = ${accountId} AND id = ${draftId}
           AND version = ${expectedVersion}
         RETURNING version
@@ -466,6 +579,7 @@ export class PptWorkspaceStore {
              draft.purpose, draft.audience, draft.page_min AS "pageMin",
              draft.page_max AS "pageMax",
              draft.additional_requirements AS "additionalRequirements",
+             draft.template_id AS "templateId",
              source.book_id AS "bookId", source.source_order AS "sourceOrder",
              book.title, book.author, book.source_label AS "sourceLabel"
       FROM ppt_drafts AS draft
@@ -478,9 +592,11 @@ export class PptWorkspaceStore {
     `;
     const [draft] = rows;
     if (!draft) return null;
-    if (draft.stage !== "requirements") {
-      throw new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
-    }
+    const stage = toDraftStage(draft.stage);
+    const templateId = (stage === "template" || stage === "submitted")
+      && draft.templateId !== null
+      ? requireCanonicalTemplateId(draft.templateId)
+      : null;
 
     const sources = rows.flatMap((row) => {
       if (
@@ -504,21 +620,25 @@ export class PptWorkspaceStore {
     }
 
     const [source] = sources;
-    return {
-      draft: {
-        id: draft.id,
-        conversationId: draft.conversationId,
-        stage: "requirements" as const,
-        version: draft.version,
-        requirements: {
-          purpose: draft.purpose,
-          audience: draft.audience,
-          pageRange: draft.pageMin === null && draft.pageMax === null
-            ? null
-            : { min: requiredPageValue(draft.pageMin), max: requiredPageValue(draft.pageMax) },
-          additionalRequirements: draft.additionalRequirements,
-        },
+    const workspaceDraft: PptWorkspaceSnapshot["draft"] = {
+      id: draft.id,
+      conversationId: draft.conversationId,
+      stage,
+      version: draft.version,
+      requirements: {
+        purpose: draft.purpose,
+        audience: draft.audience,
+        pageRange: draft.pageMin === null && draft.pageMax === null
+          ? null
+          : { min: requiredPageValue(draft.pageMin), max: requiredPageValue(draft.pageMax) },
+        additionalRequirements: draft.additionalRequirements,
       },
+    };
+    if (stage === "template" || stage === "submitted") {
+      workspaceDraft.templateId = templateId;
+    }
+    return {
+      draft: workspaceDraft,
       sources: [{
         bookId: source.bookId,
         title: source.title,
@@ -564,6 +684,42 @@ function assertIncrementableVersion(expectedVersion: number) {
   ) {
     throw new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
   }
+}
+
+function toDraftStage(stage: string): "requirements" | "outline" | "template" | "submitted" {
+  if (
+    stage !== "requirements"
+    && stage !== "outline"
+    && stage !== "template"
+    && stage !== "submitted"
+  ) {
+    throw new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
+  }
+  return stage;
+}
+
+function requireCanonicalTemplateId(templateId: string): PptTemplateId {
+  if (!isCanonicalPptTemplateId(templateId)) {
+    throw new PptWorkspaceStoreError("PPT_TEMPLATE_UNKNOWN");
+  }
+  return templateId;
+}
+
+function mapTemplateDomainError(error: unknown): PptWorkspaceStoreError {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "STALE_VERSION") {
+    return new PptWorkspaceStoreError("PPT_WORKSPACE_STALE");
+  }
+  if (message === "INVALID_STAGE_TRANSITION") {
+    return new PptWorkspaceStoreError("PPT_WORKSPACE_STAGE_UNSUPPORTED");
+  }
+  if (message === "INVALID_OUTLINE") {
+    return new PptWorkspaceStoreError("PPT_OUTLINE_NOT_CONFIRMABLE");
+  }
+  if (message === "UNKNOWN_TEMPLATE") {
+    return new PptWorkspaceStoreError("PPT_TEMPLATE_UNKNOWN");
+  }
+  throw error;
 }
 
 function canonicalizeOutlineSnapshot(snapshot: PptOutlineSnapshot): PptOutlineSnapshot {
