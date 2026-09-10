@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { ClientBoundaryError, type PptOutlineSnapshot } from "../../adapters/client";
+import { ClientBoundaryError, type PptDraftSnapshot, type PptOutlineSnapshot } from "../../adapters/client";
 import { DevelopmentClient } from "../../adapters/development";
 
 type PptPageHarness = {
@@ -170,6 +170,84 @@ describe("PPT sent-intent draft outline editing", () => {
     expect(page.data.outlineEditorOpen).toBe(true);
     expect(page.data.editorSaveState).toBe("idle");
     expect(page.draftSnapshot.draft.version).toBe(2);
+    workspaceSpy.mockRestore();
+    outlineSpy.mockRestore();
+  });
+
+  it("refreshes again when its workspace and outline reads span different draft versions", async () => {
+    const page = await createDraftPage();
+    const current = page.draftSnapshot as PptDraftSnapshot;
+    const workspaceAtVersion = (version: number): PptDraftSnapshot => ({
+      ...current,
+      draft: { ...current.draft, version },
+    });
+    const latestOutline: PptOutlineSnapshot = {
+      version: 3,
+      pageCount: 1,
+      paragraphs: [{ id: "latest-page", level: 1, text: "第三版大纲" }],
+      publicSources: [],
+    };
+    const workspaceSpy = vi.spyOn(client, "getPptDraftWorkspace")
+      .mockResolvedValueOnce(workspaceAtVersion(2))
+      .mockResolvedValue(workspaceAtVersion(3));
+    const outlineSpy = vi.spyOn(client, "getPptOutline").mockResolvedValue(latestOutline);
+
+    await page.refreshDraftOutline();
+
+    expect(workspaceSpy).toHaveBeenCalledTimes(2);
+    expect(page.draftSnapshot.draft.version).toBe(3);
+    expect(page.data.outlineText).toBe("第三版大纲");
+    workspaceSpy.mockRestore();
+    outlineSpy.mockRestore();
+  });
+
+  it("does not let an in-flight refresh overwrite a newer local outline input", async () => {
+    const page = await createDraftPage();
+    let resolveWorkspace: ((value: PptDraftSnapshot) => void) | undefined;
+    const workspaceSpy = vi.spyOn(client, "getPptDraftWorkspace")
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveWorkspace = resolve; }))
+      .mockResolvedValue(page.draftSnapshot as PptDraftSnapshot);
+    const refreshing = page.refreshDraftOutline();
+
+    page.onOutlineInput({ detail: { value: "第一页\\n  刷新期间的新输入" } });
+    resolveWorkspace?.(page.draftSnapshot as PptDraftSnapshot);
+    await refreshing;
+
+    expect(page.data.outlineText).toBe("第一页\\n  刷新期间的新输入");
+    expect(page.outlineDirty).toBe(true);
+    expect(page.data.editorSaveState).toBe("saving");
+    clearTimeout(page.outlineAutosaveTimer);
+    workspaceSpy.mockRestore();
+  });
+
+  it("does not let an older refresh request overwrite a newer refresh result", async () => {
+    const page = await createDraftPage();
+    const current = page.draftSnapshot as PptDraftSnapshot;
+    const workspaceAtVersion = (version: number): PptDraftSnapshot => ({
+      ...current,
+      draft: { ...current.draft, version },
+    });
+    const outlineAtVersion = (version: number, text: string): PptOutlineSnapshot => ({
+      version,
+      pageCount: 1,
+      paragraphs: [{ id: `page-${version}`, level: 1, text }],
+      publicSources: [],
+    });
+    let resolveOlderWorkspace: ((value: PptDraftSnapshot) => void) | undefined;
+    const workspaceSpy = vi.spyOn(client, "getPptDraftWorkspace")
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveOlderWorkspace = resolve; }))
+      .mockResolvedValue(workspaceAtVersion(3));
+    const outlineSpy = vi.spyOn(client, "getPptOutline")
+      .mockResolvedValueOnce(outlineAtVersion(3, "新刷新结果"))
+      .mockResolvedValueOnce(outlineAtVersion(2, "旧刷新结果"));
+
+    const olderRefresh = page.refreshDraftOutline();
+    await page.refreshDraftOutline();
+    resolveOlderWorkspace?.(workspaceAtVersion(2));
+    await olderRefresh;
+
+    expect(page.draftSnapshot.draft.version).toBe(3);
+    expect(page.data.outlineText).toBe("新刷新结果");
     workspaceSpy.mockRestore();
     outlineSpy.mockRestore();
   });

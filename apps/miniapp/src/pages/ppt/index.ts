@@ -93,6 +93,7 @@ const purposeOptions = ["读书分享", "课程讲解", "工作汇报", "自定�
 const audienceOptions = ["读书会成员", "同事", "学生", "公开观众", "自定义"];
 const DEFAULT_PURPOSE = "读书分享";
 const DEFAULT_AUDIENCE = "读书会成员";
+const DRAFT_OUTLINE_REFRESH_ATTEMPTS = 3;
 
 function choiceState(value: string, options: string[]) {
   const index = options.indexOf(value);
@@ -192,6 +193,8 @@ Page<PptData>({
     this.adoptedOutline = null;
     this.outlineDirty = false;
     this.outlineAutosaveTimer = undefined;
+    this.outlineRefreshRequest = 0;
+    this.outlineInputGeneration = 0;
     this.developmentState = parseDevelopmentState(options.state, app.globalData.developmentAdapter);
     this.previewStage = app.globalData.developmentAdapter && !this.draftMode ? options.stage : undefined;
     this.setData({
@@ -344,15 +347,30 @@ Page<PptData>({
   async refreshDraftOutline() {
     const snapshot = this.draftSnapshot as PptDraftSnapshot | null;
     if (!snapshot) return;
+    const refreshRequest = (this.outlineRefreshRequest ?? 0) + 1;
+    const inputGeneration = this.outlineInputGeneration ?? 0;
+    this.outlineRefreshRequest = refreshRequest;
     this.setData({ editorSaveState: "saving", editorStatus: "正在刷新…", editorError: "", outlineConflict: false });
     try {
       const client = getApp<MiniappApp>().globalData.client;
-      const workspace = await client.getPptDraftWorkspace(snapshot.draft.id);
-      const outline = await client.getPptOutline(snapshot.draft.id);
+      let workspace: PptDraftSnapshot | undefined;
+      let outline: PptOutlineSnapshot | undefined;
+      for (let attempt = 0; attempt < DRAFT_OUTLINE_REFRESH_ATTEMPTS; attempt += 1) {
+        const nextWorkspace = await client.getPptDraftWorkspace(snapshot.draft.id);
+        const nextOutline = await client.getPptOutline(snapshot.draft.id);
+        if (nextWorkspace.draft.version === nextOutline.version) {
+          workspace = nextWorkspace;
+          outline = nextOutline;
+          break;
+        }
+      }
+      if (!workspace || !outline) throw new Error("大纲在刷新期间持续更新，请稍后重试。");
+      if (this.outlineRefreshRequest !== refreshRequest || (this.outlineInputGeneration ?? 0) !== inputGeneration) return;
       this.outlineDirty = false;
       this.applyDraftWorkspace(workspace, outline);
       this.setData({ editorSaveState: "idle", editorStatus: "已刷新为最新大纲", editorError: "", outlineConflict: false });
     } catch (error) {
+      if (this.outlineRefreshRequest !== refreshRequest || (this.outlineInputGeneration ?? 0) !== inputGeneration) return;
       this.setData({
         editorSaveState: "failed",
         editorStatus: "刷新失败",
@@ -480,6 +498,7 @@ Page<PptData>({
   onOutlineInput(event: MiniappEvent<{ value: string }>) {
     this.setData({ outlineText: event.detail.value });
     if (!this.draftMode) return;
+    this.outlineInputGeneration = (this.outlineInputGeneration ?? 0) + 1;
     this.outlineDirty = true;
     if (this.outlineAutosaveTimer) clearTimeout(this.outlineAutosaveTimer);
     this.setData({ editorSaveState: "saving", editorStatus: "正在保存…", editorError: "", outlineConflict: false });
