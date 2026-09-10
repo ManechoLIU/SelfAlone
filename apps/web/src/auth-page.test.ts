@@ -111,11 +111,18 @@ describe("desktop auth page", () => {
   it("activates roving tabs from real click and keydown events", () => {
     class Tab extends EventTarget { dataset: { authMode?: string }; focused = 0; constructor(mode: string) { super(); this.dataset = { authMode: mode }; } focus() { this.focused += 1; } }
     const login = new Tab("login"); const register = new Tab("register"); const modes: Array<[string, { email: string; password: string; confirmPassword: string }]> = [];
-    let draft = { email: "a@b.com", password: "password", confirmPassword: "password" };
-    const unbind = bindAuthModeInteractions([login, register], () => draft, (mode, snapshot) => modes.push([mode, snapshot]));
+    const initialDraft = { email: "initial@example.com", password: "initial-password", confirmPassword: "initial-password" };
+    const nextDraft = { email: "next@example.com", password: "next-password", confirmPassword: "next-confirmation" };
+    let draft = initialDraft;
+    let readDraftCalls = 0;
+    const unbind = bindAuthModeInteractions([login, register], () => { readDraftCalls += 1; return draft; }, (mode, snapshot) => modes.push([mode, snapshot]));
     login.dispatchEvent(new Event("click"));
+    draft = nextDraft;
     const right = new Event("keydown", { cancelable: true }); Object.defineProperty(right, "key", { value: "ArrowRight" }); login.dispatchEvent(right);
-    expect(modes).toEqual([["login", draft], ["register", draft]]); expect(register.focused).toBe(1); expect(right.defaultPrevented).toBe(true);
+    expect(modes).toHaveLength(2);
+    expect(modes[0]).toEqual(["login", initialDraft]);
+    expect(modes[1]).toEqual(["register", nextDraft]);
+    expect(readDraftCalls).toBe(2); expect(register.focused).toBe(1); expect(right.defaultPrevented).toBe(true);
     unbind(); login.dispatchEvent(new Event("click")); expect(modes).toHaveLength(2);
   });
 });
