@@ -350,7 +350,7 @@ Page<PptData>({
     const refreshRequest = (this.outlineRefreshRequest ?? 0) + 1;
     const inputGeneration = this.outlineInputGeneration ?? 0;
     this.outlineRefreshRequest = refreshRequest;
-    this.setData({ editorSaveState: "saving", editorStatus: "正在刷新…", editorError: "", outlineConflict: false });
+    this.setData({ editorSaveState: "saving", editorStatus: "正在刷新…", editorError: "" });
     try {
       const client = getApp<MiniappApp>().globalData.client;
       let workspace: PptDraftSnapshot | undefined;

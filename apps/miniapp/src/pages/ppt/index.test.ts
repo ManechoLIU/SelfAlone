@@ -201,6 +201,41 @@ describe("PPT sent-intent draft outline editing", () => {
     outlineSpy.mockRestore();
   });
 
+  it("keeps a stale-save conflict recoverable when every refresh read spans different versions", async () => {
+    const page = await createDraftPage();
+    const snapshot = page.draftSnapshot as PptDraftSnapshot;
+    const staleWorkspace: PptDraftSnapshot = {
+      ...snapshot,
+      draft: { ...snapshot.draft, version: snapshot.draft.version + 1 },
+    };
+    const newerOutline: PptOutlineSnapshot = {
+      version: staleWorkspace.draft.version + 1,
+      pageCount: 1,
+      paragraphs: [{ id: "newer-page", level: 1, text: "服务端更新中的大纲" }],
+      publicSources: [],
+    };
+    page.setData({
+      outlineConflict: true,
+      outlineText: "冲突后保留的本地大纲",
+      editorSaveState: "failed",
+      editorStatus: "保存冲突",
+    });
+    page.outlineDirty = true;
+    const workspaceSpy = vi.spyOn(client, "getPptDraftWorkspace").mockResolvedValue(staleWorkspace);
+    const outlineSpy = vi.spyOn(client, "getPptOutline").mockResolvedValue(newerOutline);
+
+    await page.refreshDraftOutline();
+
+    expect(workspaceSpy).toHaveBeenCalledTimes(3);
+    expect(page.data.outlineConflict).toBe(true);
+    expect(page.data.outlineText).toBe("冲突后保留的本地大纲");
+    expect(page.outlineDirty).toBe(true);
+    expect(page.draftSnapshot).toBe(snapshot);
+    expect(page.draftSnapshot.draft.version).toBe(snapshot.draft.version);
+    workspaceSpy.mockRestore();
+    outlineSpy.mockRestore();
+  });
+
   it("does not let an in-flight refresh overwrite a newer local outline input", async () => {
     const page = await createDraftPage();
     let resolveWorkspace: ((value: PptDraftSnapshot) => void) | undefined;
