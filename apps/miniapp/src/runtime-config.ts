@@ -26,5 +26,8 @@ export function readHostMiniappRuntimeConfig(): MiniappRuntimeConfig {
 
 function isPublicDnsHost(host: string): boolean {
   const labels = host.toLowerCase().split(".");
-  return !labels.includes("localhost") && labels.some((label) => /[a-z]/.test(label));
+  return host.length <= 253
+    && labels.every((label) => label.length <= 63)
+    && !labels.includes("localhost")
+    && labels.some((label) => /[a-z]/.test(label));
 }

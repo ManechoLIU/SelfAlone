@@ -21,6 +21,8 @@ describe("miniapp runtime config", () => {
     "https://192.168.1.1",
     "https://169.254.1.1",
     "https://localhost.example.test",
+    `https://${"a".repeat(64)}.example.test`,
+    `https://${"a".repeat(63)}.${"b".repeat(63)}.${"c".repeat(63)}.${"d".repeat(63)}.test`,
   ])("omits an invalid or non-origin API configuration: %j", (apiBaseUrl) => {
     expect(resolveMiniappRuntimeConfig(apiBaseUrl)).toEqual({});
   });
