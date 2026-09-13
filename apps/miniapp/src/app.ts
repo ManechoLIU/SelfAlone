@@ -23,7 +23,7 @@ import {
 import { createPptIntentStore } from "./core/ppt-intent";
 import { createSessionStore, type KeyValueStorage, type Session, type SessionStoreOptions } from "./core/session";
 import { currentEnvironment, wxStorage } from "./platform";
-import { resolveMiniappRuntimeConfig } from "./runtime-config";
+import { readHostMiniappRuntimeConfig, resolveMiniappRuntimeConfig } from "./runtime-config";
 
 export type MiniappGlobalData = {
   client: MiniappClient;
@@ -52,7 +52,9 @@ export type MiniappRuntimeOptions = SessionStoreOptions & {
 export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): MiniappGlobalData {
   const storage = options.storage ?? wxStorage;
   const environment = options.environment ?? currentEnvironment();
-  const runtimeConfig = resolveMiniappRuntimeConfig(options.apiBaseUrl);
+  const runtimeConfig = Object.hasOwn(options, "apiBaseUrl")
+    ? resolveMiniappRuntimeConfig(options.apiBaseUrl)
+    : readHostMiniappRuntimeConfig();
   const developmentAdapter = environment === "develop";
   const sessionStore = createSessionStore(
     storage,

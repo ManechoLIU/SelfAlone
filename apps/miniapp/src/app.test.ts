@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function memoryStorage() {
   const values = new Map<string, unknown>();
@@ -148,6 +148,59 @@ describe("miniapp runtime composition", () => {
       url: "https://api.example.test/api/v1/auth/wechat/miniapp",
       body: { code: "wx-code-from-real-runtime" },
     }));
+  });
+});
+
+describe("miniapp host runtime composition", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it.each(["trial", "release"])("uses the host-provided public HTTPS origin in the registered %s App", async (environment) => {
+    let registeredApp: { globalData: ReturnType<typeof import("./app")["createMiniappGlobalData"]> } | undefined;
+    const requests: Array<{ url: string; data: unknown }> = [];
+    vi.stubGlobal("App", (app: typeof registeredApp) => { registeredApp = app; });
+    vi.stubGlobal("wx", {
+      getAccountInfoSync: () => ({ miniProgram: { envVersion: environment } }),
+      getExtConfigSync: () => ({ apiBaseUrl: "https://api.example.test/" }),
+      getStorageSync: () => undefined,
+      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+      login: ({ success }: { success: (result: { code: string }) => void }) => {
+        success({ code: "wx-code-from-release-host" });
+      },
+      request: ({ url, data, success }: {
+        url: string;
+        data: unknown;
+        success: (result: { statusCode: number; data: unknown }) => void;
+      }) => {
+        requests.push({ url, data });
+        success({
+          statusCode: 200,
+          data: {
+            account: { id: "account-1", email: null },
+            sessionToken: "opaque-session-token-from-api-123456",
+            expiresAt: "2026-09-13T01:00:00.000Z",
+          },
+        });
+      },
+    });
+
+    await import("./app");
+
+    expect(registeredApp?.globalData.developmentAdapter).toBe(false);
+    await expect(registeredApp?.globalData.authClient.login()).resolves.toMatchObject({
+      sessionToken: "opaque-session-token-from-api-123456",
+    });
+    expect(requests).toEqual([{
+      url: "https://api.example.test/api/v1/auth/wechat/miniapp",
+      data: { code: "wx-code-from-release-host" },
+    }]);
   });
 });
 
