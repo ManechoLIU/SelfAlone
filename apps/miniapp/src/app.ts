@@ -23,6 +23,7 @@ import {
 import { createPptIntentStore } from "./core/ppt-intent";
 import { createSessionStore, type KeyValueStorage, type Session, type SessionStoreOptions } from "./core/session";
 import { currentEnvironment, wxStorage } from "./platform";
+import { resolveMiniappRuntimeConfig } from "./runtime-config";
 
 export type MiniappGlobalData = {
   client: MiniappClient;
@@ -51,6 +52,7 @@ export type MiniappRuntimeOptions = SessionStoreOptions & {
 export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): MiniappGlobalData {
   const storage = options.storage ?? wxStorage;
   const environment = options.environment ?? currentEnvironment();
+  const runtimeConfig = resolveMiniappRuntimeConfig(options.apiBaseUrl);
   const developmentAdapter = environment === "develop";
   const sessionStore = createSessionStore(
     storage,
@@ -58,7 +60,7 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     { now: options.now },
   );
   const authClient = createMiniAuthClient({
-    baseUrl: options.apiBaseUrl,
+    baseUrl: runtimeConfig.apiBaseUrl,
     transport: options.authTransport,
     wxLogin: options.wxLogin,
   });
@@ -69,13 +71,13 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     }
   };
   const client = createClientAdapter(environment, {
-    baseUrl: options.apiBaseUrl,
+    baseUrl: runtimeConfig.apiBaseUrl,
     authProvider: () => sessionStore.restore(),
     onUnauthorized,
     transport: options.libraryTransport,
   });
   const conversationClient = createConversationApiClient({
-    baseUrl: options.apiBaseUrl,
+    baseUrl: runtimeConfig.apiBaseUrl,
     authProvider: () => sessionStore.restore(),
     onUnauthorized,
     transport: options.conversationTransport,
@@ -83,7 +85,7 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
   const annotationsClient = client.development
     ? createDevelopmentAnnotationsClient()
     : createAnnotationsApiClient({
-      baseUrl: options.apiBaseUrl,
+      baseUrl: runtimeConfig.apiBaseUrl,
       authProvider: () => sessionStore.restore(),
       onUnauthorized,
       transport: options.annotationsTransport,

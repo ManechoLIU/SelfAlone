@@ -81,6 +81,74 @@ describe("miniapp runtime composition", () => {
     ]);
     expect(globalData.session).toEqual({ kind: "signed-out" });
   });
+
+  it.each(["trial", "release"])("fails closed before wx.login when %s has a non-HTTPS API origin", async (environment) => {
+    vi.stubGlobal("App", vi.fn());
+    vi.stubGlobal("wx", {
+      getAccountInfoSync: () => ({ miniProgram: { envVersion: environment } }),
+      getStorageSync: () => undefined,
+      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+    });
+    const { createMiniappGlobalData } = await import("./app");
+    const wxLogin = vi.fn(async () => ({ code: "wx-code-from-real-runtime" }));
+    const authTransport = vi.fn(async () => ({
+      status: 200,
+      body: {
+        account: { id: "account-1", email: null },
+        sessionToken: "opaque-session-token-from-api-123456",
+        expiresAt: "2026-09-13T01:00:00.000Z",
+      },
+    }));
+    const globalData = createMiniappGlobalData({
+      environment,
+      apiBaseUrl: "http://api.example.test",
+      storage: memoryStorage(),
+      wxLogin,
+      authTransport,
+    });
+
+    await expect(globalData.authClient.login()).rejects.toMatchObject({
+      code: "AUTH_API_UNAVAILABLE",
+      retryable: false,
+    });
+    expect(wxLogin).not.toHaveBeenCalled();
+    expect(authTransport).not.toHaveBeenCalled();
+  });
+
+  it.each(["trial", "release"])("uses wx.login and an opaque API session when %s has a public HTTPS origin", async (environment) => {
+    vi.stubGlobal("App", vi.fn());
+    vi.stubGlobal("wx", {
+      getAccountInfoSync: () => ({ miniProgram: { envVersion: environment } }),
+      getStorageSync: () => undefined,
+      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+    });
+    const { createMiniappGlobalData } = await import("./app");
+    const authTransport = vi.fn(async () => ({
+      status: 200,
+      body: {
+        account: { id: "account-1", email: null },
+        sessionToken: "opaque-session-token-from-api-123456",
+        expiresAt: "2026-09-13T01:00:00.000Z",
+      },
+    }));
+    const globalData = createMiniappGlobalData({
+      environment,
+      apiBaseUrl: "https://api.example.test/",
+      storage: memoryStorage(),
+      wxLogin: async () => ({ code: "wx-code-from-real-runtime" }),
+      authTransport,
+    });
+
+    await expect(globalData.authClient.login()).resolves.toMatchObject({
+      sessionToken: "opaque-session-token-from-api-123456",
+    });
+    expect(authTransport).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://api.example.test/api/v1/auth/wechat/miniapp",
+      body: { code: "wx-code-from-real-runtime" },
+    }));
+  });
 });
 
 describe("miniapp WeRead composition", () => {
