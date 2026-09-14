@@ -6,9 +6,17 @@ export const PPT_TEMPLATE_IDS = Object.freeze([
 
 export type PptTemplateId = (typeof PPT_TEMPLATE_IDS)[number];
 
+export type PptTemplatePreview = {
+  colorTokens: readonly string[];
+  layoutTokens: readonly string[];
+};
+
 export type PptTemplateCatalogItem = {
   id: PptTemplateId;
+  label: string;
+  description: string;
   aspectRatio: "16:9";
+  preview: PptTemplatePreview;
 };
 
 export type ConfirmPptOutlineRequest = {

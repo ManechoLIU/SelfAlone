@@ -28,9 +28,36 @@ describe("canonical PPT template catalog", () => {
       "minimal-ink",
     ]);
     expect(getPptTemplateCatalog()).toEqual([
-      { id: "celadon-reading", aspectRatio: "16:9" },
-      { id: "editorial-paper", aspectRatio: "16:9" },
-      { id: "minimal-ink", aspectRatio: "16:9" },
+      {
+        id: "celadon-reading",
+        label: "青瓷书卷",
+        description: "适合读书分享与传统文化主题，留白充足、层次清晰。",
+        aspectRatio: "16:9",
+        preview: {
+          colorTokens: ["paper-warm", "celadon", "ink"],
+          layoutTokens: ["book-spread", "generous-whitespace"],
+        },
+      },
+      {
+        id: "editorial-paper",
+        label: "编辑纸页",
+        description: "适合研究汇报与观点表达，以纸张质感强化信息层级。",
+        aspectRatio: "16:9",
+        preview: {
+          colorTokens: ["paper-white", "charcoal", "vermilion"],
+          layoutTokens: ["editorial-grid", "annotation-margin"],
+        },
+      },
+      {
+        id: "minimal-ink",
+        label: "极简水墨",
+        description: "适合简洁演示与方法论表达，用克制水墨突出核心结论。",
+        aspectRatio: "16:9",
+        preview: {
+          colorTokens: ["rice-paper", "ink", "mist-gray"],
+          layoutTokens: ["minimal-canvas", "ink-wash-anchor"],
+        },
+      },
     ]);
     expect(exportedCatalog()).toEqual(getPptTemplateCatalog());
     expect(new Set(getPptTemplateCatalog().map((item) => item.id)).size).toBe(3);
@@ -51,9 +78,31 @@ describe("canonical PPT template catalog", () => {
     expect(() => resolvePptTemplate("ink-minimal")).toThrow("UNKNOWN_TEMPLATE");
     expect(resolvePptTemplate("editorial-paper")).toEqual({
       id: "editorial-paper",
+      label: "编辑纸页",
+      description: "适合研究汇报与观点表达，以纸张质感强化信息层级。",
       aspectRatio: "16:9",
+      preview: {
+        colorTokens: ["paper-white", "charcoal", "vermilion"],
+        layoutTokens: ["editorial-grid", "annotation-margin"],
+      },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
+  });
+
+  it("returns independent deep copies of preview tokens", () => {
+    const firstRead = getPptTemplateCatalog();
+    (firstRead[0]!.preview.colorTokens as string[])[0] = "changed-by-caller";
+
+    expect(getPptTemplateCatalog()[0]).toEqual({
+      id: "celadon-reading",
+      label: "青瓷书卷",
+      description: "适合读书分享与传统文化主题，留白充足、层次清晰。",
+      aspectRatio: "16:9",
+      preview: {
+        colorTokens: ["paper-warm", "celadon", "ink"],
+        layoutTokens: ["book-spread", "generous-whitespace"],
+      },
+    });
   });
 });
