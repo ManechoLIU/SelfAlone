@@ -46,6 +46,7 @@ export function renderPptOutlineWorkspaceView(
     </div>
     <footer class="ppt-outline-actions">
       <button type="button" class="ppt-outline-back" data-ppt-outline-back>返回修改需求</button>
+      <button type="button" class="ppt-outline-confirm" data-ppt-outline-confirm>确认大纲</button>
     </footer>
   </section>`;
 }

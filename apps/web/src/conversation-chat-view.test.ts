@@ -612,6 +612,7 @@ class FakeOutlineTaskRoot {
   pageCount: { textContent: string } | null = null;
   retryButton: FakeOutlineButton | null = null;
   backButton: FakeOutlineButton | null = null;
+  confirmButton: FakeOutlineButton | null = null;
   requirementsForm: FakeRequirementsForm | null = null;
   focused: unknown = null;
   editorRebuilds = 0;
@@ -641,6 +642,7 @@ class FakeOutlineTaskRoot {
       return this.retryButton;
     }
     if (selector.includes("data-ppt-outline-back")) return this.backButton;
+    if (selector.includes("data-ppt-outline-confirm")) return this.confirmButton;
     if (selector.includes("data-ppt-requirements-form")) return this.requirementsForm;
     if (selector.includes("data-ppt-page-preset")) return this.requirementsForm?.preset ?? null;
     if (selector.includes("data-ppt-page-min")) return this.requirementsForm?.field("pageMin") ?? null;
@@ -659,6 +661,7 @@ class FakeOutlineTaskRoot {
     this.statusHtml = /<p class="ppt-outline-status[\s\S]*?<\/p>/.exec(this.markup)?.[0] ?? "";
     this.retryButton = null;
     this.backButton = this.markup.includes("data-ppt-outline-back") ? new FakeOutlineButton(this, "返回修改需求") : null;
+    this.confirmButton = this.markup.includes("data-ppt-outline-confirm") ? new FakeOutlineButton(this, "确认大纲") : null;
     this.requirementsForm = this.markup.includes("data-ppt-requirements-form") ? new FakeRequirementsForm(this) : null;
   }
 }
@@ -729,7 +732,7 @@ describe("outline workspace editor mount", () => {
     else (globalThis as Record<string, unknown>).document = originalDocument;
   });
 
-  function mountOutlineEditor(paragraphs: PptOutlineParagraph[], options: { idFactory?: () => string } = {}) {
+  function mountOutlineEditor(paragraphs: PptOutlineParagraph[], options: { idFactory?: () => string; onOutlineConfirm?: () => void; onOutlineBack?: () => void } = {}) {
     const scheduler = createOutlineScheduler();
     const saves: Array<{ draftId: string; expectedVersion: number; paragraphs: PptOutlineParagraph[] }> = [];
     const outlineStore = createPptOutlineWorkspaceStore({
@@ -749,7 +752,7 @@ describe("outline workspace editor mount", () => {
       mainRoot as unknown as HTMLElement,
       taskRoot as unknown as HTMLElement,
       controller,
-      { outlineStore },
+      { outlineStore, onOutlineConfirm: options.onOutlineConfirm, onOutlineBack: options.onOutlineBack },
     );
     outlineStore.ready("draft-1", outlineSnapshot(paragraphs));
     return { scheduler, saves, outlineStore, taskRoot, mainRoot, dispose };
@@ -894,6 +897,35 @@ describe("outline workspace editor mount", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(taskRoot.focused).toBe(taskRoot.backButton);
     dispose();
+  });
+
+  it("invokes outline back and confirm callbacks from the footer actions", () => {
+    const backs: string[] = [];
+    const confirms: string[] = [];
+    const { taskRoot, dispose } = mountOutlineEditor(
+      [
+        { id: "page-1", level: 1, text: "第一页" },
+        { id: "point-1", level: 2, text: "要点一" },
+      ],
+      {
+        onOutlineBack: () => backs.push("back"),
+        onOutlineConfirm: () => confirms.push("confirm"),
+      },
+    );
+    expect(taskRoot.backButton?.textContent).toBe("返回修改需求");
+    expect(taskRoot.confirmButton?.textContent).toBe("确认大纲");
+
+    taskRoot.backButton?.click();
+    taskRoot.confirmButton?.click();
+
+    expect(backs).toEqual(["back"]);
+    expect(confirms).toEqual(["confirm"]);
+    dispose();
+  });
+
+  it("forwards outline confirm to the existing template stage-forward path", () => {
+    expect(mainSource).toContain("onOutlineConfirm");
+    expect(mainSource).toMatch(/onOutlineConfirm:\s*\(\)\s*=>\s*\{\s*setStageView\("template"\)/);
   });
 
   it("disables requirements submit while save and generate are in flight and ignores duplicate submits", async () => {

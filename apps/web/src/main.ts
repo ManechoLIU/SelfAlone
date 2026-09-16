@@ -1675,6 +1675,7 @@ function renderConversationChat(session: ConversationChatSession) {
       })();
     },
     onOutlineBack: () => { pptOutlineStore.hide(); },
+    onOutlineConfirm: () => { setStageView("template"); },
   });
   conversationSelectionCleanup = conversationChatCleanup;
   conversationSelectionHydrated = true;

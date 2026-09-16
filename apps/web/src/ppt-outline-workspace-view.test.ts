@@ -93,12 +93,16 @@ describe("PPT outline workspace view", () => {
     expect(withoutSources).not.toContain("已参考公开资料");
   });
 
-  it("keeps the stable back action but no confirm mutation while the API has none", () => {
+  it("renders the secondary back action and the primary confirm outline action", () => {
     const rendered = renderPptOutlineWorkspaceView(readyState(), { source });
     expect(rendered).toContain("返回修改需求");
     expect(rendered).toContain("data-ppt-outline-back");
-    expect(rendered).not.toContain("确认大纲");
-    expect(rendered).not.toContain("data-ppt-outline-confirm");
+    expect(rendered).toContain("确认大纲");
+    expect(rendered).toContain("data-ppt-outline-confirm");
+    const backIndex = rendered.indexOf("data-ppt-outline-back");
+    const confirmIndex = rendered.indexOf("data-ppt-outline-confirm");
+    expect(backIndex).toBeGreaterThan(-1);
+    expect(confirmIndex).toBeGreaterThan(backIndex);
   });
 
   it("renders the autosave status inline with an in-place retry on failure", () => {
@@ -155,15 +159,19 @@ describe("PPT outline workspace view", () => {
     expect(rendered).toContain("Esc");
   });
 
-  it("keeps the back action and inline retry at least 44px interactive targets", () => {
+  it("keeps the back action, confirm action and inline retry at least 44px interactive targets", () => {
     expect(outlineCss).toMatch(/\.ppt-outline-back\s*\{[^}]*min-height:\s*44px/s);
     expect(outlineCss).toMatch(/\.ppt-outline-back\s*\{[^}]*min-width:\s*44px/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-confirm\s*\{[^}]*min-height:\s*44px/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-confirm\s*\{[^}]*min-width:\s*44px/s);
     expect(outlineCss).toMatch(/\.ppt-outline-status\s+button\s*\{[^}]*min-height:\s*44px/s);
     expect(outlineCss).toMatch(/\.ppt-outline-status\s+button\s*\{[^}]*min-width:\s*44px/s);
   });
 
   it("keeps the visual contract on shared tokens, focus, responsive widths and reduced motion", () => {
     expect(outlineCss).toContain("var(--desktop-");
+    expect(outlineCss).toMatch(/\.ppt-outline-actions\s*\{[^}]*justify-content:\s*space-between/s);
+    expect(outlineCss).toMatch(/\.ppt-outline-confirm\s*\{[^}]*background:\s*var\(--desktop-accent/s);
     expect(outlineCss).toContain("focus-visible");
     expect(outlineCss).toContain("@media (max-width: 1024px)");
     expect(outlineCss).toContain("@media (max-width: 768px)");

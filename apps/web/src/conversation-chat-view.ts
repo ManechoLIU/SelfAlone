@@ -55,6 +55,7 @@ export type ConversationChatMountOptions = {
     hide(): void;
   };
   onOutlineBack?: () => void;
+  onOutlineConfirm?: () => void;
 };
 
 export function renderConversationChatView(options: ConversationChatViewOptions): ConversationChatViewResult {
@@ -289,6 +290,7 @@ export function mountConversationChatView(
       });
       taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-retry]")?.addEventListener("click", () => { void options.outlineStore?.retrySave(); });
       taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-back]")?.addEventListener("click", () => options.onOutlineBack?.());
+      taskRoot.querySelector<HTMLButtonElement>("[data-ppt-outline-confirm]")?.addEventListener("click", () => options.onOutlineConfirm?.());
     }
   };
 
