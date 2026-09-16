@@ -119,6 +119,35 @@ describe("DeepSeek chat adapter", () => {
     expect(JSON.stringify({ body })).not.toContain(key);
   });
 
+
+  it("honors optional maxTokens on chat input while keeping the default bound", async () => {
+    const key = "unit-only-max-tokens-secret";
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({
+        choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const credentialProvider: DeepSeekCredentialProvider = {
+      async withVerifiedTextModelCredential<T>(
+        _accountId: string,
+        consume: (lease: DeepSeekCredentialLease) => Promise<T>,
+      ) {
+        return consume({ provider: "deepseek", apiKey: key });
+      },
+    };
+    const adapter = createDeepSeekTextModelAdapter({ fetcher, catalog, credentialProvider });
+    await adapter.chat({
+      accountId: "account-a",
+      text: "长输出",
+      maxTokens: 512,
+      context: [{ id: "user-1", role: "user", text: "长输出" }],
+    }, new AbortController().signal);
+    expect(JSON.parse(String(fetcher.mock.calls[0]?.[1]?.body)).max_tokens).toBe(512);
+  });
+
   it("maps missing credentials, provider failures, network failures, aborts, and empty choices to safe chat failures", async () => {
     const key = "unit-only-chat-failure-secret";
     const credentialProvider: DeepSeekCredentialProvider = {

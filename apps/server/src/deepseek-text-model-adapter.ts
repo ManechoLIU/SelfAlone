@@ -383,7 +383,7 @@ async function requestChatPayload(input: {
           content: entry.text,
         })),
         thinking: { type: "disabled" },
-        max_tokens: 128,
+        max_tokens: resolveChatMaxTokens(input.input.maxTokens),
         stream: false,
       }),
       signal: controller.signal,
@@ -510,6 +510,16 @@ function calculateActualCostMicros(
     throw new Error(DEEPSEEK_CHAT_FAILED);
   }
   return Number(micros);
+}
+
+
+const DEFAULT_CHAT_MAX_TOKENS = 128;
+const MAX_CHAT_MAX_TOKENS = 4_096;
+
+function resolveChatMaxTokens(value: number | undefined) {
+  if (value === undefined) return DEFAULT_CHAT_MAX_TOKENS;
+  if (!Number.isSafeInteger(value) || value <= 0) return DEFAULT_CHAT_MAX_TOKENS;
+  return Math.min(value, MAX_CHAT_MAX_TOKENS);
 }
 
 function extractChatText(value: unknown): string | undefined {
