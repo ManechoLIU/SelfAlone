@@ -23,10 +23,7 @@ import {
 import { createModelConfigRuntime } from "./model-config-runtime";
 import { migrateOwnerContractSchema } from "./owner-migration";
 import { migrateConversationSchema } from "./conversation-migration";
-import {
-  createFakePptOutlineGenerationAdapter,
-  createFakePptPublicSourceAdapter,
-} from "./ppt-outline-adapters";
+import { resolvePptOutlineAdapters } from "./ppt-outline-adapter-wiring";
 import { migratePptOutlineSchema } from "./ppt-outline-migration";
 import { migratePptTemplateSchema } from "./ppt-template-migration";
 import { migratePptWorkspaceSchema } from "./ppt-workspace-migration";
@@ -156,10 +153,6 @@ try {
   await pptWorkspaceMigrationDatabase.end();
 }
 const pptWorkspaceSql = postgres(databaseUrl, { max: 4 });
-const pptWorkspace = new PptWorkspaceStore(pptWorkspaceSql, {
-  generation: createFakePptOutlineGenerationAdapter(),
-  publicSources: createFakePptPublicSourceAdapter(),
-});
 const trialQuotaMigrationDatabase = postgres(databaseUrl, { max: 1 });
 try {
   await migrateTrialQuotaSchema(trialQuotaMigrationDatabase);
@@ -192,6 +185,14 @@ const platformTextCapability = createPlatformTextCapabilityFromEnvironment({
   reservationAmountMicros: 500_000,
   environment: process.env,
 });
+const pptWorkspace = new PptWorkspaceStore(
+  pptWorkspaceSql,
+  resolvePptOutlineAdapters({
+    environment: process.env,
+    appEnv: process.env.APP_ENV,
+    chat: platformTextCapability,
+  }),
+);
 const conversationResponder = developmentConversationResponder
   ?? createConversationResponder(platformTextCapability);
 const conversation = new ConversationStore(

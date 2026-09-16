@@ -11,6 +11,11 @@ export type ChatInput = {
   accountId: string;
   text: string;
   context: readonly ConversationRuntimeContextEntry[];
+  /**
+   * Optional completion budget for longer structured replies (e.g. PPT outline).
+   * Adapters default to their existing chat bound when omitted.
+   */
+  maxTokens?: number;
 };
 
 export type ChatResult = {
