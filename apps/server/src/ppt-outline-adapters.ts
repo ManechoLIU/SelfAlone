@@ -28,6 +28,16 @@ export type BookSourceQuery = {
   draftId: string;
   title: string;
   author: string | null;
+  /**
+   * When true, the real public-source adapter skips networking and returns [].
+   * Fake adapters ignore this field (compat).
+   */
+  bodySufficient?: boolean;
+  /**
+   * Optional body length clue. Real adapter may treat values at/above its
+   * threshold as sufficient when `bodySufficient` is unset.
+   */
+  bodyCharCount?: number;
 };
 
 export interface PptOutlineGenerationAdapter {
