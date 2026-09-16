@@ -4,12 +4,12 @@ import {
   PPT_OUTLINE_GENERATION_ADAPTER_ENV,
   PPT_OUTLINE_GENERATION_ADAPTER_UNSUPPORTED,
   PPT_PUBLIC_SOURCE_ADAPTER_ENV,
-  PPT_PUBLIC_SOURCE_ADAPTER_REAL_NOT_IMPLEMENTED,
   PPT_PUBLIC_SOURCE_ADAPTER_UNSUPPORTED,
   resolvePptOutlineAdapters,
 } from "./ppt-outline-adapter-wiring";
 import { FakePptOutlineGenerationAdapter, FakePptPublicSourceAdapter } from "./ppt-outline-adapters";
 import { RealPptOutlineGenerationAdapter } from "./ppt-outline-generation-adapter";
+import { RealPptPublicSourceAdapter } from "./ppt-outline-public-source-adapter";
 
 describe("PPT outline adapter wiring", () => {
   const chat: ChatResponderPort = {
@@ -38,7 +38,30 @@ describe("PPT outline adapter wiring", () => {
     expect(adapters.publicSources).toBeInstanceOf(FakePptPublicSourceAdapter);
   });
 
-  it("rejects unsupported modes and unimplemented real public sources", () => {
+  it("selects real public sources when PPT_PUBLIC_SOURCE_ADAPTER=real", () => {
+    const adapters = resolvePptOutlineAdapters({
+      environment: { [PPT_PUBLIC_SOURCE_ADAPTER_ENV]: "real" },
+      appEnv: "development",
+      chat,
+    });
+    expect(adapters.generation).toBeInstanceOf(FakePptOutlineGenerationAdapter);
+    expect(adapters.publicSources).toBeInstanceOf(RealPptPublicSourceAdapter);
+  });
+
+  it("composes real generation with real public sources", () => {
+    const adapters = resolvePptOutlineAdapters({
+      environment: {
+        [PPT_OUTLINE_GENERATION_ADAPTER_ENV]: "real",
+        [PPT_PUBLIC_SOURCE_ADAPTER_ENV]: "real",
+      },
+      appEnv: "development",
+      chat,
+    });
+    expect(adapters.generation).toBeInstanceOf(RealPptOutlineGenerationAdapter);
+    expect(adapters.publicSources).toBeInstanceOf(RealPptPublicSourceAdapter);
+  });
+
+  it("rejects unsupported modes", () => {
     expect(() => resolvePptOutlineAdapters({
       environment: { [PPT_OUTLINE_GENERATION_ADAPTER_ENV]: "mystery" },
       appEnv: "development",
@@ -50,12 +73,6 @@ describe("PPT outline adapter wiring", () => {
       appEnv: "development",
       chat,
     })).toThrow(PPT_PUBLIC_SOURCE_ADAPTER_UNSUPPORTED);
-
-    expect(() => resolvePptOutlineAdapters({
-      environment: { [PPT_PUBLIC_SOURCE_ADAPTER_ENV]: "real" },
-      appEnv: "development",
-      chat,
-    })).toThrow(PPT_PUBLIC_SOURCE_ADAPTER_REAL_NOT_IMPLEMENTED);
 
     expect(() => resolvePptOutlineAdapters({
       environment: {},

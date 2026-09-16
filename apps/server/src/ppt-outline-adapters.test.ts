@@ -57,4 +57,19 @@ describe("fake PPT outline research and generation adapters", () => {
       { id: "detail-1", level: 3, text: "观点说明" },
     ]);
   });
+
+  it("ignores bodySufficient for Fake compatibility (still returns fixture sources)", async () => {
+    const publicSources = createFakePptPublicSourceAdapter();
+    const researched = await publicSources.search({
+      accountId: "account-a",
+      draftId: "draft-a",
+      title: "第一本书",
+      author: "甲作者",
+      bodySufficient: true,
+      bodyCharCount: 99999,
+    }, new AbortController().signal);
+    expect(researched).toHaveLength(2);
+    expect(researched[0]?.url).toContain("example.invalid");
+  });
+
 });

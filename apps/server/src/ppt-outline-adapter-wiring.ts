@@ -6,16 +6,18 @@ import {
   type PptOutlineAdapters,
 } from "./ppt-outline-adapters";
 import { createRealPptOutlineGenerationAdapter } from "./ppt-outline-generation-adapter";
+import { createRealPptPublicSourceAdapter } from "./ppt-outline-public-source-adapter";
 
 /** Selects fake or real PPT outline generation at composition time. */
 export const PPT_OUTLINE_GENERATION_ADAPTER_ENV = "PPT_OUTLINE_GENERATION_ADAPTER" as const;
-/** Selects fake or real public-source research (real lands in SA-P2). */
+/** Selects fake or real public-source research. */
 export const PPT_PUBLIC_SOURCE_ADAPTER_ENV = "PPT_PUBLIC_SOURCE_ADAPTER" as const;
 
 export const PPT_OUTLINE_GENERATION_ADAPTER_UNSUPPORTED =
   "PPT_OUTLINE_GENERATION_ADAPTER_UNSUPPORTED" as const;
 export const PPT_PUBLIC_SOURCE_ADAPTER_UNSUPPORTED =
   "PPT_PUBLIC_SOURCE_ADAPTER_UNSUPPORTED" as const;
+/** @deprecated SA-P2 implements real; retained only so old references stay greppable. */
 export const PPT_PUBLIC_SOURCE_ADAPTER_REAL_NOT_IMPLEMENTED =
   "PPT_PUBLIC_SOURCE_ADAPTER_REAL_NOT_IMPLEMENTED" as const;
 
@@ -32,10 +34,12 @@ export type ResolvePptOutlineAdaptersInput = {
  * Composition seam for PPT outline adapters.
  *
  * - `PPT_OUTLINE_GENERATION_ADAPTER=fake|real` (default `fake`)
- * - `PPT_PUBLIC_SOURCE_ADAPTER=fake|real` (default `fake`; real not implemented yet)
+ * - `PPT_PUBLIC_SOURCE_ADAPTER=fake|real` (default `fake`)
  *
  * Fake adapters remain for unit tests and local regression; acceptance must use
- * generation=`real` once credentials are available (SA-P0).
+ * generation=`real` once credentials are available (SA-P0). Public-source `real`
+ * is safe without keys: body-sufficient skips network; otherwise bounded lookup
+ * degrades to [] (never fabricates whole-book analysis sources).
  */
 export function resolvePptOutlineAdapters(
   input: ResolvePptOutlineAdaptersInput,
@@ -76,7 +80,7 @@ function resolvePublicSourceAdapter(mode: string, appEnv: string | undefined) {
     return createFakePptPublicSourceAdapter();
   }
   if (mode === "real") {
-    throw new Error(PPT_PUBLIC_SOURCE_ADAPTER_REAL_NOT_IMPLEMENTED);
+    return createRealPptPublicSourceAdapter();
   }
   throw new Error(PPT_PUBLIC_SOURCE_ADAPTER_UNSUPPORTED);
 }

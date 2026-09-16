@@ -28,6 +28,9 @@ export type PptOutlineSaveInput = {
 export type PptOutlineGenerateInput = Omit<OutlineInput, "publicSources"> & {
   expectedVersion: number;
   signal?: AbortSignal;
+  /** Forwarded to public-source search (real adapter may skip networking). */
+  bodySufficient?: boolean;
+  bodyCharCount?: number;
 };
 
 type PptOutlinePersistence = {
@@ -96,6 +99,8 @@ export class PptOutlineRuntime {
       draftId: input.draftId,
       title: input.sources[0]?.title ?? "",
       author: input.sources[0]?.author ?? null,
+      bodySufficient: input.bodySufficient,
+      bodyCharCount: input.bodyCharCount,
     }, signal);
     const generated = await generation.createOutline({
       accountId: input.accountId,

@@ -3,6 +3,7 @@ import {
   createFakePptOutlineGenerationAdapter,
   createFakePptPublicSourceAdapter,
 } from "./ppt-outline-adapters";
+import { createRealPptPublicSourceAdapter } from "./ppt-outline-public-source-adapter";
 import { PptOutlineRuntime, PptOutlineRuntimeError } from "./ppt-outline-runtime";
 
 describe("PptOutlineRuntime", () => {
@@ -86,6 +87,33 @@ describe("PptOutlineRuntime", () => {
       publicSources: generated.publicSources,
     }));
     fetchSpy.mockRestore();
+  });
+
+  it("forwards bodySufficient so real public sources skip network and persist empty provenance", async () => {
+    const save = vi.fn(async () => ({ version: 5 }));
+    const search = vi.fn(async () => {
+      throw new Error("transport must not run when body is sufficient");
+    });
+    const runtime = new PptOutlineRuntime({ save }, {
+      generation: createFakePptOutlineGenerationAdapter(),
+      publicSources: createRealPptPublicSourceAdapter({ transport: { search } }),
+    });
+
+    const generated = await runtime.generateOutline({
+      accountId: "account-a",
+      draftId: "draft-a",
+      expectedVersion: 4,
+      purpose: "读书会分享",
+      audience: "产品团队",
+      pageRange: { min: 2, max: 6 },
+      additionalRequirements: "",
+      sources: [{ bookId: "book-a", title: "第一本书", author: "甲作者" }],
+      bodySufficient: true,
+    });
+
+    expect(search).not.toHaveBeenCalled();
+    expect(generated.publicSources).toEqual([]);
+    expect(JSON.stringify(generated.publicSources)).not.toContain("example.invalid");
   });
 });
 
