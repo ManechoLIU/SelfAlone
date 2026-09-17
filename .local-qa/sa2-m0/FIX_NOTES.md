@@ -1,5 +1,7 @@
 # SA2-M0 旁路 A：develop + 显式 QA 开关走真 HTTP
 
+**R2 返工**：`parseQaRealHttpFlag` 现认 `1`/`"1"`/`0`/`"0"`，与 storage `"1"` 操作一致；本笔记删除 env / `process.env` / `SA2_QA_REAL_HTTP`（不接线 env）。
+
 默认 **OFF**。无开关时 `develop` 仍走 `DevelopmentClient`（fake），与现网一致。不要把开关写进生产路径，也不要 git push。**不要**宣称 M0/M1 DONE。
 
 ## 如何打开开关
@@ -23,7 +25,14 @@
 微信开发者工具：
 
 - extConfig：`{ "sa2QaRealHttp": true, "apiBaseUrl": "http://127.0.0.1:4100" }`
-- 或调试器：`wx.setStorageSync("sa2QaRealHttp", true)`，并把 `apiBaseUrl` 放进 extConfig / 本地 json
+- 或调试器（推荐）：`wx.setStorageSync("sa2QaRealHttp", "1")` 或 `true`，并把 `apiBaseUrl` 放进 extConfig / 本地 json
+
+合法取值：
+
+- 开：`true` / `"true"` / `"1"` / `1`
+- 关：`false` / `"false"` / `"0"` / `0`
+
+其它值视为未设置，继续向下一级来源查找；全部未设置则为 off。不读 env。
 
 开关只在 `environment === "develop"` 生效。`trial` / `release` 忽略它，仍只接受公网 HTTPS origin。
 
@@ -67,16 +76,23 @@ box 等价验证（本环境 pnpm 因 Node 版本不可用）：
 
 结果（2026-09-17 16:51 CST）：vitest 3 files / **56 passed**；typecheck **PASS**。
 
+R2 验证（2026-09-17）：`apps/miniapp/src/runtime-config.test.ts` **49 passed**（含 parse/resolve 对 `"1"`/`1`/`"0"`/`0`）。本 box 切片缺 adapter 依赖，未重跑 app/adapter 全套。
+
 ## 改动文件
+
+R2 仅改：
 
 - `apps/miniapp/src/runtime-config.ts`
 - `apps/miniapp/src/runtime-config.test.ts`
+- `.local-qa/sa2-m0/FIX_NOTES.md`
+
+此前旁路 A 还改过（本轮未动）：
+
 - `apps/miniapp/src/adapters/index.ts`
 - `apps/miniapp/src/adapters/index.test.ts`
 - `apps/miniapp/src/app.ts`
 - `apps/miniapp/src/app.test.ts`
 - `apps/miniapp/.gitignore`
-- `.local-qa/sa2-m0/FIX_NOTES.md`
 
 未改 `apps/server`、`apps/web`，未做模板 / PPTX。
 

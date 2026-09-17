@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   QA_REAL_HTTP_STORAGE_KEY,
+  parseQaRealHttpFlag,
   resolveMiniappRuntimeConfig,
   resolveQaRealHttpFlag,
 } from "./runtime-config";
@@ -59,6 +60,23 @@ describe("miniapp runtime config", () => {
 });
 
 describe("QA real HTTP flag", () => {
+  it.each([
+    [true, true],
+    ["true", true],
+    ["1", true],
+    [1, true],
+    [false, false],
+    ["false", false],
+    ["0", false],
+    [0, false],
+  ] as const)("parses %j as %s", (value, expected) => {
+    expect(parseQaRealHttpFlag(value)).toBe(expected);
+  });
+
+  it.each([undefined, null, "", "yes", 2, "TRUE"])("leaves unrecognized %j unset", (value) => {
+    expect(parseQaRealHttpFlag(value)).toBeUndefined();
+  });
+
   it("is off by default", () => {
     expect(resolveQaRealHttpFlag({})).toBe(false);
   });
@@ -111,5 +129,31 @@ describe("QA real HTTP flag", () => {
         get: (key: string) => key === QA_REAL_HTTP_STORAGE_KEY ? true : undefined,
       },
     })).toBe(true);
+  });
+
+  it("treats storage \"1\" and numeric 1 as on", () => {
+    expect(resolveQaRealHttpFlag({
+      storage: {
+        get: (key: string) => key === QA_REAL_HTTP_STORAGE_KEY ? "1" : undefined,
+      },
+    })).toBe(true);
+    expect(resolveQaRealHttpFlag({
+      storage: {
+        get: (key: string) => key === QA_REAL_HTTP_STORAGE_KEY ? 1 : undefined,
+      },
+    })).toBe(true);
+  });
+
+  it("treats storage \"0\" and numeric 0 as off", () => {
+    expect(resolveQaRealHttpFlag({
+      storage: {
+        get: (key: string) => key === QA_REAL_HTTP_STORAGE_KEY ? "0" : undefined,
+      },
+    })).toBe(false);
+    expect(resolveQaRealHttpFlag({
+      storage: {
+        get: (key: string) => key === QA_REAL_HTTP_STORAGE_KEY ? 0 : undefined,
+      },
+    })).toBe(false);
   });
 });
