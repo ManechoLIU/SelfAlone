@@ -33,13 +33,18 @@ export type ProductionClientOptions = {
   authProvider?: LibraryAuthProvider;
   onUnauthorized?: (status: number) => void;
   transport?: LibraryHttpTransport;
+  /** Develop-only QA switch. Default off; on + baseUrl uses the production HTTP client. */
+  qaRealHttp?: boolean;
 };
 
 export function createClientAdapter(
   envVersion: string | undefined,
   productionOptions: ProductionClientOptions = {},
 ): MiniappClient {
-  if (envVersion === "develop") return new DevelopmentClient();
+  if (envVersion === "develop") {
+    const useQaHttp = productionOptions.qaRealHttp === true && Boolean(productionOptions.baseUrl?.trim());
+    if (!useQaHttp) return new DevelopmentClient();
+  }
   if (productionOptions.baseUrl?.trim() && productionOptions.authProvider) {
     return createLibraryHttpClient({
       baseUrl: productionOptions.baseUrl,

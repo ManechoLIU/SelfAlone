@@ -34,4 +34,44 @@ describe("replaceable client adapter boundary", () => {
     const client = createClientAdapter("develop");
     expect((await client.getBook("dev-local-ink", "filtered-empty")).sections).toEqual([]);
   });
+
+  it("keeps develop on the in-memory adapter when the QA HTTP switch is off", () => {
+    const client = createClientAdapter("develop", {
+      baseUrl: "http://127.0.0.1:4100",
+      authProvider: () => ({
+        kind: "authenticated",
+        token: "opaque-qa-session-token-123456",
+        expiresAt: Date.now() + 60_000,
+      }),
+    });
+    expect(client.kind).toBe("development");
+    expect(client.development).toBe(true);
+  });
+
+  it("stays on the in-memory adapter when develop QA HTTP is on without a base URL", () => {
+    const client = createClientAdapter("develop", {
+      qaRealHttp: true,
+      authProvider: () => ({
+        kind: "authenticated",
+        token: "opaque-qa-session-token-123456",
+        expiresAt: Date.now() + 60_000,
+      }),
+    });
+    expect(client.kind).toBe("development");
+    expect(client.development).toBe(true);
+  });
+
+  it("uses the production HTTP client when develop QA HTTP is on with a loopback base URL", () => {
+    const client = createClientAdapter("develop", {
+      qaRealHttp: true,
+      baseUrl: "http://127.0.0.1:4100",
+      authProvider: () => ({
+        kind: "authenticated",
+        token: "opaque-qa-session-token-123456",
+        expiresAt: Date.now() + 60_000,
+      }),
+    });
+    expect(client.kind).toBe("production");
+    expect(client.development).toBe(false);
+  });
 });

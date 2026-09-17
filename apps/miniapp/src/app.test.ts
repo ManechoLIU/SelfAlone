@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readLocalMiniappRuntimeConfig } from "./runtime-config";
+
+vi.mock("./runtime-config", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./runtime-config")>();
+  return {
+    ...actual,
+    readLocalMiniappRuntimeConfig: vi.fn(() => ({})),
+  };
+});
 
 function memoryStorage() {
   const values = new Map<string, unknown>();
@@ -286,5 +295,105 @@ describe("miniapp WeRead composition", () => {
     expect(injected.getConnection).not.toHaveBeenCalled();
     expect(injected.putConnection).not.toHaveBeenCalled();
     expect(injected.getBooks).not.toHaveBeenCalled();
+  });
+});
+
+describe("miniapp develop QA real HTTP composition", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.mocked(readLocalMiniappRuntimeConfig).mockReturnValue({});
+  });
+
+  function stubWx(extConfig?: Record<string, unknown>) {
+    vi.stubGlobal("App", vi.fn());
+    vi.stubGlobal("wx", {
+      getAccountInfoSync: () => ({ miniProgram: { envVersion: "develop" } }),
+      getExtConfigSync: extConfig ? () => extConfig : undefined,
+      getStorageSync: () => undefined,
+      setStorageSync: vi.fn(),
+      removeStorageSync: vi.fn(),
+    });
+  }
+
+  it("keeps develop on the in-memory client when the QA HTTP switch is off", async () => {
+    stubWx();
+    const { createMiniappGlobalData } = await import("./app");
+    const globalData = createMiniappGlobalData({
+      environment: "develop",
+      apiBaseUrl: "http://127.0.0.1:4100",
+      storage: memoryStorage(),
+    });
+    expect(globalData.client.development).toBe(true);
+    expect(globalData.developmentAdapter).toBe(true);
+  });
+
+  it("uses the production HTTP client when options enable QA HTTP with a loopback origin", async () => {
+    stubWx();
+    const { createMiniappGlobalData } = await import("./app");
+    const globalData = createMiniappGlobalData({
+      environment: "develop",
+      qaRealHttp: true,
+      apiBaseUrl: "http://127.0.0.1:4100",
+      storage: memoryStorage(),
+    });
+    expect(globalData.client.kind).toBe("production");
+    expect(globalData.client.development).toBe(false);
+    expect(globalData.developmentAdapter).toBe(false);
+  });
+
+  it("enables QA HTTP from extConfig sa2QaRealHttp and a loopback origin", async () => {
+    stubWx({ sa2QaRealHttp: true, apiBaseUrl: "http://localhost:4100" });
+    const { createMiniappGlobalData } = await import("./app");
+    const globalData = createMiniappGlobalData({
+      environment: "develop",
+      storage: memoryStorage(),
+    });
+    expect(globalData.client.kind).toBe("production");
+    expect(globalData.client.development).toBe(false);
+  });
+
+  it("enables QA HTTP from storage sa2QaRealHttp when a loopback origin is supplied", async () => {
+    stubWx();
+    const { createMiniappGlobalData } = await import("./app");
+    const storage = memoryStorage();
+    storage.set("sa2QaRealHttp", true);
+    const globalData = createMiniappGlobalData({
+      environment: "develop",
+      apiBaseUrl: "http://127.0.0.1:4100",
+      storage,
+    });
+    expect(globalData.client.development).toBe(false);
+    expect(globalData.developmentAdapter).toBe(false);
+  });
+
+  it("enables QA HTTP from gitignored local json before extConfig and storage", async () => {
+    stubWx({ sa2QaRealHttp: false, apiBaseUrl: "https://api.example.test" });
+    vi.mocked(readLocalMiniappRuntimeConfig).mockReturnValue({
+      sa2QaRealHttp: true,
+      apiBaseUrl: "http://127.0.0.1:4100",
+    });
+    const { createMiniappGlobalData } = await import("./app");
+    const storage = memoryStorage();
+    storage.set("sa2QaRealHttp", false);
+    const globalData = createMiniappGlobalData({
+      environment: "develop",
+      storage,
+    });
+    expect(globalData.client.kind).toBe("production");
+    expect(globalData.client.development).toBe(false);
+  });
+
+  it("does not honor the QA HTTP switch outside develop", async () => {
+    stubWx();
+    const { createMiniappGlobalData } = await import("./app");
+    const globalData = createMiniappGlobalData({
+      environment: "release",
+      qaRealHttp: true,
+      apiBaseUrl: "http://127.0.0.1:4100",
+      storage: memoryStorage(),
+    });
+    expect(globalData.client.kind).toBe("unavailable");
+    expect(globalData.client.development).toBe(false);
+    expect(globalData.developmentAdapter).toBe(false);
   });
 });

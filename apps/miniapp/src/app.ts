@@ -23,7 +23,12 @@ import {
 import { createPptIntentStore } from "./core/ppt-intent";
 import { createSessionStore, type KeyValueStorage, type Session, type SessionStoreOptions } from "./core/session";
 import { currentEnvironment, wxStorage } from "./platform";
-import { readHostMiniappRuntimeConfig, resolveMiniappRuntimeConfig } from "./runtime-config";
+import {
+  readHostMiniappExtConfig,
+  readLocalMiniappRuntimeConfig,
+  resolveMiniappRuntimeConfig,
+  resolveQaRealHttpFlag,
+} from "./runtime-config";
 
 export type MiniappGlobalData = {
   client: MiniappClient;
@@ -40,6 +45,8 @@ export type MiniappGlobalData = {
 export type MiniappRuntimeOptions = SessionStoreOptions & {
   /** Explicit host-provided API origin; omitted means fail closed. */
   apiBaseUrl?: string;
+  /** Develop-only QA switch. Default off; not a production default. */
+  qaRealHttp?: boolean;
   storage?: KeyValueStorage;
   authTransport?: MiniAuthTransport;
   conversationTransport?: ConversationTransport;
@@ -52,10 +59,23 @@ export type MiniappRuntimeOptions = SessionStoreOptions & {
 export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): MiniappGlobalData {
   const storage = options.storage ?? wxStorage;
   const environment = options.environment ?? currentEnvironment();
-  const runtimeConfig = Object.hasOwn(options, "apiBaseUrl")
-    ? resolveMiniappRuntimeConfig(options.apiBaseUrl)
-    : readHostMiniappRuntimeConfig();
-  const developmentAdapter = environment === "develop";
+  const localConfig = readLocalMiniappRuntimeConfig();
+  const extConfig = readHostMiniappExtConfig();
+  const qaFlag = environment === "develop" && resolveQaRealHttpFlag({
+    optionValue: options.qaRealHttp,
+    optionProvided: Object.hasOwn(options, "qaRealHttp"),
+    localConfig,
+    extConfig,
+    storage,
+  });
+  const apiBaseUrlCandidate = Object.hasOwn(options, "apiBaseUrl")
+    ? options.apiBaseUrl
+    : (qaFlag && typeof localConfig.apiBaseUrl === "string"
+      ? localConfig.apiBaseUrl
+      : extConfig.apiBaseUrl);
+  const runtimeConfig = resolveMiniappRuntimeConfig(apiBaseUrlCandidate, { allowLoopback: qaFlag });
+  const qaRealHttp = qaFlag && Boolean(runtimeConfig.apiBaseUrl);
+  const developmentAdapter = environment === "develop" && !qaRealHttp;
   const sessionStore = createSessionStore(
     storage,
     { developmentAdapter },
@@ -77,6 +97,7 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
     authProvider: () => sessionStore.restore(),
     onUnauthorized,
     transport: options.libraryTransport,
+    qaRealHttp,
   });
   const conversationClient = createConversationApiClient({
     baseUrl: runtimeConfig.apiBaseUrl,
@@ -95,7 +116,7 @@ export function createMiniappGlobalData(options: MiniappRuntimeOptions = {}): Mi
   const pptIntentStore = createPptIntentStore(storage, { developmentAdapter: client.development });
   // WeRead has no runtime override: develop gets the deterministic in-memory
   // port, every other environment stays fail-closed on the no-call port.
-  const wereadClient = developmentAdapter ? createDevelopmentWeReadPort() : createNoCallWeReadPort();
+  const wereadClient = environment === "develop" ? createDevelopmentWeReadPort() : createNoCallWeReadPort();
 
   const globalData: MiniappGlobalData = {
     client,
